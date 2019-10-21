@@ -210,17 +210,22 @@ One can get all synapses in a ROI (as a `data.frame`) using the `neuprint_get_sy
 
 ```{r}
 EPG_L_synapses = neuprint_get_synapses(EPGLNames$bodyid,"EB")
+R4d_L_synapses = neuprint_get_synapses(R4dNames$bodyid,"EB")
 EPG_L0_synapses = neuprint_get_synapses(EPGLNames$bodyid[1],"EB")
 R4d_L0_synapses = neuprint_get_synapses(R4dNames$bodyid[1],"EB")
 head(R4d_L0_synapses)
 ```
 ```{r}
 
-EPG_L0_synapses = EPG_L0_synapses %>% mutate(name="EPG-1")
-R4d_L0_synapses = R4d_L0_synapses %>% mutate(name="R4d-1")
+EPG_L0_synapses = EPG_L0_synapses %>% mutate(name="EPG-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+R4d_L0_synapses = R4d_L0_synapses %>% mutate(name="R4d-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+R4d_L_synapses = R4d_L_synapses %>% mutate(name="R4d-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
 
-EPGandR4d0synapes = rbind(EPG_L0_synapses,R4d_L0_synapses) %>%
-                  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost)) ## Somehow those are by default factors
+
+EPGandR4d0synapes = rbind(EPG_L0_synapses,R4d_L0_synapses)  ## Somehow those are by default factors
 
 ```
 
@@ -233,14 +238,14 @@ ggplot(EPGandR4d0synapes) + geom_point(aes(y,z,color= interaction(name,prepost))
 
 
 ```{r}
-R4d0ToEPG0synapes = R4d_L0_synapses %>%
+R4dToEPG0synapes = R4d_L_synapses %>%
                     filter(partner == EPGLNames$bodyid[1]) %>%
                     filter(prepost == 1)
 ```
 
 ```{r}
-ggplot() + geom_point(data=EPG_L0_synapses,aes(x,z,color= prepost)) + geom_point(data=R4d0ToEPG0synapes,aes(x,z),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
-ggplot() + geom_point(data=EPG_L0_synapses,aes(x,y,color= prepost)) + geom_point(data=R4d0ToEPG0synapes,aes(x,y),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
+ggplot() + geom_point(data=EPG_L0_synapses,aes(x,z,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,z),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
+ggplot() + geom_point(data=EPG_L0_synapses,aes(x,y,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,y),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
 ```
 
 
