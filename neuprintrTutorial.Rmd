@@ -81,11 +81,11 @@ We're then using the various utilities to process `data.frames` in dplyr (see [t
 
 ```{r}
 lalPostConnections = lalPostConnections %>% 
-                       filter(weight>5) %>%
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
-                       ungroup()
-## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the post synaptic neuron inputs.
+                       ungroup() %>%
+                       filter(weight>5)
+## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the pre synaptic neuron outputs.
 
 connectionsPerName = lalPostConnections %>%
                        group_by(name,partnerName) %>%
@@ -142,17 +142,18 @@ PFLbNames = neuprint_search("PB12b.*")
 Getting the connection tables for the neurons we're interested in, in a given compartment then process to limit to connections within that set.
 
 ```{r}
-PFLDelta6Connections = neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"PRE","FB")
+PFLDelta6Connections = neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"POST","FB")
 ```
 
 ```{r}
 PFLDelta6Connections = PFLDelta6Connections %>%
-                       filter(partner %in% bodyid)  %>%
                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
-                       ungroup()
-## The filter operation select partners so that they're also part of the neuron set (meaning we want connections within our neuron set, not to any neuron). The rest of the operations are the same we used before, adding neuron names and defining the weight as the proportion of inputs in the neuropile
+                        ungroup()  %>%
+                        filter(partner %in% bodyid) 
+                     
+## The filter operation select partners so that they're also part of the neuron set (meaning we want connections within our neuron set, not to any neuron). The rest of the operations are the same we used before, adding neuron names and defining the weight as the proportion of inputs to that neuron in that neuropile
 
 ```
 
@@ -163,7 +164,20 @@ ggplot(PFLDelta6Connections) + geom_tile(aes(name,partnerName,fill=weightRelativ
 
 Note : The convenience function for adjacency matrices doesn't seem to be working.
 
+### Neurons in a region
 
+```{r}
+no1Connect = neuprint_find_neurons("NO1",all_segments = FALSE)
+no1Table = neuprint_connection_table(no1Connect$bodyid,"PRE","NO1")   %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() %>% filter(partner %in% bodyid)
+```
+
+```{r}
+ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+```
 
 
 ## Using `Nat` : Neurons and neuronlists
