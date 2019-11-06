@@ -159,7 +159,7 @@ PFLDelta6Connections = PFLDelta6Connections %>%
 
 Plotting the table with ggplot (one might want to define a different order for the PFL names so that they're arranged in a more logical way)
 ```{r}
-ggplot(PFLDelta6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+ggplot(PFLDelta6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input")
 ```
 
 Note : The convenience function for adjacency matrices doesn't seem to be working.
@@ -168,7 +168,7 @@ Note : The convenience function for adjacency matrices doesn't seem to be workin
 
 ```{r}
 no1Connect = neuprint_find_neurons("NO1",all_segments = FALSE)
-no1Table = neuprint_connection_table(no1Connect$bodyid,"PRE","NO1")   %>%
+no1Table = neuprint_connection_table(no1Connect$bodyid,"POST","NO1")   %>%
                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
@@ -176,7 +176,7 @@ no1Table = neuprint_connection_table(no1Connect$bodyid,"PRE","NO1")   %>%
 ```
 
 ```{r}
-ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron")+labs(fill="Input % in NO1")
 ```
 
 
