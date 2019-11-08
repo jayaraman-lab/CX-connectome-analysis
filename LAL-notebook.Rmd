@@ -1,0 +1,256 @@
+---
+title: "LAL explorations"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+options(nat.plotengine = 'rgl')
+```
+
+
+```{r}
+neuprint_login()
+```
+
+### PFLs outputs
+
+```{r}
+PFLaNames = neuprint_search("PB12a.*")
+PFLbNames = neuprint_search("PB12b.*")
+PFLcNames = neuprint_search("PB12c.*")
+head(PFLbNames)
+```
+
+One can then get a table of connections in a roi with a given polarity (for selected neurons):
+
+```{r}
+lalPostConnectionsA = neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL")
+lalPostConnectionsB = neuprint_connection_table(PFLbNames[["bodyid"]],"PRE","LAL")
+lalPostConnectionsC = neuprint_connection_table(PFLcNames[["bodyid"]],"PRE","LAL")
+head(lalPostConnectionsC)
+```
+
+
+```{r}
+lalPostConnectionsA = lalPostConnectionsA %>%
+                     mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   
+
+lalPostConnectionsB = lalPostConnectionsB %>%
+                     mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   
+
+lalPostConnectionsC = lalPostConnectionsC %>%
+                     mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   
+
+
+
+head(lalPostConnectionsB)
+```
+
+
+```{r}
+lalPostConnectionsA = lalPostConnectionsA %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() #%>%
+                       #filter(weight>4)
+## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the post synaptic neuron inputs.
+
+connectionsPerNameA = lalPostConnectionsA %>%
+                       group_by(name,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> partnerName combination 
+
+connectionsPerNeuronA = lalPostConnectionsA %>%
+                       group_by(name,partner) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> bodyId combination 
+
+lalPostConnectionsB = lalPostConnectionsB %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() #%>%
+                       #filter(weight>4)
+## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the post synaptic neuron inputs.
+
+connectionsPerNameB = lalPostConnectionsB %>%
+                       group_by(name,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> partnerName combination 
+
+connectionsPerNeuronB = lalPostConnectionsB %>%
+                       group_by(name,partner) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+lalPostConnectionsC = lalPostConnectionsC %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() #%>%
+                       #filter(weight>4) 
+## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the post synaptic neuron inputs.
+
+connectionsPerNameC = lalPostConnectionsC %>%
+                       group_by(name,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> partnerName combination 
+
+connectionsPerNeuronC = lalPostConnectionsC %>%
+                       group_by(name,partner) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+```
+
+Then plot it with `ggplot2` (see [this other chapter](https://r4ds.had.co.nz/data-visualisation.html))
+```{r}
+ggplot(connectionsPerNameA %>% filter(weight>10)) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+ggplot(connectionsPerNameB %>% filter(weight>10)) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+ggplot(connectionsPerNameC %>% filter(weight>10)) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+connectionsPerSingleA = lalPostConnectionsA %>%
+                       group_by(partnerName,bodyid) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+connectionsPerSingleB = lalPostConnectionsB %>%
+                       group_by(partnerName,bodyid) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+connectionsPerSingleC = lalPostConnectionsC %>%
+                       group_by(partnerName,bodyid) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+ggplot(connectionsPerSingleA %>% filter(weight>8)) + geom_bar(aes(x=as.factor(bodyid),y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+
+ggplot(connectionsPerSingleB %>% filter(weight>8)) + geom_bar(aes(x=as.factor(bodyid),y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+
+ggplot(connectionsPerSingleB %>% filter(weight>8)) + geom_bar(aes(x=as.factor(bodyid),y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+```
+It still seems that a majority of connections from all those neurons are very weak (filtering connections less than 4 reduces a lot the fraction of outputs covered).
+
+### Perspective from the outputs
+
+```{r}
+## How much do the PFL contribute to each neuron/type? Use that to filter for the rest
+totalConnectionsPerNeuronA = lalPostConnectionsA %>%
+                       group_by(partner,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+totalConnectionsPerNeuronB = lalPostConnectionsB %>%
+                       group_by(partner,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+totalConnectionsPerNeuronC = lalPostConnectionsC %>%
+                       group_by(partner,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+```
+
+```{r}
+ggplot(totalConnectionsPerNeuronA) + geom_point(aes(x=partnerName,y=weightRelative,color=partnerName)) + theme(axis.text.x = element_text(angle = 90)) + guides(color="none")
+ggplot(totalConnectionsPerNeuronB) + geom_point(aes(x=partnerName,y=weightRelative,color=partnerName)) + theme(axis.text.x = element_text(angle = 90)) + guides(color="none")
+ggplot(totalConnectionsPerNeuronC) + geom_point(aes(x=partnerName,y=weightRelative,color=partnerName)) + theme(axis.text.x = element_text(angle = 90)) + guides(color="none")
+```
+
+```{r}
+totalConnectionsPerTypeA = lalPostConnectionsA %>%
+                       group_by(partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+totalConnectionsPerTypeB = lalPostConnectionsB %>%
+                       group_by(partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+totalConnectionsPerTypeC = lalPostConnectionsC %>%
+                       group_by(partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+
+highA = totalConnectionsPerTypeA %>% filter(weightRelative>0.02)
+highB = totalConnectionsPerTypeB %>% filter(weightRelative>0.02)
+highC = totalConnectionsPerTypeC %>% filter(weightRelative>0.02)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+ggplot(lalPostConnectionsA %>% filter(partnerName %in% highA$partnerName)) + geom_line(aes(x=name,y=weightRelative,group=partner)) + facet_wrap(~partnerName,scales="free_y") + theme(axis.text.x = element_text(angle = 90))
+ggplot(lalPostConnectionsB  %>% filter(partnerName %in% highB$partnerName)) + geom_line(aes(x=name,y=weightRelative,group=partner)) + facet_wrap(~partnerName,scales="free_y") + theme(axis.text.x = element_text(angle = 90))
+ggplot(lalPostConnectionsC  %>% filter(partnerName %in% highB$partnerName)) + geom_line(aes(x=name,y=weightRelative,group=partner)) + facet_wrap(~partnerName,scales="free_y") + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+### Do output networks interact/overlap
+
+```{r}
+A_outputsMat = neuprint_connection_table(lalPostConnectionsA$partner,"POST","LAL") %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() %>%
+                       filter(partner %in% bodyid) 
+
+B_outputsMat = neuprint_connection_table(lalPostConnectionsB$partner,"POST","LAL")%>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup()%>%
+                       filter(partner %in% bodyid) 
+
+C_outputsMat = neuprint_connection_table(lalPostConnectionsC$partner,"POST","LAL") %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup()%>%
+                       filter(partner %in% bodyid) 
+```
+
+```{r}
+ggplot(A_outputsMat) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+ggplot(B_outputsMat) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+ggplot(C_outputsMat) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90))
+```
+
+
