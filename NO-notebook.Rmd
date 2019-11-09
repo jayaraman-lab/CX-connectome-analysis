@@ -25,7 +25,7 @@ no3Connect = neuprint_find_neurons("NO3",all_segments = FALSE)
 
 ### Use nat to restrict to neurons really innervating a structure
 
-```{r}
+```{r,warning=FALSE,message=FALSE}
 no1Neurons = neuprint_read_neurons(no1Connect$bodyid)
 no2Neurons = neuprint_read_neurons(no2Connect$bodyid)
 no3Neurons = neuprint_read_neurons(no3Connect$bodyid)
@@ -46,6 +46,7 @@ no3Mesh = getROIMesh("NO3")
 ebMesh = getROIMesh("EB")
 pbMesh = getROIMesh("PB")
 ```
+
 ```{r}
 plot3d(no1Mesh,alpha=0.2,color="blue")
 plot3d(no2Mesh,alpha=0.2,color="orange",add=TRUE)
