@@ -30,21 +30,14 @@ no1Neurons = neuprint_read_neurons(no1Connect$bodyid)
 no2Neurons = neuprint_read_neurons(no2Connect$bodyid)
 no3Neurons = neuprint_read_neurons(no3Connect$bodyid)
 ```
-```{r}
-getROIMesh <- function(ROI){
-  roiQuery = neuprintr:::neuprint_fetch(path=paste("api/roimeshes/mesh/hemibrain/",ROI,sep=""),parse.json = FALSE,include_headers = FALSE)
-  meshObj = textConnection(httr::content(roiQuery,as="text"))
-  rgl::readOBJ(meshObj)
-}
-```
 
 
 ```{r}
-no1Mesh = getROIMesh("NO1")
-no2Mesh = getROIMesh("NO2")
-no3Mesh = getROIMesh("NO3")
-ebMesh = getROIMesh("EB")
-pbMesh = getROIMesh("PB")
+no1Mesh = neuprint_ROI_mesh("NO1")
+no2Mesh = neuprint_ROI_mesh("NO2")
+no3Mesh = neuprint_ROI_mesh("NO3")
+ebMesh = neuprint_ROI_mesh("EB")
+pbMesh = neuprint_ROI_mesh("PB")
 ```
 
 ```{r}

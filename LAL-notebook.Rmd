@@ -31,7 +31,7 @@ One can then get a table of connections in a roi with a given polarity (for sele
 lalPostConnectionsA = neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL",all_segments = FALSE)
 lalPostConnectionsB = neuprint_connection_table(PFLbNames[["bodyid"]],"PRE","LAL",all_segments = FALSE)
 lalPostConnectionsC = neuprint_connection_table(PFLcNames[["bodyid"]],"PRE","LAL",all_segments = FALSE)
-head(lalPostConnectionsC)
+head(lalPostConnectionsA)
 ```
 
 
@@ -219,17 +219,10 @@ pflaOutputs = neuprint_read_neurons(unique(lalOutputsA$bodyid))
 pflbOutputs = neuprint_read_neurons(unique(lalOutputsB$bodyid))
 pflcOutputs = neuprint_read_neurons(unique(lalOutputsC$bodyid))
 ```
-```{r}
-getROIMesh <- function(ROI){
-  roiQuery = neuprintr:::neuprint_fetch(path=paste("api/roimeshes/mesh/hemibrain/",ROI,sep=""),parse.json = FALSE,include_headers = FALSE)
-  meshObj = textConnection(httr::content(roiQuery,as="text"))
-  rgl::readOBJ(meshObj)
-}
-```
 
 
 ```{r}
-lalMesh = getROIMesh("LAL")
+lalMesh = neuprint_ROI_mesh("LAL")
 ```
 ```{r}
 inLAL = function(x){subset(x,pointsinside(x,lalMesh))}
