@@ -46,20 +46,20 @@ neuprint_login()
 `neuprint` searches (similar to the search box in the web API) are run as:
 
 ```{r}
-PFLaNames = neuprint_search("PB12a.*")
+PFLaNames <- neuprint_search("PB12a.*")
 head(PFLaNames)
 ```
 which returns a data.frame with basic information.
 
 Another useful basic function allows you to know which ROIs are defined on the server.
 ```{r}
-rois = neuprint_ROIs()
+rois <-  neuprint_ROIs()
 head(rois)
 ```
 One can then get a table of connections in a roi with a given polarity (for selected neurons):
 
 ```{r}
-lalPostConnections = neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL")
+lalPostConnections  <-  neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL")
 head(lalPostConnections)
 ```
 
@@ -69,12 +69,15 @@ As this table only contains bodyIds, we'll use the `neuprint_get_meta` that coll
 
 ```{r}
 ## Using the "within function"
-lalPostConnections = within(lalPostConnections,{partnerName <-neuprint_get_meta(partner)[["name"]]
+lalPostConnections <-  within(lalPostConnections,{partnerName <-neuprint_get_meta(partner)[["name"]]
                                                 name <-neuprint_get_meta(bodyid)[["name"]]})
 
 ## Doing the exact same thing using dplyr and piping
-lalPostConnections = lalPostConnections %>%
-                     mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   
+lalPostConnections <- lalPostConnections %>%
+                      mutate(partnerName = neuprint_get_meta(partner)[["name"]],
+                             name =neuprint_get_meta(bodyid)[["name"]],
+                             type = neuprint_get_meta(bodyid)[["type"]],
+                             partnerType = neuprint_get_meta(partner)[["type"]])   
 
 
 head(lalPostConnections)
@@ -82,14 +85,14 @@ head(lalPostConnections)
 We're then using the various utilities to process `data.frames` in dplyr (see [this chapter](https://r4ds.had.co.nz/transform.html) of the reference book on `tidyverse`) to summarise (in this case)
 
 ```{r}
-lalPostConnections = lalPostConnections %>% 
+lalPostConnections <-  lalPostConnections %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
                        ungroup() %>%
                        filter(weight>5)
 ## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the pre synaptic neuron outputs.
 
-connectionsPerName = lalPostConnections %>%
+connectionsPerName <-  lalPostConnections %>%
                        group_by(name,partnerName) %>%
                        summarise(
                          weightRelative = sum(weightRelative),
@@ -97,7 +100,7 @@ connectionsPerName = lalPostConnections %>%
                        )
 ## same data summed by neuronName -> partnerName combination 
 
-connectionsPerNeuron = lalPostConnections %>%
+connectionsPerNeuron <-  lalPostConnections %>%
                        group_by(name,partner) %>%
                        summarise(
                          weightRelative = sum(weightRelative),
@@ -122,7 +125,7 @@ head(connectionsPerName)
 Operations of the type of what we were doing with `listUniquePartners` in Python, can be done simply with `data.frame` operations (no neuron `type` is pulled from neuprint yet, we could write an equivalent of the simplistic name to type function we wrote in python)
 
 ```{r}
-pbPostConnections = neuprint_connection_table(PFLaNames[["bodyid"]],"POST","PB") %>%
+pbPostConnections <-  neuprint_connection_table(PFLaNames[["bodyid"]],"POST","PB") %>%
                     mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])
 
 with(pbPostConnections,unique(partnerName))
@@ -135,20 +138,20 @@ As a general remark, `neuprintr` is relatively well documented. You can access a
 ```
 Some functions (`neuprint_simple_connectivity` or `neuprint_get_neuron_names`) seem to not be working in my hands -- I suspect because they haven't been adapted to the latest iteration of the ever changing `neuprint` conventions.
 
-### Adajacency matrix
+### Adjacency matrix
 ```{r}
-Delta6aNames = neuprint_search("Delta6a.*")
-PFLbNames = neuprint_search("PB12b.*")
+Delta6aNames <-  neuprint_search("Delta6A.*")
+PFLbNames <-  neuprint_search("PB12b.*")
 ```
 
 Getting the connection tables for the neurons we're interested in, in a given compartment then process to limit to connections within that set.
 
 ```{r}
-PFLDelta6Connections = neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"POST","FB")
+PFLDelta6Connections <-  neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"POST","FB")
 ```
 
 ```{r}
-PFLDelta6Connections = PFLDelta6Connections %>%
+PFLDelta6Connections <-  PFLDelta6Connections %>%
                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
@@ -164,13 +167,26 @@ Plotting the table with ggplot (one might want to define a different order for t
 ggplot(PFLDelta6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input")
 ```
 
-Note : The convenience function for adjacency matrices doesn't seem to be working.
+If we want that as a matrix, we can play around with some dplyr functions, then transform it to a matrix
+```{r}
+PFLDelta6ConnectionsWide <-  pivot_wider(PFLDelta6Connections,id_cols=name,names_from = partnerName,values_from = weightRelative)
+PFLDelta6Matrix <- data.matrix(PFLDelta6ConnectionsWide[,2:ncol(PFLDelta6ConnectionsWide)])
+rownames(PFLDelta6Matrix) <- PFLDelta6ConnectionsWide$name
+```
+
+PFLDelta6Matrix is now a simple matrix you can plot using base functions.
+
+```{r}
+PFLDelta6Matrix[is.na(PFLDelta6Matrix)] <- 0
+heatmap(PFLDelta6Matrix)
+```
+
 
 ### Neurons in a region
 
 ```{r}
-no1Connect = neuprint_find_neurons("NO1",all_segments = FALSE)
-no1Table = neuprint_connection_table(no1Connect$bodyid,"POST","NO1")   %>%
+no1Connect <-  neuprint_find_neurons("NO1",all_segments = FALSE)
+no1Table <-  neuprint_connection_table(no1Connect$bodyid,"POST","NO1")   %>%
                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
@@ -186,17 +202,17 @@ ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(
 `neuron` and `neuronlist` are the base `nat` objects (see this [tutorial by Greg Jefferies](http://natverse.org/nat/articles/neurons-intro.html#neuronlists)) that help deal with anatomy. We can get a `neuronlist` object from bodyIds:  
 
 ```{r message=FALSE, warning=FALSE}
-PFLa = neuprint_read_neurons(PFLaNames$bodyid)
+PFLa <-  neuprint_read_neurons(PFLaNames$bodyid)
 ```
 
 We can use set operations on `neuronlist`
 ```{r message=FALSE, warning=FALSE}
-PFLaRNames = neuprint_search("PB12a.*_R.*")
-PFLaR = neuprint_read_neurons(PFLaRNames$bodyid)
+PFLaRNames <-  neuprint_search("PB12a.*_R.*")
+PFLaR <-  neuprint_read_neurons(PFLaRNames$bodyid)
 ```
 
 ```{r}
-PFLaL = setdiff(PFLa,PFLaR)
+PFLaL <-  setdiff(PFLa,PFLaR)
 ```
 
 Those objects can be plotted super simply
@@ -217,30 +233,30 @@ plot3d(PFLa)
 
 Collecting left EPGs and R4dAs:
 ```{r}
-EPGLNames = neuprint_search("PB08.*_L.*")
-R4dNames = neuprint_search("R4dA.*_L.*")
+EPGLNames <-  neuprint_search("PB08.*_L.*")
+R4dNames <-  neuprint_search("R4dA.*_L.*")
 ```
 
 One can get all synapses in a ROI (as a `data.frame`) using the `neuprint_get_synapes` function
 
 ```{r}
-EPG_L_synapses = neuprint_get_synapses(EPGLNames$bodyid,"EB")
-R4d_L_synapses = neuprint_get_synapses(R4dNames$bodyid,"EB")
-EPG_L0_synapses = neuprint_get_synapses(EPGLNames$bodyid[1],"EB")
-R4d_L0_synapses = neuprint_get_synapses(R4dNames$bodyid[1],"EB")
+EPG_L_synapses <-  neuprint_get_synapses(EPGLNames$bodyid,"EB")
+R4d_L_synapses <-  neuprint_get_synapses(R4dNames$bodyid,"EB")
+EPG_L0_synapses <-  neuprint_get_synapses(EPGLNames$bodyid[1],"EB")
+R4d_L0_synapses <-  neuprint_get_synapses(R4dNames$bodyid[1],"EB")
 head(R4d_L0_synapses)
 ```
 ```{r}
 
-EPG_L0_synapses = EPG_L0_synapses %>% mutate(name="EPG-1")%>%
+EPG_L0_synapses <-  EPG_L0_synapses %>% mutate(name="EPG-1")%>%
                     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-R4d_L0_synapses = R4d_L0_synapses %>% mutate(name="R4d-1")%>%
+R4d_L0_synapses <-  R4d_L0_synapses %>% mutate(name="R4d-1")%>%
                     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-R4d_L_synapses = R4d_L_synapses %>% mutate(name="R4d-1")%>%
+R4d_L_synapses <-  R4d_L_synapses %>% mutate(name="R4d-1")%>%
                     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
 
 
-EPGandR4d0synapes = rbind(EPG_L0_synapses,R4d_L0_synapses)  ## Somehow those are by default factors
+EPGandR4d0synapes <-  rbind(EPG_L0_synapses,R4d_L0_synapses)  ## Somehow those are by default factors
 
 ```
 
@@ -254,7 +270,7 @@ ggplot(EPGandR4d0synapes) + geom_point(aes(y,z,color= interaction(name,prepost))
 #### Seeing the R4d-L synapses in the cloud of EPG synapes
 
 ```{r}
-R4dToEPG0synapes = R4d_L_synapses %>%
+R4dToEPG0synapes <-  R4d_L_synapses %>%
                     filter(partner == EPGLNames$bodyid[1]) %>%
                     filter(prepost == 1)
 ```
