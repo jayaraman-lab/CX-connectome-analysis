@@ -1,0 +1,184 @@
+---
+title: "FB explorations"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+
+Define the FB neuron types
+```{r}
+# Find the name of all neurons that get input in the FB
+allFBNames = neuprint_fetch_custom(cypher = "MATCH (m:`hemibrain-Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain-Neuron`) WHERE (neuron.`FB`= true) RETURN neuron.type AS bodytype")
+
+FBNronNames = sort(unique(unlist(lapply(allFBNames[[2]],function(x){if (!is.null(x[[1]])){x[[1]]}}))))
+```
+
+For each neuron type, find the number of inputs and outputs in or outside of the FB
+```{r}
+library("jsonlite")
+
+rois = neuprint_ROIs()
+
+inNout = data.frame(type = character(),bodyId = integer(),FBPre = integer(),otherPre = integer(),allPre = integer(),FBPost = integer(),otherPost = integer(),allPost = integer())
+
+for (tp in 1:length(FBNronNames)){
+  nmNow = gsub(")","\\\\\\\\\\\\\\\\)",FBNronNames[[tp]])
+  nmNow = gsub("\\(","\\\\\\\\\\\\\\\\(",nmNow)
+  queryNow = "MATCH (m:`hemibrain-Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain-Neuron`) WHERE (neuron.type =~\\\"" %>% paste(nmNow,sep="") %>% paste("\\\" OR neuron.instance =~\\\"",sep="") %>% paste(nmNow,sep="") %>% paste("\\\") RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo, neuron.pre AS npre, neuron.post AS npost",sep="")
+  
+  roiQuery = neuprint_fetch_custom(cypher = queryNow)
+  
+  bodyIds = roiQuery$data %>% lapply(function(x){x[[1]]})
+  roiNums = roiQuery$data %>% lapply(function(x){x[[2]]})
+  totPre = roiQuery$data %>% lapply(function(x){x[[3]]})
+  totPost = roiQuery$data %>% lapply(function(x){x[[4]]})
+  
+  for (bId in 1:length(roiNums)){
+    roiDatNow = jsonlite::fromJSON(as.character(roiNums[bId]))
+    
+    synVec = c(0,0,0,0)
+    
+    for (nm in 1:length(names(roiDatNow))){
+      if (names(roiDatNow)[nm] %in% "FB"){
+        synVec[1] = roiDatNow[[nm]]$pre
+        synVec[3] = roiDatNow[[nm]]$post
+      } else if (grepl("FB",names(roiDatNow)[nm])){
+        break
+      } else {
+        synVec[2] =+ roiDatNow[[nm]]$pre
+        synVec[4] =+ roiDatNow[[nm]]$post
+      }
+    }
+    
+    inNout <- inNout %>% rbind(data.frame(type = FBNronNames[[tp]],bodyId = bodyIds[[bId]],FBPre = synVec[1],otherPre = synVec[2],allPre = totPre[[bId]],FBPost = synVec[3],otherPost = synVec[4],allPost = totPost[[bId]]))
+  }
+  
+}
+
+inNout <- inNout %>% mutate(FBPreRelative = FBPre/allPre)
+inNout <- inNout %>% mutate(FBPostRelative = FBPost/allPost)
+
+inNout <- inNout[which(inNout$FBPostRelative>0.1 | inNout$FBPreRelative>0.1),]
+```
+
+
+Plot the input and output ratios
+```{r}
+
+inptCol = "green"
+outptCol = "magenta"
+
+ggplot(data = inNout[which(!grepl("Delta",inNout$type)),],aes(x=as.factor(type),y=FBPreRelative)) + geom_point(color=outptCol) + geom_point(data = inNout[which(!grepl("Delta",inNout$type)),], aes(x=as.factor(type),y=FBPostRelative),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(data = inNout[which(grepl("FB-",inNout$type)),],aes(x=as.factor(type),y=FBPreRelative)) + geom_point(color=outptCol) + geom_point(data = inNout[which(grepl("FB-",inNout$type)),], aes(x=as.factor(type),y=FBPostRelative),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(data = inNout[which(grepl("FB",inNout$type) & !grepl("FB-",inNout$type)),],aes(x=as.factor(type),y=FBPreRelative)) + geom_point(color=outptCol) + geom_point(data = inNout[which(grepl("FB",inNout$type) & !grepl("FB-",inNout$type)),], aes(x=as.factor(type),y=FBPostRelative),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(data = inNout[which(grepl("PB",inNout$type) | grepl("PFR",inNout$type)),],aes(x=as.factor(type),y=FBPreRelative)) + geom_point(color=outptCol) + geom_point(data = inNout[which(grepl("PB",inNout$type) | grepl("PFR",inNout$type)),], aes(x=as.factor(type),y=FBPostRelative),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(data = inNout[which(!grepl("Delta",inNout$type) & !grepl("FB",inNout$type) & !grepl("PB",inNout$type) & !grepl("PFR",inNout$type)),],aes(x=as.factor(type),y=FBPreRelative)) + geom_point(color=outptCol) + geom_point(data = inNout[which(!grepl("Delta",inNout$type) & !grepl("FB",inNout$type) & !grepl("PB",inNout$type) & !grepl("PFR",inNout$type)),], aes(x=as.factor(type),y=FBPostRelative),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#ggplot(data = inNout[which(!grepl("Delta",inNout$type)),],aes(x=FBPreRelative)) + geom_histogram()
+#ggplot(data = inNout[which(!grepl("Delta",inNout$type)),],aes(x=FBPostRelative)) + geom_histogram()
+    
+```
+
+
+Get the Delta 12s
+```{r}
+D12Names = neuprint_search("Delta12.*")
+D12TypeNames <- D12Names['name'] %>% separate(name,c('type',NA),'_') %>% distinct()
+D12Types <- list()
+for (i in 2:nrow(D12TypeNames)){
+  nameNow <- D12TypeNames[[i,1]]
+  print(nameNow)
+  D12Types[[nameNow]] <- neuprint_search(paste(nameNow,'.*',sep=''))
+}
+D12Types[['Delta12a(AB)']] <- D12Types$'Delta12a'[1:4,]
+D12Types[['Delta12a']] <- D12Types$'Delta12a'[5:8,]
+
+```
+
+Get the Delta6s
+```{r}
+D6Names = neuprint_search("Delta6.*")
+D6TypeNames <- D6Names['name'] %>% separate(name,c('type',NA),'_') %>% distinct()
+D6Types <- list()
+for (i in 1:nrow(D6TypeNames)){
+  nameNow <- D6TypeNames[[i,1]]
+  print(nameNow)
+  D6Types[[nameNow]] <- neuprint_search(paste(nameNow,'.*',sep=''))
+}
+```
+
+Look at their inputs
+```{r}
+
+for (i in 1:length(D12Types)){
+  FBPostConnections  <-  D12Types[[i]][["bodyid"]] %>% neuprint_connection_table("PRE","FB")
+  FBPostConnections <- FBPostConnections %>%
+                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],
+                               name =neuprint_get_meta(bodyid)[["name"]],
+                               type = neuprint_get_meta(bodyid)[["type"]],
+                               partnerType = neuprint_get_meta(partner)[["type"]])
+  FBPostConnections <-  FBPostConnections %>% 
+                         group_by(name) %>% 
+                         mutate(weightRelative = weight/sum(weight)) %>%
+                         ungroup() %>%
+                         filter(weight>5)
+  
+  connectionsPerName <-  FBPostConnections %>%
+                         group_by(name,partnerName) %>%
+                         summarise(
+                           weightRelative = sum(weightRelative),
+                           weight = sum(weight)
+                         )
+  print(ggplot(connectionsPerName) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90)))
+  }
+
+```
+
+Look at a connections matrix between the two sets
+```{r}
+D12D6Connections <-  neuprint_connection_table(c(D12Names[["bodyid"]],D6Names[["bodyid"]]),"POST","FB")
+D12D6Connections <-  D12D6Connections %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],
+                              name =neuprint_get_meta(bodyid)[["name"]],
+                              preType =neuprint_get_meta(bodyid)[["type"]],
+                              postType =neuprint_get_meta(partner)[["type"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                        ungroup()  %>%
+                        filter(partner %in% bodyid) 
+ggplot(D12D6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input")
+```
+
+```{r}
+for (nm in D12TypeNames[['type']]){
+  print(ggplot(D12D6Connections[which(D12D6Connections[['PreType']] == nm), ]) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input"))
+}
+
+```
+
+```{r}
+for (nm in D12TypeNames[['type']]){
+  print(ggplot(D12D6Connections[which(D12D6Connections[['postType']] == nm), ]) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input"))
+}
+```
+
+```{r}
+
+```
+
