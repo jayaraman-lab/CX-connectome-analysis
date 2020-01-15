@@ -20,7 +20,7 @@ neuprint_login()
 Define the FB neuron types
 ```{r}
 # Find the name of all neurons that get input in the FB
-allFBNames = neuprint_fetch_custom(cypher = "MATCH (m:`hemibrain-Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain-Neuron`) WHERE (neuron.`FB`= true) RETURN neuron.type AS bodytype")
+allFBNames = neuprint_fetch_custom(cypher = "MATCH (m:`hemibrain_Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain_Neuron`) WHERE (neuron.`FB`= true) RETURN neuron.type AS bodytype")
 
 FBNronNames = sort(unique(unlist(lapply(allFBNames[[2]],function(x){if (!is.null(x[[1]])){x[[1]]}}))))
 ```
@@ -36,7 +36,7 @@ inNout = data.frame(type = character(),bodyId = integer(),FBPre = integer(),othe
 for (tp in 1:length(FBNronNames)){
   nmNow = gsub(")","\\\\\\\\\\\\\\\\)",FBNronNames[[tp]])
   nmNow = gsub("\\(","\\\\\\\\\\\\\\\\(",nmNow)
-  queryNow = "MATCH (m:`hemibrain-Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain-Neuron`) WHERE (neuron.type =~\\\"" %>% paste(nmNow,sep="") %>% paste("\\\" OR neuron.instance =~\\\"",sep="") %>% paste(nmNow,sep="") %>% paste("\\\") RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo, neuron.pre AS npre, neuron.post AS npost",sep="")
+  queryNow = "MATCH (m:`hemibrain_Meta`) WITH m.superLevelRois AS rois MATCH (neuron :`hemibrain_Neuron`) WHERE (neuron.type =~\\\"" %>% paste0(nmNow) %>% paste0("\\\" OR neuron.instance =~\\\"") %>% paste0(nmNow) %>% paste0("\\\" AND neuron.status = \\\"Traced\\\" AND neuron.cropped = false) RETURN neuron.bodyId AS bodyid, neuron.roiInfo AS roiInfo, neuron.pre AS npre, neuron.post AS npost")
   
   roiQuery = neuprint_fetch_custom(cypher = queryNow)
   
@@ -52,13 +52,17 @@ for (tp in 1:length(FBNronNames)){
     
     for (nm in 1:length(names(roiDatNow))){
       if (names(roiDatNow)[nm] %in% "FB"){
-        synVec[1] = roiDatNow[[nm]]$pre
-        synVec[3] = roiDatNow[[nm]]$post
+        if ("pre" %in% names(roiDatNow[[nm]]))
+          synVec[1] = roiDatNow[[nm]]$pre
+        if ("post" %in% names(roiDatNow[[nm]]))
+          synVec[3] = roiDatNow[[nm]]$post
       } else if (grepl("FB",names(roiDatNow)[nm])){
         break
       } else {
-        synVec[2] =+ roiDatNow[[nm]]$pre
-        synVec[4] =+ roiDatNow[[nm]]$post
+        if ("pre" %in% names(roiDatNow[[nm]]))
+          synVec[2] =+ roiDatNow[[nm]]$pre
+        if ("post" %in% names(roiDatNow[[nm]]))
+          synVec[4] =+ roiDatNow[[nm]]$post
       }
     }
     
@@ -69,10 +73,10 @@ for (tp in 1:length(FBNronNames)){
 
 inNout <- inNout %>% mutate(FBPreRelative = FBPre/allPre)
 inNout <- inNout %>% mutate(FBPostRelative = FBPost/allPost)
+inNout <- inNout %>% mutate(FBPrePostRatio = FBPreRelative/FBPostRelative)
 
 inNout <- inNout[which(inNout$FBPostRelative>0.1 | inNout$FBPreRelative>0.1),]
 ```
-
 
 Plot the input and output ratios
 ```{r}
@@ -92,93 +96,337 @@ ggplot(data = inNout[which(!grepl("Delta",inNout$type) & !grepl("FB",inNout$type
 
 #ggplot(data = inNout[which(!grepl("Delta",inNout$type)),],aes(x=FBPreRelative)) + geom_histogram()
 #ggplot(data = inNout[which(!grepl("Delta",inNout$type)),],aes(x=FBPostRelative)) + geom_histogram()
+
+library(scales)
+inNoutNoDs = inNout[which(!grepl("Delta",inNout$type)),]
+inNoutNoDs <- inNoutNoDs[order(inNoutNoDs$FBPrePostRatio),]
+ggplot(data =  inNoutNoDs,aes(x= reorder(as.factor(type), -FBPrePostRatio),y=FBPrePostRatio+0.001)) + geom_point(color="black") + geom_point(data = inNoutNoDs[which(inNoutNoDs$FBPrePostRatio<1/3),], aes(x= reorder(as.factor(type), -FBPrePostRatio),y=FBPrePostRatio+0.001),color=outptCol)+ geom_point(data = inNoutNoDs[which(inNoutNoDs$FBPrePostRatio>3),], aes(x= reorder(as.factor(type), -FBPrePostRatio),y=FBPrePostRatio+0.001),color=inptCol) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + scale_y_continuous(trans = 'log10') 
+
     
 ```
 
-
-Get the Delta 12s
+Find the input and output types
 ```{r}
-D12Names = neuprint_search("Delta12.*")
-D12TypeNames <- D12Names['name'] %>% separate(name,c('type',NA),'_') %>% distinct()
-D12Types <- list()
-for (i in 2:nrow(D12TypeNames)){
-  nameNow <- D12TypeNames[[i,1]]
-  print(nameNow)
-  D12Types[[nameNow]] <- neuprint_search(paste(nameNow,'.*',sep=''))
-}
-D12Types[['Delta12a(AB)']] <- D12Types$'Delta12a'[1:4,]
-D12Types[['Delta12a']] <- D12Types$'Delta12a'[5:8,]
+outputTypes = inNoutNoDs[which(inNoutNoDs$FBPrePostRatio<1/3),]$type %>% as.character() %>% unique() %>% sort()
+inputTypes = inNoutNoDs[which(inNoutNoDs$FBPrePostRatio>3),]$type %>% as.character() %>% unique() %>% sort()
 
 ```
 
-Get the Delta6s
+Find the shortest path between a given input and output neuron
 ```{r}
-D6Names = neuprint_search("Delta6.*")
-D6TypeNames <- D6Names['name'] %>% separate(name,c('type',NA),'_') %>% distinct()
-D6Types <- list()
-for (i in 1:nrow(D6TypeNames)){
-  nameNow <- D6TypeNames[[i,1]]
-  print(nameNow)
-  D6Types[[nameNow]] <- neuprint_search(paste(nameNow,'.*',sep=''))
-}
+inNrons1 = inputTypes[17] %>% paste(".*",sep="") %>% neuprint_search()
+outNrons1 = outputTypes[19] %>% paste(".*",sep="") %>% neuprint_search()
+
+# Don't forget the min weight!!!
+queryNow = "MATCH (a:`hemibrain_Neuron`{bodyId:" %>% paste0(inNrons1$bodyid[1]) %>% paste0("}), (b:`hemibrain_Neuron`{bodyId:") %>% paste0(outNrons1$bodyid[1]) %>% paste0("}), p = allShortestPaths((a)-[:ConnectsTo*]->(b)) WHERE ALL (x in relationships(p) WHERE x.weight >= 5 AND EXISTS(apoc.convert.fromJsonMap(x.roiInfo).FB)) RETURN length(p) AS `length(path)`, [n in nodes(p) | [n.bodyId, n.type]] AS path, [x in relationships(p) | x.weight] AS weights")
+
+shortestPathQuery = neuprint_fetch_custom(cypher = queryNow)
 ```
 
-Look at their inputs
+Create a Sankey plot of the shortest pathways
 ```{r}
 
-for (i in 1:length(D12Types)){
-  FBPostConnections  <-  D12Types[[i]][["bodyid"]] %>% neuprint_connection_table("PRE","FB")
-  FBPostConnections <- FBPostConnections %>%
-                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],
-                               name =neuprint_get_meta(bodyid)[["name"]],
-                               type = neuprint_get_meta(bodyid)[["type"]],
-                               partnerType = neuprint_get_meta(partner)[["type"]])
-  FBPostConnections <-  FBPostConnections %>% 
-                         group_by(name) %>% 
-                         mutate(weightRelative = weight/sum(weight)) %>%
-                         ungroup() %>%
-                         filter(weight>5)
-  
-  connectionsPerName <-  FBPostConnections %>%
-                         group_by(name,partnerName) %>%
-                         summarise(
-                           weightRelative = sum(weightRelative),
-                           weight = sum(weight)
-                         )
-  print(ggplot(connectionsPerName) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90)))
+
+allNames = c()
+for (path in 1:length(shortestPathQuery$data)){
+  for (link in 1:(shortestPathQuery$data[[path]][[1]]+1)){
+    allNames <- append(allNames,shortestPathQuery$data[[path]][[2]][[link]][[2]])
   }
+}
+
+allNames <- unique(allNames) %>% sort()
+
+SPGroups = c(length(allNames))
+for (nm in 1:length(allNames)){
+  SPGroups[nm] <- "other"
+  if (grepl("FB",allNames[nm])){
+    SPGroups[nm] <- "FB"
+  }
+  if (grepl("Q",allNames[nm])){
+    SPGroups[nm] <- "FB-Q"
+  }
+  if (grepl("PB",allNames[nm])){
+    SPGroups[nm] <- "PB"
+  }
+  if (grepl("Delta",allNames[nm])){
+    SPGroups[nm] <- "Delta"
+  }
+}
+
+allPre = c()
+allPost = c()
+allWeights = c()
+for (path in 1:length(shortestPathQuery$data)){
+  for (link in 1:shortestPathQuery$data[[path]][[1]]){
+    preID = which(allNames %in% shortestPathQuery$data[[path]][[2]][[link]][[2]])
+    allPre <- append(allPre,preID-1)
+    postID = which(allNames %in% shortestPathQuery$data[[path]][[2]][[link+1]][[2]])
+    allPost <- append(allPost,postID-1)
+    allWeights <- append(allWeights,shortestPathQuery$data[[path]][[3]][[link]])  }
+}
+
+SPNodes = data.frame(name = allNames, group = SPGroups )
+SPLinks = data.frame(source = allPre, target = allPost, value = allWeights)
+
+library(networkD3)
+
+sankeyNetwork(Links = SPLinks, Nodes = SPNodes, Source = "source", Target = "target", Value = "value", NodeID = "name", NodeGroup = "group", units = "synapses", fontSize = 12, nodeWidth = 30)
 
 ```
 
-Look at a connections matrix between the two sets
+Find the paths between two given neurons that are at most x steps long
 ```{r}
-D12D6Connections <-  neuprint_connection_table(c(D12Names[["bodyid"]],D6Names[["bodyid"]]),"POST","FB")
-D12D6Connections <-  D12D6Connections %>%
-                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],
-                              name =neuprint_get_meta(bodyid)[["name"]],
-                              preType =neuprint_get_meta(bodyid)[["type"]],
-                              postType =neuprint_get_meta(partner)[["type"]])   %>% 
-                       group_by(name) %>% 
-                       mutate(weightRelative = weight/sum(weight)) %>%
-                        ungroup()  %>%
-                        filter(partner %in% bodyid) 
-ggplot(D12D6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input")
+cxnThresh = 3
+
+inNrons1 = inputTypes[17] %>% paste(".*",sep="") %>% neuprint_search()
+outNrons1 = outputTypes[19] %>% paste(".*",sep="") %>% neuprint_search()
+
+queryNow = "MATCH p = (src :`hemibrain_Neuron` { bodyId: 974627674 })-[:ConnectsTo*0..3]->(dest:`hemibrain_Neuron`{ bodyId: 757694775 }) WHERE ALL (x in relationships(p) WHERE x.weight >= 10 AND EXISTS(apoc.convert.fromJsonMap(x.roiInfo).FB)) RETURN length(p) AS `length(path)`, [n in nodes(p) | [n.bodyId, n.type]] AS path, [x in relationships(p) | x.weight] AS weights"
+
+# )
+
+pathsQuery = neuprint_fetch_custom(cypher = queryNow)
 ```
 
+Create a Sankey plot of these connections grouped by type
 ```{r}
-for (nm in D12TypeNames[['type']]){
-  print(ggplot(D12D6Connections[which(D12D6Connections[['PreType']] == nm), ]) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input"))
+allNames = c()
+for (path in 1:length(pathsQuery$data)){
+  for (link in 1:(pathsQuery$data[[path]][[1]]+1)){
+    allNames <- append(allNames,pathsQuery$data[[path]][[2]][[link]][[2]])
+  }
+}
+
+allNames <- unique(allNames) %>% sort()
+
+SPGroups = c(length(allNames))
+for (nm in 1:length(allNames)){
+  SPGroups[nm] <- "other"
+  if (grepl("FB",allNames[nm])){
+    SPGroups[nm] <- "FB"
+  }
+  if (grepl("Q",allNames[nm])){
+    SPGroups[nm] <- "FB-Q"
+  }
+  if (grepl("PB",allNames[nm])){
+    SPGroups[nm] <- "PB"
+  }
+  if (grepl("Delta",allNames[nm])){
+    SPGroups[nm] <- "Delta"
+  }
+}
+
+allPre = c()
+allPost = c()
+allWeights = c()
+for (path in 1:length(pathsQuery$data)){
+  for (link in 1:pathsQuery$data[[path]][[1]]){
+    preID = which(allNames %in% pathsQuery$data[[path]][[2]][[link]][[2]])
+    allPre <- append(allPre,preID-1)
+    postID = which(allNames %in% pathsQuery$data[[path]][[2]][[link+1]][[2]])
+    allPost <- append(allPost,postID-1)
+    allWeights <- append(allWeights,pathsQuery$data[[path]][[3]][[link]])  }
+}
+
+SPNodes = data.frame(name = allNames, group = SPGroups )
+SPLinks = data.frame(source = allPre, target = allPost, value = allWeights)
+
+library(networkD3)
+
+sankeyNetwork(Links = SPLinks, Nodes = SPNodes, Source = "source", Target = "target", Value = "value", NodeID = "name", NodeGroup = "group", units = "synapses", fontSize = 12, nodeWidth = 30)
+```
+
+Create a Sankey plot of these connections for each individual neuron
+```{r}
+allNames = c()
+allBodyIds = c()
+
+for (path in 1:length(pathsQuery$data)){
+  for (link in 1:(pathsQuery$data[[path]][[1]]+1)){
+    if (!(pathsQuery$data[[path]][[2]][[link]][[1]] %in% allBodyIds)){
+        allNames <- append(allNames,pathsQuery$data[[path]][[2]][[link]][[2]])
+        allBodyIds <- append(allBodyIds,pathsQuery$data[[path]][[2]][[link]][[1]])
+      }
+  }
+}
+
+SPGroups = c(length(allNames))
+for (nm in 1:length(allNames)){
+  SPGroups[nm] <- "other"
+  if (grepl("FB",allNames[nm])){
+    SPGroups[nm] <- "FB"
+  }
+  if (grepl("Q",allNames[nm])){
+    SPGroups[nm] <- "FB-Q"
+  }
+  if (grepl("PB",allNames[nm])){
+    SPGroups[nm] <- "PB"
+  }
+  if (grepl("Delta",allNames[nm])){
+    SPGroups[nm] <- "Delta"
+  }
+}
+
+allPre = c()
+allPost = c()
+allWeights = c()
+for (path in 1:length(pathsQuery$data)){
+  for (link in 1:pathsQuery$data[[path]][[1]]){
+    preID = which(allBodyIds %in% pathsQuery$data[[path]][[2]][[link]][[1]])
+    allPre <- append(allPre,preID-1)
+    postID = which(allBodyIds %in% pathsQuery$data[[path]][[2]][[link+1]][[1]])
+    allPost <- append(allPost,postID-1)
+    allWeights <- append(allWeights,pathsQuery$data[[path]][[3]][[link]])  }
+}
+
+SPNodes = data.frame(name = allNames, group = SPGroups )
+SPLinks = data.frame(source = allPre, target = allPost, value = allWeights)
+
+library(networkD3)
+
+sankeyNetwork(Links = SPLinks, Nodes = SPNodes, Source = "source", Target = "target", Value = "value", NodeID = "name", NodeGroup = "group", units = "synapses", fontSize = 12, nodeWidth = 30)
+```
+
+
+Get all Delta neurons and plot presynapses
+```{r}
+Deltas = neuprint_search("Delta.*")
+DeltaTypes = unique(Deltas$type)
+
+for (typeNow in 1:length(DeltaTypes)){
+  if (is.na(DeltaTypes[typeNow])) {
+    next
+  }
+  DeltaSyns = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
+  DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  
+  p1 <- ggplot(DeltaSyns[which(DeltaSyns$prepost == 1),]) + geom_point(aes(x,z,color= bodyid))+coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(DeltaTypes[typeNow]))
+  
+  print(p1)
 }
 
 ```
 
+Get all Delta neurons and plot postsynapses
 ```{r}
-for (nm in D12TypeNames[['type']]){
-  print(ggplot(D12D6Connections[which(D12D6Connections[['postType']] == nm), ]) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input"))
+Deltas = neuprint_search("Delta.*")
+DeltaTypes = unique(Deltas$type)
+
+for (typeNow in 1:length(DeltaTypes)){
+  if (is.na(DeltaTypes[typeNow])) {
+    next
+  }
+  DeltaSyns = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
+  DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  
+  p1 <- ggplot(DeltaSyns[which(DeltaSyns$prepost == 0),]) + geom_point(aes(x,z,color= bodyid))+coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(DeltaTypes[typeNow]))
+  
+  print(p1)
+}
+
+```
+
+Cluster each Delta into groups of 3 and plot the centers.
+```{r}
+for (typeNow in 1:length(DeltaTypes)){
+  if (is.na(DeltaTypes[typeNow])) {
+    next
+  }
+  bodyIds = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid
+  
+  #allCentsPre = data.frame(cents.x = c(), cents.y = c(), cents.z = c(), bodyid = c())
+  allDists = data.frame(dist1 = c(), dist2 = c(), dist3 = c(), bodyid = c())
+
+  
+  for (bId in 1:length(bodyIds)){
+    DeltaSyns = neuprint_get_synapses(bodyIds[bId])
+    DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+    
+    kmeanMat = DeltaSyns[which(DeltaSyns$prepost == 1),] %>% select(x,y,z)
+    synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
+
+    centDist = dist(synClusts$centers)
+    distsNow = data.frame(dist1 = centDist[1], dist2 = centDist[2], dist3 = centDist[3], bodyid = as.factor(bodyIds[bId]))
+    allDists <- rbind(allDists,distsNow)
+    #centsNow = data.frame(cents = synClusts$centers, bodyid = as.factor(bodyIds[bId]))
+    #allCentsPre <- rbind(allCentsPre,centsNow)
+  }
+  
+  p1 <- ggplot(allDists)+geom_point(aes(x=bodyid, y=dist1))+geom_point(aes(x=bodyid, y=dist2))+geom_point(aes(x=bodyid, y=dist3))
+  
+  print(p1)
 }
 ```
 
 ```{r}
+ThreeClusts = c("Delta0S","Delta12a","Delta12c","Delta12g","Delta12h","Delta6D","Delta6F_a")
 
+for (typeNow in 1:length(DeltaTypes)){
+  if (is.na(DeltaTypes[typeNow])) {
+    next
+  }
+  bodyIds = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid
+  if (DeltaTypes[typeNow] %in% ThreeClusts)
+    numClusts = 3
+  else
+    numClusts = 2
+  
+  allPostGps = data.frame(dist1 = c(), dist2 = c(), dist3 = c(), bodyid = c())
+  
+  for (bId in 1:length(bodyIds)){
+    DeltaSyns = neuprint_get_synapses(bodyIds[bId])
+    DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+    
+    kmeanMat = DeltaSyns[which(DeltaSyns$prepost == 1),] %>% select(x,y,z)
+   
+    synClusts = kmeans(kmeanMat,numClusts, iter.max = 50, nstart = 10)
+    
+    postSyns = DeltaSyns[which(DeltaSyns$prepost == 0),] %>% select(x,y,z) %>% 
+      mutate(dist1 = sqrt((x-synClusts$centers[1,1])^2+(y-synClusts$centers[1,2])^2+(z-synClusts$centers[1,3])^2))  %>% 
+      mutate(dist2 = sqrt((x-synClusts$centers[2,1])^2+(y-synClusts$centers[2,2])^2+(z-synClusts$centers[2,3])^2))
+    if (numClusts == 2){
+      postClustIDs = postSyns %>% select(dist1, dist2) %>% apply(1,which.max)
+      clustGps = data.frame(numGp1 = length(which(postClustIDs == 1)), numGp2 = length(which(postClustIDs == 2)), bodyid = as.factor(bodyIds[bId]))
+    } else if (numClusts == 3){
+      postSyns <- postSyns %>% mutate(dist3 = sqrt((x-synClusts$centers[3,1])^2+(y-synClusts$centers[3,2])^2+(z-synClusts$centers[3,3])^2))
+      postClustIDs = postSyns %>% select(dist1, dist2, dist3) %>% apply(1,which.max)
+      clustGps = data.frame(numGp1 = length(which(postClustIDs == 1)), numGp2 = length(which(postClustIDs == 2)), numGp3 = length(which(postClustIDs == 3)), bodyid = as.factor(bodyIds[bId]))
+    }
+
+    allPostGps <- rbind(allPostGps,clustGps)
+    
+  }
+  if (numClusts==2)
+    p1 <- ggplot(allPostGps)+geom_point(aes(x=bodyid, y=numGp1))+geom_point(aes(x=bodyid, y=numGp2))
+  else
+    p1 <- ggplot(allPostGps)+geom_point(aes(x=bodyid, y=numGp1))+geom_point(aes(x=bodyid, y=numGp2))+geom_point(aes(x=bodyid, y=numGp3))
+  
+  print(p1)
+}
+```
+
+Pull out an example Delta6
+```{r}
+D6s = neuprint_search("Delta6C.*")
+D6syns = neuprint_get_synapses(D6s$bodyid[[1]])
+D6syns <-  D6syns %>% mutate(name="D6")%>%
+  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+ggplot(D6syns[which(D6syns$prepost == 1),]) + geom_point(aes(x,z,color= interaction(name,prepost))) +scale_color_brewer(palette="Set2")+coord_fixed(ratio = 1) + theme_void() + geom_point(data = D6syns[which(D6syns$prepost == 0),],aes(x,z,color= interaction(name,prepost))) +scale_color_brewer(palette="Set2")+coord_fixed(ratio = 1) + theme_void()
+
+kmeanMat = D6syns[which(D6syns$prepost == 1),] %>% select(x,y,z)
+
+maxClusts = 6
+clustStats = data.frame(clustIDs = 1:maxClusts, tot.withinss = integer(maxClusts))
+for (clust in 1:maxClusts){
+  synClusts = kmeans(kmeanMat,clust, iter.max = 50, nstart = 10)
+  clustStats$tot.withinss[clust] = synClusts$tot.withinss
+}
+
+ggplot(clustStats, aes(clustIDs, tot.withinss)) + geom_point() + ylim(0,5E9)
+
+synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
+
+ggplot(D6syns[which(D6syns$prepost == 1),], aes(x,z, color = as.factor(synClusts$cluster))) + geom_point()
 ```
 
