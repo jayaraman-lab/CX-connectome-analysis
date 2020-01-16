@@ -17,43 +17,18 @@ options(nat.plotengine = 'rgl')
 neuprint_login()
 ```
 
-### Some custom functions
+### Import some custom functions into workspace
 ```{r}
-get_rois_df <- function (){
-  rois = neuprint_ROIs()
-  return (data.frame(keyName=names(rois), value=rois, row.names=NULL))
-}
-
-renameRoiColumn <- function(df, slctROI) {
-  df = df %>% rename_at(vars(starts_with(slctROI)), funs(str_replace(., slctROI, "ROI")))
-  df = df %>%rename_at(vars(ends_with(".pre")), funs(str_replace(., ".pre", "_pre")))
-  df = df %>%rename_at(vars(ends_with(".post")), funs(str_replace(., ".post", "_post")))
-  df = df %>%rename_all(funs(str_replace(., "\\(", "")))
-  df = df %>%rename_all(funs(str_replace(., "\\)", "")))
-  
-  return (df)
-}
-
-#remove missing values
-cleanup <- function(df) {
-  df <- unnest(df, colnames(df))
-  df <- na.omit(df)
-  df$bodyname <- as.factor(df$bodyname)
-  df$bodytype <- as.factor(df$bodytype)
-  
-  return (df)
-}
+source("inputOutputRegionsVis.R")
 ```
 
 ### Get neuprint ROIs and reformat to data frame
-
 ```{r}
 roisDf = get_rois_df()
 ```
 
 
 ### Get neurons in ROI
-
 ```{r}
 slctROI = "NO"
 pairedRegion = TRUE
@@ -82,14 +57,11 @@ if (pairedRegion) {
   
   # get full synaptic count
   roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_n_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
-                                                     ROI_n_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% 
-    ungroup()
-  
+                                                     ROI_n_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% ungroup()
 } else {
   roi_Connect <- cleanup(roi_Connect)
   roi_Connect = renameRoiColumn(roi_Connect, slctROI)
 }
-
 ```
 
 
@@ -101,29 +73,8 @@ Select "significant" neurons, i.e. neurons that make a significant number of con
 ```{r}
 minSynapses = 10
 minSumSynapses = 30
-```
 
--> Compute statistics across neurons of the same bodytype
-```{r}
-roi_synStats = roi_Connect %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_n_pre),
-                                                                mean_post = mean(ROI_n_post),
-                                                                sum_pre = sum(ROI_n_pre),
-                                                                sum_post = sum(ROI_n_post),
-                                                                fract_pre = mean(ROI_n_pre/npre),
-                                                                fract_post = mean(ROI_n_post/npost),
-                                                                fract_all = mean((ROI_n_pre+ROI_n_post)/(npost + npre)))
-```
-
-
-```{r}
-
-roi_Connect_filt = full_join(
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_pre >= minSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_post >= minSynapses)$bodytype)),
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_pre >= minSumSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_post >= minSumSynapses)$bodytype)))
-
-
+roi_Connect_filt = filterNeuronTypes(roi_Connect, minSynapses, minSumSynapses)
 ```
 
 
@@ -149,7 +100,6 @@ roi_Connect_rois_df = data.frame(bodyid = numeric(),
                               prepost = character(),
                               count = numeric())
 
-
 for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Connect_rois))-4)]) {
 
   if (length(as.character(filter(roisDf,value == unlist(strsplit(roi, "[.]"))[1])$keyName)) == 1) next
@@ -162,8 +112,8 @@ for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Conn
                             roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
                             hemisphere = as.character(unlist(strsplit(side, "[)]"))[1]),
                             prepost = unlist(strsplit(roi, "[.]"))[2],
-                            count = ( as.numeric(roi_Connect_rois[[roi]]) ) ) 
-                            #count = ( as.numeric(roi_Connect_rois[[roi]]) / (roi_Connect_rois$pre + roi_Connect_rois$post) ) )
+                            count = ( as.numeric(roi_Connect_rois[[roi]]) ), 
+                            normcount = ( as.numeric(roi_Connect_rois[[roi]]) / (roi_Connect_rois$pre + roi_Connect_rois$post) ) )
   roi_Connect_rois_df = bind_rows(roi_Connect_rois_df, roi_Connect_roi)
 }
 
@@ -196,15 +146,16 @@ ggplot(roi_Connect_rois_df, aes(x=roi, y=type, size=count)) +
 ```
 
 
-### Characterize input and output regions of NO neurons *within the NO*
+### Characterize input and output regions of neurons for only a small selection of ROIs
 Regions to look at
 ```{r}
 regs = c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)")
 ```
 
+
 ```{r message=FALSE, warning=FALSE}
 # reorganize such that ROI, #pre and #post become variables
-roi_Connect_intraNO_df = data.frame(bodyid = numeric(),
+roi_Connect_intraRegs_df = data.frame(bodyid = numeric(),
                               name = character(),
                               type = character(),
                               roi = character(),
@@ -213,33 +164,34 @@ roi_Connect_intraNO_df = data.frame(bodyid = numeric(),
 
 for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Connect_rois))-4)]) {
   roiname = as.character(unlist(strsplit(roi, "[.]"))[1])
-  side = as.character(unlist(strsplit(roiname, "[(]"))[2])
-    
   if (roiname %in% regs) {
-      roi_Connect_no = data.frame(bodyid = roi_Connect_rois$bodyid,
+      side = as.character(unlist(strsplit(roiname, "[(]"))[2])
+
+      roi_Connect_reg = data.frame(bodyid = roi_Connect_rois$bodyid,
                                   name = roi_Connect_rois$name, 
                                   type = roi_Connect_rois$type,
                                   roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
                                   hemisphere = as.character(unlist(strsplit(side, "[)]"))[1]),
                                   prepost = unlist(strsplit(roi, "[.]"))[2],
-                                  count = ( as.numeric(roi_Connect_rois[[roi]]) ) ) 
-      roi_Connect_intraNO_df = bind_rows(roi_Connect_intraNO_df, roi_Connect_no)
+                                  count = ( as.numeric(roi_Connect_rois[[roi]]) ),
+                                  normcount = ( as.numeric(roi_Connect_rois[[roi]]) / (roi_Connect_rois$pre + roi_Connect_rois$post) ) )
+      roi_Connect_intraRegs_df = bind_rows(roi_Connect_intraRegs_df, roi_Connect_reg)
   }
 }
 ```
 
 ```{r message=FALSE, warning=FALSE}
-roi_Connect_intraNO_df = filter(roi_Connect_intraNO_df, count > minSynapses)
-roi_Connect_intraNO_df = filter(roi_Connect_intraNO_df, type %in% unique(roi_Connect_filt$bodytype))
+roi_Connect_intraRegs_df = filter(roi_Connect_intraRegs_df, count > minSynapses)
+roi_Connect_intraRegs_df = filter(roi_Connect_intraRegs_df, type %in% unique(roi_Connect_filt$bodytype))
 ```
 
 ```{r}
-ggplot(roi_Connect_intraNO_df, aes(x=roi, y=type, size=count)) + 
+ggplot(roi_Connect_intraRegs_df, aes(x=roi, y=type, size=count)) + 
   geom_point(aes(color=roi)) +
   facet_grid(.~ prepost) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
-ggplot(roi_Connect_intraNO_df, aes(x=roi, y=type, size=count)) + 
+ggplot(roi_Connect_intraRegs_df, aes(x=roi, y=type, size=count)) + 
   geom_point(aes(color=roi)) +
   facet_grid(.~ hemisphere + prepost) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
