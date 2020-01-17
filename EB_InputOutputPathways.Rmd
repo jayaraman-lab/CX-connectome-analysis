@@ -40,7 +40,7 @@ neuprint_login()
 
 # Get general functions
 ```{r}
-source("inputOutputRegionVis.r")
+source("inputOutputRegionsVis.r")
 source("GetNeuronsInRoi.R")
 ```
 
@@ -60,95 +60,9 @@ NamedBodies=Get_AllNeurons_InRoi(ROI, FALSE)
 ```{r}
 PreMaxThresh=10
 PostMaxThresh=10
-GoodNeurons=SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
-```
-
-
-
-
-
-
-
-
-# Re-compute the Pre-to-Post connection table.
-```{r}
-
-# Pre-to-Post connections for named bodies (return all segements and filter) --> subet at end is important or it returns bodyids not contained in NamedBodies
-NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
-                         mutate( PreName =neuprint_get_meta(bodyid)[["name"]], PostName = neuprint_get_meta(partner)[["name"]] )   %>% 
-                         mutate( PreType =neuprint_get_meta(bodyid)[["type"]], PostType = neuprint_get_meta(partner)[["type"]])   %>%  
-                         group_by(PreName) %>% 
-                         ungroup() %>%
-                         rename(Pre_bodyid = bodyid, Post_bodyid = partner)
-NamedConnectTable = subset(NamedConnectTable, Pre_bodyid %in% as.numeric(NamedBodies$bodyid) & Post_bodyid %in% as.numeric(NamedBodies$bodyid) ) 
-
-```
-
-
-# Get average connection table, grouped by neuron type
-```{r}
-
-# Average weights by neuron type
-NamedConnectTable_byType = aggregate(x=NamedConnectTable$weight,
-          by=list(NamedConnectTable$PreType, NamedConnectTable$PostType), FUN=mean)
-names(NamedConnectTable_byType) <- c("PreType", "PostType","weight")
-
-
-```
-
-
-# Plot adjacency matrix of types, with clustering
-```{r}
-
-## Get adjacency matrix (All-to-All)
-UniqueNamedBodies=unique(NamedBodies$bodytype)
-AdjacentMat_byType = matrix(0, nrow = length(UniqueNamedBodies), ncol = length(UniqueNamedBodies))
-rownames(AdjacentMat_byType) = colnames(AdjacentMat_byType) = unlist(UniqueNamedBodies)
-for (val in 1:nrow(NamedConnectTable_byType)){AdjacentMat_byType[ as.character(NamedConnectTable_byType$PreType[val]),
-                        as.character(NamedConnectTable_byType$PostType[val])] = NamedConnectTable_byType$weight[val] }
-
-
-## Do some clustering for visualization purposes
-SynThresh=10
-SymmetricBinary_Matix = AdjacentMat_byType + t(AdjacentMat_byType)
-SymmetricBinary_Matix[SymmetricBinary_Matix<SynThresh]=0
-SymmetricBinary_Matix[SymmetricBinary_Matix>=SynThresh]=1
-dist_mat <- dist(SymmetricBinary_Matix, method = 'binary')
-hclust_avg <- hclust(dist_mat, method = 'average')
-
-# Sort adjacency matrix
-SortedWeightMatrix=AdjacentMat_byType[hclust_avg$order,]
-SortedWeightMatrix=SortedWeightMatrix[,hclust_avg$order]
-
-# Plot clusters
-PlotSynThresh=10
-png(file=paste(SaveDir,"NeuronTypeCluster.png",sep=""), width=20, height=8, units='in', res=500)
-plot(hclust_avg) + theme(text = element_text(size=16))
-dev.off()
-
-# Plot unsorted and sorted adjacency matrices
-xticks <- list(autotick = FALSE, ticks = "outside", tick0 = 0, dtick = 1, ticklen = 1,
-  tickwidth = 1, tickcolor = toRGB("black"),title="PRE")
-yticks <- list(autotick = FALSE, ticks = "outside", tick0 = 0, dtick = 1, ticklen = 1,
-  tickwidth = 1, tickcolor = toRGB("black"),title="POST")
-
-PlotDataType= AdjacentMat_byType
-PlotDataType[PlotDataType<PlotSynThresh]=0
-PlotDataType= replace(PlotDataType, which( PlotDataType==0), NA)
-p4 <- plot_ly(x = rownames(PlotDataType), y = colnames(PlotDataType), z = PlotDataType, type = "heatmap") %>%
- layout(xaxis = yticks, yaxis = xticks, title=paste("Unsorted Adjacency Matrix of neuron types, threshold at ",PlotSynThresh, " synapses"))
-htmlwidgets::saveWidget(as_widget(p4), paste(SaveDir,"UnsortedAdjacencyMatrix_byType.html",sep=""))
-remove(p4)
-
-PlotDataType= SortedWeightMatrix
-PlotDataType[PlotDataType<PlotSynThresh]=0
-PlotDataType= replace(PlotDataType, which( PlotDataType==0), NA)
-p5 <- plot_ly(x = rownames(PlotDataType), y = colnames(PlotDataType), z = PlotDataType, type = "heatmap") %>%
- layout(xaxis = yticks, yaxis = xticks, title=paste("Sorted Adjacency Matrix of neuron types, threshold at ",PlotSynThresh, " synapses"))
-htmlwidgets::saveWidget(as_widget(p5), paste(SaveDir,"SortedAdjacencyMatrix_byType.html",sep=""))
-
-remove(yticks, xticks, PlotDataType, p5)
-
+Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
+list2env(Output ,.GlobalEnv)
+remove(Output)
 ```
 
 
@@ -166,41 +80,6 @@ remove(yticks, xticks, PlotDataType, p5)
 
 
 
-
-
-
-### Filter
-Select "significant" neurons, i.e. neurons that make a significant number of connections in the respective ROI, based on 
-  (a) consistently high pre- and postsynaptic connections across neurons of the same type (mean > minSynapses = 10)
-  (b) large total number of pre- and postsynaptic connections across neurons of the same type (sum > minSumSynapses = 30)
-
-```{r}
-minSynapses = 10
-minSumSynapses = 30
-```
-
--> Compute statistics across neurons of the same bodytype
-```{r}
-roi_synStats = roi_Connect %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_pre),
-                                                                mean_post = mean(ROI_post),
-                                                                sum_pre = sum(ROI_pre),
-                                                                sum_post = sum(ROI_post),
-                                                                fract_pre = mean(ROI_pre/npre),
-                                                                fract_post = mean(ROI_post/npost),
-                                                                fract_all = mean((ROI_pre+ROI_post)/(npost + npre)))
-```
-
-
-```{r}
-
-roi_Connect_filt = full_join(
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_pre >= minSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_post >= minSynapses)$bodytype)),
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_pre >= minSumSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_post >= minSumSynapses)$bodytype)))
-
-
-```
 
 
 
