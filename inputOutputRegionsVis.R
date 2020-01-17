@@ -30,13 +30,13 @@ cleanup <- function(df) {
 filterNeuronTypes = function(df,minSynapses,minSumSynapses){
   
   # -> Compute statistics across neurons of the same bodytype
-  roi_synStats = df %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_n_pre),
-                                                         mean_post = mean(ROI_n_post),
-                                                         sum_pre = sum(ROI_n_pre),
-                                                         sum_post = sum(ROI_n_post),
-                                                         fract_pre = mean(ROI_n_pre/npre),
-                                                         fract_post = mean(ROI_n_post/npost),
-                                                         fract_all = mean((ROI_n_pre+ROI_n_post)/(npost + npre)))
+  roi_synStats = df %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_pre),
+                                                         mean_post = mean(ROI_post),
+                                                         sum_pre = sum(ROI_pre),
+                                                         sum_post = sum(ROI_post),
+                                                         fract_pre = mean(ROI_pre/npre),
+                                                         fract_post = mean(ROI_post/npost),
+                                                         fract_all = mean((ROI_pre+ROI_post)/(npost + npre)))
   
   df = full_join(full_join(filter(df, bodytype %in% filter(roi_synStats, mean_pre >= minSynapses)$bodytype),
                            filter(df, bodytype %in% filter(roi_synStats, mean_post >= minSynapses)$bodytype)),
