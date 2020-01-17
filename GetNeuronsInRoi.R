@@ -153,8 +153,8 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
   
 # Return variables of interest --------------------------------------------
 
- 
-  return(GoodNeurons)
+  Output= list("NamedBodies"=NamedBodies,"ExcludedNeurons"=ExcludedNeurons)
+  return(Output)
   
   
   
