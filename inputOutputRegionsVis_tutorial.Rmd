@@ -30,8 +30,8 @@ roisDf = get_rois_df()
 
 ### Get neurons in ROI
 ```{r}
-slctROI = "NO"
-pairedRegion = TRUE
+slctROI = "EB"
+pairedRegion = FALSE
 
 if (pairedRegion) {
   roiR_Connect = neuprint_find_neurons( paste(slctROI, "(R)", sep="") )
@@ -56,8 +56,8 @@ if (pairedRegion) {
   roi_Connect = full_join(roiR_Connect,roiL_Connect)
   
   # get full synaptic count
-  roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_n_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
-                                                     ROI_n_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% ungroup()
+  roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
+                                                     ROI_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% ungroup()
 } else {
   roi_Connect <- cleanup(roi_Connect)
   roi_Connect = renameRoiColumn(roi_Connect, slctROI)
@@ -149,7 +149,7 @@ ggplot(roi_Connect_rois_df, aes(x=roi, y=type, size=count)) +
 ### Characterize input and output regions of neurons for only a small selection of ROIs
 Regions to look at
 ```{r}
-regs = c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)")
+regs = c('EBr1','EBr2r4','EBr3am','EBr3d','EBr3pw','EBr5','EBr6')#c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)")
 ```
 
 
@@ -191,10 +191,10 @@ ggplot(roi_Connect_intraRegs_df, aes(x=roi, y=type, size=count)) +
   facet_grid(.~ prepost) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
-ggplot(roi_Connect_intraRegs_df, aes(x=roi, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(.~ hemisphere + prepost) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+#ggplot(roi_Connect_intraRegs_df, aes(x=roi, y=type, size=count)) + 
+#  geom_point(aes(color=roi)) +
+#  facet_grid(.~ hemisphere + prepost) +
+#  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 ```
 
 
