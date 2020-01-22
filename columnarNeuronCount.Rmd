@@ -1,0 +1,69 @@
+---
+title: "Analyze columnar neuron type numbers"
+output: html_notebook
+---
+#Analysis of Ring neuron connectivity
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(natverse)
+require(matlib)
+```
+
+```{r}
+neuprint_login()
+```
+
+
+### Get all columnar neurons
+
+```{r}
+rois = neuprint_ROIs()
+```
+
+Query for all putative columnar neurons
+```{r}
+my_neurons = neuprint_search(".*_[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}.*")
+```
+
+Reorganize
+```{r}
+my_neurons$col = as.character(regmatches(as.character(my_neurons$name), gregexpr("_[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                 as.character(my_neurons$name))))
+my_neurons$col = as.character(regmatches(as.character(my_neurons$col), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                as.character(my_neurons$col))))
+my_neurons$colnum = as.character(regmatches(as.character(my_neurons$col), gregexpr("[1,2,3,4,5,6,7,8,9]{1}", as.character(my_neurons$col))))
+my_neurons$side = as.character(regmatches(as.character(my_neurons$col), gregexpr("[L,R]{1}", as.character(my_neurons$col))))
+
+```
+
+
+### Count types per column
+```{r}
+colcounts = my_neurons %>% group_by(type, col) %>% count()
+colnumcounts = my_neurons %>% group_by(type, colnum) %>% count()
+```
+
+
+### Visualize
+```{r}
+ggplot(colcounts, 
+       aes(x=col, y=n, color=type, fill=type)) + geom_col() + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+
+ggsave('columnarNeuronCount_PBmap_byType.pdf', plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/",
+  scale = 1., width = 7, height = 14, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+```{r}
+ggplot(colnumcounts, 
+       aes(x=colnum, y=n, color=type, fill=type)) + geom_col() + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+ggplot(my_neurons %>% filter( side %in% c("R","L")), 
+       aes(x=col, color=type, fill=type)) + geom_bar() + facet_grid(rows = vars(side),  scales="free") +
+  guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
