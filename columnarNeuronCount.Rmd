@@ -61,9 +61,23 @@ ggplot(colnumcounts,
        aes(x=colnum, y=n, color=type, fill=type)) + geom_col() + facet_grid(rows = vars(type),  scales="free") +
   guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
 ```
-
 ```{r}
-ggplot(my_neurons %>% filter( side %in% c("R","L")), 
-       aes(x=col, color=type, fill=type)) + geom_bar() + facet_grid(rows = vars(side),  scales="free") +
-  guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+ggplot(my_neurons,aes(x=col,color=type, fill=type)) + geom_bar() + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+
 ```
+
+Look at synapse counts...
+```{r}
+ggplot(my_neurons,aes(fill=type)) + geom_bar(aes(x=col, y=pre), stat="sum") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+
+ggplot(my_neurons,aes(fill=type)) + geom_bar(aes(x=col, y=post), stat="sum") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+
+ggplot(my_neurons,aes(fill=type)) + geom_bar(aes(x=col, y=(pre + post)), stat="sum") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+### TODO: Could look at synapse count breackdown per ROI to see if normalization of synapse counts occurs selectively in some compartments.
