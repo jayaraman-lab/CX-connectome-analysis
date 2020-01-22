@@ -82,6 +82,8 @@ remove(Output)
 ```
 
 
+
+
 # Look at just the right ring neurons and the right ROIs, since all ring neurons innervate only one hemisphere.
 ```{r}
 
@@ -94,10 +96,10 @@ R_R_plotdata=filter(Rneuron_Connect_bytype_df, neuron_hemi=='R' & (roi_hemi=='R'
 R_R_plotdata$roi_names = paste(R_R_plotdata$roi, '(', R_R_plotdata$roi_hemi, ')', sep="")
 
 # Plot all of the ROIs (and sub ROIs) that the right ring neurons innervate
-pdf(file=paste(PlotDir, "RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
-ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) +
+p1<-ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
-dev.off()
+print(p1)
+ggsave(paste(PlotDir, "RingNeuron_","inputOutputRegions_perType.pdf",sep=""), plot = p1, device='pdf', scale = 1, width = 14, height = 8, units ="in", dpi = 600, limitsize = TRUE)
 
 # Plot a subset of the data only in some ROIs
 SynThresh=30
@@ -106,21 +108,172 @@ R_R_plotdataSubset=filter(R_R_plotdataSubset, !(R_R_plotdataSubset$roi %in% "LX"
 R_R_plotdataSubset$roi_names = as.factor(R_R_plotdataSubset$roi_names)
 R_R_plotdataSubset$roi_names <- factor(R_R_plotdataSubset$roi_names, levels = c("BU(R)","LAL(R)","GA(R)","EB(C)", "EBr1(C)","EBr2r4(C)","EBr3am(C)","EBr3d(C)","EBr3pw(C)","EBr5(C)","EBr6(C)"))
 
-pdf(file=paste(PlotDir, "FIGURE_RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
-ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) + 
+
+p2<-ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) + 
   facet_grid(cols=vars(prepost)) + theme_bw() + theme(axis.text.x = element_text(angle = 90))  + 
   guides(fill=FALSE) + ggtitle(paste("Ring Neuron Input/Output ROIs with #synapses > ",as.character(SynThresh),sep=""))
-dev.off()
+print(p2)
+ggsave(paste(PlotDir, "FIGURE_RingNeuron_","inputOutputRegions_perType.pdf",sep=""), plot = p2, device='pdf', scale = 1, width = 14, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+remove(list=c("p1","p2"))
 
 ```
 
 
 
+# Look at just the ExRs
+```{r}
+
+# Get just the ExR neuron data
+ExRneuron_Connect_bytype_df=filter(roi_Connect_bytype_df, startsWith(unlist(roi_Connect_bytype_df$type), "ExR"))
+ExRneuron_Connect_df=filter(roi_Connect_df, startsWith(unlist(roi_Connect_df$type), "ExR"))
+
+# add an ROI name field
+ExRneuron_Connect_bytype_df$roi_names = paste(ExRneuron_Connect_bytype_df$roi, '(', ExRneuron_Connect_bytype_df$roi_hemi, ')', sep="")
+ExRneuron_Connect_bytype_df$type_name = paste(ExRneuron_Connect_bytype_df$type, '(', ExRneuron_Connect_bytype_df$neuron_hemi, ')', sep="")
+
+# Get right ExRs and the left ExRs
+R_ExR_plotdata=filter(ExRneuron_Connect_bytype_df, neuron_hemi=='R')
+L_ExR_plotdata=filter(ExRneuron_Connect_bytype_df, neuron_hemi=='L')
+
+# Plot all of the ROIs (and sub ROIs) that the ALLs ExRs innervate
+p3<-ggplot(ExRneuron_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle("ALL ExR Input/Output ROIs with #synapses")
+print(p3)
+ggsave(paste(PlotDir, "ExR_ALL_","InOutRegions_perType.pdf",sep=""), plot = p3, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Filter by synapse counts
+ExRneuron_Connect_bytype_dfThresh=filter(ExRneuron_Connect_bytype_df, count>SynThresh)
+
+# Plot all ExRs again
+p4<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p4)
+ggsave(paste(PlotDir, "ExR_ALLThresh_","InOutRegions_perType.pdf",sep=""), plot = p4, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+# Filter out some ROIs
+ExRneuron_Connect_bytype_dfThresh=filter(ExRneuron_Connect_bytype_dfThresh, !(ExRneuron_Connect_bytype_dfThresh$roi %in% c("LX","CX","None","FB-column3")))
+
+# Plot all ExRs again
+p5<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p5)
+ggsave(paste(PlotDir, "ExR_ALLThresh2_","InOutRegions_perType.pdf",sep=""), plot = p5, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the ExRs again, but excluding Fb and Eb subregions
+ExRneuron_Connect_bytype_dfThresh_NoLayers=filter(ExRneuron_Connect_bytype_dfThresh, !(startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"EBr") | startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"FBl")) )
+
+p6<-ggplot(ExRneuron_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p6)
+ggsave(paste(PlotDir, "ExR_ALLThresh_NoLayers_","InOutRegions_perType.pdf",sep=""), plot = p6, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the ExRs again, but only in EB
+ExRneuron_Connect_bytype_dfThresh_EBLayers=filter(ExRneuron_Connect_bytype_dfThresh, (startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"EB")))
+
+p7<-ggplot(ExRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p7)
+ggsave(paste(PlotDir, "ExR_ALLThresh_EBLayers_","InOutRegions_perType.pdf",sep=""), plot = p7, device='pdf', scale = 1, width = 12, height = 6, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the ExRs again, but only in FB
+ExRneuron_Connect_bytype_dfThresh_EBLayers=filter(ExRneuron_Connect_bytype_dfThresh, (startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"FB")))
+
+p8<-ggplot(ExRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p8)
+ggsave(paste(PlotDir, "ExR_ALLThresh_FBLayers_","InOutRegions_perType.pdf",sep=""), plot = p8, device='pdf', scale = 1, width = 12, height = 6, units ="in", dpi = 600, limitsize = TRUE)
+
+remove(list=c("p3","p4","p5","p6","p7","p8"))
+
+
+```
 
 
 
+### Make same facet plots for all EB neurons that are not ring neurons or ExRs
+```{r}
+
+# Get all neurons that are not ring or ExRs
+NonR_Connect_bytype_df=filter(roi_Connect_bytype_df, !(startsWith(unlist(roi_Connect_bytype_df$type), "ExR") | startsWith(unlist(roi_Connect_bytype_df$type), "R")) )
+
+# add an ROI name field
+NonR_Connect_bytype_df$roi_names = paste(NonR_Connect_bytype_df$roi, '(', NonR_Connect_bytype_df$roi_hemi, ')', sep="")
+NonR_Connect_bytype_df$type_name = paste(NonR_Connect_bytype_df$type, '(', NonR_Connect_bytype_df$neuron_hemi, ')', sep="")
+
+# Plot all of the ROIs (and sub ROIs) that the ALLs ExRs innervate
+p9<-ggplot(NonR_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle("ALL Non R Input/Output ROIs with #synapses")
+print(p9)
+ggsave(paste(PlotDir, "NonR_ALL_","InOutRegions_perType.pdf",sep=""), plot = p9, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
 
 
+# Filter by synapse counts
+NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_df, count>SynThresh)
+
+# Plot all Non Rs again
+p10<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p10)
+ggsave(paste(PlotDir, "NonR_ALLThresh_","InOutRegions_perType.pdf",sep=""), plot = p10, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+# Filter out some ROIs
+NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_dfThresh, !(NonR_Connect_bytype_dfThresh$roi %in% c("LX","CX","None","FB-column3")))
+
+# Plot all Non Rs again
+p11<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p11)
+ggsave(paste(PlotDir, "NonR_ALLThresh2_","InOutRegions_perType.pdf",sep=""), plot = p11, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the Non Rs again, but excluding Fb and Eb subregions
+NonR_Connect_bytype_dfThresh_NoLayers=filter(NonR_Connect_bytype_dfThresh, !(startsWith(NonR_Connect_bytype_dfThresh$roi,"EBr") | startsWith(NonR_Connect_bytype_dfThresh$roi,"FBl")) )
+
+p12<-ggplot(NonR_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p12)
+ggsave(paste(PlotDir, "NonR_ALLThresh_NoLayers_","InOutRegions_perType.pdf",sep=""), plot = p12, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the Non Rs again, but only in EB
+NonRneuron_Connect_bytype_dfThresh_EBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"EB")))
+
+p13<-ggplot(NonRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p13)
+ggsave(paste(PlotDir, "NonR_ALLThresh_EBLayers_","InOutRegions_perType.pdf",sep=""), plot = p13, device='pdf', scale = 1, width = 12, height = 6, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the NonRs again, but only in FB
+NonRneuron_Connect_bytype_dfThresh_EBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"FB")))
+
+p14<-ggplot(NonRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
+print(p14)
+ggsave(paste(PlotDir, "NonR_ALLThresh_FBLayers_","InOutRegions_perType.pdf",sep=""), plot = p14, device='pdf', scale = 1, width = 12, height = 6, units ="in", dpi = 600, limitsize = TRUE)
+
+remove(list=c("p9","p10","p11","p12","p13","p14"))
+
+
+```
 
 
 
