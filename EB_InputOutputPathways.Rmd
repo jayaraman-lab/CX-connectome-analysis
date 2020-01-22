@@ -71,8 +71,7 @@ remove(Output)
 
 ```
 
-
-# Get the number of synapses in each ROI for individual neurons and individual neuron types
+### Get the number of synapses in each ROI for individual neurons and individual neuron types
 ```{r message=FALSE, warning=FALSE}
 
 minSynapses = 10
@@ -83,39 +82,58 @@ remove(Output)
 ```
 
 
-
-
-
 # Look at just the right ring neurons and the right ROIs, since all ring neurons innervate only one hemisphere.
 ```{r}
 
 # Get just the ring neuron data
 Rneuron_Connect_bytype_df=filter(roi_Connect_bytype_df, startsWith(unlist(roi_Connect_bytype_df$type), "R"))
+Rneuron_Connect_df=filter(roi_Connect_df, startsWith(unlist(roi_Connect_df$type), "R"))
 
-# get right ring neurons and the right side ROIs
+# Get right ring neurons and the right side ROIs
 R_R_plotdata=filter(Rneuron_Connect_bytype_df, neuron_hemi=='R' & (roi_hemi=='R' || roi_hemi=='C') )
 R_R_plotdata$roi_names = paste(R_R_plotdata$roi, '(', R_R_plotdata$roi_hemi, ')', sep="")
 
-
-# Plot all of the ROIs (and sub ROIs the right ring neurons innervate)
+# Plot all of the ROIs (and sub ROIs) that the right ring neurons innervate
 pdf(file=paste(PlotDir, "RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
-ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) + #, rows = vars(roi_hemi) )
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 dev.off()
 
+# Plot a subset of the data only in some ROIs
+SynThresh=30
+R_R_plotdataSubset=filter(R_R_plotdata, R_R_plotdata$count > SynThresh)
+R_R_plotdataSubset=filter(R_R_plotdataSubset, !(R_R_plotdataSubset$roi %in% "LX") )
+R_R_plotdataSubset$roi_names = as.factor(R_R_plotdataSubset$roi_names)
+R_R_plotdataSubset$roi_names <- factor(R_R_plotdataSubset$roi_names, levels = c("BU(R)","LAL(R)","GA(R)","EB(C)", "EBr1(C)","EBr2r4(C)","EBr3am(C)","EBr3d(C)","EBr3pw(C)","EBr5(C)","EBr6(C)"))
 
-ROI_List=c("BU","LAL","GA","CRE","INP","EB", "EBr1","EBr2r4","EBr3am","EBr3d","EBr5","EBr6")
-R_R_plotdataSubset=filter(R_R_plotdata, R_R_plotdata$roi %in% ROI_List)
-
-ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) + #, rows = vars(roi_hemi) )
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
-
+pdf(file=paste(PlotDir, "FIGURE_RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
+ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) + geom_point(aes(color=roi)) + 
+  facet_grid(cols=vars(prepost)) + theme_bw() + theme(axis.text.x = element_text(angle = 90))  + 
+  guides(fill=FALSE) + ggtitle(paste("Ring Neuron Input/Output ROIs with #synapses > ",as.character(SynThresh),sep=""))
+dev.off()
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
