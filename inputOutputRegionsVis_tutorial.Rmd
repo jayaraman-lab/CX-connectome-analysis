@@ -89,6 +89,12 @@ roi_Connect_rois =  mutate(roi_Connect_rois,
                         type = neuprint_get_meta(bodyid)$type,
                         pre = neuprint_get_meta(bodyid)$pre,
                         post = neuprint_get_meta(bodyid)$post) 
+
+
+# rearrange so that information worth viewing is in first few columns
+roi_Connect_rois = roi_Connect_rois[ , c(1,(ncol(roi_Connect_rois)-3):ncol(roi_Connect_rois),2:(ncol(roi_Connect_rois)-4)) ]
+
+
 ```
 
 ```{r message=FALSE, warning=FALSE}
@@ -100,7 +106,7 @@ roi_Connect_rois_df = data.frame(bodyid = numeric(),
                               prepost = character(),
                               count = numeric())
 
-for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Connect_rois))-4)]) {
+for (roi in as.character(colnames(roi_Connect_rois))[6:(length(colnames(roi_Connect_rois)))]) {
 
   if (length(as.character(filter(roisDf,value == unlist(strsplit(roi, "[.]"))[1])$keyName)) == 1) next
   
