@@ -1,22 +1,22 @@
 ---
-title: "Notebook analyzing the input and output pathways of the EB"
+title: "Notebook analyzing the input and output pathways of the EB at the ROI level"
 output:
   html_document:
     df_print: paged
 ---
 
-# Command to clear environment is: rm(list = ls(all.names = TRUE))
-# Load libraries
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
 library(tidyverse)
+library(plotly)
 library(dplyr)
 options(nat.plotengine = 'rgl')
 ```
 
-
-# Configurable inputs: choose ROI and Save directory
+### Configurable inputs: choose ROI and save/plot directories
 ```{r}
 
 # The region of interest.
@@ -25,168 +25,79 @@ ROI="EB"
 # Directory to save data to.
 SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
 
+# Directory to save plots to.
 PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
 
-
 ```
 
-# Create save directory if it doesnt exists yet
+### Create save/plot directory if they dont exists yet
 ```{r}
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 ```
 
-# Connect to neuprint server.
+### Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-# Get general functions
+### Get general functions
 ```{r}
 source("inputOutputRegionsVis.r")
 source("GetNeuronsInRoi.R")
 ```
 
-### Get neuprint ROIs and reformat to data frame
+### Get neuprint ROIs 
 ```{r}
 roisDf = get_rois_df()
 ```
 
-
 ### Get neurons in the ROI
 ```{r}
-NamedBodies=Get_AllNeurons_InRoi(ROI, FALSE)
+
+NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies =  mutate(NamedBodies, cropped = neuprint_get_meta(bodyid)$cropped)
+
 ```
 
-
-### Threshold neurons 
+### Threshold neurons (need to agree on criteria and clean up code)
 ```{r}
+
 PreMaxThresh=10
 PostMaxThresh=10
 Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
 list2env(Output ,.GlobalEnv)
 remove(Output)
-```
-
-
-### Characterize input and output regions of interest
-```{r}
-
-roi_Connect = neuprint_get_roiInfo(NamedBodies$bodyid)
-
-roi_Connect =  mutate(roi_Connect,
-                        name = neuprint_get_meta(bodyid)$name,
-                        type = neuprint_get_meta(bodyid)$type,
-                        neuron_hemi = "C",
-                        pre = neuprint_get_meta(bodyid)$pre,
-                        post = neuprint_get_meta(bodyid)$post) 
-
-
-# rearrange so that information worth viewing is in first few columns
-roi_Connect = roi_Connect[ , c(1,(ncol(roi_Connect)-4):ncol(roi_Connect),2:(ncol(roi_Connect)-5)) ]
-
-
-# Assign neuron_hemi to Left (L), Right (R), or Center/NA (C)
-roi_Connect$neuron_hemi[grepl("_R",as.character(roi_Connect$name))]='R'
-roi_Connect$neuron_hemi[grepl("_L",as.character(roi_Connect$name))]='L'
-
-
 
 ```
 
 
-
-# Get neuron type averages, keeping Left/Right/Center neurons separate
+# Get the number of synapses in each ROI for individual neurons and individual neuron types
 ```{r message=FALSE, warning=FALSE}
 
-# Set all NAs to zeros
-roi_Connect[is.na((roi_Connect))] <- 0
-
-# Average by type
-roi_Connect_bytype=aggregate(roi_Connect[ ,5:length(colnames(roi_Connect))], by=list(unlist(roi_Connect$type[]), unlist(roi_Connect$neuron_hemi)), FUN=mean)
-colnames(roi_Connect_bytype)[c(1,2)] <- c("type","neuron_hemi")
-
-```
-
-
-
-### Parse ROIs and reorganize such that ROI, #pre and #post become variables.
-```{r message=FALSE, warning=FALSE}
-
-
-roi_Connect_bytype_df = data.frame(type = character(),
-                                 roi = character(),
-                                 fullroi= character(),
-                                 neuron_hemi=character(),
-                                 roi_hemi=character(),
-                                 prepost = character(),
-                                 count = numeric() )
-
-
-# Loop over columns, parse ROI info, and insert into new dataframe
-for (roi in as.character(colnames(roi_Connect_bytype))[5:(length(colnames(roi_Connect_bytype)))] ) {
-  
-  roiname = as.character(unlist(strsplit(roi, "[.]"))[1])
-  
-  if (grepl("(R", roi,fixed=TRUE )){
-    roi_hemi="R"
-  } else if ( grepl("(L", roi,fixed=TRUE ) ) {
-     roi_hemi="L"
-  } else {roi_hemi='C'}
-  
-  
-  side = as.character(unlist(strsplit(roiname, "[(]"))[2])
-  
-  Temp_df = data.frame(type = as.character(roi_Connect_bytype$type),
-                       roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
-                       fullroi = as.character(unlist(roi)),
-                       neuron_hemi =  as.character(roi_Connect_bytype$neuron_hemi),
-                       roi_hemi = as.character(roi_hemi),
-                       prepost = as.character(unlist(strsplit(roi, "[.]"))[2]),
-                       count = roi_Connect_bytype[[roi]]  ) 
-  
-  roi_Connect_bytype_df = bind_rows(roi_Connect_bytype_df, Temp_df)
-  remove(Temp_df)
-}
-
-
-
-```
-
-
-
-```{r message=FALSE, warning=FALSE}
 minSynapses = 10
-roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > minSynapses)
-roi_Connect_bytype_df = filter(roi_Connect_bytype_df, type %in% unique(NamedBodies$bodytype))
-```
-
-
-### Plot input and output of all ROIs, both Left/Right/C
-```{r}
-
-ggplot(roi_Connect_bytype_df, aes(x=roi, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) + #, rows = vars(hemisphere)
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
-
-#ggsave(paste(slctROI,"inputOutputRegions_perType.pdf",sep="_"), plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/",
- # scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+Output=InputOutput_ROI_PerNeuron(NamedBodies, minSynapses)
+list2env(Output ,.GlobalEnv)
+remove(Output)
 
 ```
 
 
-# Look at just the R neurons
+
+
+
+# Look at just the right ring neurons and the right ROIs, since all ring neurons innervate only one hemisphere.
 ```{r}
 
+# Get just the ring neuron data
 Rneuron_Connect_bytype_df=filter(roi_Connect_bytype_df, startsWith(unlist(roi_Connect_bytype_df$type), "R"))
 
-# get right ring neurons and the right side ROIs and left right neurons and left ROIs
+# get right ring neurons and the right side ROIs
 R_R_plotdata=filter(Rneuron_Connect_bytype_df, neuron_hemi=='R' & (roi_hemi=='R' || roi_hemi=='C') )
 R_R_plotdata$roi_names = paste(R_R_plotdata$roi, '(', R_R_plotdata$roi_hemi, ')', sep="")
-R_R_plotdata$prepost[R_R_plotdata$prepost=="post"]="Input ROI"
-R_R_plotdata$prepost[R_R_plotdata$prepost=="pre"]="Output ROI"
 
 
+# Plot all of the ROIs (and sub ROIs the right ring neurons innervate)
 pdf(file=paste(PlotDir, "RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
 ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + 
   geom_point(aes(color=roi)) +
@@ -210,6 +121,7 @@ ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) +
 
 # Get synapse distribution for all ring neurons
 ```{r}
+
 
 # Get type name for all ring neurons
 UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
@@ -239,44 +151,41 @@ for (typeNow in 1:length(RingNeuronTypes)){
 
 
 # Get neuron morphologies
-RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
-
+MorphFile=paste(SaveDir,"RingNeuronMorpho.rds",sep="")
+if (file.exists(MorphFile)){
+  RingNeuronMorpho=readRDS(MorphFile)
+} else {
+  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+  saveRDS(RingNeuronMorpho, file = RingNeuronMorpho)
+}
 
 # Get min/max of x,y,z from morphologies
 RingNeuronCharacter=names(RingNeuronMorpho)
-
-
-
-MaxOut <- function getmorphomax(RingNeuronMorpho,RingNeuronCharacter){
-  X_MaxOut=c()
-  X_MinOut=c()
-  Y_MaxOut=c()
-  Y_MinOut=c()
-  Z_MaxOut=c()
-  Z_MinOut=c()
-  for (NNN in 1:length(RingNeuronCharacter)){
-    X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
-    Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
-    Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
-    
-    
-    X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
-    X_MinOut=max( c(X_MinOut, max(eval(parse(text=X_tempstring))) ) )
-    Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
-    Y_MinOut=max( c(Y_MinOut, max(eval(parse(text=Y_tempstring))) ) )
-    Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
-    Z_MinOut=max( c(Z_MinOut, max(eval(parse(text=Z_tempstring))) ) )
-   
-  }
-  MaxOut=c(X_MaxOut,X_MinOut,Y_MaxOut,Y_MinOut,Z_MaxOut,Z_MinOut)
-  return(MaxOut)
+X_MaxOut=c()
+X_MinOut=c()
+Y_MaxOut=c()
+Y_MinOut=c()
+Z_MaxOut=c()
+Z_MinOut=c()
+for (NNN in 1:length(RingNeuronCharacter)){
+  X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
+  Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
+  Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
+  
+  
+  X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
+  X_MinOut=min( c(X_MinOut, min(eval(parse(text=X_tempstring))) ) )
+  Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
+  Y_MinOut=min( c(Y_MinOut, min(eval(parse(text=Y_tempstring))) ) )
+  Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
+  Z_MinOut=min( c(Z_MinOut, min(eval(parse(text=Z_tempstring))) ) )
+  
 }
 
-
-
-
-
-A=max(RingNeuronMorpho$`1105834722`$d$X)
+# Get max and min synapse positions, since clipping doesnt work well.
+XLIM=c( min(c(RingNeuronSynsAll$x,X_MinOut)) , max(c(RingNeuronSynsAll$x),X_MaxOut) )
+YLIM=c( min(c(RingNeuronSynsAll$y,Y_MinOut)) , max(c(RingNeuronSynsAll$y),Y_MaxOut) )
+ZLIM=c( min(c(RingNeuronSynsAll$z,Z_MinOut)) , max(c(RingNeuronSynsAll$z),Z_MaxOut) )
 
 
 # Get meshes for ROIs
@@ -286,17 +195,9 @@ noMesh = neuprint_ROI_mesh("NO")
 lalMesh = neuprint_ROI_mesh("LAL(R)")
 galMesh = neuprint_ROI_mesh("GA(R)")
 
-# Get max and min synapse positions, since clipping doesnt work well.
-XLIM=c(min(RingNeuronSynsAll$x)/0.75, max(RingNeuronSynsAll$x)*1.25)
-YLIM=c(min(RingNeuronSynsAll$y)/0.75, max(RingNeuronSynsAll$y)*1.25)
-ZLIM=c(min(RingNeuronSynsAll$z)/0.75, max(RingNeuronSynsAll$z)*1.25)
 
 # Get view file
 RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
-
-
-
-
 
 # For each ring neuron type, loop over and plot synapse distributions
 for (typeNow in 1:length(RingNeuronTypes)){

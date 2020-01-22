@@ -42,9 +42,6 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
 }
 
 
-
-
-
 SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh) {
 
 # Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI. ---------------
