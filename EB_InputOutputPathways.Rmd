@@ -25,6 +25,8 @@ ROI="EB"
 # Directory to save data to.
 SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
 
+PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
+
 
 ```
 
@@ -38,35 +40,11 @@ if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 neuprint_login()
 ```
 
-
-### Some custom functions (Should be called from R function in future)
+# Get general functions
 ```{r}
-get_rois_df <- function (){
-  rois = neuprint_ROIs()
-  return (data.frame(keyName=names(rois), value=rois, row.names=NULL))
-}
-
-renameRoiColumn <- function(df, slctROI) {
-  df = df %>% rename_at(vars(starts_with(slctROI)), funs(str_replace(., slctROI, "ROI")))
-  df = df %>%rename_at(vars(ends_with(".pre")), funs(str_replace(., ".pre", "_pre")))
-  df = df %>%rename_at(vars(ends_with(".post")), funs(str_replace(., ".post", "_post")))
-  df = df %>%rename_all(funs(str_replace(., "\\(", "")))
-  df = df %>%rename_all(funs(str_replace(., "\\)", "")))
-  
-  return (df)
-}
-
-#remove missing values
-cleanup <- function(df) {
-  df <- unnest(df, colnames(df))
-  df <- na.omit(df)
-  df$bodyname <- as.factor(df$bodyname)
-  df$bodytype <- as.factor(df$bodytype)
-  
-  return (df)
-}
+source("inputOutputRegionsVis.r")
+source("GetNeuronsInRoi.R")
 ```
-
 
 ### Get neuprint ROIs and reformat to data frame
 ```{r}
@@ -74,431 +52,335 @@ roisDf = get_rois_df()
 ```
 
 
-### Get neurons in ROI
+### Get neurons in the ROI
 ```{r}
-slctROI = ROI
-pairedRegion = FALSE
-
-if (pairedRegion) {
-  roiR_Connect = neuprint_find_neurons( paste(slctROI, "(R)", sep=""), all_segments = FALSE )
-  roiL_Connect = neuprint_find_neurons( paste(slctROI, "(L)", sep=""), all_segments = FALSE )
-} else {
-  roi_Connect = neuprint_find_neurons(slctROI, all_segments = FALSE) #not currently working for "NO"
-}
+NamedBodies=Get_AllNeurons_InRoi(ROI, FALSE)
 ```
 
 
-# Remove rows where bodytype is "NA", converte name and type to factors, join data from left and right side
-```{r message=FALSE, warning=FALSE}
-if (pairedRegion) {
-  
-  roiR_Connect <- cleanup(roiR_Connect)
-  roiL_Connect <- cleanup(roiL_Connect)
-  
-  #rename ROI columns 
-  roiR_Connect = renameRoiColumn(roiR_Connect, slctROI)
-  roiL_Connect = renameRoiColumn(roiL_Connect, slctROI)
-  
-  # join data from paired ROI
-  roi_Connect = full_join(roiR_Connect,roiL_Connect)
-  
-  # get full synaptic count
-  roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_n_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
-                                                     ROI_n_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% 
-  ungroup()
-  
-} else {
-  roi_Connect <- cleanup(roi_Connect)
-  roi_Connect = renameRoiColumn(roi_Connect, slctROI)
-}
-
+### Threshold neurons 
+```{r}
+PreMaxThresh=10
+PostMaxThresh=10
+Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
+list2env(Output ,.GlobalEnv)
+remove(Output)
 ```
 
 
-# Rename to my variable names- this will be changed when the above is an R function
-```{r}
-NamedBodies=roi_Connect
-remove(roi_Connect)
-```
-
-
-# Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI.
+### Characterize input and output regions of interest
 ```{r}
 
-# Compute the total number of synapses in the ROI
-NamedBodies=mutate(NamedBodies, PrePost_Syns = (NamedBodies$ROI_pre + NamedBodies$ROI_post))
+roi_Connect = neuprint_get_roiInfo(NamedBodies$bodyid)
 
-# Compute the percent of each body's PRE synapses in the ROI. 
-NamedBodies=mutate(NamedBodies, Pre_Relative = NamedBodies$ROI_pre/unlist(NamedBodies$npre))
-NamedBodies$Pre_Relative[is.nan(NamedBodies$Pre_Relative)] = 0
-
-# Compute the percent of each body's POST synapses in the ROI.
-NamedBodies=mutate(NamedBodies, Post_Relative = NamedBodies$ROI_post/unlist(NamedBodies$npost) )
-NamedBodies$Post_Relative[is.nan(NamedBodies$Post_Relative)] = 0
-
-# Average the relative PRE and relative POST synapses. It's best to average after computing the relative PRE and relative POST
-# so that the measure isn't biased by there being more post synapses than pre synapses on average. 
-NamedBodies=mutate(NamedBodies, PrePost_Relative = (Pre_Relative+Post_Relative)/2)
-
-```
-
-
-# Get Pre-to-Post connection table.
-```{r}
-
-# Pre-to-Post connections for named bodies (return all segements and filter) --> subet at end is important or it returns bodyids not contained in NamedBodies
-NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
-                         mutate( PreName =neuprint_get_meta(bodyid)[["name"]], PostName = neuprint_get_meta(partner)[["name"]] )   %>% 
-                         mutate( PreType =neuprint_get_meta(bodyid)[["type"]], PostType = neuprint_get_meta(partner)[["type"]])   %>%  
-                         group_by(PreName) %>% 
-                         ungroup() %>%
-                         rename(Pre_bodyid = bodyid, Post_bodyid = partner)
-NamedConnectTable = subset(NamedConnectTable, Pre_bodyid %in% as.numeric(NamedBodies$bodyid) & Post_bodyid %in% as.numeric(NamedBodies$bodyid) ) 
-
-```
-
-
-# Calculate the max PRE weight and max POST weight for each bodyID
-```{r}
-
-# Loop over pre-synaptic neurons and find max output weight
-PreMaxWeights=numeric()
-for (prepre in (1:length(NamedBodies$bodyid)) )
-  {
-  Temp=subset(NamedConnectTable, NamedConnectTable$Pre_bodyid==unlist(NamedBodies$bodyid[[prepre]]) )
-  if (length(Temp$Pre_bodyid)==0){PreMaxWeights[prepre]=0
-  }else{PreMaxWeights[prepre]=max(Temp$weight)}
-}
-
-# Loop over post-synaptic neurons and find max output weight
-PostMaxWeights=numeric()
-for (postpost in (1:length(NamedBodies$bodyid)) )
-  {
-  Temp=subset(NamedConnectTable, NamedConnectTable$Post_bodyid==unlist(NamedBodies$bodyid[[postpost]]) )
-  if (length(Temp$Post_bodyid)==0){PostMaxWeights[postpost]=0
-  }else{PostMaxWeights[postpost]=max(Temp$weight)}
-}
-remove(Temp)
-
-# Add data to NamedBodies dataframe
-NamedBodies=mutate(NamedBodies, PreMax = PreMaxWeights)
-NamedBodies=mutate(NamedBodies, PostMax = PostMaxWeights)
-NamedBodies=mutate(NamedBodies, PrePost_Max = (PreMaxWeights+PostMaxWeights))
-
-
-```
-
-
-# Get the average number of Pre and Post synapses for each neuron type for both relative and absolute synapse counts.
-```{r}
-
-NamedBodies_byType <- aggregate(x=NamedBodies[c(paste(ROI, ".pre",sep=""),paste(ROI, ".post",sep=""),"PrePost_Syns","Pre_Relative",
-                                                "Post_Relative","PrePost_Relative","PreMax","PostMax","PrePost_Max")],by=list(unlist(NamedBodies$bodytype[])), FUN=mean)
-names(NamedBodies_byType) <- c("Type","PreSyns", "PostSyns","PrePost_Syns","Pre_Relative","Post_Relative","PrePost_Relative","PreMax","PostMax","PrePost_Max")
-
-```
-
-
-# Make scatter plot of max pre and post synaptic weight.
-```{r}
-
-# Interactive plot of maximum pre vs post synapse weight for named neuron types, where cursor brings up neuron type name
-f <- list(size = 18, color = "black")
-p3a <- plot_ly(type = 'scatter', x = NamedBodies_byType$PreMax, y = NamedBodies_byType$PostMax, mode='markers',
-  text = paste("Type: ", NamedBodies_byType$Type )) %>% 
-  layout(xaxis = list(title = paste("Max PRE Weight in", ROI),titlefont = f), yaxis = list(title = paste("Max POST Weight in",ROI),titlefont = f), 
-         title=" \n \n  Each point is a neuron type")
-htmlwidgets::saveWidget(as_widget(p3a), paste(SaveDir,"Pre_Vs_Post_MaxWeightsPerType_widget.html",sep=""))
-remove(p3a)
-
-
-# Interactive plot of maximum pre+post weight VS relative pre+post weight
-f <- list(size = 18, color = "black")
-p3b <- plot_ly(type = 'scatter', x = NamedBodies_byType$PrePost_Max, y = NamedBodies_byType$PrePost_Relative, mode='markers',
-  text = paste("Type: ", NamedBodies_byType$Type )) %>% 
-  layout(xaxis = list(title = paste("Max PRE+POST Weight in", ROI),titlefont = f), yaxis = list(title = paste("Relative Pre+POST synapses in",ROI),titlefont = f), 
-         title=" \n \n  Each point is a neuron type")
-htmlwidgets::saveWidget(as_widget(p3b), paste(SaveDir,"PrePostMax_Vs_PrePostRelativeSyns_PerType.html",sep=""))
-remove(p3b,f)
-
-
-```
-
-
-# Exclude neurons not in the EB if they dont have a max pre or post weight greater than 10
-```{r}
-
-# First subset the type data frame
-GoodNeuronTypes = NamedBodies_byType$PreMax > 10 | NamedBodies_byType$PostMax > 10 
-ExcludedNeurons_byType=subset(NamedBodies_byType,!GoodNeuronTypes)
-NamedBodies_byType=subset(NamedBodies_byType,GoodNeuronTypes)
-
-# Now subset the neurons themselves based on type
-GoodNeurons = NamedBodies$bodytype %in% NamedBodies_byType$Type
-ExcludedNeurons=subset(NamedBodies,!GoodNeurons)
-NamedBodies=subset(NamedBodies,GoodNeurons)
-
-
-```
-
-
-# Re-compute the Pre-to-Post connection table.
-```{r}
-
-# Pre-to-Post connections for named bodies (return all segements and filter) --> subet at end is important or it returns bodyids not contained in NamedBodies
-NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
-                         mutate( PreName =neuprint_get_meta(bodyid)[["name"]], PostName = neuprint_get_meta(partner)[["name"]] )   %>% 
-                         mutate( PreType =neuprint_get_meta(bodyid)[["type"]], PostType = neuprint_get_meta(partner)[["type"]])   %>%  
-                         group_by(PreName) %>% 
-                         ungroup() %>%
-                         rename(Pre_bodyid = bodyid, Post_bodyid = partner)
-NamedConnectTable = subset(NamedConnectTable, Pre_bodyid %in% as.numeric(NamedBodies$bodyid) & Post_bodyid %in% as.numeric(NamedBodies$bodyid) ) 
-
-```
-
-
-# Get average connection table, grouped by neuron type
-```{r}
-
-# Average weights by neuron type
-NamedConnectTable_byType = aggregate(x=NamedConnectTable$weight,
-          by=list(NamedConnectTable$PreType, NamedConnectTable$PostType), FUN=mean)
-names(NamedConnectTable_byType) <- c("PreType", "PostType","weight")
-
-
-```
-
-
-# Plot adjacency matrix of types, with clustering
-```{r}
-
-## Get adjacency matrix (All-to-All)
-UniqueNamedBodies=unique(NamedBodies$bodytype)
-AdjacentMat_byType = matrix(0, nrow = length(UniqueNamedBodies), ncol = length(UniqueNamedBodies))
-rownames(AdjacentMat_byType) = colnames(AdjacentMat_byType) = unlist(UniqueNamedBodies)
-for (val in 1:nrow(NamedConnectTable_byType)){AdjacentMat_byType[ as.character(NamedConnectTable_byType$PreType[val]),
-                        as.character(NamedConnectTable_byType$PostType[val])] = NamedConnectTable_byType$weight[val] }
-
-
-## Do some clustering for visualization purposes
-SynThresh=10
-SymmetricBinary_Matix = AdjacentMat_byType + t(AdjacentMat_byType)
-SymmetricBinary_Matix[SymmetricBinary_Matix<SynThresh]=0
-SymmetricBinary_Matix[SymmetricBinary_Matix>=SynThresh]=1
-dist_mat <- dist(SymmetricBinary_Matix, method = 'binary')
-hclust_avg <- hclust(dist_mat, method = 'average')
-
-# Sort adjacency matrix
-SortedWeightMatrix=AdjacentMat_byType[hclust_avg$order,]
-SortedWeightMatrix=SortedWeightMatrix[,hclust_avg$order]
-
-# Plot clusters
-PlotSynThresh=10
-png(file=paste(SaveDir,"NeuronTypeCluster.png",sep=""), width=20, height=8, units='in', res=500)
-plot(hclust_avg) + theme(text = element_text(size=16))
-dev.off()
-
-# Plot unsorted and sorted adjacency matrices
-xticks <- list(autotick = FALSE, ticks = "outside", tick0 = 0, dtick = 1, ticklen = 1,
-  tickwidth = 1, tickcolor = toRGB("black"),title="PRE")
-yticks <- list(autotick = FALSE, ticks = "outside", tick0 = 0, dtick = 1, ticklen = 1,
-  tickwidth = 1, tickcolor = toRGB("black"),title="POST")
-
-PlotDataType= AdjacentMat_byType
-PlotDataType[PlotDataType<PlotSynThresh]=0
-PlotDataType= replace(PlotDataType, which( PlotDataType==0), NA)
-p4 <- plot_ly(x = rownames(PlotDataType), y = colnames(PlotDataType), z = PlotDataType, type = "heatmap") %>%
- layout(xaxis = yticks, yaxis = xticks, title=paste("Unsorted Adjacency Matrix of neuron types, threshold at ",PlotSynThresh, " synapses"))
-htmlwidgets::saveWidget(as_widget(p4), paste(SaveDir,"UnsortedAdjacencyMatrix_byType.html",sep=""))
-remove(p4)
-
-PlotDataType= SortedWeightMatrix
-PlotDataType[PlotDataType<PlotSynThresh]=0
-PlotDataType= replace(PlotDataType, which( PlotDataType==0), NA)
-p5 <- plot_ly(x = rownames(PlotDataType), y = colnames(PlotDataType), z = PlotDataType, type = "heatmap") %>%
- layout(xaxis = yticks, yaxis = xticks, title=paste("Sorted Adjacency Matrix of neuron types, threshold at ",PlotSynThresh, " synapses"))
-htmlwidgets::saveWidget(as_widget(p5), paste(SaveDir,"SortedAdjacencyMatrix_byType.html",sep=""))
-
-remove(yticks, xticks, PlotDataType, p5)
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Filter
-Select "significant" neurons, i.e. neurons that make a significant number of connections in the respective ROI, based on 
-  (a) consistently high pre- and postsynaptic connections across neurons of the same type (mean > minSynapses = 10)
-  (b) large total number of pre- and postsynaptic connections across neurons of the same type (sum > minSumSynapses = 30)
-
-```{r}
-minSynapses = 10
-minSumSynapses = 30
-```
-
--> Compute statistics across neurons of the same bodytype
-```{r}
-roi_synStats = roi_Connect %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_pre),
-                                                                mean_post = mean(ROI_post),
-                                                                sum_pre = sum(ROI_pre),
-                                                                sum_post = sum(ROI_post),
-                                                                fract_pre = mean(ROI_pre/npre),
-                                                                fract_post = mean(ROI_post/npost),
-                                                                fract_all = mean((ROI_pre+ROI_post)/(npost + npre)))
-```
-
-
-```{r}
-
-roi_Connect_filt = full_join(
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_pre >= minSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, mean_post >= minSynapses)$bodytype)),
-                      full_join(filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_pre >= minSumSynapses)$bodytype),
-                                filter(roi_Connect, bodytype %in% filter(roi_synStats, sum_post >= minSumSynapses)$bodytype)))
-
-
-```
-
-
-
-### Characterize input and output regions of NO neurons
-
-```{r}
-roi_Connect_rois = neuprint_get_roiInfo(roi_Connect_filt$bodyid)
-
-roi_Connect_rois =  mutate(roi_Connect_rois,
+roi_Connect =  mutate(roi_Connect,
                         name = neuprint_get_meta(bodyid)$name,
                         type = neuprint_get_meta(bodyid)$type,
+                        neuron_hemi = "C",
                         pre = neuprint_get_meta(bodyid)$pre,
                         post = neuprint_get_meta(bodyid)$post) 
+
+
+# rearrange so that information worth viewing is in first few columns
+roi_Connect = roi_Connect[ , c(1,(ncol(roi_Connect)-4):ncol(roi_Connect),2:(ncol(roi_Connect)-5)) ]
+
+
+# Assign neuron_hemi to Left (L), Right (R), or Center/NA (C)
+roi_Connect$neuron_hemi[grepl("_R",as.character(roi_Connect$name))]='R'
+roi_Connect$neuron_hemi[grepl("_L",as.character(roi_Connect$name))]='L'
+
+
+
 ```
 
 
 
+# Get neuron type averages, keeping Left/Right/Center neurons separate
 ```{r message=FALSE, warning=FALSE}
 
-# reorganize such that ROI, #pre and #post become variables
-roi_Connect_rois_df = data.frame(bodyid = numeric(),
-                              name = character(),
-                              type = character(),
-                              roi = character(),
-                              prepost = character(),
-                              count = numeric())
+# Set all NAs to zeros
+roi_Connect[is.na((roi_Connect))] <- 0
+
+# Average by type
+roi_Connect_bytype=aggregate(roi_Connect[ ,5:length(colnames(roi_Connect))], by=list(unlist(roi_Connect$type[]), unlist(roi_Connect$neuron_hemi)), FUN=mean)
+colnames(roi_Connect_bytype)[c(1,2)] <- c("type","neuron_hemi")
+
+```
 
 
-for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Connect_rois))-4)]) {
 
-  if (length(as.character(filter(roisDf,value == unlist(strsplit(roi, "[.]"))[1])$keyName)) == 1) next
+### Parse ROIs and reorganize such that ROI, #pre and #post become variables.
+```{r message=FALSE, warning=FALSE}
+
+
+roi_Connect_bytype_df = data.frame(type = character(),
+                                 roi = character(),
+                                 fullroi= character(),
+                                 neuron_hemi=character(),
+                                 roi_hemi=character(),
+                                 prepost = character(),
+                                 count = numeric() )
+
+
+# Loop over columns, parse ROI info, and insert into new dataframe
+for (roi in as.character(colnames(roi_Connect_bytype))[5:(length(colnames(roi_Connect_bytype)))] ) {
   
   roiname = as.character(unlist(strsplit(roi, "[.]"))[1])
+  
+  if (grepl("(R", roi,fixed=TRUE )){
+    roi_hemi="R"
+  } else if ( grepl("(L", roi,fixed=TRUE ) ) {
+     roi_hemi="L"
+  } else {roi_hemi='C'}
+  
+  
   side = as.character(unlist(strsplit(roiname, "[(]"))[2])
-  roi_Connect_roi = data.frame(bodyid = roi_Connect_rois$bodyid,
-                            name = roi_Connect_rois$name, 
-                            type = roi_Connect_rois$type,
-                            roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
-                            hemisphere = as.character(unlist(strsplit(side, "[)]"))[1]),
-                            prepost = unlist(strsplit(roi, "[.]"))[2],
-                            count = ( as.numeric(roi_Connect_rois[[roi]]) ) ) 
-                            #count = ( as.numeric(roi_Connect_rois[[roi]]) / (roi_Connect_rois$pre + roi_Connect_rois$post) ) )
-  roi_Connect_rois_df = bind_rows(roi_Connect_rois_df, roi_Connect_roi)
+  
+  Temp_df = data.frame(type = as.character(roi_Connect_bytype$type),
+                       roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
+                       fullroi = as.character(unlist(roi)),
+                       neuron_hemi =  as.character(roi_Connect_bytype$neuron_hemi),
+                       roi_hemi = as.character(roi_hemi),
+                       prepost = as.character(unlist(strsplit(roi, "[.]"))[2]),
+                       count = roi_Connect_bytype[[roi]]  ) 
+  
+  roi_Connect_bytype_df = bind_rows(roi_Connect_bytype_df, Temp_df)
+  remove(Temp_df)
 }
+
+
 
 ```
 
 
 
 ```{r message=FALSE, warning=FALSE}
-roi_Connect_rois_df = filter(roi_Connect_rois_df, count > minSynapses)
-roi_Connect_rois_df = filter(roi_Connect_rois_df, type %in% unique(roi_Connect_filt$bodytype))
+minSynapses = 10
+roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > minSynapses)
+roi_Connect_bytype_df = filter(roi_Connect_bytype_df, type %in% unique(NamedBodies$bodytype))
 ```
 
 
-
+### Plot input and output of all ROIs, both Left/Right/C
 ```{r}
-ggplot(roi_Connect_rois_df, aes(x=roi, y=type, size=count)) + 
+
+ggplot(roi_Connect_bytype_df, aes(x=roi, y=type, size=count)) + 
   geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) + #, rows = vars(hemisphere)
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
 #ggsave(paste(slctROI,"inputOutputRegions_perType.pdf",sep="_"), plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/",
  # scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
 ```
 
 
+# Look at just the R neurons
 ```{r}
-ggplot(roi_Connect_rois_df, aes(x=roi, y=type, size=count)) + 
+
+Rneuron_Connect_bytype_df=filter(roi_Connect_bytype_df, startsWith(unlist(roi_Connect_bytype_df$type), "R"))
+
+# get right ring neurons and the right side ROIs and left right neurons and left ROIs
+R_R_plotdata=filter(Rneuron_Connect_bytype_df, neuron_hemi=='R' & (roi_hemi=='R' || roi_hemi=='C') )
+R_R_plotdata$roi_names = paste(R_R_plotdata$roi, '(', R_R_plotdata$roi_hemi, ')', sep="")
+R_R_plotdata$prepost[R_R_plotdata$prepost=="post"]="Input ROI"
+R_R_plotdata$prepost[R_R_plotdata$prepost=="pre"]="Output ROI"
+
+
+pdf(file=paste(PlotDir, "RingNeuron_","inputOutputRegions_perType.pdf",sep=""), width=14, height=8)
+ggplot(R_R_plotdata, aes(x=roi_names, y=type, size=count)) + 
   geom_point(aes(color=roi)) +
-  facet_grid(. ~ hemisphere + prepost) +
+  facet_grid(cols=vars(prepost)) + #, rows = vars(roi_hemi) )
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+dev.off()
+
+
+ROI_List=c("BU","LAL","GA","CRE","INP","EB", "EBr1","EBr2r4","EBr3am","EBr3d","EBr5","EBr6")
+R_R_plotdataSubset=filter(R_R_plotdata, R_R_plotdata$roi %in% ROI_List)
+
+ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type, size=count)) + 
+  geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) + #, rows = vars(roi_hemi) )
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
-#ggsave(paste(slctROI,"inputOutputRegions_perType_perROIside.pdf",sep="_"), plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/",
-#  scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
 ```
 
 
-### Characterize input and output regions of NO neurons *within the NO*
-Regions to look at
+
+# Get synapse distribution for all ring neurons
 ```{r}
-regs = c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)")
-```
 
-```{r message=FALSE, warning=FALSE}
-# reorganize such that ROI, #pre and #post become variables
-roi_Connect_intraNO_df = data.frame(bodyid = numeric(),
-                              name = character(),
-                              type = character(),
-                              roi = character(),
-                              prepost = character(),
-                              count = numeric())
+# Get type name for all ring neurons
+UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
+RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R")]
+RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R") )
 
-for (roi in as.character(colnames(roi_Connect_rois))[2:(length(colnames(roi_Connect_rois))-4)]) {
-  roiname = as.character(unlist(strsplit(roi, "[.]"))[1])
-  side = as.character(unlist(strsplit(roiname, "[(]"))[2])
-    
-  if (roiname %in% regs) {
-      roi_Connect_no = data.frame(bodyid = roi_Connect_rois$bodyid,
-                                  name = roi_Connect_rois$name, 
-                                  type = roi_Connect_rois$type,
-                                  roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
-                                  hemisphere = as.character(unlist(strsplit(side, "[)]"))[1]),
-                                  prepost = unlist(strsplit(roi, "[.]"))[2],
-                                  count = ( as.numeric(roi_Connect_rois[[roi]]) ) ) 
-      roi_Connect_intraNO_df = bind_rows(roi_Connect_intraNO_df, roi_Connect_no)
+# Get all synapses for the ring neurons
+for (typeNow in 1:length(RingNeuronTypes)){
+  # Get BU synapses
+  RingNeuronSyns = NamedBodies[ which(unlist(NamedBodies$bodytype) == RingNeuronTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
+  RingNeuronSyns <-  RingNeuronSyns %>% mutate(name=as.character(RingNeuronTypes[typeNow]))%>%     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  if (typeNow==1){
+    RingNeuronSynsAll= RingNeuronSyns
+  }else{
+    RingNeuronSynsAll <- rbind(RingNeuronSynsAll,RingNeuronSyns)
   }
+  
 }
+
+
+
 ```
 
-```{r message=FALSE, warning=FALSE}
-roi_Connect_intraNO_df = filter(roi_Connect_intraNO_df, count > minSynapses)
-roi_Connect_intraNO_df = filter(roi_Connect_intraNO_df, type %in% unique(roi_Connect_filt$bodytype))
-```
-
+# Make plot of each ring neuron's distribution of synapses 
 ```{r}
-ggplot(roi_Connect_intraNO_df, aes(x=roi, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(.~ prepost) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
-ggplot(roi_Connect_intraNO_df, aes(x=roi, y=type, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(.~ hemisphere + prepost) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+
+
+# Get neuron morphologies
+RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+
+
+# Get min/max of x,y,z from morphologies
+RingNeuronCharacter=names(RingNeuronMorpho)
+
+
+
+MaxOut <- function getmorphomax(RingNeuronMorpho,RingNeuronCharacter){
+  X_MaxOut=c()
+  X_MinOut=c()
+  Y_MaxOut=c()
+  Y_MinOut=c()
+  Z_MaxOut=c()
+  Z_MinOut=c()
+  for (NNN in 1:length(RingNeuronCharacter)){
+    X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
+    Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
+    Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
+    
+    
+    X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
+    X_MinOut=max( c(X_MinOut, max(eval(parse(text=X_tempstring))) ) )
+    Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
+    Y_MinOut=max( c(Y_MinOut, max(eval(parse(text=Y_tempstring))) ) )
+    Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
+    Z_MinOut=max( c(Z_MinOut, max(eval(parse(text=Z_tempstring))) ) )
+   
+  }
+  MaxOut=c(X_MaxOut,X_MinOut,Y_MaxOut,Y_MinOut,Z_MaxOut,Z_MinOut)
+  return(MaxOut)
+}
+
+
+
+
+
+A=max(RingNeuronMorpho$`1105834722`$d$X)
+
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+noMesh = neuprint_ROI_mesh("NO")
+lalMesh = neuprint_ROI_mesh("LAL(R)")
+galMesh = neuprint_ROI_mesh("GA(R)")
+
+# Get max and min synapse positions, since clipping doesnt work well.
+XLIM=c(min(RingNeuronSynsAll$x)/0.75, max(RingNeuronSynsAll$x)*1.25)
+YLIM=c(min(RingNeuronSynsAll$y)/0.75, max(RingNeuronSynsAll$y)*1.25)
+ZLIM=c(min(RingNeuronSynsAll$z)/0.75, max(RingNeuronSynsAll$z)*1.25)
+
+# Get view file
+RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
+
+
+
+
+
+# For each ring neuron type, loop over and plot synapse distributions
+for (typeNow in 1:length(RingNeuronTypes)){
+
+  
+  TempBodies=NamedBodies$bodyid[ as.character(NamedBodies$bodytype)==RingNeuronTypes[typeNow] ]
+  
+  TempMorphos=RingNeuronMorpho[as.character(TempBodies)]
+  TempMorphos=TempMorphos[lengths(TempMorphos) != 0 ]
+
+  
+  RingNeuronSyns = subset(RingNeuronSynsAll,RingNeuronSynsAll$name==RingNeuronTypes[typeNow])
+  
+  # Assign synapses into pre and post groups
+  RingNeuronSyns_Post = RingNeuronSyns %>% filter(prepost==0) 
+  RingNeuronSyns_Pre = RingNeuronSyns %>% filter(prepost==1)
+  
+  # Get view paramters
+  #zoom<-par3d()$zoom
+  #userMatrix<-par3d()$userMatrix
+  #windowRect<-par3d()$windowRect
+  #bbox2<-par3d()$bbox
+  #scale<-par3d()$scale
+  #viewport<-par3d()$viewport
+  #FOV<-par3d()$FOV
+  #pp2 <- par3d(no.readonly=TRUE)
+  
+  nclear3d()
+  
+  
+  bgplot3d({
+    plot.new()
+    title(main = as.character(RingNeuronTypes[typeNow]), line = 3)})
+  
+  plot3d(RingNeuronSyns_Pre[c('x','y','z')], col='seagreen3', xlim = c(XLIM), ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  plot3d(RingNeuronSyns_Post[c('x','y','z')], col='violet', add=TRUE, xlim = XLIM, ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  
+  
+  plot3d(TempMorphos,color="black")
+  plot3d(ebMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(RbuMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(noMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(lalMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(galMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  decorate3d(box=FALSE) 
+  #aspect3d(1,1,1)
+  listener=par3d()$listener
+   
+
+  #FrontView=rbind(c(1,0,0,0),c(0, -0.15,-1,0),c(0, 1, -0.14,0),c(0,0,0,1))
+  #par3d(zoom=0.6)
+  #par3d(windowRect=c(1271, 332, 2563, 1231))
+  #par3d(scale=c(0.813438, 1.333599, 1.038952))
+  #par3d(viewport=c(0, 0, 1292, 899))
+  #par3d(FOV=30)
+  #par3d(userMatrix=FrontView)
+  
+  par3d(RingNeuronView)
+  par3d(listeners=listener)
+  par3d(viewport=c(0, 0, 1292, 899))
+  par3d(windowRect=c(1271, 332, 2563, 1231))
+  
+  
+  
+  
+  FileName=paste('Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/',as.character(RingNeuronTypes[typeNow]),'.png', sep = "")
+  rgl.snapshot(FileName,fmt='png')
+
+  
+  rgl.close()
+  
+}
+
 ```
+
+
+
+
+
+
+
+
+
+
 
 
 
