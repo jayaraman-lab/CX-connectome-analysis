@@ -38,16 +38,14 @@ my_neurons$side = as.character(regmatches(as.character(my_neurons$col), gregexpr
 
 ```
 
-
-### Count types per column
-```{r}
-colcounts = my_neurons %>% group_by(type, col) %>% count()
-colnumcounts = my_neurons %>% group_by(type, colnum) %>% count()
-```
-
-
 ### Visualize
+
+Look at neuron number counts...
 ```{r}
+# Count types per column
+colcounts = my_neurons %>% group_by(type, col) %>% count()
+
+
 ggplot(colcounts, 
        aes(x=col, y=n, color=type, fill=type)) + geom_col() + facet_grid(rows = vars(type),  scales="free") +
   guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
@@ -56,16 +54,6 @@ ggsave('columnarNeuronCount_PBmap_byType.pdf', plot = last_plot(), device='pdf',
   scale = 1.5, width = 10, height = 25, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-```{r}
-ggplot(colnumcounts, 
-       aes(x=colnum, y=n, color=type, fill=type)) + geom_col() + facet_grid(rows = vars(type),  scales="free") +
-  guides(color=FALSE, fill=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
-```
-```{r}
-ggplot(my_neurons,aes(x=col,color=type, fill=type)) + geom_bar() + facet_grid(rows = vars(type),  scales="free") +
-  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
-
-```
 
 Look at synapse counts...
 ```{r}
@@ -80,4 +68,42 @@ ggplot(my_neurons,aes(fill=type)) + geom_bar(aes(x=col, y=(pre + post)), stat="s
 ```
 
 
-### TODO: Could look at synapse count breackdown per ROI to see if normalization of synapse counts occurs selectively in some compartments.
+### Look at synapse count breackdown for a single ROI to see if normalization of synapse counts occurs selectively in some compartments.
+
+Review TODO: check if NA are handled correctly.
+```{r}
+slctROI = "PB"
+
+my_neurons_ROI = bind_cols(my_neurons,
+                       neuprint_get_roiInfo(my_neurons$bodyid)[paste(slctROI,"pre",sep=".")],
+                       neuprint_get_roiInfo(my_neurons$bodyid)[paste(slctROI,"post",sep=".")])
+
+my_neurons_ROI = my_neurons_ROI %>% rename_at(vars(starts_with(slctROI)), funs(str_replace(., slctROI, "ROI")))
+my_neurons_ROI = my_neurons_ROI %>%rename_at(vars(ends_with(".pre")), funs(str_replace(., ".pre", "_pre")))
+my_neurons_ROI = my_neurons_ROI %>%rename_at(vars(ends_with(".post")), funs(str_replace(., ".post", "_post")))
+
+```
+
+```{r}
+ggplot(my_neurons_ROI  %>% filter(ROI_pre + ROI_post > 0),aes(fill=type)) + geom_bar(aes(x=col, y=ROI_pre), stat="sum") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  labs(title=paste("Summed synapse counts in", slctROI,sep=" "))
+
+ggplot(my_neurons_ROI %>% filter(ROI_pre + ROI_post > 0),aes(fill=type)) + geom_bar(aes(x=col, y=ROI_post), stat="sum") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  labs(title=paste("Summed synapse counts in", slctROI,sep=" "))
+```
+
+```{r}
+ggplot(my_neurons_ROI  %>% filter(ROI_pre + ROI_post > 0),aes(fill=type)) + geom_bar(aes(x=col, y=ROI_pre), stat="summary", fun.y = "mean") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  labs(title=paste("Mean synapse counts in", slctROI,sep=" "))
+
+ggplot(my_neurons_ROI %>% filter(ROI_pre + ROI_post > 0),aes(fill=type)) + geom_bar(aes(x=col, y=ROI_post), stat="summary", fun.y = "mean") + facet_grid(rows = vars(type),  scales="free") +
+  guides(color=FALSE, fill=FALSE, size=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  labs(title=paste("Mean synapse counts in", slctROI,sep=" "))
+```
+
+
+
+
