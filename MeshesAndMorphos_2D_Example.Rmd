@@ -44,6 +44,7 @@ neuprint_login()
 
 ### Get general functions
 ```{r}
+source("inputOutputRegionsVis.r")
 source("GetNeuronsInRoi.R")
 ```
 
@@ -95,12 +96,15 @@ if (file.exists(MorphFile)){
 # See if we can get ROI meshes and neuron morphologies in 2D
 ```{r}
 
+
 # Load new library. Might have to install.packages("car")
 library(car)
+library(imager)
 
 # Get meshes for ROIs
 ebMesh = neuprint_ROI_mesh("EB")
 RbuMesh = neuprint_ROI_mesh("BU(R)")
+
 
 # Get X,Y,Z coordinates from meshes
 EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
@@ -113,20 +117,96 @@ AllData=rbind(EBData, BUData)
 AllData=rbind(AllData, RingNeuronSynsAll[,c(3,4,5,10)])
 
 
-# Plot data in 3D to make sure it overlaps. Doesn't the EB look too tall?
+# Plot data in 3D to make sure it overlaps. 
 nclear3d()
 plot3d(EBData[c('x','y','z')], col='black', alpha=0.05 ,	forceClipregion = FALSE)
 plot3d(BUData[c('x','y','z')], col='black', alpha=0.05 ,	add=TRUE,forceClipregion = FALSE)
 plot3d(RingNeuronSynsAll[c('x','y','z')], col='violet', alpha=0.4, add=TRUE,	forceClipregion = FALSE)
 
 
-# plot data in 2D to make sure it overlaps
+# plot data in 2D to make sure it overlaps. Doesn't the EB look too tall?
 ggplot(AllData, aes(x=x, y=-z, color=name)) + geom_point()
 ggplot(AllData, aes(x=x, y=y, color=name)) + geom_point()
 
 
+# Get matrix limits with some resolution (Spacing)
+DataToUse=BUData
+Spacing=50
+XLIM=c( floor(min(AllData$x/Spacing))*Spacing-Spacing*10 , ceiling(max(AllData$x/Spacing))*Spacing+Spacing*10  )
+YLIM=c( floor(min(AllData$z)/Spacing)*Spacing-Spacing*10  , ceiling(max(AllData$z)/Spacing)*Spacing+Spacing*10  ) 
+
+
+# Initialize matrix
+XSpacing = seq(from = XLIM[1], to = XLIM[2], by = Spacing)
+YSpacing = seq(from = YLIM[1], to = YLIM[2], by = Spacing)
+ImageMat = matrix(0, nrow = length(YSpacing) , ncol = length(XSpacing))
+rownames(ImageMat) = as.character(YSpacing)
+colnames(ImageMat) = as.character(XSpacing)
+  
+
+# Populate matrix
+DataToUse$x=round(DataToUse$x/Spacing)*Spacing
+DataToUse$y=round(DataToUse$y/Spacing)*Spacing
+DataToUse$z=round(DataToUse$z/Spacing)*Spacing
+for (val in 1:length(DataToUse$x)){ImageMat[ as.character(DataToUse$z[val]),
+                        as.character(DataToUse$x[val]) ] = 1}
+
+# Plot matrix 
+longData<-melt(ImageMat)
+ggplot(longData, aes(x = Var2, y = Var1)) +  geom_raster(aes(fill=value))
+
+
+# blur image and detect edges
+Cimage=as.cimg(ImageMat)
+plot(Cimage)
+Cimage_blurr=isoblur(Cimage,3)
+plot(Cimage_blurr)
+Cimage_Edges=cannyEdges(Cimage_blurr, alpha = 1)
+plot(Cimage_Edges)
+
+
+# Convert back to dataframe and get coordinates
+Cimage_Edges_df <- as.data.frame(Cimage_Edges)
+Edges=data.frame(XXX=XSpacing[Cimage_Edges_df$y], YYY=YSpacing[Cimage_Edges_df$x],value=1)
 
 
 
+
+
+
+
+find_hull <- function(Edges) Edges[chull(Edges$XXX, Edges$YYY), ]
+hulls <- find_hull(Edges)
+ggplot() + geom_polygon(data=hulls, mapping=aes(x=XXX, y=YYY))
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
