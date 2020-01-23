@@ -313,7 +313,6 @@ remove(list=c("p9","p10","p11","p12","p13","p14"))
 # Get synapse distribution for all ring neurons
 ```{r}
 
-
 # Get type name for all ring neurons
 UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
 RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R")]
@@ -333,7 +332,6 @@ for (typeNow in 1:length(RingNeuronTypes)){
 }
 
 
-
 ```
 
 # Make plot of each ring neuron's distribution of synapses 
@@ -347,7 +345,7 @@ if (file.exists(MorphFile)){
   RingNeuronMorpho=readRDS(MorphFile)
 } else {
   RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
-  saveRDS(RingNeuronMorpho, file = RingNeuronMorpho)
+  saveRDS(RingNeuronMorpho, file = MorphFile)
 }
 
 # Get min/max of x,y,z from morphologies
@@ -463,6 +461,7 @@ for (typeNow in 1:length(RingNeuronTypes)){
 }
 
 ```
+
 
 
 
