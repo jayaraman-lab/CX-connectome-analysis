@@ -51,9 +51,9 @@ getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI){
   #' @param postBodyIDs: The bodyids of postsynaptic neurons who's connections should be queried
   #' @param slctROI: String specifying the ROI where connections should be queried.
   
-  myConnections = getConnectionTable(preBodyIDs, "POST", slctROI)
+  myConnections = getConnectionTable(postBodyIDs, "PRE", slctROI)
   
-  myConnections = myConnections %>% filter(partner %in% postBodyIDs) 
+  myConnections = myConnections %>% filter(partner %in% preBodyIDs) 
   
   return( myConnections )
 }
