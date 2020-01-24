@@ -45,7 +45,7 @@ neuprint_login()
 ### Get general functions
 ```{r}
 source("inputOutputRegionsVis.r")
-source("GetNeuronsInRoi.R")
+source("GetNeuronsInRoi.r")
 ```
 
 
@@ -93,7 +93,53 @@ if (file.exists(MorphFile)){
 ```
 
 
-# See if we can get ROI meshes and neuron morphologies in 2D
+
+### Example of how to get the outlines of the EB and BU meshes in synapse coordinates, plotted in 2D  
+```{r}
+
+# Load libraries. Might have to install.packages("car") or install.packages("imager")
+library(car)
+library(imager)
+
+# Load function
+source("GetRoiMeshOutline.r")
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+
+# Get EB Mesh
+Spacing=40 # 40 is good
+Smooth=3   #  3 is good
+OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth)
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+EB_Ring1=EdgesOrdered1 %>% mutate(name="EB1")
+EB_Ring2=EdgesOrdered2 %>% mutate(name="EB2")
+remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
+
+# Get BU Mesh
+Spacing=40 # 40 is good
+Smooth=3   #  3 is good
+OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth)
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+BU_Outline=EdgesOrdered %>% mutate(name="BU(R)")
+remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
+
+# Plot the synapses and the ROI outlines in same plot
+SynapseData=RingNeuronSynsAll[,c(3,4,5,10)]
+ggplot()  + geom_point(data=RingNeuronSynsAll, aes(x = x, y = -z, color=name)) + geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA)  +  geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA)
+
+
+```
+
+
+
+
+
+### Previous code used to make the function called in previous code block
 ```{r}
 
 
