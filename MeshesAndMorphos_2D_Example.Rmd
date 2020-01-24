@@ -130,8 +130,8 @@ ggplot(AllData, aes(x=x, y=y, color=name)) + geom_point()
 
 
 # Get matrix limits with some resolution (Spacing)
-DataToUse=BUData
-Spacing=50
+DataToUse=EBData
+Spacing=40 # 40 is good
 XLIM=c( floor(min(AllData$x/Spacing))*Spacing-Spacing*10 , ceiling(max(AllData$x/Spacing))*Spacing+Spacing*10  )
 YLIM=c( floor(min(AllData$z)/Spacing)*Spacing-Spacing*10  , ceiling(max(AllData$z)/Spacing)*Spacing+Spacing*10  ) 
 
@@ -157,27 +157,61 @@ ggplot(longData, aes(x = Var2, y = Var1)) +  geom_raster(aes(fill=value))
 
 
 # blur image and detect edges
-Cimage=as.cimg(ImageMat)
-plot(Cimage)
-Cimage_blurr=isoblur(Cimage,3)
+Cimage=as.cimg(t(ImageMat))
+plot(Cimage )
+Cimage_blurr=isoblur(Cimage,3) #3 is good
 plot(Cimage_blurr)
 Cimage_Edges=cannyEdges(Cimage_blurr, alpha = 1)
 plot(Cimage_Edges)
 
-
 # Convert back to dataframe and get coordinates
 Cimage_Edges_df <- as.data.frame(Cimage_Edges)
-Edges=data.frame(XXX=XSpacing[Cimage_Edges_df$y], YYY=YSpacing[Cimage_Edges_df$x],value=1)
+Edges=data.frame(x=XSpacing[Cimage_Edges_df$x], y=0,z=YSpacing[Cimage_Edges_df$y], name="Edge")
+
+# Loop over data and get ordered points by finding nearest neighbor 
+EdgesTemp=Edges
+for (val in 1:length(EdgesTemp$x)){
+  if (val==1){
+    EdgesOrdered=data.frame(x=EdgesTemp$x[val], y=EdgesTemp$y[val], z=EdgesTemp$z[val], name='ROI')
+    EdgesTemp[val,]=NA
+  } else {
+    Distances = ((EdgesTemp$x-EdgesOrdered$x[val-1])^2 + (EdgesTemp$z-EdgesOrdered$z[val-1])^2)^0.5
+    Ind=which.min(Distances)
+    EdgesOrdered=rbind(EdgesOrdered, data.frame(x=EdgesTemp$x[Ind], y=EdgesTemp$y[Ind], z=EdgesTemp$z[Ind], name='ROI') )
+    EdgesTemp[Ind,]=NA
+  }
+}
+EdgesOrdered[(length(EdgesTemp$x)+1),]=EdgesOrdered[1,]
+
+# Get distances to see if there are two edges or one
+DistanceAll= ((diff(EdgesOrdered$x))^2 + (diff(EdgesOrdered$z))^2)^0.5
+DistanceAll[length(DistanceAll)]=0
+
+# If there are two edges, divide into two. Either way, plot the data. 
+DistanceThresh=200
+if (sum(DistanceAll>DistanceThresh)==0){
+  # Plot data again
+  p1<-ggplot()  + geom_point(data=AllData, aes(x = x, y = -z, color=name)) + geom_polygon(data=EdgesOrdered, aes(x = x, y = -z), colour='black', fill=NA)
+  print(p1)
+  EdgesOrdered1=NA
+  EdgesOrdered2=NA
+} else {
+  # Divide data into two edges
+  IND=which(DistanceAll>DistanceThresh)
+  EdgesOrdered1=EdgesOrdered[1:IND ,]
+  EdgesOrdered2=EdgesOrdered[((IND+1):(length(EdgesOrdered$x)-1)) ,]
+  p1<-ggplot()  + geom_point(data=AllData, aes(x = x, y = -z, color=name)) + geom_polygon(data=EdgesOrdered2, aes(x = x, y = -z), colour='black', fill=NA) +
+    geom_polygon(data=EdgesOrdered1, aes(x = x, y = -z), colour='black', fill=NA) 
+  print(p1)
+    
+}
+
+Output= list("EdgesOrdered"=EdgesOrdered,"EdgesOrdered1"=EdgesOrdered1,"EdgesOrdered2"=EdgesOrdered2)
+#return(Output)
 
 
 
 
-
-
-
-find_hull <- function(Edges) Edges[chull(Edges$XXX, Edges$YYY), ]
-hulls <- find_hull(Edges)
-ggplot() + geom_polygon(data=hulls, mapping=aes(x=XXX, y=YYY))
 
 ```
 
