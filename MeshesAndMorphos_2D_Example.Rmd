@@ -1,0 +1,212 @@
+---
+title: "Example for getting meshes and morphos in 2D"
+output: html_notebook
+---
+
+
+# Command to clear environment is: rm(list = ls(all.names = TRUE))
+# Load libraries
+```{r message=FALSE, warning=FALSE}
+
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(reshape2)
+library(plotly)
+options(nat.plotengine = 'rgl')
+
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# The region of interest.
+ROI="EB"  
+
+# Directory to save data to.
+SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
+
+```
+
+### Create save/plot directory if they dont exists yet
+```{r}
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+source("inputOutputRegionsVis.r")
+source("GetNeuronsInRoi.R")
+```
+
+
+### Get neurons in the ROI
+```{r}
+
+NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies =  mutate(NamedBodies, cropped = neuprint_get_meta(bodyid)$cropped)
+
+```
+
+
+### Get synapses and morphologies for a few example ring neurons (R5)
+```{r}
+
+# Get body IDs for R5
+UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
+RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R5")]
+RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R5") )
+
+# Get all synapses for the ring neurons
+for (typeNow in 1:length(RingNeuronTypes)){
+  # Get BU synapses
+  RingNeuronSyns = NamedBodies[ which(unlist(NamedBodies$bodytype) == RingNeuronTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
+  RingNeuronSyns <-  RingNeuronSyns %>% mutate(name=as.character(RingNeuronTypes[typeNow]))%>%     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  if (typeNow==1){
+    RingNeuronSynsAll= RingNeuronSyns
+  }else{
+    RingNeuronSynsAll <- rbind(RingNeuronSynsAll,RingNeuronSyns)
+  }
+  
+}
+remove(RingNeuronSyns)
+
+# Get neuron morphologies
+MorphFile=paste(SaveDir,"R5_RingNeuronMorpho.rds",sep="")
+if (file.exists(MorphFile)){
+  RingNeuronMorpho=readRDS(MorphFile)
+} else {
+  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+  saveRDS(RingNeuronMorpho, file = MorphFile)
+}
+
+
+```
+
+
+# See if we can get ROI meshes and neuron morphologies in 2D
+```{r}
+
+
+# Load new library. Might have to install.packages("car")
+library(car)
+library(imager)
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+
+
+# Get X,Y,Z coordinates from meshes
+EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
+BUData=data.frame(x=RbuMesh$vb[1,], y=RbuMesh$vb[2,],z=RbuMesh$vb[3,],name="BU(R)")
+
+
+# Put all data into a single data frame
+AllData=data.frame
+AllData=rbind(EBData, BUData)
+AllData=rbind(AllData, RingNeuronSynsAll[,c(3,4,5,10)])
+
+
+# Plot data in 3D to make sure it overlaps. 
+nclear3d()
+plot3d(EBData[c('x','y','z')], col='black', alpha=0.05 ,	forceClipregion = FALSE)
+plot3d(BUData[c('x','y','z')], col='black', alpha=0.05 ,	add=TRUE,forceClipregion = FALSE)
+plot3d(RingNeuronSynsAll[c('x','y','z')], col='violet', alpha=0.4, add=TRUE,	forceClipregion = FALSE)
+
+
+# plot data in 2D to make sure it overlaps. Doesn't the EB look too tall?
+ggplot(AllData, aes(x=x, y=-z, color=name)) + geom_point()
+ggplot(AllData, aes(x=x, y=y, color=name)) + geom_point()
+
+
+# Get matrix limits with some resolution (Spacing)
+DataToUse=BUData
+Spacing=50
+XLIM=c( floor(min(AllData$x/Spacing))*Spacing-Spacing*10 , ceiling(max(AllData$x/Spacing))*Spacing+Spacing*10  )
+YLIM=c( floor(min(AllData$z)/Spacing)*Spacing-Spacing*10  , ceiling(max(AllData$z)/Spacing)*Spacing+Spacing*10  ) 
+
+
+# Initialize matrix
+XSpacing = seq(from = XLIM[1], to = XLIM[2], by = Spacing)
+YSpacing = seq(from = YLIM[1], to = YLIM[2], by = Spacing)
+ImageMat = matrix(0, nrow = length(YSpacing) , ncol = length(XSpacing))
+rownames(ImageMat) = as.character(YSpacing)
+colnames(ImageMat) = as.character(XSpacing)
+  
+
+# Populate matrix
+DataToUse$x=round(DataToUse$x/Spacing)*Spacing
+DataToUse$y=round(DataToUse$y/Spacing)*Spacing
+DataToUse$z=round(DataToUse$z/Spacing)*Spacing
+for (val in 1:length(DataToUse$x)){ImageMat[ as.character(DataToUse$z[val]),
+                        as.character(DataToUse$x[val]) ] = 1}
+
+# Plot matrix 
+longData<-melt(ImageMat)
+ggplot(longData, aes(x = Var2, y = Var1)) +  geom_raster(aes(fill=value))
+
+
+# blur image and detect edges
+Cimage=as.cimg(ImageMat)
+plot(Cimage)
+Cimage_blurr=isoblur(Cimage,3)
+plot(Cimage_blurr)
+Cimage_Edges=cannyEdges(Cimage_blurr, alpha = 1)
+plot(Cimage_Edges)
+
+
+# Convert back to dataframe and get coordinates
+Cimage_Edges_df <- as.data.frame(Cimage_Edges)
+Edges=data.frame(XXX=XSpacing[Cimage_Edges_df$y], YYY=YSpacing[Cimage_Edges_df$x],value=1)
+
+
+
+
+
+
+
+find_hull <- function(Edges) Edges[chull(Edges$XXX, Edges$YYY), ]
+hulls <- find_hull(Edges)
+ggplot() + geom_polygon(data=hulls, mapping=aes(x=XXX, y=YYY))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
