@@ -71,8 +71,6 @@ Delta7_2_PEN1 <- Delta7_2_PEN1[which(grepl("PEN",Delta7_2_PEN1$type) & grepl("De
 colnames(Delta7_2_PEN1)[colnames(Delta7_2_PEN1)=="bodyid"] <- "nameid"
 colnames(Delta7_2_PEN1)[colnames(Delta7_2_PEN1)=="partner"] <- "partnerid"
 
-plotConnectivityMatrix(Delta7_2_PEN1, synapseCutOff = 1, 0)
-
 # Create a lookup table of bodyids to names for the Delta 7s based off of where they strongly output to the PEN2s
 Delta7bodyids = Delta7_2_PEN1$partnerid %>% unique()
 Delta7names= c()
@@ -170,10 +168,22 @@ Delta7_2_PEN1_RO <- Delta7Rename(Delta7_2_PEN1,Delta7Lookup)
 Delta7_2_PEN1_RO <- Delta7_2_PEN1_RO %>% mutate(longName = paste(as.character(name),as.character(nameid),sep='-')) %>%
   mutate(longPartnerName = paste(as.character(partnerName),as.character(partnerid),sep='-'))
 
+D7Gloms = strsplit(as.character(Delta7_2_PEN1_RO$longPartnerName),"_") %>% lapply(function(x){x[3]}) %>% unlist()
+D7Gloms <- strsplit(D7Gloms,"-") %>% lapply(function(x){x[1]}) %>% unlist()
+D7Names = Delta7_2_PEN1_RO$longPartnerName %>% as.character()
+
 Delta7_2_PEN1_RO$longName <- factor(Delta7_2_PEN1_RO$longName,
         levels = glomSort(Delta7_2_PEN1_RO$longName))
-Delta7_2_PEN1_RO$longPartnerName <- factor(Delta7_2_PEN1_RO$longPartnerName,
-        levels = glomSort(Delta7_2_PEN1_RO$longPartnerName))
+Delta7_2_PEN1_RO$longPartnerName <- factor(D7Names,
+                  levels = unique(append(
+                    sort(
+                      D7Names[which(grepl("L",D7Gloms))],
+                      decreasing = TRUE),
+                    sort(
+                      D7Names[which(grepl("R",D7Gloms))],
+                      decreasing = FALSE)
+                    )))
+
 
 conmatPlot = ggplot(Delta7_2_PEN1_RO  %>% filter(weight > 2)) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
