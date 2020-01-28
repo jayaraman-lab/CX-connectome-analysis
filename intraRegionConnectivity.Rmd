@@ -1,0 +1,193 @@
+---
+title: "Illustration of tools for analysing information flow between neurons within a region"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+options(nat.plotengine = 'rgl')
+```
+
+```{r}
+neuprint_login()
+```
+
+```{r messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("neuprintQueryUtils.R")
+source("visualizeConnectivityTables.R")
+
+# To be able to use ? for accessing doc strings in custom functions, please install the "docstring" package. Alternatively use docstring(function)
+library(docstring)
+```
+
+### Look at what are major inputs/outputs to a neuron type
+```{r}
+mytype = "R"
+postIDs = neuprint_search(paste(mytype,'.*',sep=""))
+
+slctROI = "BU(R)"
+
+myConnections = getConnectionTable(postIDs$bodyid, "PRE",slctROI)
+```
+
+```{r}
+ggplot(myConnections, aes(x=partnerType, fill=partnerType)) + geom_bar() + theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
+```
+
+### Make selection of neurons to be used in connecitivy analysis
+```{r}
+preNeuron = c("R1","R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
+postNeuron = c("R1","R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
+#c("MC","PDM21a")#c("TuBu")#c("ExR","R3","R2","R4","R5","R6","EPG")#c("ExR","R3","R2","R4","EPG")# c("R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
+
+preName =  "R1-6, ExR, PDM21a and TuBus"
+postName =  "R1-6, ExR, PDM21a and TuBus"
+##"TuBus"#"MCs, PDM21a and TuBus"#"ExRs, R2-6 & EPG"#"R2-4 and TuBus"#"ExRs, R2-4 & EPG" # "R2-6, ExR, PDM21a and TuBus"
+
+saveName = "_R1-6s_ExR_TuBu"
+#"_MCsPDM21a_to_TuBus"#"_MCs_PDM21a_TuBus"#"_ExR_R2-6_EPG"#"_R2-4s_TuBU"#"_ExR_R2-4_EPG"
+
+slctROI = "BU(R)"
+
+```
+
+
+### Connectivity matrix
+```{r, warning=FALSE}
+preIDs = getBodyIdsForList(preNeuron)
+postIDs = getBodyIdsForList(postNeuron)
+
+myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+```
+
+```{r}
+conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = TRUE)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+print(conMatPlot)
+ggsave( paste("connectivityMatrix",saveName,'_in_',slctROI,'.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = FALSE)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+conMatPlot = structureMatrixPlotByType(conMatPlot)
+print(conMatPlot)
+ggsave(paste("connectivityMatrix",saveName,'_in_',slctROI,'_byID.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  scale = 2, width = 25, height =16, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+###  Draw graph
+```{r, warning=FALSE}
+preIDs = getBodyIdsForList(preNeuron)
+postIDs = getBodyIdsForList(postNeuron)
+
+myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+typeCounts = full_join(preIDs, postIDs) %>% group_by(type) %>% count()
+```
+
+Reroganize to make graph with types instead of bodyids
+```{r}
+graphData = data.frame(from = myConnections$partnerType, to = myConnections$type, weight = myConnections$weight)
+graphData = graphData %>% group_by(from, to) %>% summarise(weight = mean(weight, na.rm = TRUE)) %>% ungroup()
+```
+
+```{r}
+hist(graphData$weight, n=100)
+cutoff = 3
+graphData = graphData %>% filter(weight > cutoff)
+hist(graphData$weight, n=100)
+```
+
+```{r}
+nodes  = union(unique(graphData_noSelf$from), unique(graphData_noSelf$to))
+nodes
+
+graphData_noSelf = graphData %>% filter(as.character(from) != as.character(to))
+graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
+graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight), data.frame("from" = nodes))
+graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
+```
+
+
+```{r, message=FALSE}
+require(igraph)
+connectGraph = graph_from_data_frame(graphData_noSelf)
+connectGraph <- delete_edges(connectGraph, E(connectGraph)[weight<cutoff])
+connectGraph
+```
+
+```{r}
+simpleTypesNodes = getSimpleTypeNames(nodes)
+simpleTypesNodes
+
+nodeCols = seq(1, length(nodes))
+for (i in seq(1, length(simpleTypesNodes))) {
+  nodeCols[i] = colors()[colorValueLookup$col[colorValueLookup$type == simpleTypesNodes[i]]]
+}
+nodeCols
+```
+
+
+```{r}
+# The labels are currently node IDs. Setting them to NA will render no labels
+V(connectGraph)$label.color="black"
+V(connectGraph)$label.cex=0.8
+V(connectGraph)$label.dist=0
+
+typeCounts = typeCounts %>% filter(type %in% V(connectGraph)$name)
+typeCounts = typeCounts[match(V(connectGraph)$name, typeCounts$type),]
+V(connectGraph)$size = 7 + as.numeric(graphData_selfFB$weight) #typeCounts$n/2 #
+V(connectGraph)$vertex.frame.color="gray"
+V(connectGraph)$color=nodeCols
+
+# Set edge width based on weight:
+E(connectGraph)$width <- E(connectGraph)$weight/5.
+#change arrow size and edge color:
+E(connectGraph)$arrow.size <- .2
+#E(connectGraph)$edge.color <- "gray80"
+edge.start <- ends(connectGraph, es=E(connectGraph), names=F)[,1]
+edge.col = V(connectGraph)$color[edge.start]
+
+l <- layout_with_fr(connectGraph) # layout_components
+#l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
+
+#pdf("../neuprintR_analysis_plots/connectivityGraph_R2-R4andEPGs.pdf", width = 200, height = 200)#, units ="cm", dpi = 600)
+plot(connectGraph,edge.color=edge.col, edge.curved=0.5, layout=l)  #vertex.shape="fcircle", 
+#dev.off()
+dev.print(pdf, paste("../neuprintR_analysis_plots/connectivityGraph",saveName, "_in", slctROI,".pdf", sep=""), width=15, height=15)
+#ggsave("connectivityGraph_R2-R4andEPGs.pdf", plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/",
+#  scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+### Illustration of other graph analyses 
+```{r}
+hs <- hub_score(connectGraph, weights=NA)$vector
+as <- authority_score(connectGraph, weights=NA)$vector
+
+par(mfrow=c(1,2))
+plot(connectGraph, vertex.size=hs*40, main="Hubs", layout = l)
+plot(connectGraph, vertex.size=as*40, main="Authorities", layout = l)
+
+```
+```{r}
+cfg <- cluster_edge_betweenness(as.undirected(connectGraph))
+#plot(cfg, as.undirected(connectGraph))
+
+V(connectGraph)$community <- cfg$membership
+colrs <- adjustcolor( c("seagreen", "orange", "tomato",  "gold", "plum","yellowgreen","cyan"), alpha=.6)
+plot(connectGraph, vertex.color=colrs[V(connectGraph)$community])
+```
+
+```{r}
+deg <- degree(connectGraph, mode="all")
+deg.dist <- degree_distribution(connectGraph, cumulative=T, mode="all")
+plot( x=0:max(deg), y=1-deg.dist, pch=19, cex=1.2, col="orange",
+      xlab="Degree", ylab="Cumulative Frequency")
+```
