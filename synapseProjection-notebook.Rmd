@@ -1,0 +1,383 @@
+---
+title: "Projecting synapse locations to plane that contains most variance"
+output: html_notebook
+---
+#Analysis of Ring neuron connectivity
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(natverse)
+require(matlib)
+```
+
+```{r}
+neuprint_login()
+```
+
+
+### Get some EB neurons and EB roi mesh
+
+```{r}
+rois = neuprint_ROIs()
+```
+
+Query for R4d neurons (could do this will all EB neurons or just subset)
+```{r}
+#my_neurons = neuprint_search("ExR6.*")
+my_neurons = neuprint_search("R4.*")# bind_rows(neuprint_search("R3.*"), neuprint_search("R4.*"))#, neuprint_search("R2.*"))
+```
+...use this list to get synapse locations
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(my_neurons$bodyid),"EB") %>%
+                          mutate(partnerName=neuprint_get_meta(as.numeric(partner))[["name"]],
+                              name=neuprint_get_meta(as.numeric(bodyid))[["name"]],
+                              partnertype=neuprint_get_meta(as.numeric(partner))[["type"]],
+                              type=neuprint_get_meta(as.numeric(bodyid))[["type"]]) 
+
+```
+
+Get mesh info for EB roi
+```{r}
+#  In the future, potentially use mesh to set up ROI-specific frame of reference
+ebMesh = neuprint_ROI_mesh("EB")
+fbMesh = neuprint_ROI_mesh("FB")
+```
+
+### Compute covariance
+```{r}
+syn_locs = my_synapses[c('x','y','z')]
+syn_locs = transform(syn_locs, x = as.numeric(x), y = as.numeric(y), z = as.numeric(z))
+```
+
+```{r}
+# calculate covariance matrix
+synCov = cov(syn_locs)
+synCov
+
+# calculate eigenvectors and values
+synCov_eigen = eigen(synCov)
+synCov_eigen
+
+smallestEV = which(synCov_eigen$values == min(synCov_eigen$values), arr.ind = TRUE)
+
+n_plane =c(synCov_eigen$vectors[smallestEV,1], synCov_eigen$vectors[smallestEV,2], synCov_eigen$vectors[smallestEV,3])
+n_plane =  n_plane / sqrt(sum(n_plane * n_plane))
+```
+
+```{r}
+syn_COM = c(mean(syn_locs$x),mean(syn_locs$y),mean(syn_locs$z))
+syn_locs_scaled = transform(syn_locs, x = x-mean(x), y = y-mean(y), z = z-mean(z))
+```
+
+```{r message=FALSE}
+nclear3d()
+plot3d(syn_locs_scaled[c('x','y','z')], col='seagreen3')
+#arrow3d(syn_COM, synCov_eigen$values[1]*synCov_eigen$vectors[1:3,1])#, type = "extrusion", col = "red", add=TRUE)
+vectors3d(sqrt(synCov_eigen$values[1])*synCov_eigen$vectors[1,1:3], col="black", lwd=2, radius=1/25)
+vectors3d(sqrt(synCov_eigen$values[2])*synCov_eigen$vectors[2,1:3], col="grey", lwd=2, radius=1/25)
+vectors3d(sqrt(synCov_eigen$values[3])*synCov_eigen$vectors[3,1:3], col="blue", lwd=2, radius=1/25)
+planes3d(n_plane[1],n_plane[2],n_plane[3], 0, col="gray", alpha=0.2)
+plot3d(ebMesh-syn_COM, alpha=0.2,  add=TRUE)
+decorate3d(box=FALSE)
+```
+
+
+### For visualisation only: Project all synapses from 3D onto 2D plane
+Change of basis and dropping the z is faster (see below)
+```{r}
+pts = matrix(0, nrow = length(syn_locs_scaled$x), ncol = 3)
+
+for (i in seq(1,length(syn_locs_scaled$x))) {
+  pt = as.numeric(syn_locs_scaled[i,]) - 
+          as.numeric( (as.numeric(syn_locs_scaled[i,])-synCov_eigen$vectors[1,1:3]) %*% n_plane ) * n_plane
+  pts[i,] = pt
+}
+
+syn_locs_proj = data.frame(x=pts[,1],y=pts[,2],z=pts[,3])
+```
+
+```{r}
+vectors3d(sqrt(synCov_eigen$values[1])*synCov_eigen$vectors[1,1:3], col="black", lwd=2, radius=1/25)
+vectors3d(sqrt(synCov_eigen$values[2])*synCov_eigen$vectors[2,1:3], col="grey", lwd=2, radius=1/25)
+vectors3d(sqrt(synCov_eigen$values[3])*synCov_eigen$vectors[3,1:3], col="blue", lwd=2, radius=1/25)
+planes3d(n_plane[1],n_plane[2],n_plane[3], 0, col="gray", alpha=0.2)
+plot3d(syn_locs_scaled, col='seagreen3', alpha=0.2, add=TRUE)
+plot3d(syn_locs_proj, col='seagreen', add=TRUE)
+```
+
+
+### Convert all points to the coordinate system defined by covariance matrix eigen vectors
+```{r}
+pts = matrix(0, nrow = length(syn_locs_scaled$x), ncol = 3)
+
+for (i in seq(1,length(syn_locs_scaled$x))) {
+  pt = as.numeric(syn_locs_scaled[i,])  %*% synCov_eigen$vectors
+  pts[i,] = pt
+}
+
+syn_locs_transf = data.frame(x=pts[,1],y=pts[,2],z=pts[,3])
+syn_locs_2d = data.frame(x=pts[,1],y=pts[,2])
+```
+
+
+```{r}
+planes3d(0,0,1, 0, col="gray", alpha=0.2)
+planes3d(n_plane[1],n_plane[2],n_plane[3], 0, col="green", alpha=0.2)
+plot3d(data.frame(x=syn_locs_2d[,1],y=syn_locs_2d[,2],z=0), col='seagreen', add=TRUE)
+plot3d(syn_locs_scaled, col='seagreen3', alpha=0.2, add=TRUE)
+```
+
+
+### Compute angle of vectors to each point relative to x-axis
+Note: The usefulness and validity of this step depends on the scaling
+- for EB: scale to center of mass of point cloud (synapse collection), see above
+- for FB: TBD
+
+```{r}
+syn_ang = numeric(length(syn_locs_2d$x))
+syn_dist = numeric(length(syn_locs_2d$x))
+for (i in seq(1,length(syn_locs_2d$x))) {
+  syn_ang[i] = angle(as.numeric(syn_locs_2d[i,1:2]), c(0,-1))
+  syn_dist[i] = sqrt(sum(syn_locs_2d[i,1:2] * syn_locs_2d[i,1:2]))
+  if (syn_locs_2d[i,1] < 0){
+    syn_ang[i] = 360-syn_ang[i]
+  }
+}
+```
+
+```{r}
+syn_2d = syn_locs_2d
+syn_2d$angle = syn_ang
+syn_2d$dist = syn_dist
+
+# Uncomment lines below if you'd like to see a vizualization of the definition of syn_angle and syn_dist
+#ggplot(syn_2d, aes(x=x,y=y, color=angle)) + geom_point()
+#ggplot(syn_2d, aes(x=x,y=y, color=dist)) + geom_point()
+```
+
+
+### Build data frame
+```{r}
+syn_2d$post = my_synapses$prepost  # 1 for post, 0 for pre?
+syn_2d$post[syn_2d$post == 1] <- 'post'
+syn_2d$post[syn_2d$post == 0] <- 'pre'
+syn_2d$type = my_synapses$type
+syn_2d$name = my_synapses$name
+syn_2d$id = my_synapses$bodyid
+syn_2d$partnertype = my_synapses$partnertype
+syn_2d$partnerName = my_synapses$partnerName
+syn_2d$zdir = syn_locs_transf$z
+```
+```{r}
+#syn_2d = syn_2d %>% rowwise() %>% mutate(suptype = strsplit(as.character(type), split="_")[[1]][[1]] ) %>% ungroup()
+```
+
+
+Make list of significant partners
+```{r}
+ggplot(syn_2d,aes(x=partnertype, fill=partnertype)) + geom_bar() + theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
+```
+
+```{r}
+minSyn = length(my_neurons)*500
+R4d_syn_majorPartners = as.data.frame(table(unlist(syn_2d$partnertype)))
+R4d_syn_majorPartners = arrange(R4d_syn_majorPartners, desc(Freq)) %>% filter(Freq >= minSyn)
+R4d_syn_majorPartners
+
+syn_2d_filt = na.omit(syn_2d)
+syn_2d_filt = syn_2d_filt  %>% filter(partnertype %in% R4d_syn_majorPartners$Var1)
+```
+
+### Illustrate synaptic positions across EB slice 
+...differentiating by type
+```{r}
+ggplot(syn_2d, aes(x=dist, y=zdir))+ geom_bin2d() +  #geom_point(alpha=0.5) + 
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  scale_fill_gradient(low='grey', high='black') + 
+  guides(color=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+```{r}
+r3types = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m','R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
+r4types = c('R4d_a','R4d_b','R4m')
+ggplot(syn_2d_filt %>% filter(type %in% r3types), aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
+  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() +theme(axis.text.x = element_text(angle = 90)) +
+  guides(color=FALSE)
+#ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
+#  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+#+ guides(color=FALSE)
+
+ggplot(syn_2d_filt, aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
+  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + 
+  guides(color=FALSE)
+```
+
+```{r}
+ggplot(syn_2d_filt, aes(x=dist, y=zdir, fill=type)) +
+  stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+```
+
+```{r}
+r3types = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m','R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
+r3types_a = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m')
+r3types_b = c('R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
+r4types = c('R4d_a','R4d_b','R4m')
+```
+
+```{r}
+ggplot(syn_2d_filt %>% filter(type %in% r3types_a), aes(x=dist, y=zdir, fill=type)) +
+  stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(type %in% r3types_b), aes(x=dist, y=zdir, fill=type)) +
+  stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, fill=type)) +
+  stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500)#+ guides(color=FALSE)
+```
+```{r}
+
+h <- c(MASS::bandwidth.nrd(xdf$x), MASS::bandwidth.nrd(xdf$y))
+
+dens <- MASS::kde2d(
+  xdf$x, xdf$y, h = h, n = 100,
+  lims = c(0.5, 6, 40, 110)
+)
+
+breaks <- pretty(range(zdf$z), 10)
+
+zdf <- data.frame(expand.grid(x = dens$x, y = dens$y), z = as.vector(dens$z))
+
+z <- tapply(zdf$z, zdf[c("x", "y")], identity)
+
+cl <- grDevices::contourLines(
+  x = sort(unique(dens$x)), y = sort(unique(dens$y)), z = dens$z,
+  levels = breaks
+)
+
+SpatialPolygons(
+  lapply(1:length(cl), function(idx) {
+    Polygons(
+      srl = list(Polygon(
+        matrix(c(cl[[idx]]$x, cl[[idx]]$y), nrow=length(cl[[idx]]$x), byrow=FALSE)
+      )),
+      ID = idx
+    )
+  })
+) -> cont
+
+coordinates(xdf) <- ~x+y
+
+data_frame(
+  ct = sapply(over(cont, geometry(xdf), returnList = TRUE), length),
+  id = 1:length(ct),
+  lvl = sapply(cl, function(x) x$level)
+) %>% 
+  count(lvl, wt=ct) %>% 
+  mutate(
+    pct = n/length(xdf),
+    pct_lab = sprintf("%s of the points fall within this level", scales::percent(pct))
+  )
+```
+
+...differentiating by partner
+
+```{r}
+ggplot(syn_2d_filt %>% filter(type %in% r3types_a), aes(x=dist, y=zdir, fill=partnertype)) +
+  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(type %in% r3types_b), aes(x=dist, y=zdir, fill=partnertype)) +
+  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, fill=partnertype)) +
+  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500)#+ guides(color=FALSE)
+```
+
+
+### ...
+
+
+```{r}
+ggplot(syn_2d, aes(x=angle, color=type)) + geom_freqpoly(bins=18) + #, linetype=post
+  facet_grid(cols = vars(post)) + theme_classic() + xlim(0, 360) + theme(axis.text.x = element_text(angle = 90)) 
+
+ggplot(syn_2d, aes(x=angle, color=id)) + geom_freqpoly(bins=18) +
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  guides(color=FALSE) + theme_classic() + xlim(0, 360) + theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+ggplot(syn_2d, aes(x=dist, stat(density), color=type, linetype=post)) + geom_freqpoly(bins=50) + theme(axis.text.x = element_text(angle = 90)) + 
+  theme_classic()
+
+ggplot(syn_2d, aes(x=dist, color=id)) + geom_freqpoly(bins=50) +
+  facet_grid(cols = vars(type),rows=vars(post)) + guides(color=FALSE) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+
+### Connection specific analysis (e.g. Ring neuron to EPG)
+```{r}
+ggplot(syn_2d_filt %>% filter(partnertype =="EPG"), aes(x=dist, color=id)) + geom_freqpoly(bins=15) + 
+  facet_grid(cols = vars(type), rows=vars(post)) + xlim(0, 5000) +
+  theme_classic() + guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(partnertype =="EPG"), aes(x=angle,  color=id)) + geom_freqpoly(bins=12) + 
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  theme_classic() + xlim(0, 360) + guides(color=FALSE)
+```
+
+
+```{r}
+ggplot(syn_2d_filt %>% filter(partnertype =="EPG"), aes(x=dist, color=name)) + geom_freqpoly(bins=20) + 
+  facet_grid(cols = vars(type), rows=vars(post), scales = "free_y") + xlim(500, 5000) + theme_classic() +theme(axis.text.x = element_text(angle = 90)) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(partnertype =="EPG"), aes(x=zdir, color=name)) + geom_freqpoly(bins=20) + 
+  facet_grid(cols = vars(type), rows=vars(post), scales = "free_y") + xlim(-2000, 2000) + theme_classic() +theme(axis.text.x = element_text(angle = 90)) #+ guides(color=FALSE)
+
+ggplot(syn_2d_filt %>% filter(partnertype =="EPG"), aes(x=angle, color=name)) + geom_freqpoly(bins=12) + 
+  facet_grid(cols = vars(type), rows=vars(post), scales = "free_y",) + theme_classic() + xlim(0, 360) +theme(axis.text.x = element_text(angle = 90)) #+ guides(color=FALSE)
+```
+
+```{r}
+colpartners =  c("EPG", "PEN1","PEN2")
+ringpartners =  c("R4d_a", "R4d_b","R4m")
+exRpartners =  c("ExR4", "ExR5","EQ5")
+
+ggplot(syn_2d_filt) +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% exRpartners), aes(x=dist, y=zdir), 
+             color='orange', size=0.5, alpha=0.3) +
+    geom_point(data = syn_2d_filt %>% filter(partnertype %in% colpartners), aes(x=dist, y=zdir), 
+             color='plum3', size=0.5, alpha=0.3)  +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% ringpartners), aes(x=dist, y=zdir), 
+             color='turquoise3', size=0.5, alpha=0.3) +
+  facet_grid(cols = vars(type), rows=vars(post)) + theme_classic()
+
+
+ggplot(syn_2d_filt) +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% exRpartners), aes(x=dist, y=angle), 
+             color='orange', size=0.5, alpha=0.3) +
+    geom_point(data = syn_2d_filt %>% filter(partnertype %in% colpartners), aes(x=dist, y=angle), 
+             color='plum3', size=0.5, alpha=0.3)  +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% ringpartners), aes(x=dist, y=angle), 
+             color='turquoise3', size=0.5, alpha=0.3) +
+  facet_grid(cols = vars(type), rows=vars(post)) + theme_classic()
+
+ggplot(syn_2d_filt) +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% exRpartners), aes(x=zdir, y=angle), 
+             color='orange', size=0.5, alpha=0.3) +
+    geom_point(data = syn_2d_filt %>% filter(partnertype %in% colpartners), aes(x=zdir, y=angle), 
+             color='plum3', size=0.5, alpha=0.3)  +
+  geom_point(data = syn_2d_filt %>% filter(partnertype %in% ringpartners), aes(x=zdir, y=angle), 
+             color='turquoise3', size=0.5, alpha=0.3) +
+  facet_grid(cols = vars(type), rows=vars(post)) + theme_classic()
+
+```
