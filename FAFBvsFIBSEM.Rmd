@@ -1,0 +1,167 @@
+---
+title: "FAFB vs. FIBSEM"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Function to load the FAFB data in a datframe
+```{r}
+FAFBLoad <- function(region){
+  #' Get data frame of FAFB data in a given region
+  #' @return Returns a data frame of the FAFB data in the specified region
+  #' @param region: The chosen ROI
+  
+  # Load the csv file
+  FAFBDat = read.csv(paste0(
+    '\\\\dm11\\jayaramanlab\\Kris\\Catmaid\\connectivity_matrices\\matrix_',region,'_despiked.txt')
+    , header=TRUE, sep ="")
+  
+  # Get out the names of the neurons within the dataset
+  nrons = rownames(FAFBDat)
+  
+  # Create nameids and partnerids based off of the constituent neurons
+  nameids = c()
+  partnerids = c()
+  for (rpt in (1:length(nrons))){
+    nameids = append(nameids,nrons)
+    for (r in (1:length(nrons))){
+      partnerids = append(partnerids,nrons[rpt])
+    }
+  }
+  
+  # Populate a dataframe from the weight matrix
+  colNames = names(FAFBDat)
+  FAFB_df = data.frame(nameid = nameids,partnerid = partnerids, weight = integer(length(nrons)))
+  for (i in 1:length(colNames)){
+    for (j in 1:length(nrons)){
+      FAFB_df$weight[which(FAFB_df$nameid == str_replace(colNames[i],'[.]','-') & FAFB_df$partnerid == nrons[j])] <- FAFBDat[j,i]
+    }
+  }
+  
+  # Alter the glom names to match the FIBSEM data
+  nronNames = character(length(nrons))
+  for (n in 1:length(nrons)){
+    nmPrts = strsplit(nrons[n],"-")
+    if (grepl("EPG",nmPrts[[1]][1]))
+      nronNames[n] <- paste0("EPG(PB08)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
+    if (grepl("PEG",nmPrts[[1]][1]))
+      nronNames[n] <- paste0("PEG(PB07)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
+    if (grepl("PEN",nmPrts[[1]][1])){
+      if (grepl("1",substring(nmPrts[[1]][1],4,4))){
+        if (nchar(nmPrts[[1]][2]) > 2)
+          nronNames[n] <- paste0("PEN(PB06)",'_a_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
+        else
+          nronNames[n] <- paste0("PEN(PB06)",'_a_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
+      }
+      else {
+        if (nchar(nmPrts[[1]][2]) > 2)
+          nronNames[n] <- paste0("PEN(PB06)",'_b_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
+        else
+          nronNames[n] <- paste0("PEN(PB06)",'_b_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
+      }
+    }
+    if (grepl("D7",nmPrts[[1]][1])){
+      if (nchar(nmPrts[[1]][2]) > 4)
+        nronNames[n] <- paste0("Delta7(PB15)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],4,4),substr(nmPrts[[1]][2],3,3),'_',substr(nmPrts[[1]][2],5,5))
+      else
+        nronNames[n] <- paste0("Delta7(PB15)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],4,4),substr(nmPrts[[1]][2],3,3))
+    }
+    if (grepl("R",substring(nmPrts[[1]][1],1,1)))
+      nronNames[n] <- paste0('R4m','_',substr(nmPrts[[1]][1],2,2))
+  }
+  
+  # Replace the names in the dataframe
+  # Create nameids and partnerids based off of the constituent neurons
+  nameids_New = nameids
+  partnerids_New = partnerids
+  for (n in 1:length(nrons)){
+    nameids_New[which(grepl(nrons[n],nameids))] <- nronNames[n]
+    partnerids_New[which(grepl(nrons[n],partnerids))] <- nronNames[n]
+  }
+  FAFB_df$nameid <- factor(nameids_New,levels=sort(unique(nameids_New)))
+  FAFB_df$partnerid <- factor(partnerids_New,levels=sort(unique(partnerids_New)))
+  
+  return(FAFB_df)
+}
+  
+```
+
+Compare the FAFB data to the FIBSEM data
+```{r}
+
+FAFB_PB_df <-FAFBLoad("PB")
+
+plotConnectivityMatrix(FAFB_PB_df[which(!grepl("D7",FAFB_PB_df$nameid) & !grepl("D7",FAFB_PB_df$partnerid)),], synapseCutOff = 0, 0)
+
+neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
+
+FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
+
+plotConnectivityMatrix(FIBSEM_PB, synapseCutOff = 1, 0)
+```
+
+```{r}
+
+FAFB_EB_df <-FAFBLoad("EB")
+
+plotConnectivityMatrix(FAFB_EB_df[which(!grepl("R4m",FAFB_PB_df$nameid) & !grepl("R4m",FAFB_PB_df$partnerid)),], synapseCutOff = 0, 0)
+
+neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
+
+FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
+
+plotConnectivityMatrix(FIBSEM_EB, synapseCutOff = 1, 0)
+```
+
