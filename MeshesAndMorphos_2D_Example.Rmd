@@ -111,7 +111,7 @@ RbuMesh = neuprint_ROI_mesh("BU(R)")
 # Get EB Mesh
 Spacing=40 # 40 is good
 Smooth=3   #  3 is good
-OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth)
+OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth,"EB")
 list2env(OUTPUT ,.GlobalEnv)
 remove(OUTPUT)
 EB_Ring1=EdgesOrdered1 %>% mutate(name="EB1")
@@ -121,7 +121,7 @@ remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
 # Get BU Mesh
 Spacing=40 # 40 is good
 Smooth=3   #  3 is good
-OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth)
+OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth,"Bu")
 list2env(OUTPUT ,.GlobalEnv)
 remove(OUTPUT)
 BU_Outline=EdgesOrdered %>% mutate(name="BU(R)")
