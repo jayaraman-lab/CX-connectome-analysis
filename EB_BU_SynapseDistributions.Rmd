@@ -1,0 +1,159 @@
+---
+title: "Notebook plotting synapse distributions for ring neurons in the BU and EB"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Command to update is remotes::update_packages('neuprintr')
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(plotly)
+library(dplyr)
+library(matlib)
+options(nat.plotengine = 'rgl')
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# The region of interest.
+ROI="EB"  
+
+# Directory to save data to.
+SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
+
+```
+
+### Create save/plot directory if they dont exists yet
+```{r}
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+source("inputOutputRegionsVis.r")
+source("GetNeuronsInRoi.R")
+source("SynapsePCAUtils.R")
+```
+
+
+### Get neurons in the ROI and
+### Threshold neurons (need to agree on criteria and clean up code)
+```{r}
+
+# get all EB bodies
+NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+
+# Threshold based on weights (criteria needs to be agreed on)
+PreMaxThresh=10
+PostMaxThresh=10
+Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
+list2env(Output ,.GlobalEnv)
+remove(Output)
+
+```
+
+
+### Get synapse distributions for all ring neurons
+```{r}
+
+# Get type name for all ring neurons
+UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
+RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R")]
+RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R") )
+
+# Get all synapses for the ring neurons
+RingNeuronSynsAll = RingNeuronBodies$bodyid %>% neuprint_get_synapses()
+RingNeuronSynsAll = mutate(RingNeuronSynsAll, name=neuprint_get_meta(bodyid)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+# Get just those synapses in the EB and BU
+RingNeuron_EBsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'EB') 
+RingNeuron_EBsyns = mutate(RingNeuron_EBsyns, name=neuprint_get_meta(bodyid)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+RingNeuron_BUsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'BU(R)') 
+RingNeuron_BUsyns = mutate(RingNeuron_BUsyns, name=neuprint_get_meta(bodyid)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+
+```
+
+
+### Get ROIs and ROI coordinates
+```{r}
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
+
+buMesh = neuprint_ROI_mesh("BU(R)")
+BUData=data.frame(x=buMesh$vb[1,], y=buMesh$vb[2,],z=buMesh$vb[3,],name="BU(R)")
+
+RlalMesh = neuprint_ROI_mesh("LAL(R)")
+RlaData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="LAL(R)")
+
+
+
+plot3d(ebMesh,alpha=0.2,color="blue")
+plot3d(buMesh,alpha=0.2,color="orange",add=TRUE)
+
+
+```
+
+
+### Get principal components from EB and BU meshes (also try synapses)
+```{r}
+
+
+# Perform PCA on the synapse locations to get new axes
+EB_PCs=PCA_SynapseRoi(EBData)
+EB_PCs2=PCA_SynapseRoi(RingNeuron_EBsyns)
+
+BU_PCs=PCA_SynapseRoi(BUData)
+#BU_PCs2=PCA_SynapseRoi(RingNeuron_BUsyns)
+
+
+ggplot(BUData, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) 
+ggplot(BUData, aes(x=x, y=y)) + geom_point(size=1, alpha = 0.05) 
+
+```
+
+
+
+### Project the synapse locations onto the PCs
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
