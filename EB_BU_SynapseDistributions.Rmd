@@ -107,24 +107,20 @@ RlalMesh = neuprint_ROI_mesh("LAL(R)")
 RlaData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="LAL(R)")
 
 
-
-plot3d(ebMesh,alpha=0.2,color="blue")
-plot3d(buMesh,alpha=0.2,color="orange",add=TRUE)
-
-
 ```
 
 
-### Get principal components from EB and BU meshes (also try synapses)
+### Use PCA to get axes with the most variance and project the data onto 
+### a plane defined by the first two PCs (with an optional rotation).
 ```{r}
 
 
 # Perform PCA on the synapse locations to get new axes
-EB_PCs=PCA_SynapseRoi(EBData)
-EB_PCs2=PCA_SynapseRoi(RingNeuron_EBsyns)
+EB_PCs=PCA_SynapseRoi(EBData, 0)
+EB_PCs2=PCA_SynapseRoi(RingNeuron_EBsyns, 0)
 
-BU_PCs=PCA_SynapseRoi(BUData)
-#BU_PCs2=PCA_SynapseRoi(RingNeuron_BUsyns)
+BU_PCs=PCA_SynapseRoi(BUData, 45)
+BU_PCs2=PCA_SynapseRoi(RingNeuron_BUsyns, 0)
 
 
 ggplot(BUData, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) 
