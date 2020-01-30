@@ -1,6 +1,5 @@
 # This file contain functions for:
 # 1) Performing PCA on meshes or synapse locations to get primary axes 
-# 2) Projecting synapse or meshes onto principal components
 
 
 PCA_SynapseRoi <- function(Input_DF) {
@@ -9,26 +8,29 @@ PCA_SynapseRoi <- function(Input_DF) {
   # Get synapse locations from input data frame, which must have x,y,z columns
   syn_locs=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
   
+  
   # calculate covariance matrix
   synCov = cov(syn_locs)
   
+  
   # calculate eigenvectors and values
-  synCov_eigen = eigen(synCov) # vectors: columns contain PCs 
+  synCov_eigen = eigen(synCov) # vectors: columns contain PCs, ranked from most variance accounted for to least 
   
   
-  # Find the smallest eigen value and associate vector (ie the PC which accounts for the least variance in the data)
-  n_plane =c(synCov_eigen$vectors[1,smallestEV], synCov_eigen$vectors[2, smallestEV], synCov_eigen$vectors[3, smallestEV])
-  n_plane =  n_plane / sqrt(sum(n_plane * n_plane)) # shouldn't need this, but just to make sure vector is length one.
+  # Use the last eigen vector as the plane to bisect the ROI
+  n_plane =c(synCov_eigen$vectors[1,3], synCov_eigen$vectors[2, 3], synCov_eigen$vectors[3, 3])
 
+  
   # Zero mean the data 
-  syn_COM = c(mean(syn_locs$x),mean(syn_locs$y),mean(syn_locs$z))
   syn_locs_centered = transform(syn_locs, x = x-mean(x), y = y-mean(y), z = z-mean(z))
 
+  
   # Make a matrix from the centered points
   StartMat = matrix(c(syn_locs_centered$x, syn_locs_centered$y, syn_locs_centered$z), nrow = length(syn_locs_centered$x), ncol = 3)
   colnames(StartMat) <- c("x","y","z")
   
-  # Project the original data onto PCs
+  
+  # Project the original data onto PCs and create a new data frame with the synapse locations (for plotting)
   NewProjection = StartMat %*% synCov_eigen$vectors
   syn_locs_centered_PCspace=data.frame(x=NewProjection[,1], y=NewProjection[,2], z=NewProjection[,3])
   
