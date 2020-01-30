@@ -30,10 +30,10 @@ my_neurons = neuprint_search("R4.*")# bind_rows(neuprint_search("R3.*"), neuprin
 ...use this list to get synapse locations
 ```{r}
 my_synapses = neuprint_get_synapses(as.numeric(my_neurons$bodyid),"EB") %>%
-                          mutate(partnerName=neuprint_get_meta(as.numeric(partner))[["name"]],
-                              name=neuprint_get_meta(as.numeric(bodyid))[["name"]],
-                              partnertype=neuprint_get_meta(as.numeric(partner))[["type"]],
-                              type=neuprint_get_meta(as.numeric(bodyid))[["type"]]) 
+                          mutate(partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+                              name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+                              partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]],
+                              type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]]) 
 
 ```
 
@@ -48,9 +48,7 @@ fbMesh = neuprint_ROI_mesh("FB")
 ```{r}
 syn_locs = my_synapses[c('x','y','z')]
 syn_locs = transform(syn_locs, x = as.numeric(x), y = as.numeric(y), z = as.numeric(z))
-```
 
-```{r}
 # calculate covariance matrix
 synCov = cov(syn_locs)
 synCov
@@ -63,9 +61,7 @@ smallestEV = which(synCov_eigen$values == min(synCov_eigen$values), arr.ind = TR
 
 n_plane =c(synCov_eigen$vectors[smallestEV,1], synCov_eigen$vectors[smallestEV,2], synCov_eigen$vectors[smallestEV,3])
 n_plane =  n_plane / sqrt(sum(n_plane * n_plane))
-```
 
-```{r}
 syn_COM = c(mean(syn_locs$x),mean(syn_locs$y),mean(syn_locs$z))
 syn_locs_scaled = transform(syn_locs, x = x-mean(x), y = y-mean(y), z = z-mean(z))
 ```
@@ -181,17 +177,29 @@ ggplot(syn_2d,aes(x=partnertype, fill=partnertype)) + geom_bar() + theme_classic
 ```
 
 ```{r}
-minSyn = length(my_neurons)*500
-R4d_syn_majorPartners = as.data.frame(table(unlist(syn_2d$partnertype)))
-R4d_syn_majorPartners = arrange(R4d_syn_majorPartners, desc(Freq)) %>% filter(Freq >= minSyn)
-R4d_syn_majorPartners
+minSyn = length(my_neurons)*320
+majorPartners = as.data.frame(table(unlist(syn_2d$partnertype)))
+majorPartners = arrange(majorPartners, desc(Freq)) %>% filter(Freq >= minSyn)
+majorPartners
 
 syn_2d_filt = na.omit(syn_2d)
-syn_2d_filt = syn_2d_filt  %>% filter(partnertype %in% R4d_syn_majorPartners$Var1)
+syn_2d_filt = syn_2d_filt  %>% filter(partnertype %in% majorPartners$Var1)
+
+syn_2d_filt = syn_2d_filt %>% 
+  mutate(partnerSide = regmatches(partnerName, regexpr("_[R,L]{1}", partnerName)) )
 ```
 
 ### Illustrate synaptic positions across EB slice 
 ...differentiating by type
+
+
+```{r}
+r3types = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m','R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
+r3types_a = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m')
+r3types_b = c('R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
+r4types = c('R4d_a','R4d_b','R4m')
+```
+
 ```{r}
 ggplot(syn_2d, aes(x=dist, y=zdir))+ geom_bin2d() +  #geom_point(alpha=0.5) + 
   facet_grid(cols = vars(type), rows=vars(post)) +
@@ -201,32 +209,10 @@ ggplot(syn_2d, aes(x=dist, y=zdir))+ geom_bin2d() +  #geom_point(alpha=0.5) +
 
 
 ```{r}
-r3types = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m','R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
-r4types = c('R4d_a','R4d_b','R4m')
-ggplot(syn_2d_filt %>% filter(type %in% r3types), aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
-  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() +theme(axis.text.x = element_text(angle = 90)) +
-  guides(color=FALSE)
-#ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
-#  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() + theme(axis.text.x = element_text(angle = 90))
-#+ guides(color=FALSE)
-
-ggplot(syn_2d_filt, aes(x=dist, y=zdir, color = type)) + geom_point(size=0.5, alpha=0.1)  + 
-  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + 
-  guides(color=FALSE)
-```
-
-```{r}
 ggplot(syn_2d_filt, aes(x=dist, y=zdir, fill=type)) +
   stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
   facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
 
-```
-
-```{r}
-r3types = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m','R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
-r3types_a = c('R3a_a','R3a_b','R3a_c','R3d_a','R3d_b','R3d_c','R3m')
-r3types_b = c('R3p_a','R3p_b','R3w_a', 'R3w_b', 'R3w_c')
-r4types = c('R4d_a','R4d_b','R4m')
 ```
 
 ```{r}
@@ -242,79 +228,77 @@ ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, fill=type)
   stat_density_2d(aes(alpha = stat(nlevel)),bins=3, geom = "polygon") +
   facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500)#+ guides(color=FALSE)
 ```
-```{r}
-
-h <- c(MASS::bandwidth.nrd(xdf$x), MASS::bandwidth.nrd(xdf$y))
-
-dens <- MASS::kde2d(
-  xdf$x, xdf$y, h = h, n = 100,
-  lims = c(0.5, 6, 40, 110)
-)
-
-breaks <- pretty(range(zdf$z), 10)
-
-zdf <- data.frame(expand.grid(x = dens$x, y = dens$y), z = as.vector(dens$z))
-
-z <- tapply(zdf$z, zdf[c("x", "y")], identity)
-
-cl <- grDevices::contourLines(
-  x = sort(unique(dens$x)), y = sort(unique(dens$y)), z = dens$z,
-  levels = breaks
-)
-
-SpatialPolygons(
-  lapply(1:length(cl), function(idx) {
-    Polygons(
-      srl = list(Polygon(
-        matrix(c(cl[[idx]]$x, cl[[idx]]$y), nrow=length(cl[[idx]]$x), byrow=FALSE)
-      )),
-      ID = idx
-    )
-  })
-) -> cont
-
-coordinates(xdf) <- ~x+y
-
-data_frame(
-  ct = sapply(over(cont, geometry(xdf), returnList = TRUE), length),
-  id = 1:length(ct),
-  lvl = sapply(cl, function(x) x$level)
-) %>% 
-  count(lvl, wt=ct) %>% 
-  mutate(
-    pct = n/length(xdf),
-    pct_lab = sprintf("%s of the points fall within this level", scales::percent(pct))
-  )
-```
 
 ...differentiating by partner
+```{r}
+ggplot(syn_2d_filt, aes(x=dist, y=zdir, fill=partnertype)) +
+  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+
+```
 
 ```{r}
-ggplot(syn_2d_filt %>% filter(type %in% r3types_a), aes(x=dist, y=zdir, fill=partnertype)) +
-  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
-  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+#ggplot(syn_2d_filt %>% filter(type %in% r3types_a), aes(x=dist, y=zdir, fill=partnertype)) +
+#  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+#  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
 
-ggplot(syn_2d_filt %>% filter(type %in% r3types_b), aes(x=dist, y=zdir, fill=partnertype)) +
-  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
-  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
+#ggplot(syn_2d_filt %>% filter(type %in% r3types_b), aes(x=dist, y=zdir, fill=partnertype)) +
+#  stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
+#  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
 
 ggplot(syn_2d_filt %>% filter(type %in% r4types), aes(x=dist, y=zdir, fill=partnertype)) +
   stat_density_2d(aes(alpha = stat(nlevel)), bins=3, geom = "polygon") +
-  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500)#+ guides(color=FALSE)
+  facet_grid(cols=vars(type), rows=vars(post)) + theme_classic() #+ xlim(500, 5000) + ylim(-1500, 1500)#+ guides(color=FALSE)
 ```
 
 
-### ...
-
+### Spatial inhomogeneity of synapse density along the ring
 
 ```{r}
-ggplot(syn_2d, aes(x=angle, color=type)) + geom_freqpoly(bins=18) + #, linetype=post
+circBins = 16
+ggplot(syn_2d_filt, aes(x=angle, color=type)) + geom_freqpoly(bins=circBins) + #, linetype=post
   facet_grid(cols = vars(post)) + theme_classic() + xlim(0, 360) + theme(axis.text.x = element_text(angle = 90)) 
 
-ggplot(syn_2d, aes(x=angle, color=id)) + geom_freqpoly(bins=18) +
+ggplot(syn_2d_filt, aes(x=angle, color=id)) + geom_freqpoly(bins=circBins) +
   facet_grid(cols = vars(type), rows=vars(post)) +
   guides(color=FALSE) + theme_classic() + xlim(0, 360) + theme(axis.text.x = element_text(angle = 90))
+
+ggplot(syn_2d_filt %>% filter(partnertype %in% c("EPG","EQ5","PEN_b(PEN2)","R4d_a","R4d_b","R4m")), 
+       aes(x=angle, color=name)) + geom_freqpoly(bins=circBins) +
+  facet_wrap(cols = vars(partnertype), rows=vars(post), scales="free") +
+  theme_classic() + xlim(0, 360) + theme(axis.text.x = element_text(angle = 90)) #guides(color=FALSE) 
 ```
+```{r}
+syn_2d_to_PENa = syn_2d %>% filter(partnertype == "PEN_a(PEN1)") %>% 
+  mutate(partnerSide = regmatches(syn_2d_to_PENa$partnerName, regexpr("_[R,L]{1}", syn_2d_to_PENa$partnerName)) )
+
+```
+
+```{r}
+circBins = 16
+
+ggplot(syn_2d_filt %>% filter(partnertype == "PEN_a(PEN1)"), aes(x=angle, color=partnerSide)) + geom_freqpoly(bins=circBins) +
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  theme_classic() + xlim(-5, 365) + theme(axis.text.x = element_text(angle = 90)) #guides(color=FALSE) 
+
+ggplot(syn_2d_filt %>% filter(partnertype == "PEN_a(PEN1)"), aes(x=angle, color=partnerSide, linestyle=partnerName)) + geom_freqpoly(bins=circBins) +
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  theme_classic() + xlim(-5, 365) + theme(axis.text.x = element_text(angle = 90)) #guides(color=FALSE) 
+```
+
+```{r}
+circBins = 16
+
+ggplot(syn_2d_filt %>% filter(partnertype == "EPG"), aes(x=angle, color=partnerSide)) + geom_freqpoly(bins=circBins) +
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  theme_classic() + xlim(-5, 365) + theme(axis.text.x = element_text(angle = 90)) #guides(color=FALSE) 
+
+ggplot(syn_2d_filt %>% filter(partnertype == "EPG"), aes(x=angle, color=partnerSide, linestyle=partnerName)) + geom_freqpoly(bins=circBins) +
+  facet_grid(cols = vars(type), rows=vars(post)) +
+  theme_classic() + xlim(-5, 365) + theme(axis.text.x = element_text(angle = 90)) #guides(color=FALSE) 
+```
+
+
 
 ```{r}
 ggplot(syn_2d, aes(x=dist, stat(density), color=type, linetype=post)) + geom_freqpoly(bins=50) + theme(axis.text.x = element_text(angle = 90)) + 
