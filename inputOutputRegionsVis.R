@@ -7,8 +7,6 @@ get_rois_df <- function (){
 }
 
 
-
-
 renameRoiColumn <- function(df, slctROI) {
   df = df %>% rename_at(vars(starts_with(slctROI)), funs(str_replace(., slctROI, "ROI")))
   df = df %>%rename_at(vars(ends_with(".pre")), funs(str_replace(., ".pre", "_pre")))
@@ -18,8 +16,6 @@ renameRoiColumn <- function(df, slctROI) {
   
   return (df)
 }
-
-
 
 
 #remove missing values
@@ -33,19 +29,19 @@ cleanup <- function(df) {
 }
 
 
-
-
 # Select neurons that are "significant" based on synapse statistics. This function should be adapted to common criterial we agreed on.
 filterNeuronTypes = function(df,minSynapses,minSumSynapses){
   
   # -> Compute statistics across neurons of the same bodytype
-  roi_synStats = df %>% group_by(bodytype) %>% summarise(mean_pre = mean(ROI_pre),
-                                                         mean_post = mean(ROI_post),
-                                                         sum_pre = sum(ROI_pre),
-                                                         sum_post = sum(ROI_post),
-                                                         fract_pre = mean(ROI_pre/npre),
-                                                         fract_post = mean(ROI_post/npost),
-                                                         fract_all = mean((ROI_pre+ROI_post)/(npost + npre)))
+  roi_synStats = df %>% group_by(bodytype) %>% 
+    mutate(ROI_post = as.numeric(ROI_post), ROI_pre = as.numeric(ROI_pre), npre = as.numeric(npre), npost = as.numeric(npost)) %>%
+    summarise(mean_pre = mean(ROI_pre,na.rm = TRUE),
+              mean_post = mean(ROI_post,na.rm = TRUE),
+              sum_pre = sum(ROI_pre,na.rm = TRUE),
+              sum_post = sum(ROI_post,na.rm = TRUE),
+              fract_pre = mean(ROI_pre/npre,na.rm = TRUE),
+              fract_post = mean(ROI_post/npost,na.rm = TRUE),
+              fract_all = mean((ROI_pre+ROI_post)/(npost + npre)),na.rm = TRUE)
   
   df = full_join(full_join(filter(df, bodytype %in% filter(roi_synStats, mean_pre >= minSynapses)$bodytype),
                            filter(df, bodytype %in% filter(roi_synStats, mean_post >= minSynapses)$bodytype)),
@@ -54,6 +50,8 @@ filterNeuronTypes = function(df,minSynapses,minSumSynapses){
   
   return(df)
 }
+
+
 
 
 
