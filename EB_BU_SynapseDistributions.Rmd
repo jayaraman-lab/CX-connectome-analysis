@@ -43,11 +43,20 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login()
 ```
 
-### Get general functions
+### Get general functions and load libraries
 ```{r}
 source("inputOutputRegionsVis.r")
 source("GetNeuronsInRoi.R")
 source("SynapsePCAUtils.R")
+source("GetRoiMeshOutline.r")
+library(car)
+library(imager)
+library(reshape2)
+library(zoo)
+library(ggpubr)
+library(ks)
+library(RColorBrewer)
+
 ```
 
 
@@ -93,6 +102,25 @@ RingNeuron_BUsyns = mutate(RingNeuron_BUsyns, name=neuprint_get_meta(bodyid)$typ
 ```
 
 
+### Get average number of synapses per type and filter 
+```{r}
+
+MinSyns=10
+
+# Get average synapses in EB per type and filter
+SynsPerType_EB=RingNeuron_EBsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_EB=filter(SynsPerType_EB,n>10)
+RingNeuron_EBsyns=filter(RingNeuron_EBsyns,name %in% SynsPerType_EB$name)
+
+# Get average synapses in BU per type and filter
+SynsPerType_BU=RingNeuron_BUsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_BU=filter(SynsPerType_BU,n>10)
+RingNeuron_BUsyns=filter(RingNeuron_BUsyns,name %in% SynsPerType_BU$name)
+
+
+```
+
+
 ### Get ROIs and ROI coordinates
 ```{r}
 
@@ -132,18 +160,6 @@ BUData_BUax=Project_NewCoordinates(BUData, BU_Axes)
 # Get the ROI outlines in their new coordinate frame
 ```{r}
 
-# Load libraries. Might have to install.packages("car") or install.packages("imager")
-library(car)
-library(imager)
-library(reshape2)
-library(zoo)
-library(ggpubr)
-library(ks)
-
-
-# Load function
-source("GetRoiMeshOutline.r")
-
 
 # Get EB Mesh outline in x/y
 OUTPUT=Get_MeshRoiOutline(EBData_EBax, 40, 3,"EB", DIM=c(1,2)) # Spacing=40, smooth=3 is good
@@ -175,109 +191,22 @@ ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=nam
 ### Make plots of 2D synapse distributions for BU and EB
 ```{r}
 
-
-# Get just the synapses in the BU
-RingNeuronSynsAll_BU=filter(RingNeuronSynsAll,pointsinside(RingNeuronSynsAll,RbuMesh))
-
-# Get average synapses in BU per type
-SynsPerType=RingNeuronSynsAll_BU %>% group_by(name) %>% summarize(n=n())
-SynsPerType=filter(SynsPerType,n>10)
-
-# filter BU synapses by type
-RingNeuronSynsAll_BU=filter(RingNeuronSynsAll_BU,name %in% SynsPerType$name)
-
-# Smooth BU outline
-BU_Outline_Smooth=data.frame(x = rollmean(BU_Outline$x,8),
-                             y = rollmean(BU_Outline$y,8),
-                             z = rollmean(BU_Outline$z,8))
-
-# Get max and min synapse positions, since clipping doesnt work well.
-Extra=500
-XLIM=c( min(c(RingNeuronSynsAll_BU$x))-Extra , max(c(RingNeuronSynsAll_BU$x))+Extra )
-YLIM=c( min(c(RingNeuronSynsAll_BU$y))-Extra , max(c(RingNeuronSynsAll_BU$y))+Extra )
-ZLIM=c( min(c(-RingNeuronSynsAll_BU$z))-Extra , max(c(-RingNeuronSynsAll_BU$z))+Extra )
+# To Do:
+# 1) Need to account for variable number of outputs
+# 2) Improve getting outline of data and get it to work with ring neurons in EB
+# 3) Look at synapse distributions in BU in Z
+# 4) Look at synapse distributions in cross section of EB
 
 
-# For each ring neuron type, plot synapse distribution in BU 
-# Not this excludes synapses that are just outside the bulb since the ROI isnt perect.
-for (nnn in 1:length(unique(RingNeuronSynsAll_BU$name)) ){
-  ToPlotSyns=subset(RingNeuronSynsAll_BU, RingNeuronSynsAll_BU$name == sort(unique(RingNeuronSynsAll_BU$name))[nnn] )
-  
-  ppp=ggplot()  + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) +
-    geom_hex(data=ToPlotSyns, aes(x = x, y = -z), bins=50 ) + 
-    scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,15), limits=c(0, 15), oob = scales::squish) +
-    xlim(XLIM[1], XLIM[2]) + ylim(ZLIM[1], ZLIM[2]) + ggtitle(sort(unique(RingNeuronSynsAll_BU$name))[nnn]) +
-    theme_void() + theme(legend.position="none")
-  
-  eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
-  
-  ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_",sort(unique(RingNeuronSynsAll_BU$name))[nnn],".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  remove(ppp)
-  
-}
+# Make plots for BU 
+Cmax=50 # Max for color bar
+PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, "BUr", PlotDir)
 
 
-# Plot every ring neuron arranged on a grid
-ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
-          ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
-          ncol = 6, nrow = 3)
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_ALL",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+# Make plots for EB
+Cmax=100 # Max for color bar
+PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, "EB", Cmax, PlotDir)
 
-
-# Plot all ring neurons synapses overlayed
-ggplot() + geom_density_2d( data=RingNeuronSynsAll_BU, aes(x=x, y=-z, color=factor(name) ) )  +
-  geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
-
-
-# Get 95% contour and plot all on one plot
-for (nnn in 1:length(unique(RingNeuronSynsAll_BU$name)) ){
-  
-  ToPlotSyns=subset(RingNeuronSynsAll_BU, RingNeuronSynsAll_BU$name == sort(unique(RingNeuronSynsAll_BU$name))[nnn] )
-  
-  
-  # Get synapse 99% contour, but this seems to only work well for gaussian-like distributions
-  d <- data.frame(x=ToPlotSyns$x,y=ToPlotSyns$z)
-  kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(15,15))
-  contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["5%"])[[1]])
-  contour_95 <- data.frame(contour_95)
-  contour_95$name=sort(unique(RingNeuronSynsAll_BU$name))[nnn]
-  
-  ppp = ggplot() + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) +
-    geom_hex(data=ToPlotSyns, aes(x = x, y = -z), bins=50 ) + 
-    geom_polygon(data=contour_95, aes(x=x, y=-y), colour='red', fill=NA, size = 0.5) +
-    scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,15), limits=c(0, 15), oob = scales::squish) +
-    xlim(XLIM[1], XLIM[2]) + ylim(ZLIM[1], ZLIM[2]) + ggtitle(sort(unique(RingNeuronSynsAll_BU$name))[nnn]) +
-    theme_void() + theme(legend.position="none") 
-  
-  eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
-  
-  ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_Contour_",sort(unique(RingNeuronSynsAll_BU$name))[nnn],".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  remove(ppp)
-  
-  if (nnn==1){
-    ContourAll=contour_95
-  } else {
-    ContourAll=rbind(ContourAll,contour_95)
-  }
-}
-
-
-# Plot every ring neuron arranged on a grid with contour
-ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
-          ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
-          ncol = 6, nrow = 3)
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-ppp=ggplot() + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) + 
-  geom_polygon(data=ContourAll, aes(x=x, y=-y,color=name, fill = name), alpha=0.05) + theme_bw()
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_75percent",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
