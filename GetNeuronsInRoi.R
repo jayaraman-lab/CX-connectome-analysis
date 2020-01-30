@@ -37,6 +37,11 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
     roi_Connect = renameRoiColumn(roi_Connect, slctROI)
   }
   
+  # convert to numeric if not numeric already
+  roi_Connect$ROI_pre=as.numeric(roi_Connect$ROI_pre)
+  roi_Connect$ROI_post=as.numeric(roi_Connect$ROI_post)
+  roi_Connect$npre=as.numeric(roi_Connect$npre)
+  roi_Connect$npost=as.numeric(roi_Connect$npost)
   
   return(roi_Connect)
 }
@@ -45,7 +50,6 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
 SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh) {
 
 # Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI. ---------------
-  
   
   # Compute the total number of synapses in the ROI
   NamedBodies=mutate(NamedBodies, PrePost_Syns = (NamedBodies$ROI_pre + NamedBodies$ROI_post))

@@ -1,10 +1,10 @@
 # This file contain a functions getting the outline of an mesh
 
-Get_MeshRoiOutline <- function(Mesh, Spacing, Smooth) {
+Get_MeshRoiOutline <- function(Mesh, Spacing, Smooth, ROI) {
   
 
   # Get 3D data points of mesh nodes
-  DataToUse=data.frame(x=Mesh$vb[1,], y=Mesh$vb[2,],z=Mesh$vb[3,],name="EB")
+  DataToUse=data.frame(x=Mesh$vb[1,], y=Mesh$vb[2,],z=Mesh$vb[3,],name=ROI)
   
   
   # Get X and Y limits for image grid
