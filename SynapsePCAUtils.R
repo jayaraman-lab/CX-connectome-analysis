@@ -1,6 +1,7 @@
 # This file contain functions for:
 # 1) Performing PCA on meshes or synapse locations to get primary axes
 # 2) Projecting a set of synapses or mesh points onto new axes
+# 3) Plotting the distribution of synapses over ROI outlins
 
 
 PCA_SynapseRoi <- function(Input_DF, Rotate) {
@@ -89,11 +90,89 @@ Project_NewCoordinates <- function(Input_DF, NewAxes) {
   
   
   
+PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI, Cmax, PlotDir) { 
+  
+  
+  # Get max and min synapse positions
+  Extra=500
+  XLIM=c( min(c(Synapses$x))-Extra , max(c(Synapses$x))+Extra )
+  YLIM=c( min(c(-Synapses$y))-Extra , max(c(-Synapses$y))+Extra ) # take negative here
+  ZLIM=c( min(c(Synapses$z))-Extra , max(c(-Synapses$z))+Extra )
+  
+  
+  # Get 95% contour and plot all on one plot
+  for (nnn in 1:length(unique(Synapses$name)) ){
+    
+    # Get the synapses to plot
+    ToPlotSyns=subset(Synapses, Synapses$name == sort(unique(Synapses$name))[nnn] )
+    
+    # Plot the 2D hisogram without contour lines
+    ppp=ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+      geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+      geom_hex(data=ToPlotSyns, aes(x = x, y = -y), bins=50 ) + 
+      scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$name))[nnn]) +
+      theme_void() + theme(legend.position="none")
+    
+    ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_",sort(unique(Synapses$name))[nnn],".png",sep=""),
+           plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+    remove(ppp)
+    
+    
+    
+    # Get synapse 99% contour, but this seems to only work well for gaussian-like distributions
+    d <- data.frame(x=ToPlotSyns$x,y=ToPlotSyns$y)
+    kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(8,8))
+    contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["5%"])[[1]])
+    contour_95 <- data.frame(contour_95)
+    contour_95$name=sort(unique(Synapses$name))[nnn]
+    
+    # Smooth contour 
+    Contour=data.frame(x = rollmean(contour_95$x,4),
+                       y = rollmean(contour_95$y,4),
+                       name = sort(unique(Synapses$name))[nnn])
+    
+    
+    # Plot the 2D hisogram with contour lines
+    ppp = ggplot() + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+      geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+      geom_hex(data=ToPlotSyns, aes(x = x, y = -y), bins=50 ) + 
+      geom_polygon(data=Contour, aes(x=x, y=-y), colour='red', fill=NA, size = 0.5) +
+      scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$name))[nnn]) +
+      theme_void() + theme(legend.position="none") 
+    
+    eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
+    
+    ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_",sort(unique(Synapses$name))[nnn],".png",sep=""),
+           plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+    remove(ppp)
+    
+    if (nnn==1){
+      ContourAll=Contour
+    } else {
+      ContourAll=rbind(ContourAll,Contour)
+    }
+  }
+  
+  
+  # Plot every ring neuron arranged on a grid with contour
+  ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
+                ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
+                ncol = 6, nrow = 3)
+  ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
+         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
   
   
   
+  ppp=ggplot() + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) + 
+    geom_polygon(data=ContourAll, aes(x=x, y=-y,color=name, fill = name), alpha=0.05) + theme_bw()
+  ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_75percent",".png",sep=""),
+         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
   
   
+}
+
   
   
   
