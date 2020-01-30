@@ -1,5 +1,6 @@
 # This file contain functions for:
-# 1) Performing PCA on meshes or synapse locations to get primary axes 
+# 1) Performing PCA on meshes or synapse locations to get primary axes
+# 2) Projecting a set of synapses or mesh points onto new axes
 
 
 PCA_SynapseRoi <- function(Input_DF, Rotate) {
@@ -63,4 +64,38 @@ PCA_SynapseRoi <- function(Input_DF, Rotate) {
   return(synCov_eigen)
 }
 
+
+Project_NewCoordinates <- function(Input_DF, NewAxes) {
+  
+  
+  # Make a matrix from the synapse or mesh points
+  syn_locs=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
+  StartMat = matrix(c(syn_locs$x, syn_locs$y, syn_locs$z), nrow = length(syn_locs$x), ncol = 3)
+  colnames(StartMat) <- c("x","y","z")
+  
+  
+  # Project the original data onto PCs and create a new data frame with the synapse locations (for plotting)
+  NewProjection = StartMat %*% NewAxes$vectors
+  NewProjection_DF = Input_DF
+  NewProjection_DF$x=NewProjection[,1]
+  NewProjection_DF$y=NewProjection[,2]
+  NewProjection_DF$z=NewProjection[,3]
+
+
+  return(NewProjection_DF)
+  
+}
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
