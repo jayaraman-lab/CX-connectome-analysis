@@ -2,7 +2,7 @@
 # 1) Performing PCA on meshes or synapse locations to get primary axes 
 
 
-PCA_SynapseRoi <- function(Input_DF) {
+PCA_SynapseRoi <- function(Input_DF, Rotate) {
   
   
   # Get synapse locations from input data frame, which must have x,y,z columns
@@ -15,6 +15,12 @@ PCA_SynapseRoi <- function(Input_DF) {
   
   # calculate eigenvectors and values
   synCov_eigen = eigen(synCov) # vectors: columns contain PCs, ranked from most variance accounted for to least 
+  
+  
+  # Rotate the first two PCs to align ROI in direction we want 
+  Rotate_Rad=Rotate/360*2*pi
+  RotationMatrix=matrix( c(cos(Rotate_Rad), sin(Rotate_Rad), 0, -sin(Rotate_Rad),cos(Rotate_Rad),0,0,0,1) , nrow = 3, ncol = 3)
+  synCov_eigen$vectors =  synCov_eigen$vectors %*% RotationMatrix
   
   
   # Use the last eigen vector as the plane to bisect the ROI
