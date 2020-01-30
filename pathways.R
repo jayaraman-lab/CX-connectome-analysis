@@ -56,18 +56,18 @@ preNpostRatios <- function(nronTypes, ROI) {
       preNpost <- preNpost %>%
         rbind(data.frame(type = nronTypes[[tp]],
                          bodyId = bodyIds[[bId]],
-                         PBPre = synVec[1],
+                         regPre = synVec[1],
                          otherPre = synVec[2],
                          allPre = totPre[[bId]],
-                         PBPost = synVec[3],
+                         regPost = synVec[3],
                          otherPost = synVec[4],
                          allPost = totPost[[bId]]))
     }
     
   }
   
-  preNpost <- preNpost %>% mutate(preRelative = PBPre/allPre)
-  preNpost <- preNpost %>% mutate(postRelative = PBPost/allPost)
+  preNpost <- preNpost %>% mutate(preRelative = regPre/allPre)
+  preNpost <- preNpost %>% mutate(postRelative = regPost/allPost)
   preNpost <- preNpost %>% mutate(prePostRatio = preRelative/postRelative)
   preNpost <- preNpost %>% mutate(prePostDiff = preRelative-postRelative)
   

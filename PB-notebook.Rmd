@@ -156,8 +156,77 @@ ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
 
 ```
 
-
+PB-Sps only synapses on PFNds - CONVERT THIS TO HISTOGRAM BY TYPE
 ```{r}
-
+SpsP_Post <- getConnectionTable(getBodyIdsForList(c("SpsP")),"POST","PB")
+conmatPlot <- plotConnectivityMatrix(SpsP_Post, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
 ```
 
+LPsP inputs and outputs - CONVERT THIS TO HISTOGRAM BY TYPE
+```{r}
+LPsP_Post <- getConnectionTable(getBodyIdsForList(c("LPsP")),"POST","PB")
+conmatPlot <- plotConnectivityMatrix(LPsP_Post, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+
+LPsP_Pre <- getConnectionTable(getBodyIdsForList(c("LPsP")),"PRE","PB")
+conmatPlot <- plotConnectivityMatrix(LPsP_Pre, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+```
+
+Look more closely at the P6-8P9 - come up with better way to show this!
+```{r}
+P68P9_Post <- getConnectionTable(getBodyIdsForList(c("P6-8P9")),"POST","PB")
+conmatPlot <- plotConnectivityMatrix(P68P9_Post, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+
+P68P9_Pre <- getConnectionTable(getBodyIdsForList(c("P6-8P9")),"PRE","PB")
+conmatPlot <- plotConnectivityMatrix(P68P9_Pre, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+```
+
+Show EB<->PB and FB<->PB connections
+```{r}
+nronTypes = c("EPG","IbSpsP","Delta7","P6-8P9",
+              "PE")
+EB_PB <- getConnectionTable_forSubset(
+  getBodyIdsForList(nronTypes)$bodyid,
+  getBodyIdsForList(nronTypes)$bodyid,"PB")
+
+conmatPlot <- plotConnectivityMatrix(EB_PB, synapseCutOff = 3, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+
+nronTypes = c("EPG","IbSpsP","Delta7","P6-8P9",
+              "PF")
+EB_PB <- getConnectionTable_forSubset(
+  getBodyIdsForList(nronTypes)$bodyid,
+  getBodyIdsForList(nronTypes)$bodyid,"PB")
+
+conmatPlot <- plotConnectivityMatrix(EB_PB, synapseCutOff = 3, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+```
+
+Look at PB-IB,SPS inputs
+```{r}
+IbSpsP_Pre <- getConnectionTable(getBodyIdsForList(c("IbSpsP")),"PRE","IB")
+conmatPlot <- plotConnectivityMatrix(IbSpsP_Pre, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+
+IbSpsP_Pre <- getConnectionTable(getBodyIdsForList(c("IbSpsP")),"PRE","SPS(L)")
+conmatPlot <- plotConnectivityMatrix(IbSpsP_Pre, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+
+IbSpsP_Pre <- getConnectionTable(getBodyIdsForList(c("IbSpsP")),"PRE","SPS(R)")
+conmatPlot <- plotConnectivityMatrix(IbSpsP_Pre, synapseCutOff = 5, 0)
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+print(conmatPlot)
+```

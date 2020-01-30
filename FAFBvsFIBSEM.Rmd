@@ -82,6 +82,10 @@ FAFBLoad <- function(region){
     }
     if (grepl("R",substring(nmPrts[[1]][1],1,1)))
       nronNames[n] <- paste0('R4m','_',substr(nmPrts[[1]][1],2,2))
+    if (grepl("NO",nmPrts[[1]][1]))
+      nronNames[n] <- "GLN"
+    if (grepl("GE",nmPrts[[1]][1]))
+      nronNames[n] <- "EQ5"
   }
   
   # Replace the names in the dataframe
@@ -89,8 +93,8 @@ FAFBLoad <- function(region){
   nameids_New = nameids
   partnerids_New = partnerids
   for (n in 1:length(nrons)){
-    nameids_New[which(grepl(nrons[n],nameids))] <- nronNames[n]
-    partnerids_New[which(grepl(nrons[n],partnerids))] <- nronNames[n]
+    nameids_New[which(grepl(nrons[n],nameids_New))] <- nronNames[n]
+    partnerids_New[which(grepl(nrons[n],partnerids_New))] <- nronNames[n]
   }
   FAFB_df$nameid <- factor(nameids_New,levels=sort(unique(nameids_New)))
   FAFB_df$partnerid <- factor(partnerids_New,levels=sort(unique(partnerids_New)))
@@ -100,12 +104,16 @@ FAFBLoad <- function(region){
   
 ```
 
-Compare the FAFB data to the FIBSEM data
+Compare the FAFB data to the FIBSEM data - PB
 ```{r}
+synapseCutOff = 3
 
 FAFB_PB_df <-FAFBLoad("PB")
 
-plotConnectivityMatrix(FAFB_PB_df[which(!grepl("D7",FAFB_PB_df$nameid) & !grepl("D7",FAFB_PB_df$partnerid)),], synapseCutOff = 0, 0)
+ggplot(FAFB_PB_df  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
               "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
@@ -126,18 +134,31 @@ neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
-              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 
-plotConnectivityMatrix(FIBSEM_PB, synapseCutOff = 1, 0)
+ggplot(FIBSEM_PB  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 ```
 
+Compare the FAFB data to the FIBSEM data - EB
 ```{r}
+
+synapseCutOff = 3
 
 FAFB_EB_df <-FAFBLoad("EB")
 
-plotConnectivityMatrix(FAFB_EB_df[which(!grepl("R4m",FAFB_PB_df$nameid) & !grepl("R4m",FAFB_PB_df$partnerid)),], synapseCutOff = 0, 0)
+ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
               "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
@@ -158,10 +179,48 @@ neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
-              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
+              "R4m")
 
 FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
 
-plotConnectivityMatrix(FIBSEM_EB, synapseCutOff = 1, 0)
+ggplot(FIBSEM_EB  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 ```
 
+Compare the FAFB data to the FIBSEM data - NO
+```{r}
+
+synapseCutOff = 3
+
+FAFB_NO_df <-FAFBLoad("NO")
+
+ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+
+neuronListPost = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
+              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7")
+
+neuronListPre = append(neuronListPost,"GLN\\\\\\\\(LAL-NO1\\\\\\\\)\\\\\\\\(AVM08\\\\\\\\)_L")
+
+FIBSEM_NO = getConnectionTable_forSubset(getBodyIdsForList(neuronListPre)$bodyid, getBodyIdsForList(neuronListPost)$bodyid, "NO")
+
+ggplot(FIBSEM_NO  %>% filter(weight > synapseCutOff)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+```

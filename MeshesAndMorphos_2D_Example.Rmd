@@ -111,7 +111,7 @@ RbuMesh = neuprint_ROI_mesh("BU(R)")
 # Get EB Mesh
 Spacing=40 # 40 is good
 Smooth=3   #  3 is good
-OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth)
+OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth,"EB")
 list2env(OUTPUT ,.GlobalEnv)
 remove(OUTPUT)
 EB_Ring1=EdgesOrdered1 %>% mutate(name="EB1")
@@ -121,7 +121,7 @@ remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
 # Get BU Mesh
 Spacing=40 # 40 is good
 Smooth=3   #  3 is good
-OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth)
+OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth,"Bu")
 list2env(OUTPUT ,.GlobalEnv)
 remove(OUTPUT)
 BU_Outline=EdgesOrdered %>% mutate(name="BU(R)")
@@ -133,13 +133,50 @@ ggplot()  + geom_point(data=RingNeuronSynsAll, aes(x = x, y = -z, color=name)) +
     geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA)  +  geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA)
 
 
+
+ggplot() + stat_density_2d(data=RingNeuronSynsAll, aes(x=x, y=-z, fill = ..level..), geom = "polygon") +
+  geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )  +  
+      geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
+
+ggplot()  + geom_hex(data=RingNeuronSynsAll, aes(x = x, y = -z), bins=100)+
+  geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )  +  
+      geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
+
+
+
+```
+
+
+
+# See if we can get the outline of a synapse point cloud?
+```{r}
+
+```
+
+
+
+# See if we can get neuron morphology or outline of synapses in 2D
+# Yes, but its going to a pain to get it work with ggplot I think
+```{r}
+
+# Here's how to plot just the neuron morphology in 2D but it doesnt seem easy to get this to work with ggplot
+A=plot(RingNeuronMorpho, col="black",WithNodes = FALSE,PlotAxes = c("XZ"),AxisDirections = c(1, 1, -1))
+     
 ```
 
 
 
 
 
-### Previous code used to make the function called in previous code block
+
+
+
+
+
+
+### Previous code used to make the function GetROiMeshOutline.R
 ```{r}
 
 
