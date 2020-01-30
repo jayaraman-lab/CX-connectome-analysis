@@ -97,19 +97,19 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("PEN_a\\(PEN1\\)", "PEN1", simpleTypes)
   simpleTypes = gsub("PEN_b\\(PEN2\\)", "PEN2", simpleTypes)
   simpleTypes = gsub("MC[[:alnum:]]*", "MC", simpleTypes)
+  simpleTypes = gsub("TuTu[[:alnum:]]*", "TuTu", simpleTypes)
   return(simpleTypes)
 }
-
 
 colorValueLookup = data.frame(
   type = c('R1', 'R2', 'R3a', 'R3d', 'R3m', 'R3p',  'R3w', 'R4d', 'R4m', 'R5', 'R6',
            'ExR1','ExR2','ExR3','ExR4','ExR5','ExR6','ExR7','ExR8',
            'TuBu01', 'TuBu02', 'TuBu03', 'TuBu04', 'TuBu05', 'TuBu06', 'TuBu07', 'TuBu08', 'TuBu09', 'TuBu10',
-           'PDM21a', 'MC',
+           'PDM21a', 'MC',  'TuTu',
            'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5'),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
-           259,   600,
+           259,   600, 26,
            499,    499,    143,   144,    573,    640)
 )
