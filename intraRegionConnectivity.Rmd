@@ -1,5 +1,5 @@
 ---
-title: "Illustration of tools for analysing information flow between neurons within a region"
+title: "Illustration of tools for analysing connectivity between neurons within a region"
 output:
   html_document:
     df_print: paged
@@ -28,38 +28,36 @@ library(docstring)
 
 ### Look at what are major inputs/outputs to a neuron type
 ```{r}
-mytype = "R"
+mytype = "R1"
 postIDs = neuprint_search(paste(mytype,'.*',sep=""))
 
-slctROI = "BU(R)"
+slctROI = "WED(R)"
 
 myConnections = getConnectionTable(postIDs$bodyid, "PRE",slctROI)
-```
 
-```{r}
 ggplot(myConnections, aes(x=partnerType, fill=partnerType)) + geom_bar() + theme_classic() + 
   theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
 ```
 
 ### Make selection of neurons to be used in connecitivy analysis
 ```{r}
-preNeuron = c("R1","R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
-postNeuron = c("R1","R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
-#c("MC","PDM21a")#c("TuBu")#c("ExR","R3","R2","R4","R5","R6","EPG")#c("ExR","R3","R2","R4","EPG")# c("R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC")
+preNeuron = c("ExR","EPG","PEN", "PEG", "EQ5")
+postNeuron = preNeuron
+#c("R1","R2","R3","R4","R5","R6","TuBu","PDM21a","ExR", "MC", "EPG","PEN", "PEG", "EQ5")
 
-preName =  "R1-6, ExR, PDM21a and TuBus"
-postName =  "R1-6, ExR, PDM21a and TuBus"
+preName = "ExR and columnar"#, EQ5 and columnar"#PDM21a"#"R1-6 and columnar"# "R1-6, ExR, EQ5 and columnar"#"R1-6, ExR, PDM21a and TuBus"
+postName = preName
 ##"TuBus"#"MCs, PDM21a and TuBus"#"ExRs, R2-6 & EPG"#"R2-4 and TuBus"#"ExRs, R2-4 & EPG" # "R2-6, ExR, PDM21a and TuBus"
 
-saveName = "_R1-6s_ExR_TuBu"
-#"_MCsPDM21a_to_TuBus"#"_MCs_PDM21a_TuBus"#"_ExR_R2-6_EPG"#"_R2-4s_TuBU"#"_ExR_R2-4_EPG"
+saveName = "_ExR_columnar"#_EQ5_columnar"#"_MCs_PDM21a_TuBus"#"_R1-6s_ExR_and_TuBu"#EQ5_columnar"#"_TuBu_to_R1-6andExR"#"_R1-6s_columnar"##"_R1-6s_ExR_TuBu"
+#"_MCsPDM21a_to_TuBus"#"_ExR_R2-6_EPG"#"_R2-4s_TuBU"#"_ExR_R2-4_EPG"
 
-slctROI = "BU(R)"
+slctROI = "EB"
 
 ```
 
 
-### Connectivity matrix
+### Get connectivity table
 ```{r, warning=FALSE}
 preIDs = getBodyIdsForList(preNeuron)
 postIDs = getBodyIdsForList(postNeuron)
@@ -67,6 +65,7 @@ postIDs = getBodyIdsForList(postNeuron)
 myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
 ```
 
+### Connectivity matrix
 ```{r}
 conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = TRUE)
 conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
@@ -77,6 +76,8 @@ ggsave( paste("connectivityMatrix",saveName,'_in_',slctROI,'.pdf', sep=''), plot
 conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = FALSE)
 conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
 conMatPlot = structureMatrixPlotByType(conMatPlot)
+#conMatPlot = structureMatrixPlotByPreType(conMatPlot)
+#conMatPlot = structureMatrixPlotByPostType(conMatPlot)
 print(conMatPlot)
 ggsave(paste("connectivityMatrix",saveName,'_in_',slctROI,'_byID.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
   scale = 2, width = 25, height =16, units ="cm", dpi = 600, limitsize = TRUE)
@@ -85,10 +86,8 @@ ggsave(paste("connectivityMatrix",saveName,'_in_',slctROI,'_byID.pdf', sep=''), 
 
 ###  Draw graph
 ```{r, warning=FALSE}
-preIDs = getBodyIdsForList(preNeuron)
-postIDs = getBodyIdsForList(postNeuron)
-
-myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+require(igraph)
+# use connecitivity table created above
 typeCounts = full_join(preIDs, postIDs) %>% group_by(type) %>% count()
 ```
 
@@ -105,19 +104,15 @@ graphData = graphData %>% filter(weight > cutoff)
 hist(graphData$weight, n=100)
 ```
 
-```{r}
-nodes  = union(unique(graphData_noSelf$from), unique(graphData_noSelf$to))
-nodes
-
+```{r, message=FALSE}
 graphData_noSelf = graphData %>% filter(as.character(from) != as.character(to))
 graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
+
+nodes  = union(unique(graphData_noSelf$from), unique(graphData_noSelf$to))
+
 graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight), data.frame("from" = nodes))
 graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
-```
 
-
-```{r, message=FALSE}
-require(igraph)
 connectGraph = graph_from_data_frame(graphData_noSelf)
 connectGraph <- delete_edges(connectGraph, E(connectGraph)[weight<cutoff])
 connectGraph
@@ -127,7 +122,7 @@ connectGraph
 simpleTypesNodes = getSimpleTypeNames(nodes)
 simpleTypesNodes
 
-nodeCols = seq(1, length(nodes))
+odeCols = seq(1, length(nodes))
 for (i in seq(1, length(simpleTypesNodes))) {
   nodeCols[i] = colors()[colorValueLookup$col[colorValueLookup$type == simpleTypesNodes[i]]]
 }
@@ -143,7 +138,7 @@ V(connectGraph)$label.dist=0
 
 typeCounts = typeCounts %>% filter(type %in% V(connectGraph)$name)
 typeCounts = typeCounts[match(V(connectGraph)$name, typeCounts$type),]
-V(connectGraph)$size = 7 + as.numeric(graphData_selfFB$weight) #typeCounts$n/2 #
+V(connectGraph)$size = 7 + as.numeric(7*graphData_selfFB$weight/max(c(1, max(graphData_selfFB$weight) ) ) ) #typeCounts$n/2 #
 V(connectGraph)$vertex.frame.color="gray"
 V(connectGraph)$color=nodeCols
 
