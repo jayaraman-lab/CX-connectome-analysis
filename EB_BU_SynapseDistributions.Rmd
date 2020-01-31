@@ -157,7 +157,7 @@ BUData_BUax=Project_NewCoordinates(BUData, BU_Axes)
 
 
 
-# Get the ROI outlines in their new coordinate frame
+# Get the ROI outlines in their new coordinates
 ```{r}
 
 
@@ -168,6 +168,12 @@ remove(OUTPUT)
 EB_Ring1=EdgesOrdered1_OUT %>% mutate(name="EB1")
 EB_Ring2=EdgesOrdered2_OUT %>% mutate(name="EB2")
 remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
+
+
+# Get EB Mesh outline in x/z (Not used at the moment, but might be useful later)
+OUTPUT=Get_MeshRoiOutline(EBData_EBax, 6, 21,"EB", DIM=c(1,3)) # Spacing=40, smooth=3 is good
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
 
 
 # Get BU Mesh in x/y
@@ -192,24 +198,76 @@ ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=nam
 ```{r}
 
 # To Do:
-# 1) Need to account for variable number of outputs
-# 2) Improve getting outline of data and get it to work with ring neurons in EB
-# 3) Look at synapse distributions in BU in Z
-# 4) Look at synapse distributions in cross section of EB
+# 0) 2D plots of ring neurons with LAL synapses
+# 1) Improve getting outline of data and get it to work with ring neurons in EB
+# 2) Look at synapse distributions in BU in Z
+# 3) Look at synapse distributions in cross section of EB
 
 
 # Make plots for BU 
-Cmax=50 # Max for color bar
-PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, "BUr", PlotDir)
+Cmax=25 # Max for color bar
+ROI_Name="BUr"
+
+Output=PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, ROI_Name , Cmax, PlotDir)
+list2env(Output ,.GlobalEnv)
+remove(Output)
+
+ppp=ggarrange(plotlist=PlotHandles1, ncol = length(PlotHandles1)/3, nrow = length(PlotHandles1)/6)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+ppp=ggarrange(plotlist=PlotHandles2, ncol = length(PlotHandles2)/3, nrow = length(PlotHandles2)/6)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
 
-# Make plots for EB
+
+# Make plots for BU 
 Cmax=100 # Max for color bar
-PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, "EB", Cmax, PlotDir)
+ROI_Name="EB"
+
+Output=PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, ROI_Name , Cmax, PlotDir)
+list2env(Output ,.GlobalEnv)
+remove(Output)
+
+ppp=ggarrange(plotlist=PlotHandles1, ncol = length(PlotHandles1)/3, nrow = length(PlotHandles1)/6)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+ppp=ggarrange(plotlist=PlotHandles2, ncol = length(PlotHandles2)/3, nrow = length(PlotHandles2)/6)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Make plots of all neurons
+ggplot(RingNeuron_BUsyns_BUax, aes(x=x, y=-y, fill=name)) +
+  stat_density_2d(aes(alpha = 0.00001 ),bins=5, geom = "polygon") +
+  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
 
 
 
 
+
+
+plot_data=RingNeuron_BUsyns_BUax[,c(3,4,9)]
+colnames(plot_data) <- c("X","Y","Label")
+plot_data$Label=as.factor(plot_data$Label)
+
+
+#Genrate the kernel density for each group
+newplot_data <- plot_data %>% group_by(Label) %>% do(Dens=kde2d(.$X, .$Y, h=20, n=250, lims=c(XLIM,-YLIM)))
+
+#Transform the density in  data.frame
+newplot_data  %<>%  do(Label=.$Label, V=expand.grid(.$Dens$x,.$Dens$y), Value=c(.$Dens$z)) %>% do(data.frame(Label=.$Label,x=.$V$Var1, y=.$V$Var2, Value=.$Value))
+
+Thresh=quantile(newplot_data$Value, c(0.7)) 
+newplot_data$Value[newplot_data$Value>Thresh]<-1
+newplot_data$Value[newplot_data$Value<=Thresh]<-0
+
+ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+  geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+  stat_contour(data=newplot_data, aes(x=x, y=-y, z=Value, fill=Label), geom="polygon", alpha=0.05)
+    
 
 ```
 
