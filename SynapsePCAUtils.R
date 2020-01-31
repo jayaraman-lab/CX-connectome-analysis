@@ -99,7 +99,8 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI, 
   YLIM=c( min(c(-Synapses$y))-Extra , max(c(-Synapses$y))+Extra ) # take negative here
   ZLIM=c( min(c(Synapses$z))-Extra , max(c(-Synapses$z))+Extra )
   
-  
+  PlotHandles1 <- vector("list", length(unique(Synapses$name)))
+  PlotHandles2 <- vector("list", length(unique(Synapses$name)))
   # Get 95% contour and plot all on one plot
   for (nnn in 1:length(unique(Synapses$name)) ){
     
@@ -116,21 +117,45 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI, 
     
     ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_",sort(unique(Synapses$name))[nnn],".png",sep=""),
            plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+    PlotHandles1[[nnn]] <- ppp
     remove(ppp)
     
     
-    
-    # Get synapse 99% contour, but this seems to only work well for gaussian-like distributions
-    d <- data.frame(x=ToPlotSyns$x,y=ToPlotSyns$y)
-    kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(8,8))
-    contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["5%"])[[1]])
-    contour_95 <- data.frame(contour_95)
-    contour_95$name=sort(unique(Synapses$name))[nnn]
-    
-    # Smooth contour 
-    Contour=data.frame(x = rollmean(contour_95$x,4),
-                       y = rollmean(contour_95$y,4),
-                       name = sort(unique(Synapses$name))[nnn])
+    ContourType=1
+    if (ContourType==1){
+      # Get synapse 99% contour, but this seems to only work well for gaussian-like distributions
+      d <- data.frame(x=ToPlotSyns$x,y=ToPlotSyns$y)
+      kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(8,8))
+      contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["5%"])[[1]])
+      contour_95 <- data.frame(contour_95)
+      contour_95$name=sort(unique(Synapses$name))[nnn]
+      
+      # Smooth contour 
+      Contour=data.frame(x = rollmean(contour_95$x,4),
+                         y = rollmean(contour_95$y,4),
+                         name = sort(unique(Synapses$name))[nnn])
+    } else if (ContourType==2){
+      
+      plot_data=ToPlotSyns[,c(3,4,9)]
+      colnames(plot_data) <- c("X","Y","Label")
+      plot_data$Label=as.factor(plot_data$Label)
+      
+      #Genrate the kernel density for each group
+      newplot_data <- plot_data %>% group_by(Label) %>% do(Dens=kde2d(.$X, .$Y, h=1 , n=100, lims=c(XLIM,-YLIM)))
+      
+      #Transform the density in  data.frame
+      newplot_data  %<>%  do(Label=.$Label, V=expand.grid(.$Dens$x,.$Dens$y), Value=c(.$Dens$z)) %>% do(data.frame(Label=.$Label,x=.$V$Var1, y=.$V$Var2, Value=.$Value))
+      
+      #Thresh=quantile(newplot_data$Value, c(.10)) 
+      #newplot_data$Value[newplot_data$Value>Thresh]<-1
+      #newplot_data$Value[newplot_data$Value<=Thresh]<-0
+      
+      ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+        geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+        stat_contour(data=newplot_data, aes(x=x, y=-y, z=Value, fill=Label), geom="polygon", alpha=1) 
+        
+      
+    }
     
     
     # Plot the 2D hisogram with contour lines
@@ -142,10 +167,11 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI, 
       xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$name))[nnn]) +
       theme_void() + theme(legend.position="none") 
     
-    eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
+    
     
     ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_",sort(unique(Synapses$name))[nnn],".png",sep=""),
            plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+    PlotHandles2[[nnn]] <- ppp
     remove(ppp)
     
     if (nnn==1){
@@ -153,22 +179,19 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI, 
     } else {
       ContourAll=rbind(ContourAll,Contour)
     }
+    
   }
   
-  
-  # Plot every ring neuron arranged on a grid with contour
-  ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
-                ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
-                ncol = 6, nrow = 3)
-  ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  
-  
-  
-  ppp=ggplot() + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) + 
+  ppp=ggplot() + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
+    geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
     geom_polygon(data=ContourAll, aes(x=x, y=-y,color=name, fill = name), alpha=0.05) + theme_bw()
-  ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_75percent",".png",sep=""),
+  ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution",".png",sep=""),
          plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+  
+  
+  
+  Output= list("PlotHandles1"=PlotHandles1,"PlotHandles2"=PlotHandles2)
+  return(Output)
   
   
 }
