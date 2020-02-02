@@ -66,6 +66,70 @@ structureMatrixPlotByPostType = function(conmatPlot){
 
 
 ### Graph
+#Reroganize to make graph with types instead of bodyids
+reorganizeGraphData = function(fromData, toData, weightData, cutoff){
+  graphData = data.frame(from = fromData, to = toData, weight = weightData)
+  graphData = graphData %>% group_by(from, to) %>% 
+    summarise(weight = mean(weight, na.rm = TRUE)) %>% ungroup() %>% 
+    filter(weight > cutoff)
+  
+  return(graphData)
+}
+
+getGraphNodes = function(graphData){
+  graphData_noSelf = graphData %>% filter(as.character(from) != as.character(to))
+  nodes  = union(unique(graphData_noSelf$from), unique(graphData_noSelf$to))
+  return(nodes)
+}
+
+getNoSelfGraphData = function(graphData){
+  graphData_noSelf = graphData %>% filter(as.character(from) != as.character(to))
+  return(graphData_noSelf)
+}
+
+#Reroganize to make graph with types instead of bodyids
+getSelfFBGraphData = function(graphData){
+  graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
+  graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight), data.frame("from" = nodes))
+  graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
+  
+  return(graphData_selfFB)
+}
+
+# convenient graph plotting
+constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB, cutoff,
+                                      arrowSize, vertexSize, edgeNorm){
+  connectGraph = graph_from_data_frame(graphData_noSelf)
+  connectGraph <- delete_edges(connectGraph, E(connectGraph)[weight<cutoff])
+  
+  simpleTypesNodes = getSimpleTypeNames(nodes)
+  
+  nodeCols = seq(1, length(nodes))
+  for (i in seq(1, length(simpleTypesNodes))) {
+    nodeCols[i] = colors()[colorValueLookup$col[colorValueLookup$type == simpleTypesNodes[i]]]
+  }
+  
+  # The labels are currently node IDs. Setting them to NA will render no labels
+  V(connectGraph)$label.color="black"
+  V(connectGraph)$label.cex=0.8
+  V(connectGraph)$label.dist=0
+  
+  typeCounts = typeCounts %>% filter(type %in% V(connectGraph)$name)
+  typeCounts = typeCounts[match(V(connectGraph)$name, typeCounts$type),]
+  V(connectGraph)$size = vertexSize + as.numeric(vertexSize*graphData_selfFB$weight/max(c(1, max(graphData_selfFB$weight) ) ) )
+  V(connectGraph)$vertex.frame.color="gray"
+  V(connectGraph)$color=nodeCols
+  
+  # Set edge width based on weight:
+  E(connectGraph)$width <- E(connectGraph)$weight/edgeNorm
+  #change arrow size and edge color:
+  E(connectGraph)$arrow.size <- arrowSize
+  edge.start <- ends(connectGraph, es=E(connectGraph), names=F)[,1]
+  edge.col = V(connectGraph)$color[edge.start]
+  
+  return(connectGraph)
+}
+
 
 # color code
 getSimpleTypeNames <- function(mydata){
@@ -98,6 +162,26 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("PEN_b\\(PEN2\\)", "PEN2", simpleTypes)
   simpleTypes = gsub("MC[[:alnum:]]*", "MC", simpleTypes)
   simpleTypes = gsub("TuTu[[:alnum:]]*", "TuTu", simpleTypes)
+  simpleTypes = gsub("ADM06b_[[:alnum:]]*_[[:alnum:]]*", "ADM06b", simpleTypes)
+  simpleTypes = gsub("MBON[[:alnum:]]*", "MBON", simpleTypes)
+  simpleTypes = gsub("AVL[[:alnum:]]*_[[:alnum:]]*_pct", "AVL", simpleTypes)
+  simpleTypes = gsub("AVL[[:alnum:]]*_pct", "AVL", simpleTypes)
+  simpleTypes = gsub("AVM[[:alnum:]]*_pct", "AVM", simpleTypes)
+  simpleTypes = gsub("ADL.*_pct", "ADL", simpleTypes)
+  simpleTypes = gsub("PVL[[:alnum:]]*_pct", "PVL", simpleTypes)
+  simpleTypes = gsub("PVM.*_pct", "PVM", simpleTypes)
+  simpleTypes = gsub("PDL27e_pct", "PDL27e", simpleTypes)
+  simpleTypes = gsub("PDL[12x,20s]{1}.*_pct", "PDLother", simpleTypes)
+  simpleTypes = gsub("ADM11[[:alnum:]]*_pct", "ADM11", simpleTypes)
+  simpleTypes = gsub("ADM06p_pct", "ADM06p", simpleTypes)
+  simpleTypes = gsub("ADM06d_pct", "ADM06d", simpleTypes)
+  simpleTypes = gsub("ADM03.*_pct", "ADM03", simpleTypes)
+  simpleTypes = gsub("olfactory multi .*", "other", simpleTypes)
+  simpleTypes = gsub("PDM09[[:alnum:]]*_pct", "PDM09", simpleTypes)
+  simpleTypes = gsub("PDM26[[:alnum:]]*_pct", "PDMother", simpleTypes)
+  simpleTypes = gsub("PDM14j.*_pct", "PDM14j", simpleTypes)
+  simpleTypes = gsub("PDM14[m,r,d]{1}.*_pct", "PDM14other", simpleTypes)
+  simpleTypes = gsub("PDM28[[:alnum:]]*_pct", "PDMother", simpleTypes)
   return(simpleTypes)
 }
 
@@ -106,10 +190,16 @@ colorValueLookup = data.frame(
            'ExR1','ExR2','ExR3','ExR4','ExR5','ExR6','ExR7','ExR8',
            'TuBu01', 'TuBu02', 'TuBu03', 'TuBu04', 'TuBu05', 'TuBu06', 'TuBu07', 'TuBu08', 'TuBu09', 'TuBu10',
            'PDM21a', 'MC',  'TuTu',
-           'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5'),
+           'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
+           'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
+           'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
+           'FB', 'other' ),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
-           259,   600, 26,
-           499,    499,    143,   144,    573,    640)
+           259,   600,  26,
+           499,    499,    143,   144,    573,  640, 
+           639, 430, 431, 630, 452,632, 103, 104,105, 651,
+           420, 420, 420, 420, 76, 535, 535,535,535,
+           563, 651)
 )
