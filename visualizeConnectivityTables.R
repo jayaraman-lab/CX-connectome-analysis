@@ -97,8 +97,8 @@ getSelfFBGraphData = function(graphData){
 }
 
 # convenient graph plotting
-constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB, cutoff,
-                                      arrowSize, vertexSize, edgeNorm){
+constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB, 
+                                      cutoff, vertexSize, arrowSize, edgeNorm){
   connectGraph = graph_from_data_frame(graphData_noSelf)
   connectGraph <- delete_edges(connectGraph, E(connectGraph)[weight<cutoff])
   
@@ -124,11 +124,17 @@ constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB,
   E(connectGraph)$width <- E(connectGraph)$weight/edgeNorm
   #change arrow size and edge color:
   E(connectGraph)$arrow.size <- arrowSize
-  edge.start <- ends(connectGraph, es=E(connectGraph), names=F)[,1]
-  edge.col = V(connectGraph)$color[edge.start]
   
   return(connectGraph)
 }
+
+customizeGraphEdges  = function(connectGraph){
+  
+  edge.start <- ends(connectGraph, es=E(connectGraph), names=F)[,1]
+  edge.col = V(connectGraph)$color[edge.start]
+  return(edge.col)
+}
+
 
 
 # color code
@@ -182,6 +188,10 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("PDM14j.*_pct", "PDM14j", simpleTypes)
   simpleTypes = gsub("PDM14[m,r,d]{1}.*_pct", "PDM14other", simpleTypes)
   simpleTypes = gsub("PDM28[[:alnum:]]*_pct", "PDMother", simpleTypes)
+  simpleTypes = gsub("LN[[:alnum:]]{1}.*", "LN", simpleTypes)
+  simpleTypes = gsub("LPsP", "LPsP", simpleTypes)
+  simpleTypes = gsub("PFN.*", "PFN", simpleTypes)
+  simpleTypes = gsub("Delta7*", "Delta7", simpleTypes)
   return(simpleTypes)
 }
 
@@ -193,7 +203,7 @@ colorValueLookup = data.frame(
            'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
            'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
            'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
-           'FB', 'other' ),
+           'PFN', 'Delta7', 'FB', 'LN', 'LPsP', 'other' ),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
@@ -201,5 +211,5 @@ colorValueLookup = data.frame(
            499,    499,    143,   144,    573,  640, 
            639, 430, 431, 630, 452,632, 103, 104,105, 651,
            420, 420, 420, 420, 76, 535, 535,535,535,
-           563, 651)
+           657, 520, 563, 564,565, 651)
 )
