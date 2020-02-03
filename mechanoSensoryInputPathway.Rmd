@@ -1,0 +1,415 @@
+---
+title: "Analysis of wind (mechanosensoy) info comming into CX"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of visual information coming into CX via AUTO-BU-Ring neuron pathway
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+options(nat.plotengine = 'rgl')
+```
+
+```{r}
+neuprint_login()
+```
+
+```{r messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("neuprintQueryUtils.R")
+source("visualizeConnectivityTables.R")
+source("inputOutputRegionsVis.R")
+
+# To be able to use ? for accessing doc strings in custom functions, please install the "docstring" package. Alternatively use docstring(function)
+library(docstring)
+```
+
+## Bodyid's of neurons that are potentially involved
+The propose pathway presented in Suver et al is Johnstons organs -> APN3/APN2 -> WPN
+
+Here we will try to identify which neurons in the EM volume correspond to APN2, APN3 and WPN and illustrate a potential route toward the fly's heading circuit.
+```{r}
+#APN3s (presynaptic of APN2s):
+APN3ids = c(975289165, 1099073905, 1130458829)
+#APN2s (postsynaptic of APN3s): 
+APN2ids = c(1539649574, 2096909915, 2096913987)
+
+# get names
+for (i in APN3ids) {
+  print(neuprint_get_neuron_names(i))
+  }
+for (i in APN2ids) {
+  print(neuprint_get_neuron_names(i))
+  }
+
+```
+Get all neurons of the type described by the bodyids  above
+```{r}
+APN3 = bind_rows(neuprint_search("PDM14j_d.*"),neuprint_search("PDM14j_e.*"))
+APN2 = bind_rows(neuprint_search("ADM06d_.*"),neuprint_search("ADM06p_.*")) 
+
+APNBodies = c(APN3$bodyid,APN2$bodyid)
+```
+
+Also get body ID's of putative downstream partners (these were identified in a shortest path analysis as shown later)
+```{r}
+# Putative WPN, based on morphology and connectivity: PDL27e
+WPN = neuprint_search("PDL27e_pct.*")#5813047683)
+
+# Partner of APN2 and putative WPN: ADM06b_b
+ADM06b = neuprint_search("ADM06b_b.*")
+
+# R1s
+R1 = neuprint_search("R1_.*_R")
+R1a = neuprint_search("R1_a.*_R")
+R1b = neuprint_search("R1_b.*_R")
+```
+
+## Check if putative APN3s connect to APN2s
+### Find where APN3 and 2 have inputs and outputs
+```{r}
+roi_Connect_rois = neuprint_get_roiInfo(APNBodies)
+roi_Connect_rois =  mutate(roi_Connect_rois,
+                        name = neuprint_get_meta(bodyid)$name,
+                        type = neuprint_get_meta(bodyid)$type,
+                        pre = neuprint_get_meta(bodyid)$pre,
+                        post = neuprint_get_meta(bodyid)$post) 
+
+
+# rearrange so that information worth viewing is in first few columns
+roi_Connect_rois = roi_Connect_rois[ , c(1,(ncol(roi_Connect_rois)-3):ncol(roi_Connect_rois),2:(ncol(roi_Connect_rois)-4)) ]
+```
+
+```{r message=FALSE, warning=FALSE}
+# reorganize such that ROI, #pre and #post become variables
+roi_Connect_rois_df = data.frame(bodyid = numeric(),
+                              name = character(),
+                              type = character(),
+                              roi = character(),
+                              prepost = character(),
+                              count = numeric())
+
+for (myroi in as.character(colnames(roi_Connect_rois))[6:(length(colnames(roi_Connect_rois)))]) {
+
+  #if (length(as.character(filter(roisDf,value == unlist(strsplit(myroi, "[.]"))[1])$keyName)) == 1) next
+  
+  roiname = as.character(unlist(strsplit(myroi, "[.]"))[1])
+  roiname = as.character(unlist(strsplit(roiname, "[(]"))[1])
+  side = as.character(unlist(strsplit(myroi, "[(]"))[2])
+  side = as.character(unlist(strsplit(side, "[)]"))[1])
+  if (!grepl("[R,L]{1}", side)) {
+    if ( !is.na(side) ) {roiname  = paste0(roiname, side) }
+    side = "NA"
+  }
+  roi_Connect_roi = data.frame(bodyid = roi_Connect_rois$bodyid,
+                            name = roi_Connect_rois$name, 
+                            type = roi_Connect_rois$type,
+                            roi = roiname,
+                            hemisphere = side,
+                            prepost = unlist(strsplit(myroi, "[.]"))[2],
+                            count = ( as.numeric(roi_Connect_rois[[myroi]]) ), 
+                            normcount = ( as.numeric(roi_Connect_rois[[myroi]]) / (roi_Connect_rois$pre + roi_Connect_rois$post) ) )
+  roi_Connect_rois_df = bind_rows(roi_Connect_rois_df, roi_Connect_roi)
+}
+
+# remove ROIs that are collections of regions
+exclue = c("PENP", "VMNP", "VLNP")
+`%nin%` = Negate(`%in%`)
+roi_Connect_rois_df = roi_Connect_rois_df %>% filter(roi %nin% exclue)
+
+```
+
+```{r, message=FALSE}
+ggplot(roi_Connect_rois_df, aes(x=roi, y=name, size=count)) + 
+  geom_point(aes(color=roi)) +
+  facet_grid(vars(prepost) ) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+
+ggsave("APNs_inputOutputRegions_perName.pdf", plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/mechanoPW/",
+  scale = 1.5, width = 15, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+
+cntCutoff = 20
+
+preCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(type, roi) %>% filter(prepost == "pre") %>% summarise(preCt = sum(count, na.rm = TRUE))
+postCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(type, roi) %>% filter(prepost == "post") %>% summarise(postCt = sum(count, na.rm = TRUE))
+
+countsPerRegionAndType = full_join(preCoutnsPerRegionAndType, postCoutnsPerRegionAndType) %>% 
+  filter((preCt+postCt) > cntCutoff) %>%
+  mutate(post_minus_pre = (postCt-preCt)/(preCt+postCt)) %>% na.omit()
+
+ggplot(countsPerRegionAndType, aes(x=roi, y=type, size=(preCt+postCt))) + 
+  geom_point(aes(color=post_minus_pre)) + scale_color_gradient2(high = 'salmon', mid = "purple",
+  low = 'cyan', midpoint = 0) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+
+ggsave("APNs_inputOutputRatioRegions_perName.pdf", plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/mechanoPW/",
+  scale = 1.5, width = 15, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+### Visualize neurons
+```{r}
+APN3_skel = neuprint_read_neurons(APN3)
+APN2_skel = neuprint_read_neurons(APN2)
+```
+For reference visualize some important partners
+```{r}
+WPN_skel = neuprint_read_neurons(WPN)
+ADM06b_skel = neuprint_read_neurons(ADM06b)
+R1_skel = neuprint_read_neurons(R1$bodyid[1])
+```
+
+Visualize the relevant ROIs
+```{r}
+AMMCmesh = neuprint_ROI_mesh("AMMC")
+GNGmesh = neuprint_ROI_mesh("GNG")
+# PENP does not appear to be a defined mesh (it's just a collection: SAD, AMMC, ...)
+SADmesh = neuprint_ROI_mesh("SAD")
+SADAMMCmesh = neuprint_ROI_mesh("SAD(-AMMC)")
+# VLNP: collection of rois (AOTU, PLP, WED, ...)
+WEDmesh = neuprint_ROI_mesh("WED(R)")
+```
+
+These meshes overlap heavily... SAD and WED seem to cover most of the putative interaction between APNs and WPNs
+```{r}
+# use https://www.w3schools.com/colors/colors_picker.asp to pick colors
+#plot3d(AMMCmesh, alpha=0.2,  add=TRUE, col="#009999")
+#plot3d(GNGmesh, alpha=0.2,  add=TRUE, col="#ff5050")
+#plot3d(SADmesh, alpha=0.2,  add=TRUE, col="#ff99ff")
+#plot3d(SADAMMCmesh, alpha=0.2,  add=TRUE, col="#ff9900")##66ffff")
+#plot3d(WEDmesh, alpha=0.2,  add=TRUE, col="#ff9900")
+```
+
+```{r}
+plot3d(APN3_skel, col="seagreen3")
+plot3d(APN2_skel, col="cyan")
+plot3d(WPN_skel, col="magenta")
+plot3d(ADM06b_skel, col="orange")
+plot3d(R1_skel, col="pink")
+#plot3d(WEDmesh, alpha=0.2,  add=TRUE, col="#ff9900")
+#plot3d(SADmesh, alpha=0.2,  add=TRUE, col="#ff99ff")
+```
+
+
+### Connectivity between APNs in primary ROIs (SAD, WED)
+Primary ROIs were identified manually based on inspection of neuron arborization and mesh overlap. The number of relevant ROIs is easily overestimated, because meshes overlap.
+
+### Connectivity matrix: APNs don't directly talk to WPN
+```{r}
+preNeurons = c(APNBodies, ADM06b$bodyid, WPN$bodyid)
+postNeurons = preNeurons
+preName = "APNs, ADM06b and put. WPN"
+postName = preName#"APN3, APN2"
+
+for (slctROI in  c("SAD", "WED(R)")) {
+  myConnections = getConnectionTable_forSubset(preNeurons,postNeurons, slctROI)
+ 
+  ### Connectivity matrix  by name
+  conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = FALSE)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+  conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  
+   ggsave(paste0("APNs_connectivityMatrix_",slctROI,"_byName.pdf"), plot = last_plot(), device='pdf', 
+         path = "../neuprintR_analysis_plots/mechanoPW/",
+         scale = 1.5, width = 15, height = 15  , units ="cm", dpi = 600, limitsize = TRUE)
+  
+  ### Connectivity matrix by type
+  conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = TRUE)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+  print(conMatPlot)
+  
+  ggsave(paste0("APNs_connectivityMatrix_",slctROI,"_byType.pdf"), plot = last_plot(), device='pdf', 
+         path = "../neuprintR_analysis_plots/mechanoPW/",
+         scale = 2, width = 13, height = 9, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+```
+
+###  Draw graph
+
+```{r, warning=FALSE}
+require(igraph)
+
+preIDs = bind_rows(APN3, APN2, ADM06b, WPN)
+postIDs = preIDs
+
+for (slctROI in  c("SAD", "WED(R)")) {
+  myConnections = getConnectionTable_forSubset(preIDs$bodyid, postIDs$bodyid, slctROI)
+  
+  cutoff = 3
+  
+  # use connecitivity table created above
+  typeCounts = full_join(preIDs, postIDs) %>% group_by(type) %>% count()
+  
+  #Reroganize to make graph with types instead of bodyids
+  graphData = reorganizeGraphData(myConnections$partnerType,myConnections$type,myConnections$weight,cutoff)
+  nodes = getGraphNodes(graphData)
+  graphData_noSelf = getNoSelfGraphData(graphData)
+  graphData_selfFB = getSelfFBGraphData(graphData)
+
+  myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,1, 2)
+  plot(myGraph,edge.curved=0.5, layout=layout_with_fr(myGraph), 
+       edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+
+  #dev.off()
+  dev.print(pdf, paste("../neuprintR_analysis_plots/mechanoPW/connectivityGraphOfAPNs_in", slctROI,".pdf", sep=""), 
+            width=7, height=7)
+}
+```
+
+## Viusualize paths to the CX
+
+```{r}
+pathFromAPN3_to_R1 = neuprint_get_shortest_paths(APN3$bodyid,R1$bodyid, weightT = 10)
+```
+
+```{r}
+cutoff = 3
+pathFromAPN3_to_R1 = unique(pathFromAPN3_to_R1)
+#Reroganize to make graph with types instead of bodyids
+graphData = reorganizeGraphData(pathFromAPN3_to_R1$type.from,pathFromAPN3_to_R1$type.to,pathFromAPN3_to_R1$weight,cutoff)
+nodes = getGraphNodes(graphData)
+graphData_noSelf = getNoSelfGraphData(graphData)
+graphData_selfFB = getSelfFBGraphData(graphData)
+
+myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.2, 7)
+plot(myGraph,edge.curved=0.5, layout=layout_with_fr(myGraph), 
+     edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+```
+Filter pathways based on relative weights
+```{r}
+cutoff = 3 #rel. weight (100%)
+pathFromAPN3_to_R1 = unique(pathFromAPN3_to_R1)
+nodeMeta = data.frame(bodyid = union(unique(pathFromAPN3_to_R1$from), unique(pathFromAPN3_to_R1$to)) )  %>%
+                mutate(name = neuprint_get_meta(bodyid)$name,
+                       type = neuprint_get_meta(bodyid)$type,
+                       status = neuprint_get_meta(bodyid)$status,
+                       pre = neuprint_get_meta(bodyid)$pre,
+                       post = neuprint_get_meta(bodyid)$post)
+
+# add relative weight based on total input to postsynaptic neuron
+pathFromAPN3_to_R1 = pathFromAPN3_to_R1 %>% rowwise() %>%
+  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
+
+pathFromAPN3_to_R1_bytype = pathFromAPN3_to_R1 %>% group_by(type.to, type.from) %>%
+  summarise(relWeight = sum(relWeight), depth = mean(depth))
+
+
+#Reroganize to make graph with types instead of bodyids
+graphData = reorganizeGraphData(pathFromAPN3_to_R1_bytype$type.from,
+                                pathFromAPN3_to_R1_bytype$type.to,
+                                pathFromAPN3_to_R1_bytype$relWeight,cutoff)
+nodes = getGraphNodes(graphData)
+graphData_noSelf = getNoSelfGraphData(graphData)
+graphData_selfFB = getSelfFBGraphData(graphData)
+
+myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 3)
+
+# remove isolated nodes
+dist.from.R1b <- distances(myGraph, v=V(myGraph)["R1_b"], to=V(myGraph), weights=NA) > 100
+Isolated = which(dist.from.R1b)
+myGraph_filt = delete.vertices(myGraph, Isolated)
+
+plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
+     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+
+dev.print(device = pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN3_to_R1_minPostWeight",cutoff,".pdf"), width=12, height=12)
+```
+
+Start from APN2s
+```{r}
+pathFromAPN2_to_R1 = neuprint_get_shortest_paths(APN2$bodyid,R1$bodyid, weightT = 10)
+```
+
+```{r}
+cutoff = 2 # % of inputs
+
+pathFromAPN2_to_R1 = unique(pathFromAPN2_to_R1)
+
+nodeMeta = data.frame(bodyid = union(unique(pathFromAPN2_to_R1$from), unique(pathFromAPN2_to_R1$to)) )  %>%
+                mutate(name = neuprint_get_meta(bodyid)$name,
+                       type = neuprint_get_meta(bodyid)$type,
+                       status = neuprint_get_meta(bodyid)$status,
+                       pre = neuprint_get_meta(bodyid)$pre,
+                       post = neuprint_get_meta(bodyid)$post)
+
+# add relative weight based on total input to postsynaptic neuron
+pathFromAPN2_to_R1 = pathFromAPN2_to_R1 %>% rowwise() %>%
+  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
+
+pathFromAPN2_to_R1_bytype = pathFromAPN2_to_R1 %>% group_by(type.to, type.from) %>%
+  summarise(relWeight = sum(relWeight))
+
+#Reroganize to make graph with types instead of bodyids
+graphData = reorganizeGraphData(pathFromAPN2_to_R1_bytype$type.from,
+                                pathFromAPN2_to_R1_bytype$type.to,
+                                pathFromAPN2_to_R1_bytype$relWeight,cutoff)
+nodes = getGraphNodes(graphData)
+graphData_noSelf = getNoSelfGraphData(graphData)
+graphData_selfFB = getSelfFBGraphData(graphData)
+
+myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 2)
+
+# remove isolated nodes
+dist.from.R1b <- distances(myGraph, v=V(myGraph)["R1_b"], to=V(myGraph), weights=NA) > 100
+Isolated = which(dist.from.R1b)
+myGraph_filt = delete.vertices(myGraph, Isolated)
+
+plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
+     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN2_to_R1_minPostWeight",cutoff,".pdf"), width=10, height=10)
+```
+Go all the way to EPGs
+```{r}
+EPG = neuprint_search("EPG.*_R.*")
+pathFromAPN3_to_EPG = neuprint_get_shortest_paths(APN3$bodyid,EPG$bodyid, weightT = 10)
+```
+
+Filter pathways based on relative weights
+```{r}
+source("visualizeConnectivityTables.R")
+cutoff = 2# % of inputs
+
+pathFromAPN3_to_EPG = unique(pathFromAPN3_to_EPG)
+
+nodeMeta = data.frame(bodyid = union(unique(pathFromAPN3_to_EPG$from), unique(pathFromAPN3_to_EPG$to)) )  %>%
+                mutate(name = neuprint_get_meta(bodyid)$name,
+                       type = neuprint_get_meta(bodyid)$type,
+                       status = neuprint_get_meta(bodyid)$status,
+                       pre = neuprint_get_meta(bodyid)$pre,
+                       post = neuprint_get_meta(bodyid)$post)
+
+# add relative weight based on total input to postsynaptic neuron
+pathFromAPN3_to_EPG = pathFromAPN3_to_EPG %>% rowwise() %>%
+  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
+
+pathFromAPN3_to_EPG_bytype = pathFromAPN3_to_EPG %>% group_by(type.from, type.to) %>%
+  summarise(relWeight = sum(relWeight))
+
+#Reroganize to make graph with types instead of bodyids
+graphData = reorganizeGraphData(pathFromAPN3_to_EPG_bytype$type.from,
+                                pathFromAPN3_to_EPG_bytype$type.to,
+                                pathFromAPN3_to_EPG_bytype$relWeight,cutoff)
+nodes = getGraphNodes(graphData)
+graphData_noSelf = getNoSelfGraphData(graphData)
+graphData_selfFB = getSelfFBGraphData(graphData)
+
+myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 5)
+
+# remove isolated nodes
+dist.from.sink <- distances(myGraph, v=V(myGraph)["EPG"], to=V(myGraph), weights=NA) > 100
+Isolated = which(dist.from.sink)
+myGraph_filt = delete.vertices(myGraph, Isolated)
+
+plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
+     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN3_to_EPG_minPostWeight",cutoff,".pdf"), width=10, height=10)
+```
