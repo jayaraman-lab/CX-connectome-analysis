@@ -50,7 +50,8 @@ source("GetNeuronsInRoi.R")
 
 ### Get neuprint ROIs 
 ```{r}
-roisDf = get_rois_df()
+rois = neuprint_ROIs()
+heir=neuprint_ROI_hierarchy()
 ```
 
 ### Get neurons in the ROI
@@ -121,7 +122,7 @@ Rneuron_Connect_bytype_df$type_name = paste(Rneuron_Connect_bytype_df$type, '(',
 R_R_plotdata=filter(Rneuron_Connect_bytype_df, neuron_hemi=='R')
 
 # Plot all of the ROIs (and sub ROIs) that the right ring neurons innervate
-p1<-ggplot(R_R_plotdata, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p1<-ggplot(R_R_plotdata, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("Right Ring Neuron Input/Output ROIs")
 print(p1)
@@ -135,7 +136,7 @@ R_R_plotdataSubset=filter(R_R_plotdataSubset, !(R_R_plotdataSubset$roi %in% "LX"
 R_R_plotdataSubset$roi_names = as.factor(R_R_plotdataSubset$roi_names)
 R_R_plotdataSubset$roi_names <- factor(R_R_plotdataSubset$roi_names, levels = c("BU(R)","LAL(R)","GA(R)","EB(C)", "EBr1(C)","EBr2r4(C)","EBr3am(C)","EBr3d(C)","EBr3pw(C)","EBr5(C)","EBr6(C)"))
 
-p2<-ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) + 
+p2<-ggplot(R_R_plotdataSubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) + 
   facet_grid(cols=vars(prepost)) + theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) + 
   ggtitle(paste("Right Ring Neuron Input/Output ROIs with #synapses > ",as.character(SynThresh),sep=""))
 print(p2)
@@ -159,7 +160,7 @@ ExRneuron_Connect_bytype_df$roi_names = paste(ExRneuron_Connect_bytype_df$roi, '
 ExRneuron_Connect_bytype_df$type_name = paste(ExRneuron_Connect_bytype_df$type, '(', ExRneuron_Connect_bytype_df$neuron_hemi, ')', sep="")
 
 # Plot all of the ROIs (and sub ROIs) that the ALLs ExRs innervate
-p3<-ggplot(ExRneuron_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p3<-ggplot(ExRneuron_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("ALL ExR Input/Output ROIs with #synapses")
 print(p3)
@@ -171,7 +172,7 @@ ggsave(paste(PlotDir, "ExR_ALL_","InOutRegions_perType.png",sep=""), plot = p3, 
 ExRneuron_Connect_bytype_dfThresh=filter(ExRneuron_Connect_bytype_df, count>SynThresh)
 
 # Plot all ExRs again
-p4<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p4<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses count thresholding at ",as.character(SynThresh),sep=""))
 print(p4)
@@ -183,7 +184,7 @@ ggsave(paste(PlotDir, "ExR_ALLThresh1_","InOutRegions_perType.png",sep=""), plot
 ExRneuron_Connect_bytype_dfThresh=filter(ExRneuron_Connect_bytype_dfThresh, !(ExRneuron_Connect_bytype_dfThresh$roi %in% c("LX","CX","None","FB-column3")))
 
 # Plot all ExRs again
-p5<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p5<-ggplot(ExRneuron_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses count thresholding at ",as.character(SynThresh),sep=""))
 print(p5)
@@ -194,7 +195,7 @@ ggsave(paste(PlotDir, "ExR_ALLThresh2_","InOutRegions_perType.png",sep=""), plot
 # Plot the ExRs again, but excluding Fb and Eb subregions
 ExRneuron_Connect_bytype_dfThresh_NoLayers=filter(ExRneuron_Connect_bytype_dfThresh, !(startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"EBr") | startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"FBl")) )
 
-p6<-ggplot(ExRneuron_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p6<-ggplot(ExRneuron_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses count thresholding at ",as.character(SynThresh),sep=""))
 print(p6)
@@ -204,7 +205,7 @@ ggsave(paste(PlotDir, "F_ExR_ALLThresh2_NoLayers_","InOutRegions_perType.png",se
 # Plot the ExRs again, but only in EB
 ExRneuron_Connect_bytype_dfThresh_EBLayers=filter(ExRneuron_Connect_bytype_dfThresh, (startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"EB")))
 
-p7<-ggplot(ExRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p7<-ggplot(ExRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses count thresholding at ",as.character(SynThresh),sep=""))
 print(p7)
@@ -215,7 +216,7 @@ ggsave(paste(PlotDir, "F_ExR_ALLThresh2_EBLayers_","InOutRegions_perType.png",se
 # Plot the ExRs again, but only in FB
 ExRneuron_Connect_bytype_dfThresh_FBLayers=filter(ExRneuron_Connect_bytype_dfThresh, (startsWith(ExRneuron_Connect_bytype_dfThresh$roi,"FB")))
 
-p8<-ggplot(ExRneuron_Connect_bytype_dfThresh_FBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p8<-ggplot(ExRneuron_Connect_bytype_dfThresh_FBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL ExR  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p8)
@@ -240,7 +241,7 @@ NonR_Connect_bytype_df$roi_names = paste(NonR_Connect_bytype_df$roi, '(', NonR_C
 NonR_Connect_bytype_df$type_name = paste(NonR_Connect_bytype_df$type, '(', NonR_Connect_bytype_df$neuron_hemi, ')', sep="")
 
 # Plot all of the ROIs (and sub ROIs) that the ALLs Non Rs innervate
-p9<-ggplot(NonR_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p9<-ggplot(NonR_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("ALL Non R Input/Output ROIs with #synapses")
 print(p9)
@@ -252,7 +253,7 @@ ggsave(paste(PlotDir, "NonR_ALL_","InOutRegions_perType.png",sep=""), plot = p9,
 NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_df, count>SynThresh)
 
 # Plot all Non Rs again
-p10<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p10<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p10)
@@ -265,7 +266,7 @@ ggsave(paste(PlotDir, "NonR_ALLThresh1_","InOutRegions_perType.png",sep=""), plo
 NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_dfThresh, !(NonR_Connect_bytype_dfThresh$roi %in% c("LX","CX","None","FB-column3")))
 
 # Plot all Non Rs again
-p11<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p11<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p11)
@@ -276,7 +277,7 @@ ggsave(paste(PlotDir, "NonR_ALLThresh2_","InOutRegions_perType.png",sep=""), plo
 # Plot the Non Rs again, but excluding Fb and Eb subregions
 NonR_Connect_bytype_dfThresh_NoLayers=filter(NonR_Connect_bytype_dfThresh, !(startsWith(NonR_Connect_bytype_dfThresh$roi,"EBr") | startsWith(NonR_Connect_bytype_dfThresh$roi,"FBl")) )
 
-p12<-ggplot(NonR_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p12<-ggplot(NonR_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p12)
@@ -286,7 +287,7 @@ ggsave(paste(PlotDir, "F_NonR_ALLThresh2_NoLayers_","InOutRegions_perType.png",s
 # Plot the Non Rs again, but only in EB
 NonRneuron_Connect_bytype_dfThresh_EBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"EB")))
 
-p13<-ggplot(NonRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p13<-ggplot(NonRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p13)
@@ -296,7 +297,7 @@ ggsave(paste(PlotDir, "F_NonR_ALLThresh2_EBLayers_","InOutRegions_perType.png",s
 # Plot the Non Rs again, but only in FB
 NonRneuron_Connect_bytype_dfThresh_FBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"FB")))
 
-p14<-ggplot(NonRneuron_Connect_bytype_dfThresh_FBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+p14<-ggplot(NonRneuron_Connect_bytype_dfThresh_FBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
 print(p14)
@@ -309,364 +310,23 @@ remove(list=c("p9","p10","p11","p12","p13","p14"))
 ```
 
 
-# Get synapse distribution for all ring neurons
-```{r}
-
-# Get type name for all ring neurons
-UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
-RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R")]
-RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R") )
-
-# Get all synapses for the ring neurons
-for (typeNow in 1:length(RingNeuronTypes)){
-  # Get BU synapses
-  RingNeuronSyns = NamedBodies[ which(unlist(NamedBodies$bodytype) == RingNeuronTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
-  RingNeuronSyns <-  RingNeuronSyns %>% mutate(name=as.character(RingNeuronTypes[typeNow]))%>%     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-  if (typeNow==1){
-    RingNeuronSynsAll= RingNeuronSyns
-  }else{
-    RingNeuronSynsAll <- rbind(RingNeuronSynsAll,RingNeuronSyns)
-  }
-  
-}
-
-
-
-```
-
-
-
-# Plot each ring neurons type's synapse distribution 
-```{r}
-
-# Load libraries. Might have to install.packages("car") or install.packages("imager")
-library(car)
-library(imager)
-library(RColorBrewer)
-library(ggExtra)
-
-
-# Load function
-source("GetRoiMeshOutline.r")
-
-# Get meshes for ROIs
-ebMesh = neuprint_ROI_mesh("EB")
-RbuMesh = neuprint_ROI_mesh("BU(R)")
-RlalMesh = neuprint_ROI_mesh("LAL(R)")
-
-# Get EB Mesh
-Spacing=40 # 40 is good
-Smooth=3   #  3 is good
-OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth, "EB")
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-EB_Ring1=EdgesOrdered1 %>% mutate(name="EB1")
-EB_Ring2=EdgesOrdered2 %>% mutate(name="EB2")
-remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
-
-# Get BU Mesh
-Spacing=40 # 40 is good
-Smooth=3  #  3 is good
-OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth)
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-BU_Outline=EdgesOrdered %>% mutate(name="BU(R)")
-remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
-
-# Get LAL Mesh
-Spacing=40 # 40 is good
-Smooth=8   #  3 is good
-OUTPUT=Get_MeshRoiOutline(RlalMesh, Spacing, Smooth)
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-LAL_Outline=EdgesOrdered %>% mutate(name="BU(R)")
-remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
-
-
-# Get max and min synapse positions, since clipping doesnt work well.
-XLIM=c( min(c(RingNeuronSynsAll$x)) , max(c(RingNeuronSynsAll$x)) )
-YLIM=c( min(c(RingNeuronSynsAll$y)) , max(c(RingNeuronSynsAll$y)) )
-ZLIM=c( min(c(-RingNeuronSynsAll$z)) , max(c(-RingNeuronSynsAll$z)) )
-
-
-# For each ring neuron type, plot synapse distribution. 
-# Note, there could be some LAl synapses that appear to be in the BU from this projection view.
-for (nnn in 1:length(unique(RingNeuronSynsAll$name)) ){
-  ToPlotSyns=subset(RingNeuronSynsAll, RingNeuronSynsAll$name == unique(RingNeuronSynsAll$name)[nnn] )
-  
-  ppp <- ggplot()  + geom_hex(data=ToPlotSyns, aes(x = x, y = -z), bins=125 ) + 
-    scale_fill_gradientn(colors = brewer.pal(3,"Blues")) + theme_classic() +
-    geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
-    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
-    geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) + 
-    xlim(XLIM[1], XLIM[2]) + ylim(ZLIM[1], ZLIM[2]) + ggtitle(unique(RingNeuronSynsAll$name)[nnn])
-  
-  ggsave(paste(PlotDir, "RingNeuronSynDistribution_",unique(RingNeuronSynsAll$name)[nnn],".png",sep=""), plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  remove(ppp)
-  
-}
-
-```
-
-
-# Make similar plots but just for R BU
-```{r}
-
-# Load smoothing library and ggplot panel library
-library(zoo)
-library(ggpubr)
-library(ks)
-
-# Get just the synapses in the BU
-RingNeuronSynsAll_BU=filter(RingNeuronSynsAll,pointsinside(RingNeuronSynsAll,RbuMesh))
-
-# Get average synapses in BU per type
-SynsPerType=RingNeuronSynsAll_BU %>% group_by(name) %>% summarize(n=n())
-SynsPerType=filter(SynsPerType,n>10)
-
-# filter BU synapses by type
-RingNeuronSynsAll_BU=filter(RingNeuronSynsAll_BU,name %in% SynsPerType$name)
-
-# Smooth BU outline
-BU_Outline_Smooth=data.frame(x = rollmean(BU_Outline$x,8),
-                             y = rollmean(BU_Outline$y,8),
-                             z = rollmean(BU_Outline$z,8))
-
-# Get max and min synapse positions, since clipping doesnt work well.
-Extra=500
-XLIM=c( min(c(RingNeuronSynsAll_BU$x))-Extra , max(c(RingNeuronSynsAll_BU$x))+Extra )
-YLIM=c( min(c(RingNeuronSynsAll_BU$y))-Extra , max(c(RingNeuronSynsAll_BU$y))+Extra )
-ZLIM=c( min(c(-RingNeuronSynsAll_BU$z))-Extra , max(c(-RingNeuronSynsAll_BU$z))+Extra )
 
 
-# For each ring neuron type, plot synapse distribution in BU 
-# Not this excludes synapses that are just outside the bulb since the ROI isnt perect.
-for (nnn in 1:length(unique(RingNeuronSynsAll_BU$name)) ){
-  ToPlotSyns=subset(RingNeuronSynsAll_BU, RingNeuronSynsAll_BU$name == sort(unique(RingNeuronSynsAll_BU$name))[nnn] )
-  
-  ppp=ggplot()  + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) +
-    geom_hex(data=ToPlotSyns, aes(x = x, y = -z), bins=50 ) + 
-    scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,15), limits=c(0, 15), oob = scales::squish) +
-    xlim(XLIM[1], XLIM[2]) + ylim(ZLIM[1], ZLIM[2]) + ggtitle(sort(unique(RingNeuronSynsAll_BU$name))[nnn]) +
-    theme_void() + theme(legend.position="none")
-  
-  eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
-  
-  ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_",sort(unique(RingNeuronSynsAll_BU$name))[nnn],".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  remove(ppp)
-  
-}
 
 
-# Plot every ring neuron arranged on a grid
-ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
-          ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
-          ncol = 6, nrow = 3)
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_ALL",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
 
-# Plot all ring neurons synapses overlayed
-ggplot() + geom_density_2d( data=RingNeuronSynsAll_BU, aes(x=x, y=-z, color=factor(name) ) )  +
-  geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
 
 
-# Get 95% contour and plot all on one plot
-for (nnn in 1:length(unique(RingNeuronSynsAll_BU$name)) ){
-  
-  ToPlotSyns=subset(RingNeuronSynsAll_BU, RingNeuronSynsAll_BU$name == sort(unique(RingNeuronSynsAll_BU$name))[nnn] )
-  
-  
-  # Get synapse 99% contour, but this seems to only work well for gaussian-like distributions
-  d <- data.frame(x=ToPlotSyns$x,y=ToPlotSyns$z)
-  kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(15,15))
-  contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["5%"])[[1]])
-  contour_95 <- data.frame(contour_95)
-  contour_95$name=sort(unique(RingNeuronSynsAll_BU$name))[nnn]
-  
-  ppp = ggplot() + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) +
-    geom_hex(data=ToPlotSyns, aes(x = x, y = -z), bins=50 ) + 
-    geom_polygon(data=contour_95, aes(x=x, y=-y), colour='red', fill=NA, size = 0.5) +
-    scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,15), limits=c(0, 15), oob = scales::squish) +
-    xlim(XLIM[1], XLIM[2]) + ylim(ZLIM[1], ZLIM[2]) + ggtitle(sort(unique(RingNeuronSynsAll_BU$name))[nnn]) +
-    theme_void() + theme(legend.position="none") 
-  
-  eval(parse(text=paste("ppp_",as.character(nnn),"=ppp",sep="")))
-  
-  ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_Contour_",sort(unique(RingNeuronSynsAll_BU$name))[nnn],".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-  remove(ppp)
-  
-  if (nnn==1){
-    ContourAll=contour_95
-  } else {
-    ContourAll=rbind(ContourAll,contour_95)
-  }
-}
 
 
-# Plot every ring neuron arranged on a grid with contour
-ppp=ggarrange(ppp_1, ppp_2, ppp_3, ppp_4, ppp_5, ppp_6, ppp_7, ppp_8, ppp_9, ppp_10 , ppp_11,
-          ppp_12, ppp_13, ppp_14, ppp_15, ppp_16, ppp_17, ppp_18,
-          ncol = 6, nrow = 3)
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
 
-
-ppp=ggplot() + geom_polygon(data=BU_Outline_Smooth, aes(x = x, y = -z), colour='black', fill=NA, size = 0.75 ) + 
-  geom_polygon(data=ContourAll, aes(x=x, y=-y,color=name, fill = name), alpha=0.05) + theme_bw()
-ggsave(paste(PlotDir, "BUr_RingNeuronSynDistribution_75percent",".png",sep=""),
-         plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-# Make plot of each ring neuron's distribution of synapses in 3D
-```{r}
-
-
-
-# Get neuron morphologies
-MorphFile=paste(SaveDir,"RingNeuronMorpho.rds",sep="")
-if (file.exists(MorphFile)){
-  RingNeuronMorpho=readRDS(MorphFile)
-} else {
-  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
-  saveRDS(RingNeuronMorpho, file = MorphFile)
-}
-
-# Get min/max of x,y,z from morphologies
-RingNeuronCharacter=names(RingNeuronMorpho)
-X_MaxOut=c()
-X_MinOut=c()
-Y_MaxOut=c()
-Y_MinOut=c()
-Z_MaxOut=c()
-Z_MinOut=c()
-for (NNN in 1:length(RingNeuronCharacter)){
-  X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
-  Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
-  Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
-  
-  
-  X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
-  X_MinOut=min( c(X_MinOut, min(eval(parse(text=X_tempstring))) ) )
-  Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
-  Y_MinOut=min( c(Y_MinOut, min(eval(parse(text=Y_tempstring))) ) )
-  Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
-  Z_MinOut=min( c(Z_MinOut, min(eval(parse(text=Z_tempstring))) ) )
-  
-}
-
-# Get max and min synapse positions, since clipping doesnt work well.
-XLIM=c( min(c(RingNeuronSynsAll$x,X_MinOut)) , max(c(RingNeuronSynsAll$x),X_MaxOut) )
-YLIM=c( min(c(RingNeuronSynsAll$y,Y_MinOut)) , max(c(RingNeuronSynsAll$y),Y_MaxOut) )
-ZLIM=c( min(c(RingNeuronSynsAll$z,Z_MinOut)) , max(c(RingNeuronSynsAll$z),Z_MaxOut) )
-
-
-# Get meshes for ROIs
-ebMesh = neuprint_ROI_mesh("EB")
-RbuMesh = neuprint_ROI_mesh("BU(R)")
-noMesh = neuprint_ROI_mesh("NO")
-lalMesh = neuprint_ROI_mesh("LAL(R)")
-galMesh = neuprint_ROI_mesh("GA(R)")
-
-
-# Get view file
-RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
-
-# For each ring neuron type, loop over and plot synapse distributions
-for (typeNow in 1:length(RingNeuronTypes)){
-
-  
-  TempBodies=NamedBodies$bodyid[ as.character(NamedBodies$bodytype)==RingNeuronTypes[typeNow] ]
-  
-  TempMorphos=RingNeuronMorpho[as.character(TempBodies)]
-  TempMorphos=TempMorphos[lengths(TempMorphos) != 0 ]
-
-  
-  RingNeuronSyns = subset(RingNeuronSynsAll,RingNeuronSynsAll$name==RingNeuronTypes[typeNow])
-  
-  # Assign synapses into pre and post groups
-  RingNeuronSyns_Post = RingNeuronSyns %>% filter(prepost==0) 
-  RingNeuronSyns_Pre = RingNeuronSyns %>% filter(prepost==1)
-  
-  # Get view paramters
-  #zoom<-par3d()$zoom
-  #userMatrix<-par3d()$userMatrix
-  #windowRect<-par3d()$windowRect
-  #bbox2<-par3d()$bbox
-  #scale<-par3d()$scale
-  #viewport<-par3d()$viewport
-  #FOV<-par3d()$FOV
-  #pp2 <- par3d(no.readonly=TRUE)
-  
-  nclear3d()
-  
-  
-  bgplot3d({
-    plot.new()
-    title(main = as.character(RingNeuronTypes[typeNow]), line = 3)})
-  
-  plot3d(RingNeuronSyns_Pre[c('x','y','z')], col='seagreen3', xlim = c(XLIM), ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
-  plot3d(RingNeuronSyns_Post[c('x','y','z')], col='violet', add=TRUE, xlim = XLIM, ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
-  
-  
-  plot3d(TempMorphos,color="black")
-  plot3d(ebMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
-  plot3d(RbuMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
-  plot3d(noMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  plot3d(lalMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  plot3d(galMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  decorate3d(box=FALSE) 
-  #aspect3d(1,1,1)
-  listener=par3d()$listener
-   
-
-  #FrontView=rbind(c(1,0,0,0),c(0, -0.15,-1,0),c(0, 1, -0.14,0),c(0,0,0,1))
-  #par3d(zoom=0.6)
-  #par3d(windowRect=c(1271, 332, 2563, 1231))
-  #par3d(scale=c(0.813438, 1.333599, 1.038952))
-  #par3d(viewport=c(0, 0, 1292, 899))
-  #par3d(FOV=30)
-  #par3d(userMatrix=FrontView)
-  
-  par3d(RingNeuronView)
-  par3d(listeners=listener)
-  par3d(viewport=c(0, 0, 1292, 899))
-  par3d(windowRect=c(1271, 332, 2563, 1231))
-  
-  
-  
-  
-  FileName=paste('Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/',as.character(RingNeuronTypes[typeNow]),'.png', sep = "")
-  rgl.snapshot(FileName,fmt='png')
-
-  
-  rgl.close()
-  
-}
-
-```
+
+
+
+
+
 
 
 
