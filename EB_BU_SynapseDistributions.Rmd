@@ -15,6 +15,13 @@ library(tidyverse)
 library(plotly)
 library(dplyr)
 library(matlib)
+library(car)
+library(imager)
+library(reshape2)
+library(zoo)
+library(ggpubr)
+library(ks)
+library(RColorBrewer)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -43,20 +50,12 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login()
 ```
 
-### Get general functions and load libraries
+### Get general functions
 ```{r}
 source("inputOutputRegionsVis.r")
 source("GetNeuronsInRoi.R")
 source("SynapsePCAUtils.R")
 source("GetRoiMeshOutline.r")
-library(car)
-library(imager)
-library(reshape2)
-library(zoo)
-library(ggpubr)
-library(ks)
-library(RColorBrewer)
-
 ```
 
 
@@ -90,13 +89,23 @@ RingNeuronSynsAll = RingNeuronBodies$bodyid %>% neuprint_get_synapses()
 RingNeuronSynsAll = mutate(RingNeuronSynsAll, name=neuprint_get_meta(bodyid)$type,
                            x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
 
-# Get just those synapses in the EB and BU
+# Get just those synapses in the EB, BU, LAL, and GA
 RingNeuron_EBsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'EB') 
 RingNeuron_EBsyns = mutate(RingNeuron_EBsyns, name=neuprint_get_meta(bodyid)$type,
                            x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
 RingNeuron_BUsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'BU(R)') 
 RingNeuron_BUsyns = mutate(RingNeuron_BUsyns, name=neuprint_get_meta(bodyid)$type,
                            x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+RingNeuron_GAsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'GA(R)') 
+RingNeuron_GAsyns = mutate(RingNeuron_GAsyns, name=neuprint_get_meta(bodyid)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+RingNeuron_LALsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'LAL(-GA)(R)') # The gal is part of the LAL, so use LAL(-GA)
+RingNeuron_LALsyns = mutate(RingNeuron_LALsyns, name=neuprint_get_meta(bodyid)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
 
 
 ```
@@ -105,18 +114,38 @@ RingNeuron_BUsyns = mutate(RingNeuron_BUsyns, name=neuprint_get_meta(bodyid)$typ
 ### Get average number of synapses per type and filter 
 ```{r}
 
-MinSyns=10
+MinSyns=20
 
 # Get average synapses in EB per type and filter
 SynsPerType_EB=RingNeuron_EBsyns %>% group_by(name) %>% summarize(n=n())
-SynsPerType_EB=filter(SynsPerType_EB,n>10)
+SynsPerType_EB=filter(SynsPerType_EB,n>MinSyns)
 RingNeuron_EBsyns=filter(RingNeuron_EBsyns,name %in% SynsPerType_EB$name)
 
 # Get average synapses in BU per type and filter
 SynsPerType_BU=RingNeuron_BUsyns %>% group_by(name) %>% summarize(n=n())
-SynsPerType_BU=filter(SynsPerType_BU,n>10)
+SynsPerType_BU=filter(SynsPerType_BU,n>MinSyns)
 RingNeuron_BUsyns=filter(RingNeuron_BUsyns,name %in% SynsPerType_BU$name)
 
+# Get average synapses in GA per type and filter
+SynsPerType_GA=RingNeuron_GAsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_GA=filter(SynsPerType_GA,n>MinSyns)
+RingNeuron_GAsyns=filter(RingNeuron_GAsyns,name %in% SynsPerType_GA$name)
+
+# Get average synapses in LAL per type and filter
+SynsPerType_LAL=RingNeuron_LALsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_LAL=filter(SynsPerType_LAL,n>MinSyns)
+RingNeuron_LALsyns=filter(RingNeuron_LALsyns,name %in% SynsPerType_LAL$name)
+
+```
+
+
+# Combine GA and LAL data
+```{r}
+
+RingNeuron_LALsyns=mutate(RingNeuron_LALsyns,ROI="LAL")
+RingNeuron_GAsyns=mutate(RingNeuron_GAsyns,ROI="GA")
+RingNeuron_LALsyns=rbind(RingNeuron_LALsyns,RingNeuron_GAsyns)
+remove(RingNeuron_GAsyns)
 
 ```
 
@@ -131,8 +160,11 @@ EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
 buMesh = neuprint_ROI_mesh("BU(R)")
 BUData=data.frame(x=buMesh$vb[1,], y=buMesh$vb[2,],z=buMesh$vb[3,],name="BU(R)")
 
+RgaMesh = neuprint_ROI_mesh("GA(R)")
+GAData=data.frame(x=RgaMesh$vb[1,], y=RgaMesh$vb[2,],z=RgaMesh$vb[3,],name="LAL(R)")
+
 RlalMesh = neuprint_ROI_mesh("LAL(R)")
-RlaData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="LAL(R)")
+LALData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="LAL(R)")
 
 
 ```
@@ -145,12 +177,20 @@ RlaData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="
 # Perform PCA + rotation on ROI meshes to get new axes
 EB_Axes=PCA_SynapseRoi(EBData, 0)
 BU_Axes=PCA_SynapseRoi(BUData, 45)
+LAL_Axes=PCA_SynapseRoi(LALData, 90)
+LAL_Axes$vectors[,2] = -LAL_Axes$vectors[,2]
 
 # Project the synapse locations and meshes onto the new axes (no longer PCs if rotated)
 RingNeuron_EBsyns_EBax=Project_NewCoordinates(RingNeuron_EBsyns, EB_Axes)
 EBData_EBax=Project_NewCoordinates(EBData, EB_Axes)
+
 RingNeuron_BUsyns_BUax=Project_NewCoordinates(RingNeuron_BUsyns, BU_Axes)
 BUData_BUax=Project_NewCoordinates(BUData, BU_Axes)
+
+RingNeuron_LALsyns_LALax=Project_NewCoordinates(RingNeuron_LALsyns, LAL_Axes)
+LALData_LALax=Project_NewCoordinates(LALData, LAL_Axes)
+GAData_LALax=Project_NewCoordinates(GAData, LAL_Axes)
+
 
 
 ```
@@ -184,12 +224,33 @@ BU_Outline=EdgesOrdered1_OUT %>% mutate(name="BU(R)")
 remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
 
 
+# Get GA Mesh in x/y
+OUTPUT=Get_MeshRoiOutline(GAData_LALax, 40, 3,"GA", DIM=c(1,2)) # Spacing=40, smooth=3 is good
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+GA_Outline=EdgesOrdered1_OUT %>% mutate(name="GA")
+remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
+
+
+# Get LAL Mesh in x/y
+OUTPUT=Get_MeshRoiOutline(LALData_LALax, 50, 5,"LAL", DIM=c(1,2)) # Spacing=40, smooth=3 is good
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+LAL_Outline1=EdgesOrdered1_OUT %>% mutate(name="LAL1")
+LAL_Outline2=EdgesOrdered2_OUT %>% mutate(name="LAL2")
+remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
+
+
 # Plot the synapses and the ROI outlines in same plot to make sure they are in the same coordinates
 ggplot()  + geom_point(data=RingNeuron_BUsyns_BUax, aes(x = x, y = -y, color=name)) +  geom_polygon(data=BU_Outline, aes(x = x, y = -y), colour='black', fill=NA)
 
 ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=name)) +  geom_polygon(data=EB_Ring1, aes(x = x, y = -y), colour='black', fill=NA) +  geom_polygon(data=EB_Ring2, aes(x = x, y = -y), colour='black', fill=NA)
 
 
+ggplot()  + geom_point(data=RingNeuron_LALsyns_LALax, aes(x = x, y = -y, color=name)) +  
+  geom_polygon(data=LAL_Outline1, aes(x = x, y = -y), colour='black', fill=NA) + 
+  geom_polygon(data=LAL_Outline2, aes(x = x, y = -y), colour='black', fill=NA) + 
+  geom_polygon(data=GA_Outline, aes(x = x, y = -y), colour='black', fill=NA)
 
 ```
 
@@ -198,45 +259,78 @@ ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=nam
 ```{r}
 
 # To Do:
-# 0) 2D plots of ring neurons with LAL synapses
 # 1) Improve getting outline of data and get it to work with ring neurons in EB
 # 2) Look at synapse distributions in BU in Z
 # 3) Look at synapse distributions in cross section of EB
 
 
 # Make plots for BU 
-Cmax=25 # Max for color bar
+Cmax=20 # Max for color bar
 ROI_Name="BUr"
 
-Output=PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, ROI_Name , Cmax, PlotDir)
+Output=PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, BU_Outline, ROI_Name , Cmax, PlotDir)
 list2env(Output ,.GlobalEnv)
 remove(Output)
 
-ppp=ggarrange(plotlist=PlotHandles1, ncol = length(PlotHandles1)/3, nrow = length(PlotHandles1)/6)
+ppp=ggarrange(plotlist=PlotHandles1, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
 ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
        plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
+       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
-ppp=ggarrange(plotlist=PlotHandles2, ncol = length(PlotHandles2)/3, nrow = length(PlotHandles2)/6)
+ppp=ggarrange(plotlist=PlotHandles2, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
 ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
        plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
-# Make plots for BU 
+# Make plots for EB
 Cmax=100 # Max for color bar
 ROI_Name="EB"
 
-Output=PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, ROI_Name , Cmax, PlotDir)
+Output=PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, EB_Ring2, ROI_Name , Cmax, PlotDir)
 list2env(Output ,.GlobalEnv)
 remove(Output)
 
-ppp=ggarrange(plotlist=PlotHandles1, ncol = length(PlotHandles1)/3, nrow = length(PlotHandles1)/6)
+ppp=ggarrange(plotlist=PlotHandles1, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
 ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
        plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
+       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
 
-ppp=ggarrange(plotlist=PlotHandles2, ncol = length(PlotHandles2)/3, nrow = length(PlotHandles2)/6)
+ppp=ggarrange(plotlist=PlotHandles2, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
 ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
        plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+
+
+# Make plots for LAL
+Cmax=50 # Max for color bar
+ROI_Name="LAL"
+
+Output=PlotSynapseDistributions(RingNeuron_LALsyns_LALax, LAL_Outline1, LAL_Outline2, GA_Outline, ROI_Name , Cmax, PlotDir)
+list2env(Output ,.GlobalEnv)
+remove(Output)
+
+ppp=ggarrange(plotlist=PlotHandles1, ncol = 3, nrow = 3)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
+       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+ppp=ggarrange(plotlist=PlotHandles2, ncol = 3, nrow = 3)
+ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
+       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
+
+
+
+
+
+```
+
+
+# Make plot showing overlay of all neurons in each region
+```{r}
 
 
 # Make plots of all neurons
@@ -245,30 +339,6 @@ ggplot(RingNeuron_BUsyns_BUax, aes(x=x, y=-y, fill=name)) +
   facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
 
 
-
-
-
-
-plot_data=RingNeuron_BUsyns_BUax[,c(3,4,9)]
-colnames(plot_data) <- c("X","Y","Label")
-plot_data$Label=as.factor(plot_data$Label)
-
-
-#Genrate the kernel density for each group
-newplot_data <- plot_data %>% group_by(Label) %>% do(Dens=kde2d(.$X, .$Y, h=20, n=250, lims=c(XLIM,-YLIM)))
-
-#Transform the density in  data.frame
-newplot_data  %<>%  do(Label=.$Label, V=expand.grid(.$Dens$x,.$Dens$y), Value=c(.$Dens$z)) %>% do(data.frame(Label=.$Label,x=.$V$Var1, y=.$V$Var2, Value=.$Value))
-
-Thresh=quantile(newplot_data$Value, c(0.7)) 
-newplot_data$Value[newplot_data$Value>Thresh]<-1
-newplot_data$Value[newplot_data$Value<=Thresh]<-0
-
-ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
-  geom_polygon(data=ROI_Outline2, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
-  stat_contour(data=newplot_data, aes(x=x, y=-y, z=Value, fill=Label), geom="polygon", alpha=0.05)
-    
-
 ```
 
 
@@ -276,11 +346,133 @@ ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', 
 
 
 
+# Make plot of each ring neuron's distribution of synapses in 3D
+```{r}
 
 
 
+# Get neuron morphologies
+MorphFile=paste(SaveDir,"RingNeuronMorpho.rds",sep="")
+if (file.exists(MorphFile)){
+  RingNeuronMorpho=readRDS(MorphFile)
+} else {
+  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+  saveRDS(RingNeuronMorpho, file = MorphFile)
+}
+
+# Get min/max of x,y,z from morphologies
+RingNeuronCharacter=names(RingNeuronMorpho)
+X_MaxOut=c()
+X_MinOut=c()
+Y_MaxOut=c()
+Y_MinOut=c()
+Z_MaxOut=c()
+Z_MinOut=c()
+for (NNN in 1:length(RingNeuronCharacter)){
+  X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
+  Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
+  Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
+  
+  
+  X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
+  X_MinOut=min( c(X_MinOut, min(eval(parse(text=X_tempstring))) ) )
+  Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
+  Y_MinOut=min( c(Y_MinOut, min(eval(parse(text=Y_tempstring))) ) )
+  Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
+  Z_MinOut=min( c(Z_MinOut, min(eval(parse(text=Z_tempstring))) ) )
+  
+}
+
+# Get max and min synapse positions, since clipping doesnt work well.
+XLIM=c( min(c(RingNeuronSynsAll$x,X_MinOut)) , max(c(RingNeuronSynsAll$x),X_MaxOut) )
+YLIM=c( min(c(RingNeuronSynsAll$y,Y_MinOut)) , max(c(RingNeuronSynsAll$y),Y_MaxOut) )
+ZLIM=c( min(c(RingNeuronSynsAll$z,Z_MinOut)) , max(c(RingNeuronSynsAll$z),Z_MaxOut) )
 
 
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+noMesh = neuprint_ROI_mesh("NO")
+lalMesh = neuprint_ROI_mesh("LAL(R)")
+galMesh = neuprint_ROI_mesh("GA(R)")
+
+
+# Get view file
+RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
+
+# For each ring neuron type, loop over and plot synapse distributions
+for (typeNow in 1:length(RingNeuronTypes)){
+
+  
+  TempBodies=NamedBodies$bodyid[ as.character(NamedBodies$bodytype)==RingNeuronTypes[typeNow] ]
+  
+  TempMorphos=RingNeuronMorpho[as.character(TempBodies)]
+  TempMorphos=TempMorphos[lengths(TempMorphos) != 0 ]
+
+  
+  RingNeuronSyns = subset(RingNeuronSynsAll,RingNeuronSynsAll$name==RingNeuronTypes[typeNow])
+  
+  # Assign synapses into pre and post groups
+  RingNeuronSyns_Post = RingNeuronSyns %>% filter(prepost==0) 
+  RingNeuronSyns_Pre = RingNeuronSyns %>% filter(prepost==1)
+  
+  # Get view paramters
+  #zoom<-par3d()$zoom
+  #userMatrix<-par3d()$userMatrix
+  #windowRect<-par3d()$windowRect
+  #bbox2<-par3d()$bbox
+  #scale<-par3d()$scale
+  #viewport<-par3d()$viewport
+  #FOV<-par3d()$FOV
+  #pp2 <- par3d(no.readonly=TRUE)
+  
+  nclear3d()
+  
+  
+  bgplot3d({
+    plot.new()
+    title(main = as.character(RingNeuronTypes[typeNow]), line = 3)})
+  
+  plot3d(RingNeuronSyns_Pre[c('x','y','z')], col='seagreen3', xlim = c(XLIM), ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  plot3d(RingNeuronSyns_Post[c('x','y','z')], col='violet', add=TRUE, xlim = XLIM, ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  
+  
+  plot3d(TempMorphos,color="black")
+  plot3d(ebMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(RbuMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(noMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(lalMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(galMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  decorate3d(box=FALSE) 
+  #aspect3d(1,1,1)
+  listener=par3d()$listener
+   
+
+  #FrontView=rbind(c(1,0,0,0),c(0, -0.15,-1,0),c(0, 1, -0.14,0),c(0,0,0,1))
+  #par3d(zoom=0.6)
+  #par3d(windowRect=c(1271, 332, 2563, 1231))
+  #par3d(scale=c(0.813438, 1.333599, 1.038952))
+  #par3d(viewport=c(0, 0, 1292, 899))
+  #par3d(FOV=30)
+  #par3d(userMatrix=FrontView)
+  
+  par3d(RingNeuronView)
+  par3d(listeners=listener)
+  par3d(viewport=c(0, 0, 1292, 899))
+  par3d(windowRect=c(1271, 332, 2563, 1231))
+  
+  
+  
+  
+  FileName=paste('Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/',as.character(RingNeuronTypes[typeNow]),'.png', sep = "")
+  rgl.snapshot(FileName,fmt='png')
+
+  
+  rgl.close()
+  
+}
+
+```
 
 
 

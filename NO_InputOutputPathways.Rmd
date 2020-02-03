@@ -1,5 +1,5 @@
 ---
-title: "Notebook analyzing the input and output pathways of the EB at the ROI level"
+title: "Notebook analyzing the input and output pathways of the NO at the ROI level"
 output:
   html_document:
     df_print: paged
@@ -21,13 +21,13 @@ options(nat.plotengine = 'rgl')
 ```{r}
 
 # The region of interest.
-ROI="EB"  
+ROI="NO"  
 
 # Directory to save data to.
-SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
+SaveDir="Z:/Cx_Connectome/BradData/NO_Analysis/"
 
 # Directory to save plots to.
-PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
+PlotDir="Z:/Cx_Connectome/BradData/NO_Analysis/"
 
 ```
 
@@ -98,13 +98,13 @@ plotdata=roi_Connect_bytype_df
 plotdata$roi_names = paste(roi_Connect_bytype_df$roi, '(', roi_Connect_bytype_df$roi_hemi, ')', sep="")
 plotdata$type_name = paste(roi_Connect_bytype_df$type, '(', roi_Connect_bytype_df$neuron_hemi, ')', sep="")
 
-# Plot all of the ROIs (and sub ROIs) that all EB neurons innervate
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
 p0<-ggplot(plotdata, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL EB Neuron Input/Output ROIs")
+  ggtitle("ALL NO Neuron Input/Output ROIs")
 print(p0)
-ggsave(paste(PlotDir, "ALL_EB_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "ALL_EB_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
+ggsave(paste(PlotDir, "ALL_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
+ggsave(paste(PlotDir, "ALL_NO_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
 
 
 ```
@@ -230,84 +230,7 @@ remove(list=c("p3","p4","p5","p6","p7","p8"))
 
 
 
-### Make same facet plots for all EB neurons that are not ring neurons or ExRs
-```{r}
 
-# Get all neurons that are not ring or ExRs
-NonR_Connect_bytype_df=filter(roi_Connect_bytype_df, !(startsWith(unlist(roi_Connect_bytype_df$type), "ExR") | startsWith(unlist(roi_Connect_bytype_df$type), "R")) )
-
-# add an ROI name field
-NonR_Connect_bytype_df$roi_names = paste(NonR_Connect_bytype_df$roi, '(', NonR_Connect_bytype_df$roi_hemi, ')', sep="")
-NonR_Connect_bytype_df$type_name = paste(NonR_Connect_bytype_df$type, '(', NonR_Connect_bytype_df$neuron_hemi, ')', sep="")
-
-# Plot all of the ROIs (and sub ROIs) that the ALLs Non Rs innervate
-p9<-ggplot(NonR_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL Non R Input/Output ROIs with #synapses")
-print(p9)
-ggsave(paste(PlotDir, "NonR_ALL_","InOutRegions_perType.pdf",sep=""), plot = p9, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "NonR_ALL_","InOutRegions_perType.png",sep=""), plot = p9, device='png', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Filter by synapse counts
-NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_df, count>SynThresh)
-
-# Plot all Non Rs again
-p10<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
-print(p10)
-ggsave(paste(PlotDir, "NonR_ALLThresh1_","InOutRegions_perType.pdf",sep=""), plot = p10, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "NonR_ALLThresh1_","InOutRegions_perType.png",sep=""), plot = p10, device='png', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-# Filter out some ROIs
-NonR_Connect_bytype_dfThresh=filter(NonR_Connect_bytype_dfThresh, !(NonR_Connect_bytype_dfThresh$roi %in% c("LX","CX","None","FB-column3")))
-
-# Plot all Non Rs again
-p11<-ggplot(NonR_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
-print(p11)
-ggsave(paste(PlotDir, "NonR_ALLThresh2_","InOutRegions_perType.pdf",sep=""), plot = p11, device='pdf', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "NonR_ALLThresh2_","InOutRegions_perType.png",sep=""), plot = p11, device='png', scale = 1, width = 20, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot the Non Rs again, but excluding Fb and Eb subregions
-NonR_Connect_bytype_dfThresh_NoLayers=filter(NonR_Connect_bytype_dfThresh, !(startsWith(NonR_Connect_bytype_dfThresh$roi,"EBr") | startsWith(NonR_Connect_bytype_dfThresh$roi,"FBl")) )
-
-p12<-ggplot(NonR_Connect_bytype_dfThresh_NoLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
-print(p12)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_NoLayers_","InOutRegions_perType.pdf",sep=""), plot = p12, device='pdf', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_NoLayers_","InOutRegions_perType.png",sep=""), plot = p12, device='png', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-# Plot the Non Rs again, but only in EB
-NonRneuron_Connect_bytype_dfThresh_EBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"EB")))
-
-p13<-ggplot(NonRneuron_Connect_bytype_dfThresh_EBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
-print(p13)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_EBLayers_","InOutRegions_perType.pdf",sep=""), plot = p13, device='pdf', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_EBLayers_","InOutRegions_perType.png",sep=""), plot = p13, device='png', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-# Plot the Non Rs again, but only in FB
-NonRneuron_Connect_bytype_dfThresh_FBLayers=filter(NonR_Connect_bytype_dfThresh, (startsWith(NonR_Connect_bytype_dfThresh$roi,"FB")))
-
-p14<-ggplot(NonRneuron_Connect_bytype_dfThresh_FBLayers, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type_name)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("ALL Non R  Input/Output ROIs with #synapses after count thresholding at ",as.character(SynThresh),sep=""))
-print(p14)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_FBLayers_","InOutRegions_perType.pdf",sep=""), plot = p14, device='pdf', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, "F_NonR_ALLThresh2_FBLayers_","InOutRegions_perType.png",sep=""), plot = p14, device='png', scale = 1, width = 14, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-remove(list=c("p9","p10","p11","p12","p13","p14"))
-
-
-```
 
 
 
