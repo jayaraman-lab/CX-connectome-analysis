@@ -346,6 +346,134 @@ ggplot(RingNeuron_BUsyns_BUax, aes(x=x, y=-y, fill=name)) +
 
 
 
+# Make plot of each ring neuron's distribution of synapses in 3D
+```{r}
+
+
+
+# Get neuron morphologies
+MorphFile=paste(SaveDir,"RingNeuronMorpho.rds",sep="")
+if (file.exists(MorphFile)){
+  RingNeuronMorpho=readRDS(MorphFile)
+} else {
+  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+  saveRDS(RingNeuronMorpho, file = MorphFile)
+}
+
+# Get min/max of x,y,z from morphologies
+RingNeuronCharacter=names(RingNeuronMorpho)
+X_MaxOut=c()
+X_MinOut=c()
+Y_MaxOut=c()
+Y_MinOut=c()
+Z_MaxOut=c()
+Z_MinOut=c()
+for (NNN in 1:length(RingNeuronCharacter)){
+  X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
+  Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
+  Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
+  
+  
+  X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
+  X_MinOut=min( c(X_MinOut, min(eval(parse(text=X_tempstring))) ) )
+  Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
+  Y_MinOut=min( c(Y_MinOut, min(eval(parse(text=Y_tempstring))) ) )
+  Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
+  Z_MinOut=min( c(Z_MinOut, min(eval(parse(text=Z_tempstring))) ) )
+  
+}
+
+# Get max and min synapse positions, since clipping doesnt work well.
+XLIM=c( min(c(RingNeuronSynsAll$x,X_MinOut)) , max(c(RingNeuronSynsAll$x),X_MaxOut) )
+YLIM=c( min(c(RingNeuronSynsAll$y,Y_MinOut)) , max(c(RingNeuronSynsAll$y),Y_MaxOut) )
+ZLIM=c( min(c(RingNeuronSynsAll$z,Z_MinOut)) , max(c(RingNeuronSynsAll$z),Z_MaxOut) )
+
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+noMesh = neuprint_ROI_mesh("NO")
+lalMesh = neuprint_ROI_mesh("LAL(R)")
+galMesh = neuprint_ROI_mesh("GA(R)")
+
+
+# Get view file
+RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
+
+# For each ring neuron type, loop over and plot synapse distributions
+for (typeNow in 1:length(RingNeuronTypes)){
+
+  
+  TempBodies=NamedBodies$bodyid[ as.character(NamedBodies$bodytype)==RingNeuronTypes[typeNow] ]
+  
+  TempMorphos=RingNeuronMorpho[as.character(TempBodies)]
+  TempMorphos=TempMorphos[lengths(TempMorphos) != 0 ]
+
+  
+  RingNeuronSyns = subset(RingNeuronSynsAll,RingNeuronSynsAll$name==RingNeuronTypes[typeNow])
+  
+  # Assign synapses into pre and post groups
+  RingNeuronSyns_Post = RingNeuronSyns %>% filter(prepost==0) 
+  RingNeuronSyns_Pre = RingNeuronSyns %>% filter(prepost==1)
+  
+  # Get view paramters
+  #zoom<-par3d()$zoom
+  #userMatrix<-par3d()$userMatrix
+  #windowRect<-par3d()$windowRect
+  #bbox2<-par3d()$bbox
+  #scale<-par3d()$scale
+  #viewport<-par3d()$viewport
+  #FOV<-par3d()$FOV
+  #pp2 <- par3d(no.readonly=TRUE)
+  
+  nclear3d()
+  
+  
+  bgplot3d({
+    plot.new()
+    title(main = as.character(RingNeuronTypes[typeNow]), line = 3)})
+  
+  plot3d(RingNeuronSyns_Pre[c('x','y','z')], col='seagreen3', xlim = c(XLIM), ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  plot3d(RingNeuronSyns_Post[c('x','y','z')], col='violet', add=TRUE, xlim = XLIM, ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
+  
+  
+  plot3d(TempMorphos,color="black")
+  plot3d(ebMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(RbuMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
+  plot3d(noMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(lalMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  plot3d(galMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
+  decorate3d(box=FALSE) 
+  #aspect3d(1,1,1)
+  listener=par3d()$listener
+   
+
+  #FrontView=rbind(c(1,0,0,0),c(0, -0.15,-1,0),c(0, 1, -0.14,0),c(0,0,0,1))
+  #par3d(zoom=0.6)
+  #par3d(windowRect=c(1271, 332, 2563, 1231))
+  #par3d(scale=c(0.813438, 1.333599, 1.038952))
+  #par3d(viewport=c(0, 0, 1292, 899))
+  #par3d(FOV=30)
+  #par3d(userMatrix=FrontView)
+  
+  par3d(RingNeuronView)
+  par3d(listeners=listener)
+  par3d(viewport=c(0, 0, 1292, 899))
+  par3d(windowRect=c(1271, 332, 2563, 1231))
+  
+  
+  
+  
+  FileName=paste('Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/',as.character(RingNeuronTypes[typeNow]),'.png', sep = "")
+  rgl.snapshot(FileName,fmt='png')
+
+  
+  rgl.close()
+  
+}
+
+```
+
 
 
 
