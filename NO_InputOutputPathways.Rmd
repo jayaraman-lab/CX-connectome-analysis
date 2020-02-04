@@ -57,8 +57,8 @@ heir=neuprint_ROI_hierarchy()
 ### Get neurons in the ROI
 ```{r}
 
-NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
-NamedBodies =  mutate(NamedBodies, cropped = neuprint_get_meta(bodyid)$cropped)
+NamedBodies = Get_AllNeurons_InRoi("NO", TRUE)
+
 
 ```
 
@@ -108,6 +108,17 @@ ggsave(paste(PlotDir, "ALL_NO_","inputOutputRegions_perType.png",sep=""), plot =
 
 
 ```
+
+### Divide data into NO1, NO2, and NO3
+```{r}
+
+
+unique(roi_Connect_bytype_df$roi)
+
+
+
+```
+
 
 
 # Look at just the right ring neurons, since all ring neurons innervate only one hemisphere.
