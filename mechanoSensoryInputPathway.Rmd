@@ -125,10 +125,12 @@ roi_Connect_rois_df = roi_Connect_rois_df %>% filter(roi %nin% exclue)
 ```
 
 ```{r, message=FALSE}
-ggplot(roi_Connect_rois_df, aes(x=roi, y=name, size=count)) + 
-  geom_point(aes(color=roi)) +
-  facet_grid(vars(prepost) ) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
+ggplot(roi_Connect_rois_df, aes(x=roi, y=as.character(bodyid), size=count)) +  # name
+  geom_point(aes(color=roi)) +  guides(fill=FALSE)  + 
+  facet_grid(name ~ prepost, space="free", scales="free", switch="y") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90),
+                     axis.text.y = element_blank(),
+                     strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50"))
 
 ggsave("APNs_inputOutputRegions_perName.pdf", plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/mechanoPW/",
   scale = 1.5, width = 15, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
@@ -143,8 +145,7 @@ countsPerRegionAndType = full_join(preCoutnsPerRegionAndType, postCoutnsPerRegio
   mutate(post_minus_pre = (postCt-preCt)/(preCt+postCt)) %>% na.omit()
 
 ggplot(countsPerRegionAndType, aes(x=roi, y=type, size=(preCt+postCt))) + 
-  geom_point(aes(color=post_minus_pre)) + scale_color_gradient2(high = 'salmon', mid = "purple",
-  low = 'cyan', midpoint = 0) +
+  geom_point(aes(color=post_minus_pre)) + scale_color_gradient2(high = 'salmon', mid = "purple", low = 'cyan', midpoint = 0) +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
 ggsave("APNs_inputOutputRatioRegions_perName.pdf", plot = last_plot(), device='pdf', path = "../neuprintR_analysis_plots/mechanoPW/",
@@ -413,3 +414,4 @@ plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt),
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN3_to_EPG_minPostWeight",cutoff,".pdf"), width=10, height=10)
 ```
+
