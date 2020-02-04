@@ -113,9 +113,7 @@ constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB,
   V(connectGraph)$label.color="black"
   V(connectGraph)$label.cex=0.8
   V(connectGraph)$label.dist=0
-  
-  typeCounts = typeCounts %>% filter(type %in% V(connectGraph)$name)
-  typeCounts = typeCounts[match(V(connectGraph)$name, typeCounts$type),]
+
   V(connectGraph)$size = vertexSize + as.numeric(vertexSize*graphData_selfFB$weight/max(c(1, max(graphData_selfFB$weight) ) ) )
   V(connectGraph)$vertex.frame.color="gray"
   V(connectGraph)$color=nodeCols
@@ -182,16 +180,21 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("ADM06p_pct", "ADM06p", simpleTypes)
   simpleTypes = gsub("ADM06d_pct", "ADM06d", simpleTypes)
   simpleTypes = gsub("ADM03.*_pct", "ADM03", simpleTypes)
+  simpleTypes = gsub("ADM[02h, 04a, 05oh, 10h, 01w]{1}.*_pct", "ADMother", simpleTypes)
   simpleTypes = gsub("olfactory multi .*", "other", simpleTypes)
   simpleTypes = gsub("PDM09[[:alnum:]]*_pct", "PDM09", simpleTypes)
-  simpleTypes = gsub("PDM26[[:alnum:]]*_pct", "PDMother", simpleTypes)
   simpleTypes = gsub("PDM14j.*_pct", "PDM14j", simpleTypes)
   simpleTypes = gsub("PDM14[m,r,d]{1}.*_pct", "PDM14other", simpleTypes)
-  simpleTypes = gsub("PDM28[[:alnum:]]*_pct", "PDMother", simpleTypes)
+  simpleTypes = gsub("PDM[26, 28, 08k]{1}[[:alnum:]]*_pct", "PDMother", simpleTypes)
   simpleTypes = gsub("LN[[:alnum:]]{1}.*", "LN", simpleTypes)
-  simpleTypes = gsub("LPsP", "LPsP", simpleTypes)
   simpleTypes = gsub("PFN.*", "PFN", simpleTypes)
   simpleTypes = gsub("Delta7*", "Delta7", simpleTypes)
+  simpleTypes = gsub("P6\\-8P9", "other", simpleTypes)
+  simpleTypes = gsub("P1\\-9", "other", simpleTypes)
+  simpleTypes = gsub("PVL08j_a_pct", "other", simpleTypes)
+  simpleTypes = gsub("LC[[:alnum:]]{2}", "LC", simpleTypes)
+  simpleTypes = gsub("LCm", "LC", simpleTypes)
+  simpleTypes = gsub("OA-VUMa1", "OA", simpleTypes)
   return(simpleTypes)
 }
 
@@ -199,17 +202,17 @@ colorValueLookup = data.frame(
   type = c('R1', 'R2', 'R3a', 'R3d', 'R3m', 'R3p',  'R3w', 'R4d', 'R4m', 'R5', 'R6',
            'ExR1','ExR2','ExR3','ExR4','ExR5','ExR6','ExR7','ExR8',
            'TuBu01', 'TuBu02', 'TuBu03', 'TuBu04', 'TuBu05', 'TuBu06', 'TuBu07', 'TuBu08', 'TuBu09', 'TuBu10',
-           'PDM21a', 'MC',  'TuTu',
+           'PDM21a', 'MC',  'TuTu', 'LC',
            'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
            'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
            'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
-           'PFN', 'Delta7', 'FB', 'LN', 'LPsP', 'other' ),
+           'PFN', 'Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother' ),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
-           259,   600,  26,
+           259,   600,  26, 121,
            499,    499,    143,   144,    573,  640, 
            639, 430, 431, 630, 452,632, 103, 104,105, 651,
            420, 420, 420, 420, 76, 535, 535,535,535,
-           657, 520, 563, 564,565, 651)
+           657, 520, 563, 564,565, 447, 450, 651, 484)
 )
