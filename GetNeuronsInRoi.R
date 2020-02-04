@@ -36,9 +36,12 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
     roi_Connect = renameRoiColumn(roi_Connect, slctROI, "ROI")
   }
 
+  roi_Connect[is.na(roi_Connect)] <- 0
   
   return(roi_Connect)
 }
+
+
 
 
 SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh) {
