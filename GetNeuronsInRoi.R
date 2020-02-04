@@ -7,10 +7,10 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
   
   # Get neurons from neuprint
   if (pairedRegion) {
-    roiR_Connect = neuprint_find_neurons( paste(slctROI, "(R)", sep=""), all_segments = FALSE)
-    roiL_Connect = neuprint_find_neurons( paste(slctROI, "(L)", sep=""), all_segments = FALSE)
+    roiR_Connect <- neuprint_find_neurons( paste(slctROI, "(R)", sep=""), all_segments = FALSE)
+    roiL_Connect <- neuprint_find_neurons( paste(slctROI, "(L)", sep=""), all_segments = FALSE)
   } else {
-    roi_Connect = neuprint_find_neurons(slctROI, all_segments = FALSE) #not currently working for "NO"
+    roi_Connect <- neuprint_find_neurons(slctROI, all_segments = FALSE) #not currently working for "NO"
   }
   
   
@@ -21,27 +21,21 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
     roiL_Connect <- cleanup(roiL_Connect)
     
     #rename ROI columns 
-    roiR_Connect = renameRoiColumn(roiR_Connect, slctROI)
-    roiL_Connect = renameRoiColumn(roiL_Connect, slctROI)
+    roiR_Connect = renameRoiColumn(roiR_Connect, paste(slctROI, "(R)", sep=""),"ROIR")
+    roiL_Connect = renameRoiColumn(roiL_Connect, paste(slctROI, "(L)", sep=""),"ROIL")
     
     # join data from paired ROI
-    roi_Connect = full_join(roiR_Connect,roiL_Connect)
+    roi_Connect <- full_join(roiR_Connect,roiL_Connect, by = c("bodyid", "bodyname", "bodytype", "neuronStatus", "size", "npre", "npost"))
     
     # get full synaptic count
-    roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_n_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
-                                                        ROI_n_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% 
-      ungroup()
+    roi_Connect = roi_Connect %>% rowwise() %>%  mutate(ROI_pre = sum(ROIR_pre, ROIL_pre, na.rm = TRUE),  
+                                                        ROI_post = sum(ROIR_post, ROIL_post, na.rm = TRUE)) %>% ungroup()
     
   } else {
     roi_Connect <- cleanup(roi_Connect)
-    roi_Connect = renameRoiColumn(roi_Connect, slctROI)
+    roi_Connect = renameRoiColumn(roi_Connect, slctROI, "ROI")
   }
-  
-  # convert to numeric if not numeric already
-  roi_Connect$ROI_pre=as.numeric(roi_Connect$ROI_pre)
-  roi_Connect$ROI_post=as.numeric(roi_Connect$ROI_post)
-  roi_Connect$npre=as.numeric(roi_Connect$npre)
-  roi_Connect$npost=as.numeric(roi_Connect$npost)
+
   
   return(roi_Connect)
 }
