@@ -7,13 +7,17 @@ get_rois_df <- function (){
 }
 
 
-renameRoiColumn <- function(df, slctROI) {
-  df = df %>% rename_at(vars(starts_with(slctROI)), funs(str_replace(., slctROI, "ROI")))
-  df = df %>%rename_at(vars(ends_with(".pre")), funs(str_replace(., ".pre", "_pre")))
-  df = df %>%rename_at(vars(ends_with(".post")), funs(str_replace(., ".post", "_post")))
+renameRoiColumn <- function(df, slctROI, NewName) {
+  names(df)[names(df) == paste(slctROI,".pre",sep="")] <- paste(NewName, "_pre",sep="")
+  names(df)[names(df) == paste(slctROI,".post",sep="")] <- paste(NewName, "_post",sep="")
   df = df %>%rename_all(funs(str_replace(., "\\(", "")))
   df = df %>%rename_all(funs(str_replace(., "\\)", "")))
-  
+  df[[paste(NewName, "_pre",sep="")]]=as.numeric(df[[paste(NewName, "_pre",sep="")]])
+  df[[paste(NewName, "_post",sep="")]]=as.numeric(df[[paste(NewName, "_post",sep="")]])
+  df$npre=as.numeric(unlist(df$npre))
+  df$npost=as.numeric(unlist(df$npost))
+  df$bodyname=as.character(df$bodyname)
+  df$bodytype=as.character(df$bodytype)
   return (df)
 }
 
