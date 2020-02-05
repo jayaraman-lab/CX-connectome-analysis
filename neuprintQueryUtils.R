@@ -29,7 +29,8 @@ getConnectionTable = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,..
   #' @return Returns a connection table as data frame. Added columns are \code{weightRelativeTotal} which is 
   #' the relative weight considering all the synapses (irrespective of the ROI), and if ROI are used (either if
   #' \code{slctROI} has a value or \code{by.roi} is \code{TRUE}), \code{weightRelative} is the relative weight in the 
-  #' ROI and \code{totalROIweight} is the absolute number of inputs this neuron receives in that region
+  #' ROI and \code{totalROIweight} is the absolute number of inputs this neuron receives in that region and 
+  #' \code{weightROIRelativeTotal} is the weight in the ROI normalized by the total number of inputs (in all ROIs)
   #' @param bodyIDs: The bodyids of neurons who's connections should be queried.
   #' @param synapseType: Choose "PRE" or "POST" to get inputs or outputs of the neurons in bodyIDs, respectivly.
   #' @param slctROI: String specifying the ROI where connections should be queried. By default all the ROIs.
@@ -57,6 +58,7 @@ getConnectionTable = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,..
   myConnections[["weightRelativeTotal"]] <- myConnections[["weight"]]/outMeta[["post"]]
   
   if (by.roi | !is.null(slctROI)){
+    myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
     if (synapseType == "PRE"){
       outInfo <- neuprint_get_roiInfo(myConnections$bodyid)
     }else{
