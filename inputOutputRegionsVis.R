@@ -121,12 +121,15 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
       # Get hemisphere- this assumes that ROI names with"(R" ALWAYS MEANS right and "(L" MEANS left. 
       if (grepl("(R", roi,fixed=TRUE )){
         roi_hemi="R"
+        roiname_nohemi=as.character(unlist(strsplit(roiname, "[(]R[)]"))[1])
       } else if ( grepl("(L", roi,fixed=TRUE ) ) {
         roi_hemi="L"
+        roiname_nohemi=as.character(unlist(strsplit(roiname, "[(]L[)]"))[1])
       } else {roi_hemi='C'}
       
+      
       Temp_df = data.frame(type = as.character(roi_Connect_bytype$type),
-                           roi = as.character(unlist(strsplit(roiname, "[(]"))[1]),
+                           roi = roiname_nohemi,
                            fullroi = as.character(unlist(roi)),
                            neuron_hemi =  as.character(roi_Connect_bytype$neuron_hemi),
                            roi_hemi = as.character(roi_hemi),
