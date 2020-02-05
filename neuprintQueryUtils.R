@@ -3,7 +3,7 @@
 ########################################################################################################################
 
 ### Neuprint search
-getBodyIdsForList = function (neuronList,addStar=TRUE,...){
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
   #' @param neuronList: A list of search strings to be passed.
   #' @param addStart: Should a '.*' be added at the end of the query strings?
@@ -13,10 +13,10 @@ getBodyIdsForList = function (neuronList,addStar=TRUE,...){
   #' \dontrun{
   #' # Both will return the same
   #' getBodyIdsForList(c("PFL1","PFL2"))
-  #' getBodyIdsForList(c("PFL1","PFL2"),addStar=FALSE,field="type")
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
   #' }
   
-  if (addStar){ neuronList <-  paste0(neuronList,'.*') }
+  neuronList <-  paste0(prefix,neuronList,postfix)
   bodiesList <- lapply(neuronList,neuprint_search,...)
   return(bind_rows(bodiesList))
 }
