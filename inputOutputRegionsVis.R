@@ -125,7 +125,10 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
       } else if ( grepl("(L", roi,fixed=TRUE ) ) {
         roi_hemi="L"
         roiname_nohemi=as.character(unlist(strsplit(roiname, "[(]L[)]"))[1])
-      } else {roi_hemi='C'}
+      } else {
+        roi_hemi='C'
+        roiname_nohemi=as.character(unlist(roiname))
+        }
       
       
       Temp_df = data.frame(type = as.character(roi_Connect_bytype$type),
