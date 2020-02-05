@@ -69,22 +69,20 @@ getConnectionTable = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,..
                    mutate(weightRelative=ROIweight/totalROIweight)
   }
   
-  #myConnections$nameid = paste(as.character(myConnections$name), as.character(myConnections$bodyid), sep = "_")
-  #myConnections$partnerid = paste(as.character(myConnections$partnerName), as.character(myConnections$partner), sep = "_")
-  
   return( myConnections )
 }
 
-getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI){
+getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
   #' Filter connection table to contain only connections from preBodyIDs to postBodyIDs
   #' @return Returns a connection table as data frame.
   #' @param preBodyIDs: The bodyids of presynaptic neurons who's connections should be queried
   #' @param postBodyIDs: The bodyids of postsynaptic neurons who's connections should be queried
   #' @param slctROI: String specifying the ROI where connections should be queried.
   
-  myConnections = getConnectionTable(postBodyIDs, "PRE", slctROI)
+  myConnections = getConnectionTable(preBodyIDs, "POST", slctROI,...)
+  #myConnections = getConnectionTable(postBodyIDs, "PRE", slctROI,...)
   
-  myConnections = myConnections %>% filter(partner %in% preBodyIDs) 
+  myConnections = myConnections %>% filter(partner %in% postBodyIDs) 
   
   return( myConnections )
 }
