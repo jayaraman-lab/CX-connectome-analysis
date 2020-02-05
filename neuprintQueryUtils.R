@@ -3,18 +3,21 @@
 ########################################################################################################################
 
 ### Neuprint search
-getBodyIdsForList = function (neuronList){
+getBodyIdsForList = function (neuronList,addStar=TRUE,...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
-
-  bodyIDs = neuprint_search(paste(neuronList[1],'.*',sep=""))
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param addStart: Should a '.*' be added at the end of the query strings?
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),addStar=FALSE,field="type")
+  #' }
   
-  if (length(neuronList) > 1){
-    for (i in seq(2,length(neuronList))){
-      bodyIDs = bind_rows(bodyIDs, neuprint_search(paste(neuronList[i],'.*',sep="")))
-    }
-  }
-  
-  return(bodyIDs)
+  if (addStar){ neuronList <-  paste0(neuronList,'.*') }
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
 }
 
 
