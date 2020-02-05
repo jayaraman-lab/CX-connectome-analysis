@@ -37,11 +37,9 @@ getConnectionTable = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,..
   #' @param by.roi: Passed to neuprint_connection_table. If returning all ROIs, should results be broken down by ROI?
   #' @param ...: Other arguments to be passed to neuprint_connection_table
   
-  
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   refMeta <- neuprint_get_meta(myConnections$bodyid)
   partnerMeta <- neuprint_get_meta(myConnections$partner)
-  
   
   myConnections <-myConnections %>%
                   mutate(partnerName = partnerMeta[["name"]],
