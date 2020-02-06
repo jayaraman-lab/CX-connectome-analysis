@@ -23,7 +23,7 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 
 
 ### Connection table
-getConnectionTable <- function(refMeta,synapseType, slctROI,by.roi,...){
+getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi,...){
   #' Get connection table of inputs and add meta
   #' @return Returns a connection table as data frame. Added columns are \code{weightRelativeTotal} which is 
   #' the relative weight considering all the synapses (irrespective of the ROI), and if ROI are used (either if
@@ -39,13 +39,14 @@ getConnectionTable <- function(refMeta,synapseType, slctROI,by.roi,...){
   UseMethod("getConnectionTable")}
 
 
-getConnectionTable.default = function(refMeta, synapseType, slctROI=NULL,by.roi=FALSE,...){
-  refMeta <- neuprint_get_meta(refMeta)
+getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,...){
+  refMeta <- neuprint_get_meta(bodyIDs)
   return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,...))
 }
 
-getConnectionTable.data.frame <- function(refMeta,synapseType, slctROI=NULL,by.roi=FALSE,...){
-  bodyIDs <- refMeta$bodyid
+getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,...){
+  refMeta <- bodyIDs
+  bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) which(refMeta$bodyid == b)))
