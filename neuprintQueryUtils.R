@@ -49,7 +49,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   partnerMeta <- neuprint_get_meta(myConnections$partner)
-  refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) which(refMeta$bodyid == b)))
+  refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
   
   myConnections <-myConnections %>%
     mutate(partnerName = partnerMeta[["name"]],
