@@ -44,7 +44,7 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
 
 
 
-SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh) {
+SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, Name) {
 
 # Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI. ---------------
   
@@ -123,7 +123,7 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
                  text = paste("Type: ", NamedBodies_byType$Type )) %>% 
     layout(xaxis = list(title = paste("Max PRE Weight in", ROI),titlefont = f), yaxis = list(title = paste("Max POST Weight in",ROI),titlefont = f), 
            title=" \n \n  Each point is a neuron type")
-  htmlwidgets::saveWidget(as_widget(p3a), paste(SaveDir,"Pre_Vs_Post_MaxWeightsPerType_widget.html",sep=""))
+  htmlwidgets::saveWidget(as_widget(p3a), paste(SaveDir,Name,"Pre_Vs_Post_MaxWeightsPerType_widget.html",sep=""))
   remove(p3a)
   
   # Interactive plot of maximum pre+post weight VS relative pre+post weight
@@ -132,7 +132,7 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
                  text = paste("Type: ", NamedBodies_byType$Type )) %>% 
     layout(xaxis = list(title = paste("Max PRE+POST Weight in", ROI),titlefont = f), yaxis = list(title = paste("Relative Pre+POST synapses in",ROI),titlefont = f), 
            title=" \n \n  Each point is a neuron type")
-  htmlwidgets::saveWidget(as_widget(p3b), paste(SaveDir,"PrePostMax_Vs_PrePostRelativeSyns_PerType.html",sep=""))
+  htmlwidgets::saveWidget(as_widget(p3b), paste(SaveDir,Name,"PrePostMax_Vs_PrePostRelativeSyns_PerType.html",sep=""))
   remove(p3b,f)
 
 # Exclude neurons that don't meet the criteria ----------------------------
