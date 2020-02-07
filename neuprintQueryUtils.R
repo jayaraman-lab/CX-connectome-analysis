@@ -88,6 +88,20 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
 }
 
+## Change from a bodyid/partner/prepost to a from/to format
+simplifyConnectionTable <- function(connectionTable){
+  connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,!!as.name("bodyid"),!!as.name("partner")),
+                                                to = ifelse(prepost==1,!!as.name("partner"),!!as.name("bodyid")),
+                                                name.from = ifelse(prepost==1,!!as.name("name"),!!as.name("partnerName")),
+                                                name.to = ifelse(prepost==1,!!as.name("partnerName"),!!as.name("name")),
+                                                type.from = ifelse(prepost==1,!!as.name("type"),!!as.name("partnerType")),
+                                                type.to = ifelse(prepost==1,!!as.name("partnerType"),!!as.name("type"))
+                                                ) %>%
+                                         select(-bodyid,-partner,-name,-partnerName,-partnerType,-type)
+  connectionTable
+  
+}
+
 ## Filter and generate type to type connection
 getTypeToTypeTable <- function(connectionTable){
   
