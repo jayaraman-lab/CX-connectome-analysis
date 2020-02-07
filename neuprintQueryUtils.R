@@ -99,7 +99,7 @@ simplifyConnectionTable <- function(connectionTable){
                                                 type.from = ifelse(prepost==1,!!as.name("type"),!!as.name("partnerType")),
                                                 type.to = ifelse(prepost==1,!!as.name("partnerType"),!!as.name("type"))
                                                 ) %>%
-                                         select(-bodyid,-partner,-name,-partnerName,-partnerType,-type)
+                                         select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
   return(connectionTable)
   }
   
