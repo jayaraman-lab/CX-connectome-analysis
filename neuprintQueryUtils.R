@@ -21,7 +21,6 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   return(bind_rows(bodiesList))
 }
 
-
 ### Connection table
 getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi,...){
   #' Get connection table of inputs and add meta
@@ -80,12 +79,19 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     preVar <- paste0(myConnections[["roi"]],".pre")
     myConnections <- myConnections %>%
       mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
-             totalPreROIweight = sapply(1:length(preVar),function(v) outInfo[[preVar[v]]][v])) %>%
+             totalPreROIweight = sapply(1:length(preVar),function(v) inInfo[[preVar[v]]][v])) %>%
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
   
   return( myConnections )
+  
+}
+
+## Filter and generate type to type connection
+getTypeToTypeTable <- function(connectionTable){
+  
+  ## Grouping summarizing filtering. Problem: depends on connectionTable polarity. Write intermediate functon?
   
 }
 
