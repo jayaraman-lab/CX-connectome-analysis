@@ -59,24 +59,30 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
-    outMeta <- refMeta} 
-  else {
+    outMeta <- refMeta
+    } else {
     outMeta <- partnerMeta
   }
   myConnections[["weightRelativeTotal"]] <- myConnections[["weight"]]/outMeta[["post"]]
   
   if (by.roi | !is.null(slctROI)){
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
+    
     if (synapseType == "PRE"){
       outInfo <- neuprint_get_roiInfo(myConnections$bodyid)
+      inInfo <- neuprint_get_roiInfo(myConnections$partner)
     }else{
       outInfo <- neuprint_get_roiInfo(myConnections$partner)
+      inInfo <- neuprint_get_roiInfo(myConnections$bodyid)
     }
     
     postVar <- paste0(myConnections[["roi"]],".post")
+    preVar <- paste0(myConnections[["roi"]],".pre")
     myConnections <- myConnections %>%
-      mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v])) %>%
-      mutate(weightRelative=ROIweight/totalROIweight)
+      mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
+             totalPreROIweight = sapply(1:length(preVar),function(v) outInfo[[preVar[v]]][v])) %>%
+      mutate(weightRelative=ROIweight/totalROIweight,
+             outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
   
   return( myConnections )
