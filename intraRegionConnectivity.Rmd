@@ -42,8 +42,9 @@ if (useCuratedList) {
   
   # select neurons from there
   postNeuron = get(paste0(ROI,"_Type"))
+  postNeuron <- gsub("\\(.*\\)", "", postNeuron)
   postName = paste0(ROI, "neurons")
-  postIDs = getBodyIdsForList(postNeuron)
+  postIDs = getBodyIdsForList(postNeuron, field="type")
   
 } else{
   postNeuron = c("LN1", "LN2", "LN3", "LNa")#, "LCNp", "LCNpm")  #"PFN"#
@@ -62,7 +63,8 @@ if (useCuratedList) {
   
   # select neurons from there
   preNeuron = get(paste0(ROI,"_Type"))
-  preIDs = getBodyIdsForList(preNeuron)
+  preNeuron <- gsub("\\(.*\\)", "", preNeuron)
+  preIDs = getBodyIdsForList(preNeuron, field="type")
   preName = paste0(ROI, "neurons")
   saveName = paste0(ROI,"neurons")
   
@@ -95,7 +97,9 @@ if (useCuratedList) {
 
 ### Get connectivity table
 ```{r, warning=FALSE}
-myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+synCutoff = 3
+myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI) %>% filter(ROIweight > synCutoff) 
+
 ```
 
 ### Connectivity matrix
@@ -126,7 +130,7 @@ source("colorCodeLookup.R")
 
 connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
-cutoff = .01 # for weight 
+cutoff = .05 # for weight 
 
 connectData = data.frame(from = myConnections$bodyid,
                        to = myConnections$partner,
@@ -160,23 +164,23 @@ graphData_selfFB = getSelfFBGraphData(graphData)
 ```
 
 ```{r}
-largeGraph = TRUE
+largeGraph = FALSE
 
 if(largeGraph){
-  vertexSize = 5 #10 when few nodes, 5 otherwise
+  vertexSize = 5 
   plotSize = 20
 }else{
-  vertexSize = 10 #10 when few nodes, 5 otherwise
-  plotSize = 10
+  vertexSize = 7
+  plotSize = 15
 }
 selfFBscale = vertexSize
-arrowSize= 0.3
+arrowSize= 0
 edgeNorm = 0.02
 
 
 myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, nodeCols)
-l = layout_with_fr(myGraph)
-plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap #edge.color=edge.col,
+l = layout_with_dh(myGraph)
+plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
                       "_",connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
