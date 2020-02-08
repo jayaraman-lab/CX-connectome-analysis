@@ -107,10 +107,43 @@ simplifyConnectionTable <- function(connectionTable){
 }
 
 ## Filter and generate type to type connection
-getTypeToTypeTable <- function(connectionTable){
+getTypeToTypeTable <- function(connectionTable,majorOutputThreshold=0.8,singleNeuronThreshold=0.01){
+  connectionTable <- simplifyConnectionTable(connectionTable)
   
-  ## Grouping summarizing filtering. Problem: depends on connectionTable polarity. Write intermediate functon?
+  ## TODO : filter on ROI appartenance here. Criterion?
   
+  
+  ## This contains all the cases where the connection is the main output in the region
+  majorOutputs <- connectionTable %>% group_by(from,type.from,type.to) %>%
+                                      mutate(outputContribution = sum(outputContribution)) %>%
+                                      group_by(type.from) %>%
+                                      mutate(outputContribution = mean(outputContribution)) %>%
+                                      filter(outputContribution > majorOutputThreshold)
+  
+  ## This contains the neurons unique in their type that reach our hard threshold
+  ## PROBLEM : Some neurons are not unique but are the only recipients from a given input type. Need to consider all the "possibilities" and set them to 0 (which will give a high variance presumably in those cases)
+  loners <- connectionTable %>% group_by(type.to) %>%
+                                mutate(n = length(unique(to))) %>%
+                                filter(n==1) %>%
+                                group_by(type.from,to) %>%
+                                mutate(weightRelative = sum(weightRelative)) %>%
+                                filter(weightRelative > singleNeuronThreshold) %>%
+                                select(-n)
+## WIP -- FILTERS ARE WRONG.
+## TODO : DEAL WITH NAs  
+  ## Main filter
+  connectionTable %>% filter(!(type.to %in% loners[["type.to"]])) %>% 
+                      group_by(type.to) %>%
+                      mutate(n = length(unique(to))) %>%
+                      filter(n > 1) %>%
+                      group_by(type.from,to) %>%
+                      mutate(weightRelative = sum(weightRelative)) %>%
+                      group_by(type.to) %>%
+                      mutate(weightRelative = mean(weightRelative),
+                             weightVar = var(weightRelative))
+                            
+                             
+                             
 }
 
 getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
