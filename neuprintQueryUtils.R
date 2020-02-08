@@ -121,8 +121,11 @@ getTypeToTypeTable <- function(connectionTable,majorOutputThreshold=0.8,singleNe
                                       filter(outputContribution > majorOutputThreshold)
   
   ## This contains the neurons unique in their type that reach our hard threshold
-  ## PROBLEM : Some neurons are not unique but are the only recipients from a given input type. Need to consider all the "possibilities" and set them to 0 (which will give a high variance presumably in those cases)
-  loners <- connectionTable %>% group_by(type.to) %>%
+  ## PROBLEM : Some neurons are not unique in a type but are the only recipients 
+  ## from a given input type. Need to consider all the "possibilities" and set them to 0 (which will give a high variance presumably in those cases)
+  ## neuprint_search(tp,field="type") would fail in case there are some home defined types.
+  
+  loners <- connectionTable %>% group_by(type.from,type.to) %>%
                                 mutate(n = length(unique(to))) %>%
                                 filter(n==1) %>%
                                 group_by(type.from,to) %>%
@@ -132,15 +135,15 @@ getTypeToTypeTable <- function(connectionTable,majorOutputThreshold=0.8,singleNe
 ## WIP -- FILTERS ARE WRONG.
 ## TODO : DEAL WITH NAs  
   ## Main filter
-  connectionTable %>% filter(!(type.to %in% loners[["type.to"]])) %>% 
-                      group_by(type.to) %>%
+  sTable <- connectionTable %>% group_by(type.from,type.to) %>%
                       mutate(n = length(unique(to))) %>%
-                      filter(n > 1) %>%
-                      group_by(type.from,to) %>%
-                      mutate(weightRelative = sum(weightRelative)) %>%
-                      group_by(type.to) %>%
-                      mutate(weightRelative = mean(weightRelative),
-                             weightVar = var(weightRelative))
+                      filter(n>1)%>%
+                      group_by(type.from,to,type.to) %>%
+                      summarise(weightRelative = sum(weightRelative)) %>%
+                      group_by(type.from,type.to) %>%
+                      summarise(weightVar = var(weightRelative),
+                                weightRelative = mean(weightRelative)
+                                )
                             
                              
                              
