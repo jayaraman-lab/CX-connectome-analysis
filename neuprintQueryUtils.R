@@ -84,7 +84,8 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
   
-  return( myConnections )
+  return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
+                                                      ## synapse (pre/post) is split between ROIs
   
 }
 
@@ -107,43 +108,53 @@ simplifyConnectionTable <- function(connectionTable){
 }
 
 ## Filter and generate type to type connection
-getTypeToTypeTable <- function(connectionTable,majorOutputThreshold=0.8,singleNeuronThreshold=0.01){
+getTypeToTypeTable <- function(connectionTable,
+                               majorOutputThreshold=0.8,
+                               singleNeuronThreshold=0.01,
+                               pThresh = 0.05){
   connectionTable <- simplifyConnectionTable(connectionTable)
-  
   ## TODO : filter on ROI appartenance here. Criterion?
   
   
-  ## This contains all the cases where the connection is the main output in the region
-  majorOutputs <- connectionTable %>% group_by(from,type.from,type.to) %>%
-                                      mutate(outputContribution = sum(outputContribution)) %>%
-                                      group_by(type.from) %>%
-                                      mutate(outputContribution = mean(outputContribution)) %>%
-                                      filter(outputContribution > majorOutputThreshold)
+  ## How many representative for each target type? This assume the table contains all of them.
+  connectionTable <- connectionTable %>% group_by(type.to) %>%
+                                         mutate(n = length(unique(to)))
+  
+  ## Gather the outputContributions
+  connectionTable <-  connectionTable %>% group_by(from,type.to) %>%
+                                          mutate(outputContribution = sum(outputContribution)) %>%
+                                          group_by(type.from,type.to) %>%
+                                          mutate(outputContribution = mean(outputContribution))
   
   ## This contains the neurons unique in their type that reach our hard threshold
-  ## PROBLEM : Some neurons are not unique but are the only recipients from a given input type. Need to consider all the "possibilities" and set them to 0 (which will give a high variance presumably in those cases)
-  loners <- connectionTable %>% group_by(type.to) %>%
-                                mutate(n = length(unique(to))) %>%
-                                filter(n==1) %>%
-                                group_by(type.from,to) %>%
-                                mutate(weightRelative = sum(weightRelative)) %>%
-                                filter(weightRelative > singleNeuronThreshold) %>%
-                                select(-n)
-## WIP -- FILTERS ARE WRONG.
-## TODO : DEAL WITH NAs  
+  loners <- connectionTable %>% filter(n==1) %>%
+                                group_by(type.from,type.from) %>%
+                                summarize(weightRelative = sum(weightRelative),
+                                          outputContribution = outputContribution[1],
+                                          n_type = 1,
+                                          n_links = n()) %>%
+                                filter(weightRelative > singleNeuronThreshold | outputContribution > majorOutputThreshold)
+  
   ## Main filter
-  connectionTable %>% filter(!(type.to %in% loners[["type.to"]])) %>% 
-                      group_by(type.to) %>%
-                      mutate(n = length(unique(to))) %>%
-                      filter(n > 1) %>%
-                      group_by(type.from,to) %>%
-                      mutate(weightRelative = sum(weightRelative)) %>%
-                      group_by(type.to) %>%
-                      mutate(weightRelative = mean(weightRelative),
-                             weightVar = var(weightRelative))
-                            
-                             
-                             
+  sTable <- connectionTable %>% filter(n>1) %>%
+                                group_by(type.from,to,type.to) %>%
+                                summarise(weightRelative = sum(weightRelative),
+                                          n = n[1],
+                                          outputContribution = outputContribution[1]) %>%
+                                group_by(type.from,type.to) %>%
+                                summarize(pVal = t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
+                                                      alternative="greater")["p.value"],
+                                          ci_low = t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
+                                                        alternative="greater")[["conf.int"]][1],
+                                          varWeight = var(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
+                                          weightRelative = mean(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
+                                          outputContribution = outputContribution[1],
+                                          n_links = n(),
+                                          n_type = n[1]
+                                ) %>% filter(pVal < pThresh | outputContribution > majorOutputThreshold) %>%
+                                select(-pVal)
+                                
+          return(bind_rows(sTable,loners))                  
 }
 
 getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
