@@ -155,6 +155,7 @@ getTypeToTypeTable <- function(connectionTable,
                                 select(-pVal)
                                 
           return(bind_rows(sTable,loners))                  
+
 }
 
 getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
