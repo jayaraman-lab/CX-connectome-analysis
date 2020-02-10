@@ -91,7 +91,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
 
 ## Change from a bodyid/partner/prepost to a from/to format
 simplifyConnectionTable <- function(connectionTable){
-  
+  ## Check if the table needs simplification
   if ("from" %in% names(connectionTable)){return(connectionTable)}else{
   connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,!!as.name("bodyid"),!!as.name("partner")),
                                                 to = ifelse(prepost==1,!!as.name("partner"),!!as.name("bodyid")),
@@ -103,22 +103,52 @@ simplifyConnectionTable <- function(connectionTable){
                                          select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
   return(connectionTable)
   }
-  
-  
+}
+
+## Returns a table with all neurons belonging to types
+getTypesTable <- function(types){
+  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type"))))
+}
+
+redefineType <- function(table,type,type_col="type",condition,newTypes){
+  table[[type_col]][table[[type_col]] == type] <-  newTypes[2]
+  table[[type_col]][table[[type_col]] == newTypes[2] & condition] <-  newTypes[1] 
+  return(table)
 }
 
 ## Filter and generate type to type connection
 getTypeToTypeTable <- function(connectionTable,
                                majorOutputThreshold=0.8,
                                singleNeuronThreshold=0.01,
-                               pThresh = 0.05){
+                               pThresh = 0.05,
+                               typesTable = NULL){
   connectionTable <- simplifyConnectionTable(connectionTable)
-  ## TODO : filter on ROI appartenance here. Criterion?
+ 
+  ## Counting instances for each post type 
+  if (is.null(typesTable)){
+    typesTable <- getTypesTable(unique(connectionTable$type.to))
+  }
+  
+  typesCount <- typesTable %>% group_by(type) %>%
+                               summarise(n=n())
   
   
-  ## How many representative for each target type? This assume the table contains all of them.
   connectionTable <- connectionTable %>% group_by(type.to) %>%
-                                         mutate(n = length(unique(to)))
+                      mutate(n = typesCount[["n"]][typesCount$type == type.to]) %>%
+                      ungroup()
+ 
+  ## Renaming the unnamed neurons and treating them as single examples
+  connectionTable <- connectionTable %>% mutate(name.to = replace_na(name.to,"Unlabeled"),
+                                                type.to = replace_na(type.to,"Unlabeled"),
+                                                n = replace_na(n,1))
+  
+  unknowns <- which(connectionTable$type.to == "Unlabeled")
+  idx <- sapply(connectionTable$to[unknowns], function(p) which(unique(connectionTable$to[unknowns])==p))
+  connectionTable[["type.to"]][unknowns] <- paste0("Unlabeled_",idx)
+  
+  unknownNames <- which(connectionTable$name.to == "Unlabeled")
+  connectionTable[["name.to"]][unknownNames] <- connectionTable[["type.to"]][unknownNames]
+  
   
   ## Gather the outputContributions
   connectionTable <-  connectionTable %>% group_by(from,type.to) %>%
@@ -128,7 +158,7 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by(type.from,type.from) %>%
+                                group_by(type.from,type.to) %>%
                                 summarize(weightRelative = sum(weightRelative),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
