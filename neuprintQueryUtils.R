@@ -48,6 +48,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   refMeta <- bodyIDs
   bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
+  myConnections <- myConnections %>% drop_na(ROIweight) 
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
   
@@ -70,17 +71,24 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     
     if (synapseType == "PRE"){
       outInfo <- neuprint_get_roiInfo(myConnections$bodyid)
-      inInfo <- neuprint_get_roiInfo(myConnections$partner)
+      inputsTable <- neuprint_connection_table(unique(myConnections$partner),"POST",slctROI,by.roi=by.roi,...)
+      inp <- "partner"
+      #inInfo <- neuprint_get_roiInfo(myConnections$partner)
     }else{
       outInfo <- neuprint_get_roiInfo(myConnections$partner)
-      inInfo <- neuprint_get_roiInfo(myConnections$bodyid)
+      inputsTable <- myConnections
+      inp <- "bodyid"
+      #inInfo <- neuprint_get_roiInfo(myConnections$bodyid)
     }
     
+    totalPre <- inputsTable %>% group_by(bodyid) %>%
+                    summarise(totalPreROIweight = sum(ROIweight))
+    
     postVar <- paste0(myConnections[["roi"]],".post")
-    preVar <- paste0(myConnections[["roi"]],".pre")
+    #preVar <- paste0(myConnections[["roi"]],".pre")
     myConnections <- myConnections %>%
       mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
-             totalPreROIweight = sapply(1:length(preVar),function(v) inInfo[[preVar[v]]][v])) %>%
+             totalPreROIweight = totalPre[["totalPreROIweight"]][match(myConnections[[inp]],totalPre$bodyid)]) %>%#sapply(1:length(preVar),function(v) inInfo[[preVar[v]]][v])) %>%
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
