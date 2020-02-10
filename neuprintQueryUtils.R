@@ -23,7 +23,7 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 }
 
 ### Connection table
-getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi,...){
+getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 3,...){
   #' Get connection table of inputs and add meta
   #' @return Returns a connection table as data frame. Added columns are \code{weightRelativeTotal} which is 
   #' the relative weight considering all the synapses (irrespective of the ROI), and if ROI are used (either if
@@ -31,24 +31,26 @@ getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi,...){
   #' ROI and \code{totalROIweight} is the absolute number of inputs this neuron receives in that region and 
   #' \code{weightROIRelativeTotal} is the weight in the ROI normalized by the total number of inputs (in all ROIs)
   #' @param bodyIDs: The bodyids of neurons who's connections should be queried or a metadata data.frame
-  #' @param synapseType: Choose "PRE" or "POST" to get inputs or outputs of the neurons in bodyIDs, respectivly.
+  #' @param synapseType: Choose "PRE" or "POST" to get inputs or outputs of the neurons in bodyIDs, respectivly. "PRE" is 
+  #' usually slower as it requires listing all the outputs of the input neurons to get the contribution of the outputs.
   #' @param slctROI: String specifying the ROI where connections should be queried. By default all the ROIs.
   #' @param by.roi: Passed to neuprint_connection_table. If returning all ROIs, should results be broken down by ROI?
+  #' @param synThresh: Minimum number of synapses to consider a connection (default 3)
   #' @param ...: Other arguments to be passed to neuprint_connection_table
   
   UseMethod("getConnectionTable")}
 
 
-getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE,...){
+getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE, synThresh=3,...){
   refMeta <- neuprint_get_meta(bodyIDs)
-  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,...))
+  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,synThresh,...))
 }
 
-getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,...){
+getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,...){
   refMeta <- bodyIDs
   bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
-  myConnections <- myConnections %>% drop_na(ROIweight) 
+  myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
   
