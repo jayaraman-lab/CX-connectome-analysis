@@ -34,7 +34,7 @@ This should be done based on some broadly used criteria. Alternatively, one coul
 useCuratedList = TRUE
 
 ROI = "NO"#
-slctROI = "LAL(R)"#
+slctROI = "LAL(-GA)(R)"#
 
 if (useCuratedList) {
   # load list
@@ -73,8 +73,7 @@ if (useCuratedList) {
   saveName = paste0(postName,"Inputs")
 
   synCutoff = 3
-  relWeightCutoff = .01 # percent input or output in that region
-  relWeightROICutoff = .005 # percent total input
+  relWeightCutoff = .03 # percent input or output in that region
   
   # get all connections
   myConnections = getConnectionTable(postIDs$bodyid, "PRE", slctROI)
@@ -83,7 +82,7 @@ if (useCuratedList) {
   partnersInRoi =  myConnections %>% 
     filter(ROIweight > synCutoff)  %>% # minimum number of synapses in ROI for a given connection
     group_by(type) %>% 
-    filter( (weightRelative >= relWeightCutoff) & (weightROIRelativeTotal >=  relWeightROICutoff) )
+    filter( (weightRelative >= relWeightCutoff))
   preNeuron = unique(partnersInRoi$partnerType) 
 
   parnerPlot = ggplot(myConnections %>% filter(partnerType %in% preNeuron), aes(x=partnerType, fill=partnerType)) + geom_bar() + theme_classic() + 
@@ -123,6 +122,7 @@ for (connectionMeasure in connectionMeasures){
 ```
 
 ###  Draw graph
+
 ```{r, warning=FALSE}
 source("visualizeConnectivityTables.R")
 require(igraph)
@@ -130,7 +130,7 @@ source("colorCodeLookup.R")
 
 connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
-cutoff = .05 # for weight 
+cutoff = .01 # for weight 
 
 connectData = data.frame(from = myConnections$bodyid,
                        to = myConnections$partner,
@@ -143,7 +143,9 @@ connectData = data.frame(from = myConnections$bodyid,
          post = neuprint_get_meta(to)$post)
 
 #Reroganize to make graph with types instead of bodyids
-graphData = reorganizeGraphData(connectData$type.from,
+graphData = reorganizeGraphData(connectData$from,
+                                connectData$to,
+                                connectData$type.from,
                                 connectData$type.to,
                                 connectData$weight,
                                 connectData$relWeight,
@@ -164,7 +166,7 @@ graphData_selfFB = getSelfFBGraphData(graphData)
 ```
 
 ```{r}
-largeGraph = FALSE
+largeGraph = TRUE
 
 if(largeGraph){
   vertexSize = 5 
@@ -175,15 +177,15 @@ if(largeGraph){
 }
 selfFBscale = vertexSize
 arrowSize= 0
-edgeNorm = 0.02
+edgeNorm = 0.1
 
 
 myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, nodeCols)
 l = layout_with_dh(myGraph)
 plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
-                      "_",connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',roiName,
+                      "_",connectionMeasure, round(100*cutoff),"perc.pdf"), width=plotSize, height=plotSize)
 ```
 
 

@@ -60,13 +60,15 @@ structureMatrixPlotByType = function(conmatPlot){
 
 ### Graph
 #Reroganize to make graph with types instead of bodyids
-reorganizeGraphData = function(fromData, toData, weightData,relWeightData, cutoff){
-  graphData = data.frame(from = fromData, to = toData, weight = weightData, relWeight = relWeightData)
-  graphData = graphData %>% group_by(from, to) %>% 
-    summarise(weight = mean(weight, na.rm = TRUE),
-              relWeight = mean(relWeight, na.rm = TRUE)) %>% 
-    ungroup() %>% 
-    filter(weight > cutoff)
+reorganizeGraphData = function(fromData, toData, fromTypeData, toTypeData, weightData,relWeightData, cutoff){
+  graphData = data.frame(from = fromTypeData, to = toTypeData,
+                         fromid = fromData, toid = toData, 
+                         weight = weightData, relWeight = relWeightData)
+  
+  graphData = graphData %>% group_by(from) %>% mutate(relWeightSumFrom = sum(relWeight)) %>% 
+    group_by(from, to) %>% 
+    mutate(connectTypeCount = length(fromid), relWeightNormFrom = mean(relWeightSumFrom/connectTypeCount)) %>%
+    ungroup() %>% filter(weight > cutoff)
   
   return(graphData)
 }
@@ -85,7 +87,9 @@ getNoSelfGraphData = function(graphData){
 #Reroganize to make graph with types instead of bodyids
 getSelfFBGraphData = function(graphData){
   graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
-  graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight, "relWeight" = graphData_toSelf$relWeight),
+  graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, 
+                                          "weight" = graphData_toSelf$weight, 
+                                          "relWeight" = graphData_toSelf$relWeightNormFrom),
                                data.frame("from" = nodes))
   graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
   graphData_selfFB$relWeight[is.na(graphData_selfFB$relWeight)] <- 0
@@ -97,7 +101,7 @@ getSelfFBGraphData = function(graphData){
 constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB, 
                                       cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, nodeCols){
   connectGraph = graph_from_data_frame(graphData_noSelf)
-  connectGraph <- delete_edges(connectGraph, E(connectGraph)[relWeight<cutoff])
+  connectGraph <- delete_edges(connectGraph, E(connectGraph)[relWeightNormFrom<cutoff])
   
   # The labels are currently node IDs. Setting them to NA will render no labels
   V(connectGraph)$label.color="black"
@@ -109,7 +113,7 @@ constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB,
   V(connectGraph)$color=nodeCols
 
   # Set edge width based on weight:
-  E(connectGraph)$width <- E(connectGraph)$relWeight/edgeNorm
+  E(connectGraph)$width <- E(connectGraph)$relWeightNormFrom/edgeNorm
   #change arrow size and edge color:
   E(connectGraph)$arrow.size <- arrowSize
   

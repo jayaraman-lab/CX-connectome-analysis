@@ -51,6 +51,7 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("PDM[26, 28, 08k]{1}[[:alnum:]]*_pct", "PDMother", simpleTypes)
   simpleTypes = gsub("LN[[:alnum:]]{1}.*", "LN", simpleTypes)
   simpleTypes = gsub("PFN.*", "PFN", simpleTypes)
+  simpleTypes = gsub("PFL.*", "PFL", simpleTypes)
   simpleTypes = gsub("Delta7*", "Delta7", simpleTypes)
   simpleTypes = gsub("P6\\-8P9", "other", simpleTypes)
   simpleTypes = gsub("P1\\-9", "other", simpleTypes)
@@ -69,7 +70,7 @@ colorValueLookup = data.frame(
            'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
            'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
            'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
-           'PFN', 'GLN', 'Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother' ),
+           'PFN', 'GLN', 'PFL','Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother' ),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
@@ -77,5 +78,5 @@ colorValueLookup = data.frame(
            499,    499,    143,   144,    573,  640, 
            639, 430, 431, 630, 452,632, 103, 104,105, 651,
            420, 420, 420, 420, 76, 535, 535,535,535,
-           657, 656, 520, 563, 404,565, 447, 450, 651, 484)
+           657, 656, 114, 520, 563, 404,565, 447, 450, 651, 484)
 )
