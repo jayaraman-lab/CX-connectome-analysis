@@ -102,19 +102,19 @@ rm(Output, NamedBodies)
 ```{r}
 
 # NO
-NO_NamedBodies_TypeAverage= aggregate(NO_NamedBodies[, 6:20], list(NO_NamedBodies$bodytype), mean)
+NO_NamedBodies_TypeAverage= aggregate(NO_NamedBodies[, 6:length(colnames(NO_NamedBodies))], list(NO_NamedBodies$bodytype), mean)
 colnames(NO_NamedBodies_TypeAverage)[1]="bodytype"
 
 #NO1
-NO1_NamedBodies_TypeAverage=aggregate(NO1_NamedBodies[, 6:20], list(NO1_NamedBodies$bodytype), mean)
+NO1_NamedBodies_TypeAverage=aggregate(NO1_NamedBodies[, 6:length(colnames(NO1_NamedBodies))], list(NO1_NamedBodies$bodytype), mean)
 colnames(NO1_NamedBodies_TypeAverage)[1]="bodytype"
 
 #NO2
-NO2_NamedBodies_TypeAverage=aggregate(NO2_NamedBodies[, 6:20], list(NO2_NamedBodies$bodytype), mean)
+NO2_NamedBodies_TypeAverage=aggregate(NO2_NamedBodies[, 6:length(colnames(NO2_NamedBodies))], list(NO2_NamedBodies$bodytype), mean)
 colnames(NO2_NamedBodies_TypeAverage)[1]="bodytype"
 
 #NO3
-NO3_NamedBodies_TypeAverage=aggregate(NO3_NamedBodies[, 6:20], list(NO3_NamedBodies$bodytype), mean)
+NO3_NamedBodies_TypeAverage=aggregate(NO3_NamedBodies[, 6:length(colnames(NO3_NamedBodies))], list(NO3_NamedBodies$bodytype), mean)
 colnames(NO3_NamedBodies_TypeAverage)[1]="bodytype"
 
 ```
@@ -124,8 +124,8 @@ colnames(NO3_NamedBodies_TypeAverage)[1]="bodytype"
 ### Get the number of synapses in each ROI for individual neurons and individual neuron types
 ```{r message=FALSE, warning=FALSE}
 
-# 10 is good
-minSynapses = 5
+# 4 is good
+minSynapses = 4
 
 # NO
 Output=InputOutput_ROI_PerNeuron(NO_NamedBodies, minSynapses)
@@ -281,7 +281,7 @@ NO2_roi_Connect_bytype_dfThresh=filter(NO2_roi_Connect_bytype_df, type %in% NO2_
 NO3_ExcludedTypes=unique(filter(NO3_roi_Connect_bytype_df, !(type %in% NO3_Type) )$type)
 NO3_roi_Connect_bytype_dfThresh=filter(NO3_roi_Connect_bytype_df, type %in% NO3_Type)
 
-save(NO_Type, NO1_Type, NO2_Type, NO3_Type, RelSynThresh, file = paste(SaveDir,"NO_Types.RData",sep=""))
+save(NO_Type, NO1_Type, NO2_Type, NO3_Type, RelSynThresh, NO_ExcludedTypes, file = paste(SaveDir,"NO_Types.RData",sep=""))
 
 ```
 
@@ -488,14 +488,6 @@ NO_ROISubset$type = factor(NO_ROISubset$type, levels=c( sort(unique(NO_ROISubset
                                                          sort(unique(NO_ROISubset$type[NO_ROISubset$FACET == "NO2/3"]),decreasing = TRUE)))
 
 
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(NO_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F2a_ThreshSubset_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
 
 # Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
 p0<-ggplot(NO_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
@@ -503,18 +495,28 @@ p0<-ggplot(NO_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("Thresh/Subset NO Neuron Input/Output ROIs")
 print(p0)
-ggsave(paste(PlotDir, "F2b_ThreshSubset_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "Figure_ThreshSubset_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 12, height = 12, units ="in", dpi = 600, limitsize = TRUE)
 
 
-
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(NO_ROISubset, aes(x=roi_names, y=type_name, size=log10(count))) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free", space="free") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle("Thresh/Subset NO Neuron Input/Output ROIs")
+print(p0)
+ggsave(paste(PlotDir, "Figure_ThreshSubset_NO_","inputOutputRegions_perTypeLOG10.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 15, height = 15, units ="in", dpi = 600, limitsize = TRUE)
 
 
 ```
 
 
 
+### Plot synapse distributions for questionable neurons
+```{r}
 
+```
 
 
 
