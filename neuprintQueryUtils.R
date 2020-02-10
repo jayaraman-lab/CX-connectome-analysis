@@ -212,9 +212,8 @@ getTypeToTypeTable <- function(connectionTable,
   typesCount <- typesTable %>% group_by(type) %>%
                                summarise(n=n())
   
-  connectionTable <- connectionTable %>% group_by(type.to) %>%
-                      mutate(n = typesCount[["n"]][typesCount$type == type.to]) %>%
-                      ungroup()
+  connectionTable <- connectionTable %>% 
+                      mutate(n = typesCount[["n"]][match(type.to,typesCount[["type"]])])
  
   ## Renaming the unnamed neurons and treating them as single examples
   connectionTable <- connectionTable %>% mutate(name.to = replace_na(name.to,"Unlabeled"),
