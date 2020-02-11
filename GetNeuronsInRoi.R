@@ -43,10 +43,8 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
 
 
 
-
-SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, Name) {
-
-# Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI. ---------------
+# Function for computing the relative synapse counts in an ROI (synapses in ROI/total synapses)
+ComputeRelativeSynapseCounts <- function(NamedBodies) {
   
   # Compute the total number of synapses in the ROI
   NamedBodies=mutate(NamedBodies, PrePost_Syns = (NamedBodies$ROI_pre + NamedBodies$ROI_post))
@@ -58,14 +56,19 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
   # Compute the percent of each body's POST synapses in the ROI.
   NamedBodies=mutate(NamedBodies, Post_Relative = NamedBodies$ROI_post/unlist(NamedBodies$npost) )
   NamedBodies$Post_Relative[is.nan(NamedBodies$Post_Relative)] = 0
-
+  
   # Average the relative PRE and relative POST synapses. It's best to average after computing the relative PRE and relative POST
   # so that the measure isn't biased by there being more post synapses than pre synapses on average. 
   NamedBodies=mutate(NamedBodies, PrePost_Relative = (Pre_Relative+Post_Relative)/2)
   
+  return(NamedBodies)
+  
+}
 
-# Get Pre-to-Post connection table. ---------------------------------------
 
+
+# Function for computing a neuron's maximum input and output weight in an ROI
+ComputeMaxWeights <- function(NamedBodies) {
   
   # Pre-to-Post connections for named bodies (return all segements and filter) --> subet at end is important or it returns bodyids not contained in NamedBodies
   NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
@@ -76,10 +79,6 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
     rename(Pre_bodyid = bodyid, Post_bodyid = partner)
   NamedConnectTable = subset(NamedConnectTable, Pre_bodyid %in% as.numeric(NamedBodies$bodyid) & Post_bodyid %in% as.numeric(NamedBodies$bodyid) ) 
   
-  
-# Calculate the max PRE weight and max POST weight for each bodyID. --------
-
-
   # Loop over pre-synaptic neurons and find max output weight
   PreMaxWeights=numeric()
   for (prepre in (1:length(NamedBodies$bodyid)) )
@@ -103,12 +102,29 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
   NamedBodies=mutate(NamedBodies, PreMax = PreMaxWeights)
   NamedBodies=mutate(NamedBodies, PostMax = PostMaxWeights)
   NamedBodies=mutate(NamedBodies, PrePost_Max = (PreMaxWeights+PostMaxWeights))
+  
+  return(NamedBodies)
+  
+}
+
+
+
+SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, Name) {
+
+# Get total synapses (Pre+Post) and the relative percent of Pre and Post synapses in the ROI. ---------------
+  
+  NamedBodies <- ComputeRelativeSynapseCounts(NamedBodies)
+  
+
+# Calculate the max PRE weight and max POST weight for each bodyID. --------
+
+  NamedBodies <- ComputeMaxWeights(NamedBodies)
 
 
 # Get the average synapse statistics by neuron type -----------------------
 
   
-  # Get the average number of Pre and Post synapses for each neuron type for both relative and absolute synapse counts.
+  # Get the average number of Pre and Post synapses for each neuron type for both relative and absolute synapse counts and weights.
   NamedBodies_byType <- aggregate(x=NamedBodies[c("ROI_pre","ROI_post","PrePost_Syns","Pre_Relative",
                                                   "Post_Relative","PrePost_Relative","PreMax","PostMax","PrePost_Max")],by=list(unlist(NamedBodies$bodytype[])), FUN=mean)
   
@@ -153,7 +169,6 @@ SynapseStats_And_Threshold <- function(NamedBodies, SaveDir, PreMaxThresh, PostM
 
   Output= list("NamedBodies"=NamedBodies,"ExcludedNeurons"=ExcludedNeurons)
   return(Output)
-  
   
   
 }
