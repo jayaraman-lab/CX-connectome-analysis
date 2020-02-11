@@ -64,7 +64,7 @@ filterNeuronTypes = function(df,minSynapses,minSumSynapses){
 InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
   
 
-# For each neuron, get the number of pre- and post-synapses in the --------
+# For each neuron, get the number of pre- and post-synapses in every ROI --------
   
   roi_Connect = neuprint_get_roiInfo(NamedBodies$bodyid)
   
@@ -74,7 +74,7 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
                         neuron_hemi = "C",
                         pre = neuprint_get_meta(bodyid)$pre,
                         post = neuprint_get_meta(bodyid)$post,
-                        cropped = neuprint_get_meta(bodyid)$cropped) 
+                        cropped = neuprint_get_meta(bodyid)$cropped)# Leaving this in for now for future when scropped, or similar field, might mean something.
   
   # rearrange so that information worth viewing is in first few columns (HARD CODING OF COLULMNS)
   roi_Connect = roi_Connect[ , c(1,(ncol(roi_Connect)-5):ncol(roi_Connect),2:(ncol(roi_Connect)-6)) ]
@@ -92,12 +92,11 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
   # Set cropped to 1 if TRUE and 0 if FALSE, so they can be averaged
   roi_Connect$cropped[roi_Connect$cropped==TRUE]=1
   
-  # Average by type (HARD CODING OF COLUMNS)
+  # Average by neuron type, keeping L/R neurons separate (HARD CODING OF COLUMNS)
   roi_Connect_bytype=aggregate(roi_Connect[ ,5:length(colnames(roi_Connect))], by=list(unlist(roi_Connect$type[]), unlist(roi_Connect$neuron_hemi)), FUN=mean)
   colnames(roi_Connect_bytype)[c(1,2)] <- c("type","neuron_hemi")
   
   
-
 # For the single neurons and type-averages, parse the ROIs and reorganize such that ROI, #pre, and #post become variables  --------
 
   # Define a function that can do this for both single neuron (roi_Connect) and type-averages (roi_Connect_bytype) 
@@ -118,7 +117,7 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
       
       roiname = as.character(unlist(strsplit(roi, "[.]"))[1])
       
-      # Get hemisphere- this assumes that ROI names with"(R" ALWAYS MEANS right and "(L" MEANS left. 
+      # Get hemisphere- this assumes that ROI names with"(R" ALWAYS MEANS right, "(L" MEANS left, and nothing means Center 
       if (grepl("(R", roi,fixed=TRUE )){
         roi_hemi="R"
         roiname_nohemi=as.character(unlist(strsplit(roiname, "[(]R[)]"))[1])
@@ -140,7 +139,7 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
                            count = roi_Connect_bytype[[roi]]  ) 
       
       roi_Connect_bytype_df = rbind(roi_Connect_bytype_df, Temp_df)
-      remove(list=c("Temp_df","roi_hemi"))
+      remove(list=c("Temp_df","roi_hemi","roiname"))
     }
     
     return(roi_Connect_bytype_df)
@@ -157,11 +156,11 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
   p1<-ggplot(HistDat, aes(x=NumberOfSyns)) + geom_histogram(binwidth=10) + xlim(0, 500) + ylim(0, length(HistDat$NumberOfSyns[HistDat$NumberOfSyns>2 & HistDat$NumberOfSyns<=11]) )
   print(p1)
 
-  roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > minSynapses)
-  roi_Connect_df = filter(roi_Connect_df, count > minSynapses)
+  roi_Connect_bytype_df <- filter(roi_Connect_bytype_df, count > minSynapses)
+  roi_Connect_df <- filter(roi_Connect_df, count > minSynapses)
   
 
-# Plot input and output of all ROIs, both Left/Right/C --------------------
+# Coerce data type before output --------------------
 
   # Convert some factor columns to character columns
   roi_Connect_bytype_df$type=as.character(roi_Connect_bytype_df$type)
@@ -176,18 +175,12 @@ InputOutput_ROI_PerNeuron = function(NamedBodies, minSynapses){
   roi_Connect_df$neuron_hemi=as.character(roi_Connect_df$neuron_hemi)
   roi_Connect_df$roi_hemi=as.character(roi_Connect_df$roi_hemi)
   
-  # Rename post and pre and input and output
+  # Rename post and pre as input and output
   roi_Connect_bytype_df$prepost[as.character(roi_Connect_bytype_df$prepost)=="post"]="Input ROI"
   roi_Connect_bytype_df$prepost[as.character(roi_Connect_bytype_df$prepost)=="pre"]="Output ROI"
   
   roi_Connect_df$prepost[as.character(roi_Connect_df$prepost)=="post"]="Input ROI"
   roi_Connect_df$prepost[as.character(roi_Connect_df$prepost)=="pre"]="Output ROI"
-  
-  # Plot neuron type ROI innervation pattern
-  p2<-ggplot(roi_Connect_bytype_df, aes(x=roi, y=type, size=count)) + 
-    geom_point(aes(color=roi)) + facet_grid(cols=vars(prepost)) + 
-    theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
-  print(p2)
   
 
 # Return variables of interest --------------------------------------------
