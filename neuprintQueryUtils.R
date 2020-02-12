@@ -266,8 +266,13 @@ getTypeToTypeTable <- function(connectionTable,
   #' 
   
   ## Counting instances for each post type 
+  if (is.null(typesTable) & any(connectionTable$type.to != connectionTable$databaseTypeTo,na.rm=T))
+    {
+      stop("Some types are custom defined. You need to provide a `typesTable` argument.")
+    }
+  
   if (is.null(typesTable)){
-    typesTable <- getTypesTable(unique(connectionTable$type.to))
+    typesTable <- getTypesTable(unique(connectionTable$databaseTypeTo))
   } 
   
   typesCount <- typesTable %>% group_by(type) %>%
@@ -293,7 +298,9 @@ getTypeToTypeTable <- function(connectionTable,
                                           weight = sum(weight),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
-                                          n_links = n()) %>%
+                                          n_links = n(),
+                                          databaseTypeTo = databaseTypeTo[1],
+                                          databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
   
   ## Main filter
@@ -302,7 +309,9 @@ getTypeToTypeTable <- function(connectionTable,
                                 summarise(weightRelative = sum(weightRelative),
                                           weight = sum(weight),
                                           n = n[1],
-                                          outputContribution = outputContribution[1]) %>%
+                                          outputContribution = outputContribution[1],
+                                          databaseTypeTo = databaseTypeTo[1],
+                                          databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 group_by(type.from,type.to) %>%
                                 summarize(pVal = wilcox.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
                                                       alternative="greater",exact=FALSE)["p.value"],
@@ -311,7 +320,9 @@ getTypeToTypeTable <- function(connectionTable,
                                           weight = mean(c(weight,unlist(replicate(n[1]-n(),0)))),
                                           outputContribution = outputContribution[1],
                                           n_links = n(),
-                                          n_type = n[1]
+                                          n_type = n[1],
+                                          databaseTypeTo = databaseTypeTo[1],
+                                          databaseTypeFrom = databaseTypeFrom[1]
                                 ) %>% filter(pVal < pThresh | outputContribution > majorOutputThreshold) %>%
                                 select(-pVal)
                                 
