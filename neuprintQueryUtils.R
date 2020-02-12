@@ -52,11 +52,13 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   partnerMeta <- neuprint_get_meta(myConnections$partner)
+  refMetaOrig <- neuprint_get_meta(myConnections$bodyid)  ## To get the database type name
   
   myConnections <- filter(myConnections,partnerMeta$status == "Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
   
   refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
+  refMetaOrig <- slice(refMetaOrig,sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid)))
   
   myConnections <-myConnections %>%
     mutate(partnerName = partnerMeta[["name"]],
@@ -68,8 +70,12 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
+    myConnections <- myConnections %>% mutate(databaseTypeTo = refMetaOrig$type,
+                                              databaseTypeFrom = type.from)
     } else {
     outMeta <- partnerMeta
+    myConnections <- myConnections %>% mutate(databaseTypeTo = type.to,
+                                              databaseTypeFrom = refMetaOrig$type)
   }
   myConnections[["weightRelativeTotal"]] <- myConnections[["weight"]]/outMeta[["post"]]
   
@@ -96,8 +102,6 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
-  
-  myConnections <- myConnections %>% mutate(databaseTypeTo = type.to) ## To be kept as a reference
   
   return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
                                                       ## synapse (pre/post) is split between ROIs
