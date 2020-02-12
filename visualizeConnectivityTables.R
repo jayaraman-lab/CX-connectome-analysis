@@ -85,33 +85,44 @@ getNoSelfGraphData = function(graphData){
 #Reroganize to make graph with types instead of bodyids
 getSelfFBGraphData = function(graphData){
   graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
-  graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight, "relWeight" = graphData_toSelf$relWeight),
-                               data.frame("from" = nodes))
-  graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
-  graphData_selfFB$relWeight[is.na(graphData_selfFB$relWeight)] <- 0
+  graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from,
+                                          #"weight" = graphData_toSelf$weight,
+                                          "relWeightSelf" = graphData_toSelf$relWeight),
+                               data.frame("from" = getGraphNodes(graphData)))
+  #graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
+  graphData_selfFB$relWeightSelf[is.na(graphData_selfFB$relWeightSelf)] <- 0
   
   return(graphData_selfFB)
 }
 
 # convenient graph plotting
-constructConnectivityGraph = function(nodes, graphData_noSelf, graphData_selfFB, 
-                                      cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, nodeCols){
-  connectGraph = graph_from_data_frame(graphData_noSelf)
-  connectGraph <- delete_edges(connectGraph, E(connectGraph)[relWeight<cutoff])
+constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm){
+  source("colorCodeLookup.R")
+  
+  connectGraph = graph_from_data_frame(graphData)
+  
+  nodeCols = colors()[80+seq(1, length(V(connectGraph)$name))]
+  for (i in seq(1, length(V(connectGraph)$name))) {
+    ncol = colors()[colorValueLookup$col[colorValueLookup$type ==  getSimpleTypeNames(V(connectGraph)$name[i])]]
+    if (length(ncol) > 0) {nodeCols[i] = ncol}
+  }
   
   # The labels are currently node IDs. Setting them to NA will render no labels
   V(connectGraph)$label.color="black"
   V(connectGraph)$label.cex=0.8
   V(connectGraph)$label.dist=0
 
-  V(connectGraph)$size = vertexSize + as.numeric(vertexSize*selfFBscale*graphData_selfFB$relWeight )
+  V(connectGraph)$size = vertexSize
   V(connectGraph)$vertex.frame.color="gray"
   V(connectGraph)$color=nodeCols
 
   # Set edge width based on weight:
-  E(connectGraph)$width <- E(connectGraph)$relWeight/edgeNorm
+  E(connectGraph)$width = E(connectGraph)$relWeight/edgeNorm
   #change arrow size and edge color:
-  E(connectGraph)$arrow.size <- arrowSize
+  E(connectGraph)$arrow.size = arrowSize
+  
+  connectGraph = delete_edges(connectGraph, E(connectGraph)[relWeight<cutoff])
+  
   
   return(connectGraph)
 }
