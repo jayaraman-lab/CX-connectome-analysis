@@ -60,6 +60,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
            partnerType = partnerMeta[["type"]],
            type = refMeta[["type"]])
   
+  myConnections <- simplifyConnectionTable(myConnections)
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
@@ -70,27 +71,23 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   if (by.roi | !is.null(slctROI)){
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
-    
+    outInfo <- neuprint_get_roiInfo(myConnections$to)
     if (synapseType == "PRE"){
-      outInfo <- neuprint_get_roiInfo(myConnections$bodyid)
-      inputsTable <- neuprint_connection_table(unique(myConnections$partner),"POST",slctROI,by.roi=by.roi,...)
+      inputsTable <- simplifyConnectionTable(neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...))
       inp <- "partner"
-      #inInfo <- neuprint_get_roiInfo(myConnections$partner)
     }else{
-      outInfo <- neuprint_get_roiInfo(myConnections$partner)
       inputsTable <- myConnections
       inp <- "bodyid"
-      #inInfo <- neuprint_get_roiInfo(myConnections$bodyid)
     }
     
-    totalPre <- inputsTable %>% group_by(bodyid) %>%
+    totalPre <- inputsTable %>% group_by(from) %>%
                     summarise(totalPreROIweight = sum(ROIweight))
     
     postVar <- paste0(myConnections[["roi"]],".post")
     #preVar <- paste0(myConnections[["roi"]],".pre")
     myConnections <- myConnections %>%
       mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
-             totalPreROIweight = totalPre[["totalPreROIweight"]][match(myConnections[[inp]],totalPre$bodyid)]) %>%#sapply(1:length(preVar),function(v) inInfo[[preVar[v]]][v])) %>%
+             totalPreROIweight = totalPre[["totalPreROIweight"]][match(myConnections$from,totalPre$from)]) %>%
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
   }
@@ -205,7 +202,7 @@ getTypeToTypeTable <- function(connectionTable,
   #'                                        type_col = "type.to")
   #' ## One now needs to create an ad-hoc table and rename it similarly
   #' outputTypes <- getTypesTable(unique(PFLConnections)[["type.to"]])
-  #' outputTypes_renamed <- redefineType(table=OutputTypes,
+  #' outputTypes_renamed <- redefineType(table=outputTypes,
   #'                             type="AVL01op_pct",
   #'                             condition=grepl("_L",OutputTypes$name),
   #'                             newTypes=c("AVL01op_pct_L","AVL01op_pct_R"),
