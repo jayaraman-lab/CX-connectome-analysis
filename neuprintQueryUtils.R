@@ -172,7 +172,17 @@ lrSplit <- function(connectionTable,
   #' @param typeCol : the name of the column containing the types to modify
   #' @param typeList : which types to lateralize (by default all the neurons which names
   #' contains L or R)
+  #' @example 
+  #' \dontrun{
+  #' PFLNames <- getTypesTable(c("PFL1","PFL2","PFL3"))
   #' 
+  #' ## Rename only PFL2
+  #' PFLNames2 <- lrSplit(PFLNames,nameCol="name",typeCol="type",typeList=c("PFL2"))
+  #' 
+  #' ##Rename all PFLs
+  #' PFLNames3 <- lrSplit(PFLNames,nameCol="name",typeCol="type")
+  #' 
+  #' } 
   if (is.null(typeList)){
     typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
     typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
@@ -191,7 +201,7 @@ lrSplit <- function(connectionTable,
 retype.na <- function(connectionTable){
   #' Fill in the type and name field in case they are NAs, using the name field if it exists
   #' (removing the _L/_R) or the neuron id. By default expects a table in to/from format.
-  #'  
+  #'
   connectionTable <- connectionTable %>% 
                      mutate(name.from = ifelse(is.na(name.from),from,name.from),
                             name.to = ifelse(is.na(name.to),to,name.to),
@@ -245,8 +255,6 @@ getTypeToTypeTable <- function(connectionTable,
   #' 
   #'
   #' ## Splitting one output type according to left/right in a PFL table
-  #' ## For ease:
-  #' PFLConnections <- simplifyConnectionTable(PFLConnections)
   #' PFLConnections_renamed <- redefineType(table=PFLConnections,
   #'                                        type="AVL01op_pct",
   #'                                        condition=grepl("_L",PFLConnections$name.to),
@@ -259,6 +267,11 @@ getTypeToTypeTable <- function(connectionTable,
   #'                             condition=grepl("_L",OutputTypes$name),
   #'                             newTypes=c("AVL01op_pct_L","AVL01op_pct_R"),
   #'                             type_col = "type")
+  #'                             
+  #'## This particular transforms can also be achieved with lrSplit
+  #'PFLConnections_renamed <- lrSplit(PFLConnections,typeList=c("AVL01op_pct" ))
+  #'outputTypes_renamed <- lrSplit(outputTypes,nameCol="name",typeCol="type",typeList=c("AVL01op_pct" )) 
+  #'                            
   #'## One can then use the function with the table
   #' PFLTypeToType <- getTypeToTypeTable(PFLConnections_renamed,typesTable = outputTypes_renamed)                       
   #'                             
