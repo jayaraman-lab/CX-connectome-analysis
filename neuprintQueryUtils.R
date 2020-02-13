@@ -308,7 +308,7 @@ getTypeToTypeTable <- function(connectionTable,
   loners <- connectionTable %>% filter(n==1) %>%
                                 group_by(type.from,type.to) %>%
                                 summarize(weightRelative = sum(weightRelative),
-                                          weight = sum(weight),
+                                          weight = sum(ROIweight),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
                                           n_links = n(),
@@ -320,7 +320,7 @@ getTypeToTypeTable <- function(connectionTable,
   sTable <- connectionTable %>% filter(n>1) %>%
                                 group_by(type.from,to,type.to) %>%
                                 summarise(weightRelative = sum(weightRelative),
-                                          weight = sum(weight),
+                                          weight = sum(ROIweight),
                                           n = n[1],
                                           outputContribution = outputContribution[1],
                                           databaseTypeTo = databaseTypeTo[1],
