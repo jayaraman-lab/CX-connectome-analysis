@@ -134,7 +134,7 @@ getTypesTable <- function(types){
   #' @return A data frame of instances of those types
   #' 
   #' 
-  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type"))))
+  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
 }
 
 redefineType <- function(table,type,condition,newTypes,type_col="type"){
