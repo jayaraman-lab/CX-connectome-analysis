@@ -326,7 +326,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 group_by(type.from,type.to) %>%
-                                summarize(pVal = ifelse(all.equal(c(weightRelative,unlist(replicate(n[1]-n(),0)))),   ## t.test doesn't run if values are constant. Keep those.
+                                summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
                                                                   t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
                                                                                     alternative="greater",exact=FALSE)["p.value"]),
