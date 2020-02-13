@@ -73,6 +73,7 @@ remove(Output)
 
 ```
 
+
 # Filter data by synapse counts, which also gets rid of NA values
 ```{r}
 
@@ -80,7 +81,6 @@ roi_Connect_bytype_df=filter(roi_Connect_bytype_df, count > 0 )
 roi_Connect_df=filter(roi_Connect_df, count > 0 )
 
 ```
-
 
 
 ## Make plot of ALL neurons and histogram of synapse counts
@@ -212,7 +212,7 @@ p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point() 
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("PB Neuron Input/Output ROIs")
-ggsave(paste(PlotDir, "A_Figure_PBAll_InputOutput_perType_Absolute.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "All_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
@@ -221,7 +221,7 @@ p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("PB Neuron Relative Input/Output ROIs"))
-ggsave(paste(PlotDir, "R_Figure_PBAll_InputOutput_perType_Relative.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "All_Rel_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
@@ -229,33 +229,32 @@ ggsave(paste(PlotDir, "R_Figure_PBAll_InputOutput_perType_Relative.pdf",sep=""),
 
 
 
-
-
-
-
 # Plot the relative data and thresholded relative data
 ```{r}
 
 
+Input_MaxThresh=30               # 30 is good
+Input_MinSynThresh=12            # 12 is good
+Input_MinRelSynThresh=0.0125     # 0.0125 is good
+Ouput_MaxThresh=30               # 30 is good  
+Output_MinSynThresh=6            # 6 is good
+Output_MinRelSynThresh=0.01      # 0.01 is good
 
-Input_SynThresh=12          # 12 is good
-Input_RelSynThresh=0.01     # 0.01 is good
-Output_SynThresh=12          # 4 is good
-Output_RelSynThresh=0.005     # 0.1 good
 
-
-
-ROISubset_Thresh=filter(ROISubset, ((ROISubset$RelativeCount  > Input_RelSynThresh | ROISubset$count>Input_SynThresh)              & ROISubset$prepost == "Input ROI")  |
-                                   ((ROISubset$count > Output_SynThresh            | ROISubset$RelativeCount>Output_RelSynThresh)  & ROISubset$prepost == "Output ROI") )
-
+# Include neurons that have a minimum relative AND absolute number of synapses OR have above a certain higher number of absolute synapses.
+# This second threshold is meant to catch large neurons whos relative counts may be low in an ROI but their absolute counts are high, as happens with many ExR neurons.
+ROISubset_Thresh =   filter(ROISubset,   ((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
+ROISubset_Excluded = filter(ROISubset,  !((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
 
 
 
 # Plot scatter plots of absolute and relative synapse counts for input and output ROIs
 InputHistDat= rbind( subset(ROISubset, (prepost == "Input ROI")) %>% mutate(TTT='ALL'), 
-                     subset(ROISubset_Thresh, (prepost == "Input ROI")) %>% mutate(TTT='Threshold'))
+                     subset(ROISubset_Excluded, (prepost == "Input ROI")) %>% mutate(TTT='Excluded'))
 OutputHistDat= rbind(subset(ROISubset, (prepost == "Output ROI")) %>% mutate(TTT='ALL'), 
-                     subset(ROISubset_Thresh, (prepost == "Output ROI")) %>% mutate(TTT='Threshold'))
+                     subset(ROISubset_Excluded, (prepost == "Output ROI")) %>% mutate(TTT='Excluded'))
 plot_ly(data = InputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Inputs')
 plot_ly(data = OutputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Outputs')
 
@@ -266,7 +265,7 @@ p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count)) + geom_p
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("PB Neuron Relative Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "A_Figure_PBAll_InputOutput_perType_RelativeThresh.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "Thresh_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
@@ -276,7 +275,25 @@ p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=RelativeCount)) 
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("PB Neuron Input/Output ROIs", " Thresholded"))
-ggsave(paste(PlotDir, "R_Figure_PBAll_InputOutput_perType_AbsoluteThresh.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "Thresh_Rel_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot all of the ROIs (and sub ROIs) that all PB neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=log10(count))) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("PB Neuron Input/Output ROIs", " Thresholded"))
+ggsave(paste(PlotDir, "Thresh_LogAbs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the excluded data
+p0<-ggplot(ROISubset_Excluded, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("PB Neuron Relative Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "Ex_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
@@ -286,8 +303,8 @@ ROISubset[ (ROISubset$roi_names=="PFGs(R)" & ROISubset$roi_names=="LAL(-GA)(R)" 
 
 
 
-plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap")
-plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap")
+plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap") %>% layout(title = 'All Outputs')
+plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap") %>% layout(title = 'All Outputs')
 
 
 ```
