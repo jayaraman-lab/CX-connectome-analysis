@@ -1,6 +1,7 @@
 # color code
 getSimpleTypeNames <- function(mydata){
-  simpleTypes = gsub("Delta0[[:alnum:]]*", "Delta0", mydata)
+  simpleTypes = gsub("_[R,L]", "", mydata)
+  simpleTypes = gsub("Delta0[[:alnum:]]*", "Delta0", simpleTypes)
   simpleTypes = gsub("Delta12[[:alnum:]]*", "Delta12", simpleTypes)
   simpleTypes = gsub("Delta6[[:alnum:]]*", "Delta6", simpleTypes)
   simpleTypes = gsub("Delta0-Delta12[(]*[[:alnum:]]*[)]*", "Delta0-12", simpleTypes)
