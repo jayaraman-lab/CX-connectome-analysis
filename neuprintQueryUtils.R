@@ -311,7 +311,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           weight = sum(ROIweight),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
-                                          n_links = n(),
+                                          n_targets = n(),
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
@@ -334,7 +334,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           weightRelative = mean(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
                                           weight = mean(c(weight,unlist(replicate(n[1]-n(),0)))),
                                           outputContribution = outputContribution[1],
-                                          n_links = n(),
+                                          n_targets = n(),
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
