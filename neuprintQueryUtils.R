@@ -329,7 +329,7 @@ getTypeToTypeTable <- function(connectionTable,
                                 summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
                                                                   t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
-                                                                                    alternative="greater",exact=FALSE)["p.value"]),
+                                                                                    alternative="greater",exact=FALSE)[["p.value"]]),
                                           varWeight = var(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
                                           weightRelative = mean(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
                                           weight = mean(c(weight,unlist(replicate(n[1]-n(),0)))),
