@@ -53,6 +53,14 @@ source("GetNeuronsInRoi.r")
 ```{r}
 rois = neuprint_ROIs()
 heir=neuprint_ROI_hierarchy()
+heir[, ] <- lapply(heir[, ], as.character)
+
+# Restructure ROIs to add PB(L) and PB(R)
+heir$parent[ grepl("[[:digit:]]",heir$roi) & grepl("PB[(]L",heir$roi) ] = "PB(L)"
+heir$parent[ grepl("[[:digit:]]",heir$roi) & grepl("PB[(]R",heir$roi) ] <- "PB(R)"
+heir <- rbind(heir, data.frame(parent='PB',roi='PB(L)'))
+heir <- rbind(heir, data.frame(parent='PB',roi='PB(R)'))
+
 ```
 
 
@@ -62,6 +70,15 @@ heir=neuprint_ROI_hierarchy()
 Output=Get_SynapseCount_In_Rois(ROI, FALSE)
 list2env(Output ,.GlobalEnv)
 remove(Output)
+
+```
+
+
+# Filter data by synapse counts, which also gets rid of NA values
+```{r}
+
+roi_Connect_bytype_df=filter(roi_Connect_bytype_df, count > 0 )
+roi_Connect_df=filter(roi_Connect_df, count > 0 )
 
 ```
 
@@ -78,7 +95,7 @@ ggsave(paste(PlotDir, "ALL_EB_","inputOutputRegions_perType.png",sep=""), plot =
 
 
 # Plot histogram of synapse counts
-HistDat=data.frame(Type=roi_Connect_bytype_df$type, NumberOfSyns= roi_Connect_bytype_df$count)
+HistDat=data.frame(NumberOfSyns= roi_Connect_bytype_df$count)
 p1<-ggplot(HistDat, aes(x=NumberOfSyns)) + geom_histogram(binwidth=10) + xlim(0, 500) +
   ylim(0, length(HistDat$NumberOfSyns[HistDat$NumberOfSyns>2 & HistDat$NumberOfSyns<=11]) )
 print(p1)
@@ -109,103 +126,59 @@ save(EB_Type, RelSynThresh, ExcludedTypes, file = paste(SaveDir,"EB_Types.RData"
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Subset on parent ROIs and some sub ROIs as a princpled way of showing ROIs
+## Subset on parent ROIs and some sub ROIs as a princpled way of chosing which ROIs to plot
 ```{r}
+
 
 # Divide parent ROIs into smaller subROIs that we want to show
 ROI_LIST=c("hemibrain","CX","NO","LX","LX(R)","LX(L)","PB","LAL(R)","EB") # List of parent ROIs to include
 HB_Children=subset(heir, parent %in%  ROI_LIST)
 HB_Children=subset(HB_Children, !(roi %in% ROI_LIST) )
 HB_Children=subset(HB_Children, !(roi %in% c("POC","mALT(L)","mALT(R)","GF(R)","GC","AOT(R)"))) # Remove fiber bundles
+colnames(HB_Children)[2]='roi_heir_names'
+HB_Children$roi_heir_names=as.character(HB_Children$roi_heir_names)
 
 
-# Create new dataframe (ROISubset) and create a new field (roi_heir_names) with roi names that match those in HB_Children$roi
-ROISubset=roi_Connect_bytype_dfThresh
-ROISubset$roi_heir_names=ROISubset$roi_names # Make new field with names that match those in HB_Children$roi, the desired ROI list
-ROISubset$roi_heir_names= strsplit(as.character(ROISubset$roi_names), "[(]C[)]") # Get rid of (C) in those ROIs that have it
-ROISubset$roi_heir_names[ startsWith(as.character(ROISubset$roi_heir_names), "PB(R") ] = 
-  strsplit(as.character(ROISubset$roi_heir_names[ startsWith(as.character(ROISubset$roi_heir_names), "PB(R") ]), "[(]R[)]")
-ROISubset$roi_heir_names[ startsWith(as.character(ROISubset$roi_heir_names), "PB(L") ] = 
-  strsplit(as.character(ROISubset$roi_heir_names[ startsWith(as.character(ROISubset$roi_heir_names), "PB(L") ]), "[(]L[)]")
+# Create new dataframe (ROISubset) and create a new field (roi_heir_names) with roi names that match those in HB_Children$roi_heir_names
+ROISubset=roi_Connect_bytype_df
+ROISubset=filter(ROISubset, !(startsWith(type,"R") & neuron_hemi=="L") )
+ROISubset$roi_heir_names= ROISubset$roi_names # Make new field with names that match those in HB_Children$roi, the desired ROI list
+ROISubset$roi_heir_names= unlist(strsplit(as.character(ROISubset$roi_names), "[(]C[)]")) # Get rid of (C) in those ROIs that have it
 
 
 # Check ExcludedRois to make sure we arent missing an ROI we want
-ExcludedRois=unique( ROISubset$roi_heir_names[ !(ROISubset$roi_heir_names %in% HB_Children$roi) ])
+ExcludedRois=unique( unlist(ROISubset$roi_heir_names[ !(ROISubset$roi_heir_names %in% HB_Children$roi_heir_names) ]))
 
 
-# Remove ROIs in ROISubset that aren't in the list provided by HB_Children$roi. Also remove LAL(R) and MB(R), which have super ROIs.
+# Remove ROIs in ROISubset that aren't in the list provided by HB_Children$roi_heir_names Also remove LAL(R) and MB(R), which have super ROIs.
 ROISubset=subset(ROISubset, (roi_heir_names %in% HB_Children$roi) & !(roi_names %in% c("LAL(R)","MB(R)")) )
 
 
-# Relabel roi and roi_names field so that PB(R#) and PB(L#) rois are just PB(R) and PB(L)
-ROISubset$roi[startsWith(ROISubset$roi,'PB(L')] <- "PB"
-ROISubset$roi[startsWith(ROISubset$roi,'PB(R')] <- "PB"
-ROISubset$roi_names = paste(ROISubset$roi, '(', ROISubset$roi_hemi, ')', sep="")
-ROISubset$roi_heir_names[startsWith(ROISubset$roi_names,"PB(L")] <- "PB(L)"
-ROISubset$roi_heir_names[startsWith(ROISubset$roi_names,"PB(R")] <- "PB(R)"
-ROISubset$roi_heir_names=as.character(ROISubset$roi_heir_names)
+# Join ROISubset with the ROI level information
+ROISubset <- merge(ROISubset,HB_Children,by="roi_heir_names")
 
-
-# Do the same for HB_Children
-colnames(HB_Children)[2]='roi_heir_names'
-HB_Children$roi_heir_names=as.character(HB_Children$roi_heir_names)
-HB_Children$parent=as.character(HB_Children$parent)
-HB_Children$roi_heir_names[startsWith(HB_Children$roi_heir_names,"PB(L")] <- "PB(L)"
-HB_Children$roi_heir_names[startsWith(HB_Children$roi_heir_names,"PB(R")] <- "PB(R)"
-HB_Children=distinct(HB_Children)
-HB_Children$parent[ endsWith(as.character(HB_Children$parent), "(L)") ] = 
-  strsplit(as.character(HB_Children$parent[ endsWith(as.character(HB_Children$parent), "(L)") ]), "[(]L[)]")
-HB_Children$parent[ endsWith(as.character(HB_Children$parent), "(R)") ] = 
-  strsplit(as.character(HB_Children$parent[ endsWith(as.character(HB_Children$parent), "(R)") ]), "[(]R[)]")
-HB_Children$parent[HB_Children$parent=="LAL"]<-"LX"
-
-
-# Average PB(L) and PB(R) rois by cell type
-ROISubset=aggregate(ROISubset$count, by=list(ROISubset$type, ROISubset$type_name,
-                                                             ROISubset$roi,  ROISubset$roi_names, ROISubset$roi_heir_names,
-                                                             ROISubset$prepost), mean)
-colnames(ROISubset)[c(1,2,3,4,5,6,7)]=c("type","type_name","roi","roi_names","roi_heir_names","prepost","count")
-
+# Compute relative synapse counts in each ROI for each neuron type
+ROISubset=ROI_RelativeSynapses(ROISubset)
 
 # check to make sure that all plotted ROIs are a subset of the HD_Children ROIs
 if (sum(ROISubset$roi_heir_names %in% unique(HB_Children$roi_heir_names)) != length(ROISubset$roi_heir_names)){
   warning('Not all plotted ROIs are in HD_Children!!!!')}
 
 
-# Join ROISubset with the ROI level information
-ROISubset <- merge(ROISubset,HB_Children,by="roi_heir_names")
+```
 
+
+
+# Set the levels for the X-axis (ROIs) and Y-axis (neuron types) and plot the data.
+```{r}
 
 
 # Manually set levels for x Axis
 ROI_LEVELS=c("BU(L)","BU(R)","LAL(L)","LAL(-GA)(R)","GA(R)",
              "EBr1(C)","EBr2r4(C)","EBr3am(C)","EBr3d(C)","EBr3pw(C)","EBr5(C)","EBr6(C)",
-             "PB(L)","PB(R)","NO(L)","NO(R)","FB(C)","AB(R)",
+             "PB(L)","PB(R)","NO(L)","NO(R)","FB(C)","AB(L)","AB(R)",
              "VLNP(R)","INP(C)","VMNP(C)","SNP(L)","SNP(R)",
-             "GNG(C)")
+             "GNG(C)","AL(R)","MB(L)","MB(+ACA)(R)","PENP(C)")
 ROI_LEVELS[which(!ROI_LEVELS %in% unique(ROISubset$roi_names))]
 ROISubset$roi_names[ which(!ROISubset$roi_names %in% ROI_LEVELS)]
 ROISubset$roi_names <- factor(ROISubset$roi_names, levels = ROI_LEVELS)
@@ -213,87 +186,122 @@ ROISubset$roi_names <- factor(ROISubset$roi_names, levels = ROI_LEVELS)
 
 # Make facet for y axis
 ROISubset$FACET <- NA
-ROISubset$FACET[ startsWith(ROISubset$type_name,"R") ] <- "Ring Neurons"
+ROISubset$FACET[ startsWith(ROISubset$type_name,"R") ] <- "Right Ring Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"ExR")] <- "Extrinsic Ring Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"EP") | startsWith(ROISubset$type_name,"PE")|
                    startsWith(ROISubset$type_name,"PE") | startsWith(ROISubset$type_name,"EQ")] <- "Columnar Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"FB") | startsWith(ROISubset$type_name,"Delta")] <- "FB-EB Neurons"
 ROISubset$type_name[is.na(ROISubset$FACET)]
 sum(is.na(ROISubset$FACET))
-ROISubset$FACET = factor(ROISubset$FACET, levels=c('Ring Neurons','Extrinsic Ring Neurons',
+ROISubset$FACET = factor(ROISubset$FACET, levels=c('Right Ring Neurons','Extrinsic Ring Neurons',
                                                    'Columnar Neurons','FB-EB Neurons'))
 
 
 # Factor the types for plotting so the color is good
-ROISubset$type = factor(ROISubset$type, levels=c( sort(unique(ROISubset$type[ROISubset$FACET == "Ring Neurons"]),decreasing = TRUE),
+ROISubset$type = factor(ROISubset$type, levels=c( sort(unique(ROISubset$type[ROISubset$FACET == "Right Ring Neurons"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "Extrinsic Ring Neurons"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "Columnar Neurons"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "FB-EB Neurons"]),decreasing = TRUE)) )
 
 
 
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+# Plot all of the ROIs (and sub ROIs) that all EB neurons innervate
 p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset EB Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Figure_EbAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+  ggtitle("EB Neuron Input/Output ROIs")
+ggsave(paste(PlotDir, "All_Abs_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
-
-# Remove left ring neurons and make plot again
-ROISubset_Remove_Lring=subset(ROISubset, !(startsWith(ROISubset$type_name,"R") &  endsWith(ROISubset$type_name,"(L)")) )
-
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(ROISubset_Remove_Lring, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+# Plot all of the ROIs (and sub ROIs) that all EB neurons innervate
+p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_point()  + 
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset EB Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Figuref_EbNoLringNeurons_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 14, height = 14, units ="in", dpi = 600, limitsize = TRUE)
-
+  ggtitle(paste("EB Neuron Relative Input/Output ROIs"))
+ggsave(paste(PlotDir, "All_Rel_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
 ```
 
 
+# Plot the relative data and thresholded relative data
+```{r}
+
+
+Input_MaxThresh=30               # 30 is good
+Input_MinSynThresh=12            # 12 is good
+Input_MinRelSynThresh=0.0125     # 0.0125 is good
+Ouput_MaxThresh=30               # 30 is good  
+Output_MinSynThresh=6            # 6 is good
+Output_MinRelSynThresh=0.01      # 0.01 is good
+
+
+# Include neurons that have a minimum relative AND absolute number of synapses OR have above a certain higher number of absolute synapses.
+# This second threshold is meant to catch large neurons whos relative counts may be low in an ROI but their absolute counts are high, as happens with many ExR neurons.
+ROISubset_Thresh =   filter(ROISubset,   ((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
+ROISubset_Excluded = filter(ROISubset,  !((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
 
 
 
+# Plot scatter plots of absolute and relative synapse counts for input and output ROIs
+InputHistDat= rbind( subset(ROISubset, (prepost == "Input ROI")) %>% mutate(TTT='ALL'), 
+                     subset(ROISubset_Excluded, (prepost == "Input ROI")) %>% mutate(TTT='Excluded'))
+OutputHistDat= rbind(subset(ROISubset, (prepost == "Output ROI")) %>% mutate(TTT='ALL'), 
+                     subset(ROISubset_Excluded, (prepost == "Output ROI")) %>% mutate(TTT='Excluded'))
+plot_ly(data = InputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Inputs')
+plot_ly(data = OutputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Outputs')
 
 
 
+# Plot all of the ROIs (and sub ROIs) that all neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("EB Neuron Relative Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "Thresh_Abs_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
+# Plot all of the ROIs (and sub ROIs) that all neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("EB Neuron Input/Output ROIs", " Thresholded"))
+ggsave(paste(PlotDir, "Thresh_Rel_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot all of the ROIs (and sub ROIs) that all neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=log10(count))) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("EB Neuron Input/Output ROIs", " Thresholded"))
+ggsave(paste(PlotDir, "Thresh_LogAbs_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the excluded data
+p0<-ggplot(ROISubset_Excluded, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("EB Neuron Relative Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "Ex_Abs_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
+# Look at single rows to adjust thresholds as needed
+ROISubset[ (ROISubset$roi_names=="PFGs(R)" & ROISubset$roi_names=="LAL(-GA)(R)" & ROISubset$prepost=="Output ROI")  , ]
 
 
 
+plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap") %>% layout(title = 'All Outputs')
+plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap") %>% layout(title = 'All Outputs')
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```
