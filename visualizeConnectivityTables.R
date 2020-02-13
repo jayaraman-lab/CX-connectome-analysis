@@ -5,7 +5,7 @@
 
 ### Connectivity matrix
 
-plotConnectivityMatrix = function(myConTab, byType, connectionMeasure="weightRelative") {
+plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure="weightRelative") {
   #' Generate plot of connectivity matrix using ggplot
   #' @param myConTab Neuprint connection table
   #' @param synapseCutOff Minimum number of synapses between two partners to be considered a connection
@@ -17,20 +17,23 @@ plotConnectivityMatrix = function(myConTab, byType, connectionMeasure="weightRel
   
   myConTab = myConTab %>% mutate(plotWeight = myConTab[[connectionMeasure]])
   
-  if (!byType){
-    myConTab$nameid = paste(as.character(myConTab$name), as.character(myConTab$bodyid), sep = "_")
-    myConTab$partnerid = paste(as.character(myConTab$partnerName), as.character(myConTab$partner), sep = "_")
+  if (byGroup == "id"){
+    myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
+    myConTab$nameid.to = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
   }
   
   conmatPlot = ggplot(myConTab) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
     scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,max(myConTab$plotWeight)))
   
-  if (byType){
-    conmatPlot =  conmatPlot + geom_tile(aes(partnerName,name,fill=plotWeight))
-  }
-  else{
-    conmatPlot =  conmatPlot + geom_tile(aes(partnerid,nameid,fill=plotWeight))
+  if (byGroup == "name"){
+    conmatPlot =  conmatPlot + geom_tile(aes(name.to,name.from,fill=plotWeight))
+  } else if(byGroup == "id"){
+    conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
+  } else if(byGroup == "type"){
+    conmatPlot =  conmatPlot + geom_tile(aes(type.to,type.from,fill=plotWeight))
+  } else{
+    conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
   }
   
   return(conmatPlot)
@@ -53,7 +56,7 @@ structureMatrixPlotByType = function(conmatPlot){
   conmatPlot = conmatPlot +
     theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
           strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) +
-    facet_grid(reorder(type, desc(type)) ~ partnerType, space="free", scales="free",switch="both")
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both")
   return(conmatPlot)
 }
 
