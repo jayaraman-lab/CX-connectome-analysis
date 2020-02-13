@@ -74,7 +74,7 @@ InputOutput_ROI_PerNeuron = function(NamedBodies){
   PB_Columns=which(grepl("[[:digit:]]",ROI_Names_Temp) & grepl("PB[(]",ROI_Names_Temp))
   PB_ColumnarNeuron_Rows=which(grepl("EP",roi_Connect$type) | grepl("PE",roi_Connect$type) |  grepl("PF",roi_Connect$type) |
                                grepl("P6",roi_Connect$type) |  grepl("IbSps",roi_Connect$type))
-  if (length(unique(roi_Connect$type[PB_ColumnarNeuron_Rows])) !=21){ warning('Wrong number of PB columnar cell types- Recheck types') }
+
   
   # Loop over PB columnar neurons (rows) and PB glomeruli ROI (columns) and set to NAN any 0 entries
   for (rrr in PB_ColumnarNeuron_Rows){
