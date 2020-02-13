@@ -31,7 +31,11 @@ For each neuron type, find the number of inputs and outputs in or outside of the
 ```{r}
 FBpreNpostRatios <- preNpostRatios(FBNronTypes,"FB")
 
-FBpreNpostRatios <- FBpreNpostRatios[which(FBpreNpostRatios$preRelative > 0.05 | FBpreNpostRatios$postRelative > 0.05),]
+# Look at the pre and post ratios and then cut those neurons with minimal innervations
+ggplot(FBpreNpostRatios, aes(x=preRelative, y=postRelative,color=type)) + geom_point() + theme(legend.position="none")
+FBpreNpostRatios <- FBpreNpostRatios[which(FBpreNpostRatios$preRelative > 0.2 | FBpreNpostRatios$postRelative > 0.15),]
+ggplot(FBpreNpostRatios, aes(x=preRelative, y=postRelative,color=type)) + geom_point() + theme(legend.position="none")
+
 FBpreNpostRatios <- FBpreNpostRatios[which(FBpreNpostRatios$regPr > 3 | FBpreNpostRatios$regPost > 3),]
 FBpreNpostRatios <- FBpreNpostRatios[order(FBpreNpostRatios$prePostDiff),]
 
@@ -52,6 +56,106 @@ p <- ggplot(data = FBpreNpostRatios[which(!grepl("Delta",FBpreNpostRatios$type))
   scale_color_manual(values = c('green','blue','red')) +
   xlab('neuron type') + ylab('pre ratio - post ratio')
 print(p)
+
+#ggsave("FBInputsAndOutputs.pdf", plot = last_plot(), device='pdf', 
+#       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+#       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+# Average the pre and post values within a given class
+FBpreNpostDiffMean <- aggregate(prePostDiff~type,
+                     FBpreNpostRatios,
+                          mean)
+colnames(FBpreNpostDiffMean)[2] <- "prePostDiffMean"
+FBpreNpostDiffSd <- aggregate(prePostDiff~type,
+                     FBpreNpostRatios,
+                          sd)
+colnames(FBpreNpostDiffSd)[2] <- "prePostDiffSd"
+FBpreRelativeMean <- aggregate(preRelative~type,
+                     FBpreNpostRatios,
+                          mean)
+colnames(FBpreRelativeMean)[2] <- "preRelativeMean"
+FBpreRelativeSd <- aggregate(preRelative~type,
+                     FBpreNpostRatios,
+                          sd)
+colnames(FBpreRelativeSd)[2] <- "preRelativeSd"
+FBpostRelativeMean <- aggregate(postRelative~type,
+                     FBpreNpostRatios,
+                          mean)
+colnames(FBpostRelativeMean)[2] <- "postRelativeMean"
+FBpostRelativeSd <- aggregate(postRelative~type,
+                     FBpreNpostRatios,
+                          sd)
+colnames(FBpostRelativeSd)[2] <- "postRelativeSd"
+FBpreNpost <- Reduce(function(x, y) merge(x, y, all=TRUE), list(FBpreNpostDiffMean, FBpreNpostDiffSd,FBpreRelativeMean,FBpreRelativeSd,FBpostRelativeMean,FBpostRelativeSd))
+FBpreNpost['classification'] = 'inner'
+FBpreNpost[which(FBpreNpost$prePostDiffMean > 0.05),]$classification = 'input'
+FBpreNpost[which(FBpreNpost$prePostDiffMean < -0.25),]$classification = 'output'
+FBpreNpost$classification <- factor(FBpreNpost$classification, levels = c('input','inner','output'))
+FBpreNpost <- FBpreNpost[order(FBpreNpost$prePostDiffMean),]
+
+ggplot(FBpreNpost, aes(x=preRelativeMean, y=postRelativeMean,color=classification,label=type)) +
+  geom_point(size=6) +
+  geom_text(aes(label=type),hjust=0, vjust=0,size = 6,show.legend = FALSE) +
+  geom_errorbar(aes(ymin=postRelativeMean-postRelativeSd, ymax=postRelativeMean+postRelativeSd),
+                width=.02, position=position_dodge(0.05)) +
+  geom_errorbarh(aes(xmin=preRelativeMean-preRelativeSd, xmax=preRelativeMean+preRelativeSd),
+                height=.02, position=position_dodge(0.05)) +
+  theme_classic() + xlab('pre ratio') + ylab('post ratio') + 
+  coord_fixed(ratio =1 ,xlim=c(0, 1.1),ylim=c(0, 1.1),expand=FALSE)  + 
+  geom_abline(intercept = 0, slope = 1, color="black", linetype="dashed", size=1) +
+  theme(panel.grid.major = element_line(colour = "gray",linetype="dashed"))
+ggsave("FBInputsAndOutputsMean2D.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+
+for (tp in 1:4){
+  if (tp == 1){
+    datNow = FBpreNpost[which(grepl("PF",FBpreNpost$type)),]
+    saveName = "FBInputsAndOutputs_PF.pdf"
+    w = 20
+    h = 15
+  }
+  if (tp == 2){
+    datNow = FBpreNpost[which(grepl("FQ",FBpreNpost$type)),]
+    saveName = "FBInputsAndOutputs_FQ.pdf"
+    w = 20
+    h = 15
+  }
+  if (tp == 3){
+    datNow = FBpreNpost[which(grepl("FB",FBpreNpost$type)),]
+    saveName = "FBInputsAndOutputs_FB.pdf"
+    w = 40
+    h = 5
+  }
+  if (tp == 4) {
+    datNow = FBpreNpost[which(grepl("ExR",FBpreNpost$type) | grepl("OA",FBpreNpost$type)),]
+    datNow <- datNow[which(datNow$type != "ExR8"),]
+    saveName = "FBInputsAndOutputs_other.pdf"
+    w = 20
+    h = 15
+  }
+  
+  dodge <- position_dodge(width = 0.9)
+  limits <- aes(ymax = datNow$prePostDiffMean + datNow$prePostDiffSd,
+                ymin = datNow$prePostDiffMean - datNow$prePostDiffSd)
+
+  p2 <- ggplot(data = datNow, aes(x = reorder(as.factor(type), -prePostDiffMean), y = prePostDiffMean, fill = classification))
+  p2 <- p2 +
+    geom_hline(yintercept = 0) +
+    geom_bar(stat = "identity", position = dodge) +
+    geom_errorbar(limits, position = dodge, width = 0.25) +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1),text = element_text(size=18)) +
+    xlab('neuron type') + ylab('pre ratio - post ratio')
+  
+  p2 <- p2 + scale_fill_manual(values = c('forestgreen','blue','red2'))
+  print(p2)
+  
+  ggsave(saveName, plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+       scale = 1.5, width = w, height = h, units ="cm", dpi = 600, limitsize = TRUE)
+}
 ```
 
 Look at who FB-Q's output to
@@ -256,8 +360,11 @@ corrDat[is.na(corrDat)] <- 0
 rownames(corrDat)<-corrDat$partnerType
 corrDat$partnerType<-NULL
 library(corrplot)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFLInputs.pdf", width = 20, height = 15)
 corrplot(cor(corrDat))
-    
+dev.off()
+
+   
 ```
 
 As above but for FQs
@@ -289,7 +396,10 @@ corrDat[is.na(corrDat)] <- 0
 rownames(corrDat)<-corrDat$partnerType
 corrDat$partnerType<-NULL
 library(corrplot)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenFQInputs.pdf", width = 20, height = 15)
 corrplot(cor(corrDat))
+dev.off()
+ 
 ```
 
 As above, for PFN outputs
@@ -321,9 +431,184 @@ corrDat[is.na(corrDat)] <- 0
 rownames(corrDat)<-corrDat$partnerType
 corrDat$partnerType<-NULL
 library(corrplot)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFNOutputs.pdf", width = 20, height = 15)
 corrplot(cor(corrDat))
+dev.off()
+
 ```
 
+Plot graph of Delta<->Delta connections
+```{r}
+preNeuron = c("Delta")
+postNeuron = c("Delta")
+slctROI = "FB"
+
+# Get connectivity table
+preIDs = getBodyIdsForList(preNeuron)
+postIDs = getBodyIdsForList(postNeuron)
+myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+
+require(igraph)
+# Reroganize to make graph with types instead of bodyids
+graphData = data.frame(from = myConnections$partnerType, to = myConnections$type, weight = myConnections$weight)
+graphData = graphData %>% group_by(from, to) %>% summarise(weight = mean(weight, na.rm = TRUE)) %>% ungroup()
+
+# Cutoff low synapse counts (and compare connections before and after)
+hist(graphData$weight, n=100)
+cutoff = 2
+graphData = graphData %>% filter(weight > cutoff)
+hist(graphData$weight, n=100)
+
+# Separate connections within a type and across types
+graphData_noSelf = graphData %>% filter(as.character(from) != as.character(to))
+graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
+
+# Pull out the nodes of the graph
+nodes  = union(unique(graphData_noSelf$from), unique(graphData_noSelf$to))
+
+# Process self connections (will serve as size of circles in plot)
+graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from, "weight" = graphData_toSelf$weight), data.frame("from" = nodes))
+graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
+
+# Create a graph object from the connections across types
+connectGraph = graph_from_data_frame(graphData_noSelf)
+connectGraph <- delete_edges(connectGraph, E(connectGraph)[weight<cutoff])
+connectGraph
+
+# Assign colors to the nodes from the lookup table
+nodeCols = seq(1, length(nodes))
+for (i in seq(1, length(simpleTypesNodes))) {
+  nodeCols[i] = colors()[colorValueLookup$col[colorValueLookup$type == nodes[i]]]
+}
+
+# Make labels for the nodes in the graph
+V(connectGraph)$label.color="black"
+V(connectGraph)$label.cex=0.8
+V(connectGraph)$label.dist=0
+
+# Make the size of each node correspond to the number of self connections
+V(connectGraph)$size = 7 + as.numeric(7*graphData_selfFB$weight/max(c(1, max(graphData_selfFB$weight) ) ) )
+V(connectGraph)$vertex.frame.color="gray"
+V(connectGraph)$color=nodeCols
+
+# Set edge width based on weight:
+E(connectGraph)$width <- E(connectGraph)$weight/5.
+#change arrow size and edge color:
+E(connectGraph)$arrow.size <- 1
+#E(connectGraph)$edge.color <- "gray80"
+edge.start <- ends(connectGraph, es=E(connectGraph), names=F)[,1]
+edge.col = V(connectGraph)$color[edge.start]
+
+l <- layout_with_fr(connectGraph) # layout_components
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\DeltaNetwork.pdf", width = 10, height = 10)#, units ="cm", dpi = 600)
+plot(connectGraph,edge.color=edge.col, edge.curved=0.5, layout=l)  #vertex.shape="fcircle", 
+
+```
+
+Look at Delta6B inputs
+```{r}
+D6B_Pre <- getConnectionTable(getBodyIdsForList(c("Delta6B")),"PRE","FB")
+D6B_Pre <- 
+p <- connectivityBarPlot(D6B_Pre,"PRE") + ggtitle("Delta6B inputs")
+print(p)
+ggsave("Delta6BInputs.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+```
+Look at primary outputs of PFNs
+```{r}
+
+for (pfn in 1:8){
+  if (pfn == 1)
+    typeNow = "PFNa"
+  if (pfn == 2)
+    typeNow = "PFNp_c"
+  if (pfn == 3)
+    typeNow = "PFNm_a"
+  if (pfn == 4)
+    typeNow = "PFNp_a"
+  if (pfn == 5)
+    typeNow = "PFNd"
+  if (pfn == 6)
+    typeNow = "PFNm_b"
+  if (pfn == 7)
+    typeNow = "PFNp_b"
+  if (pfn == 8)
+    typeNow = "PFNv"
+  
+  bodyIDs = neuprint_search(paste0(typeNow,'.*'),field='type')
+  
+  PF_Post <- getConnectionTable(bodyIDs,"POST","FB")
+  PF_Post <- PF_Post[which(PF_Post$weight>4),]
+  p <- connectivityBarPlot(PF_Post,"POST") + ggtitle(paste(typeNow,"outputs",sep=' ')) + ylim(0,80)
+  print(p)
+  ggsave(paste(typeNow,"Outputs.pdf",sep='_'), plot = last_plot(), device='pdf', 
+         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+         scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+```
+
+Look at primary inputs onto PFLs
+```{r}
+
+for (pfn in 1:3){
+  if (pfn == 1)
+    typeNow = "PFL1"
+  if (pfn == 2)
+    typeNow = "PFL2"
+  if (pfn == 3)
+    typeNow = "PFL3"
+  
+  bodyIDs = neuprint_search(paste0(typeNow,'.*'),field='type')
+  
+  PF_Post <- getConnectionTable(bodyIDs,"PRE","FB")
+  PF_Post <- PF_Post[which(PF_Post$weight>4),]
+  p <- connectivityBarPlot(PF_Post,"POST") + ggtitle(paste(typeNow,"inputs",sep=' ')) + ylim(0,100)
+  print(p)
+  ggsave(paste(typeNow,"Inputs.pdf",sep='_'), plot = last_plot(), device='pdf', 
+         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+         scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+```
+
+Look at the correlation between the different PF types outputs
+```{r}
+FQ_Post = getConnectionTable(getBodyIdsForList(c("PF")),"POST","FB")
+FQ_Post <- FQ_Post[which(!grepl("PFL",FQ_Post$type) & !grepl("PFR_b",FQ_Post$type)),]
+
+FQ_Post_Sum <- aggregate(weight~type+partnerType,
+                            FQ_Post,
+                            sum)
+FQ_Post_Mean <- aggregate(weight~type+partnerType,
+                             FQ_Post,
+                             mean)
+
+conmatPlot = ggplot(FQ_Post_Sum %>% filter(weight > 5)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
+  geom_tile(aes(type,partnerType,fill=weight))
+print(conmatPlot)
+
+conmatPlot = ggplot(FQ_Post_Mean) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
+  geom_tile(aes(type,partnerType,fill=weight))
+print(conmatPlot)
+
+# Look at the correlations across input types
+corrDat = spread(FQ_Post_Mean,type,weight)
+corrDat[is.na(corrDat)] <- 0
+rownames(corrDat)<-corrDat$partnerType
+corrDat$partnerType<-NULL
+library(corrplot)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFOutputs.pdf", width = 20, height = 15)
+corrplot(cor(corrDat))
+dev.off()
+ 
+```
 
 Find the shortest path between a given input and output neuron
 ```{r}
@@ -526,5 +811,270 @@ ggplot(clustStats, aes(clustIDs, tot.withinss)) + geom_point() + ylim(0,5E9)
 synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
 
 ggplot(D6syns[which(D6syns$prepost == 1),], aes(x,z, color = as.factor(synClusts$cluster))) + geom_point()
+```
+
+Get all PFLs and plot presynapses
+```{r}
+# Load the reshape library 
+library(reshape2)
+
+# Specify the number of bins to use
+nbins <- 100
+
+# Pull the FB mesh
+FB_Mesh = neuprint_ROI_mesh("FB")
+FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+
+# Get the x and z bins
+x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
+z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
+
+# Create a 2D histogram of the FB points
+FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
+FBfreq2D <- diag(nbins)*0
+FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
+dimnames(FBfreq2D) <- list(x.bin, z.bin)
+FBhist.melt <- melt(FBfreq2D)
+names(FBhist.melt) <- c("x", "z", "numPts")
+
+# Make a binary mask out of the FB points
+FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- 0.1
+FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
+FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
+
+# Pull the PFL type names
+PFLs = neuprint_search("PFL.*")
+PFLTypes = unique(PFLs$type)
+
+# Step through the PFL types, plotting the synapses for each
+for (typeNow in 1:length(PFLTypes)){
+  # Skip over empty types
+  if (is.na(PFLTypes[typeNow])) {
+    next
+  }
+  
+  # Get the body ids
+  PFLBodyIds = PFLs[which(PFLs$type == PFLTypes[typeNow]),]$bodyid
+  cMap = c("#000000FF")
+  cMap = append(cMap,rainbow(length(PFLBodyIds)))
+  
+  # Create a plot with the FB outline
+  p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+  for (bid in 1:length(PFLBodyIds)){
+    
+    # Pull the individual PFL synapses
+    PFLSyns = neuprint_get_synapses(PFLBodyIds[bid], roi="FB")
+    PFLSyns <-  PFLSyns[which(PFLSyns$prepost == 1),] %>% mutate(name=as.character(PFLTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+     
+    # Create a 2D histogram of the synapses
+    freq <-  melt(table(findInterval(PFLSyns$x, x.bin),findInterval(PFLSyns$z, z.bin)))
+    freq2D <- diag(nbins)*0
+    freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
+    dimnames(freq2D) <- list(x.bin, z.bin)
+    hist.melt <- melt(freq2D)
+    names(hist.melt) <- c("xPos", "zPos", "numSyns")
+    
+    # Make a binary mask out of the synapses
+    hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- bid+1
+    hist.melt[which(hist.melt$numSyns<0.1),]$numSyns <- 0
+    
+    hist.melt$bodyid = PFLBodyIds[bid]
+
+    #p1 <- p1 + geom_contour(data=hist.melt, aes(x = xPos,y = zPos,z = numSyns,color=bodyid),bins=1)
+    hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
+    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.25))
+    
+  }
+  p1 <- p1 + coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(PFLTypes[typeNow])) + scale_x_reverse() + scale_y_reverse() + scale_fill_gradientn(colors=cMap)
+  
+  print(p1)
+}
+
+```
+
+```{r}
+preSynFBPlot <- function(type,prePost){
+  # Load the reshape library 
+  library(reshape2)
+  
+  # Specify the number of bins to use
+  nbins <- 100
+  
+  # Pull the FB mesh
+  FB_Mesh = neuprint_ROI_mesh("FB")
+  FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+  
+  # Get the x and z bins
+  x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
+  z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
+  
+  # Create a 2D histogram of the FB points
+  FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
+  FBfreq2D <- diag(nbins)*0
+  FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
+  dimnames(FBfreq2D) <- list(x.bin, z.bin)
+  FBhist.melt <- melt(FBfreq2D)
+  names(FBhist.melt) <- c("x", "z", "numPts")
+  
+  # Make a binary mask out of the FB points
+  FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- 0.1
+  FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
+  FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
+  
+  # Get the body ids
+  bodyIds = neuprint_search(paste0(type,".*"))$bodyid
+  
+  # Assign a color map given the number of synapsese
+  cMap = c("#000000FF")
+  cMap = append(cMap,rainbow(length(bodyIds)))
+  
+  # Create a plot with the FB outline
+  p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+  for (bid in 1:length(bodyIds)){
+    
+    # Pull the individual PFL synapses
+    syns = neuprint_get_synapses(bodyIds[bid], roi="FB")
+    if (grepl("PRE",prePost))
+      syns <-  syns[which(syns$prepost == 0),]
+    else
+      syns <- syns[which(syns$prepost == 1),]
+    if (nrow(syns)==0)
+      next
+    syns <- syns %>% mutate(name=as.character(type))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+     
+    # Create a 2D histogram of the synapses
+    freq <-  melt(table(findInterval(syns$x, x.bin),findInterval(syns$z, z.bin)))
+    freq2D <- diag(nbins)*0
+    freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
+    dimnames(freq2D) <- list(x.bin, z.bin)
+    hist.melt <- melt(freq2D)
+    names(hist.melt) <- c("xPos", "zPos", "numSyns")
+    
+    # Make a binary mask out of the synapses
+    hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- bid+1
+    hist.melt[which(hist.melt$numSyns<0.1),]$numSyns <- 0
+    
+    hist.melt$bodyid = bodyIds[bid]
+
+    #p1 <- p1 + geom_contour(data=hist.melt, aes(x = xPos,y = zPos,z = numSyns,color=bodyid),bins=1)
+    hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
+    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.25))
+    
+  }
+  p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
+    scale_x_reverse() + scale_y_reverse() +
+    scale_fill_gradientn(colors=cMap) + theme(legend.position="none")
+  if (grepl("PRE",prePost))
+    p1 <-  p1 + ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
+  else
+    p1 <-  p1 + ggtitle(paste0(as.character(type),": inputs (n=",length(bodyIds),")")) 
+  
+  return(p1)
+}
+```
+
+```{r}
+plotAndSaveSynDistrosFB <- function(typeRoot,prePost){
+  allNrons = neuprint_search(paste0(typeRoot,".*"))
+  types = unique(allNrons$type)
+  plot_list = list()
+  for (t in 1:length(types)){
+    if (is.na(types[t])) {
+      next
+    }
+    p <- preSynFBPlot(types[t],prePost)
+    plot_list[[t]] = p
+  }
+  return(plot_list)
+}
+
+```
+
+```{r}
+library(gridExtra)
+
+# PFNs
+pPFN_Pre <- plotAndSaveSynDistrosFB("PFN","PRE")
+pPFN_Post <- plotAndSaveSynDistrosFB("PFN","POST")
+
+# PFRs
+pPFR_Pre <- plotAndSaveSynDistrosFB("PFR","PRE")
+pPFR_Post <- plotAndSaveSynDistrosFB("PFR","POST")
+
+# PFGs
+pPFG_Pre <- plotAndSaveSynDistrosFB("PFG","PRE")
+pPFG_Post <- plotAndSaveSynDistrosFB("PFG","POST")
+
+# PFLs
+pPFL_Pre <- plotAndSaveSynDistrosFB("PFL","PRE")
+pPFL_Post <- plotAndSaveSynDistrosFB("PFL","POST")
+
+gPF1 = do.call("grid.arrange", c(c(pPFN_Post[1:4]), ncol=4))
+gPF2 = do.call("grid.arrange", c(c(pPFN_Pre[1:4]), ncol=4))
+gPF3 = do.call("grid.arrange", c(c(pPFN_Post[5:8]), ncol=4))
+gPF4 = do.call("grid.arrange", c(c(pPFN_Pre[5:8]), ncol=4))
+gPF5 = do.call("grid.arrange", c(c(pPFG_Post,pPFR_Post), ncol=4))
+gPF6 = do.call("grid.arrange", c(c(pPFG_Pre,pPFR_Pre), ncol=4))
+gPF7 = do.call("grid.arrange", c(c(pPFL_Post), ncol=4))
+gPF <-grid.arrange(gPF1,gPF2,gPF3,gPF4,gPF5,gPF6,gPF7,ncol=1) 
+ggsave(paste0("PFSynapses.pdf"), gPF, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+
+# PFQs
+pFQ_Pre <- plotAndSaveSynDistrosFB("FQ","PRE")
+pFQ_Post <- plotAndSaveSynDistrosFB("FQ","POST")
+
+gFQ1 = do.call("grid.arrange", c(c(pFQ_Post[1:5]), ncol=5))
+gFQ2 = do.call("grid.arrange", c(c(pFQ_Pre[1:5]), ncol=5))
+gFQ3 = do.call("grid.arrange", c(c(pFQ_Post[6:10]), ncol=5))
+gFQ4 = do.call("grid.arrange", c(c(pFQ_Pre[6:10]), ncol=5))
+gFQ5 = do.call("grid.arrange", c(c(pFQ_Post[11:15]), ncol=5))
+gFQ6 = do.call("grid.arrange", c(c(pFQ_Pre[11:15]), ncol=5))
+gFQ7 = do.call("grid.arrange", c(c(pFQ_Post[16:20]), ncol=5))
+gFQ8 = do.call("grid.arrange", c(c(pFQ_Pre[16:20]), ncol=5))
+gFQ <-grid.arrange(gFQ1,gFQ2,gFQ3,gFQ4,gFQ5,gFQ6,gFQ7,gFQ8,ncol=1) 
+ggsave(paste0("FQSynapses.pdf"), gFQ, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+
+# Delta 0s
+Delta0_Pre <- plotAndSaveSynDistrosFB("Delta0","PRE")
+Delta0_Post <- plotAndSaveSynDistrosFB("Delta0","POST")
+
+gD01 = do.call("grid.arrange", c(c(Delta0_Post[1:4]), ncol=4))
+gD02 = do.call("grid.arrange", c(c(Delta0_Pre[1:4]), ncol=4))
+gD03 = do.call("grid.arrange", c(c(Delta0_Post[5:8]), ncol=4))
+gD04 = do.call("grid.arrange", c(c(Delta0_Pre[5:8]), ncol=4))
+gD05 = do.call("grid.arrange", c(c(Delta0_Post[9:12]), ncol=4))
+gD06 = do.call("grid.arrange", c(c(Delta0_Pre[9:12]), ncol=4))
+gD07 = do.call("grid.arrange", c(c(Delta0_Post[13:16]), ncol=4))
+gD08 = do.call("grid.arrange", c(c(Delta0_Pre[13:16]), ncol=4))
+gD0 <-grid.arrange(gD01,gD02,gD03,gD04,gD05,gD06,gD07,gD08,ncol=1) 
+ggsave(paste0("Delta0Synapses.pdf"), gD0, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+
+# Delta 6s
+Delta6_Pre <- plotAndSaveSynDistrosFB("Delta6","PRE")
+Delta6_Post <- plotAndSaveSynDistrosFB("Delta6","POST")
+
+gD61 = do.call("grid.arrange", c(c(Delta6_Post[1:4]), ncol=4))
+gD62 = do.call("grid.arrange", c(c(Delta6_Pre[1:4]), ncol=4))
+gD63 = do.call("grid.arrange", c(c(Delta6_Post[5:8]), ncol=4))
+gD64 = do.call("grid.arrange", c(c(Delta6_Pre[5:8]), ncol=4))
+gD65 = do.call("grid.arrange", c(c(Delta6_Post[9:12]), ncol=4))
+gD66 = do.call("grid.arrange", c(c(Delta6_Pre[9:12]), ncol=4))
+gD67 = do.call("grid.arrange", c(c(Delta6_Post[13]), ncol=4))
+gD68 = do.call("grid.arrange", c(c(Delta6_Pre[13]), ncol=4))
+gD6 <-grid.arrange(gD61,gD62,gD63,gD64,gD65,gD66,gD67,gD68,ncol=1) 
+ggsave(paste0("Delta6Synapses.pdf"), gD6, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+
 ```
 
