@@ -84,8 +84,8 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     outInfo <- neuprint_get_roiInfo(myConnections$to)
     if (synapseType == "PRE"){
       inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
-       inputsTable <- inputsTable %>% mutate(from = bodyid)
-       inp <- "partner"
+      inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+      inp <- "partner"
     }else{
       inputsTable <- myConnections
       inp <- "bodyid"
