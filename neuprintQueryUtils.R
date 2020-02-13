@@ -353,7 +353,7 @@ getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...
   myConnections = getConnectionTable(preBodyIDs, "POST", slctROI,...)
   #myConnections = getConnectionTable(postBodyIDs, "PRE", slctROI,...)
   
-  myConnections = myConnections %>% filter(partner %in% postBodyIDs) 
+  myConnections = myConnections %>% filter(to %in% postBodyIDs) 
   
   return( myConnections )
 }
