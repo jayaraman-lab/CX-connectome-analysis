@@ -50,7 +50,11 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   refMeta <- bodyIDs
   bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
-  myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
+  if (by.roi | !is.null(slctROI)){
+   myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
+  }else{
+    myConnections <- myConnections %>% filter(weight>synThresh)
+  }
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMetaOrig <- neuprint_get_meta(myConnections$bodyid)  ## To get the database type name
   
@@ -109,10 +113,11 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
              totalPreROIweight = totalPre[["totalPreROIweight"]][match(myConnections$from,totalPre$from)]) %>%
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
+    return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
+    ## synapse (pre/post) is split between ROIs
   }
+  return(myConnections)
   
-  return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
-                                                      ## synapse (pre/post) is split between ROIs
   
 }
 
