@@ -103,16 +103,18 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
     outInfo <- neuprint_get_roiInfo(myConnections$to)
     
-    totalPre <- inputsTable %>% group_by(from) %>%
+    totalPre <- inputsTable %>% group_by(from,roi) %>%
                     summarise(totalPreROIweight = sum(ROIweight))
     
+    myConnections <- myConnections %>% group_by(roi) %>%
+             mutate(totalPreROIweight = totalPre[["totalPreROIweight"]][totalPre$roi == roi[1]][match(from,totalPre$from[totalPre$roi == roi[1]])]) %>% ungroup()
+    
     postVar <- paste0(myConnections[["roi"]],".post")
-  
+    
     myConnections <- myConnections %>%
-      mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
-             totalPreROIweight = totalPre[["totalPreROIweight"]][match(myConnections$from,totalPre$from)]) %>%
-      mutate(weightRelative=ROIweight/totalROIweight,
-             outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
+          mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
+                 weightRelative=ROIweight/totalROIweight,
+                 outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
   }
