@@ -53,187 +53,91 @@ source("GetNeuronsInRoi.r")
 ```{r}
 rois = neuprint_ROIs()
 heir=neuprint_ROI_hierarchy()
+heir[, ] <- lapply(heir[, ], as.character)
+
+# Restructure ROIs to add PB(L) and PB(R)
+heir$parent[ grepl("[[:digit:]]",heir$roi) & grepl("PB[(]L",heir$roi) ] = "PB(L)"
+heir$parent[ grepl("[[:digit:]]",heir$roi) & grepl("PB[(]R",heir$roi) ] <- "PB(R)"
+heir <- rbind(heir, data.frame(parent='PB',roi='PB(L)'))
+heir <- rbind(heir, data.frame(parent='PB',roi='PB(R)'))
+
 ```
 
-### Get neurons in the ROI
+
+### Get the number of synapses in each ROI for all neurons and neuron types (unthresholded)
 ```{r}
-NO_NamedBodies = Get_AllNeurons_InRoi("NO", TRUE)
-NO1_NamedBodies = Get_AllNeurons_InRoi("NO1", TRUE)
-NO2_NamedBodies = Get_AllNeurons_InRoi("NO2", TRUE)
-NO3_NamedBodies = Get_AllNeurons_InRoi("NO3", TRUE)
-```
-
-
-### Threshold neurons (need to agree on criteria and clean up code)
-```{r}
-
-PreMaxThresh=10
-PostMaxThresh=10
 
 # NO
-Output <-  SynapseStats_And_Threshold(NO_NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, "NO")
+Output=Get_SynapseCount_In_Rois("NO",TRUE)
 list2env(Output ,.GlobalEnv)
 NO_NamedBodies=NamedBodies
-rm(Output, NamedBodies)
-
-# NO1
-Output <-  SynapseStats_And_Threshold(NO1_NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, "NO1")
-list2env(Output ,.GlobalEnv)
-NO1_NamedBodies=NamedBodies
-rm(Output, NamedBodies)
-
-# NO2
-Output <-  SynapseStats_And_Threshold(NO2_NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, "NO2")
-list2env(Output ,.GlobalEnv)
-NO2_NamedBodies=NamedBodies
-rm(Output, NamedBodies)
-
-# NO3
-Output <-  SynapseStats_And_Threshold(NO3_NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh, "NO3")
-list2env(Output ,.GlobalEnv)
-NO3_NamedBodies=NamedBodies
-rm(Output, NamedBodies)
-
-
-```
-
-### Compute type averages of named bodies to get an idea of which neurons belong in which compartments
-### and where threshold on relative synapse counts should be
-```{r}
-
-# NO
-NO_NamedBodies_TypeAverage= aggregate(NO_NamedBodies[, 6:20], list(NO_NamedBodies$bodytype), mean)
-colnames(NO_NamedBodies_TypeAverage)[1]="bodytype"
-
-#NO1
-NO1_NamedBodies_TypeAverage=aggregate(NO1_NamedBodies[, 6:20], list(NO1_NamedBodies$bodytype), mean)
-colnames(NO1_NamedBodies_TypeAverage)[1]="bodytype"
-
-#NO2
-NO2_NamedBodies_TypeAverage=aggregate(NO2_NamedBodies[, 6:20], list(NO2_NamedBodies$bodytype), mean)
-colnames(NO2_NamedBodies_TypeAverage)[1]="bodytype"
-
-#NO3
-NO3_NamedBodies_TypeAverage=aggregate(NO3_NamedBodies[, 6:20], list(NO3_NamedBodies$bodytype), mean)
-colnames(NO3_NamedBodies_TypeAverage)[1]="bodytype"
-
-```
-
-
-
-### Get the number of synapses in each ROI for individual neurons and individual neuron types
-```{r message=FALSE, warning=FALSE}
-
-# 10 is good
-minSynapses = 5
-
-# NO
-Output=InputOutput_ROI_PerNeuron(NO_NamedBodies, minSynapses)
-list2env(Output ,.GlobalEnv)
+NO_NamedBodies_TypeAverage=NamedBodies_TypeAverage
 NO_roi_Connect_bytype_df=roi_Connect_bytype_df
 NO_roi_Connect_df=roi_Connect_df
-rm(Output, roi_Connect_bytype_df, roi_Connect_df)
+rm(Output, roi_Connect_bytype_df, roi_Connect_df, NamedBodies, NamedBodies_TypeAverage)
 
 # NO1
-Output=InputOutput_ROI_PerNeuron(NO1_NamedBodies, minSynapses)
+Output=Get_SynapseCount_In_Rois("NO1",TRUE)
 list2env(Output ,.GlobalEnv)
+NO1_NamedBodies=NamedBodies
+NO1_NamedBodies_TypeAverage=NamedBodies_TypeAverage
 NO1_roi_Connect_bytype_df=roi_Connect_bytype_df
 NO1_roi_Connect_df=roi_Connect_df
-rm(Output, roi_Connect_bytype_df, roi_Connect_df)
+rm(Output, roi_Connect_bytype_df, roi_Connect_df, NamedBodies, NamedBodies_TypeAverage)
 
 # NO2
-Output=InputOutput_ROI_PerNeuron(NO2_NamedBodies, minSynapses)
+Output=Get_SynapseCount_In_Rois("NO2",TRUE)
 list2env(Output ,.GlobalEnv)
+NO2_NamedBodies=NamedBodies
+NO2_NamedBodies_TypeAverage=NamedBodies_TypeAverage
 NO2_roi_Connect_bytype_df=roi_Connect_bytype_df
 NO2_roi_Connect_df=roi_Connect_df
-rm(Output, roi_Connect_bytype_df, roi_Connect_df)
+rm(Output, roi_Connect_bytype_df, roi_Connect_df, NamedBodies, NamedBodies_TypeAverage)
 
 # NO3
-Output=InputOutput_ROI_PerNeuron(NO3_NamedBodies, minSynapses)
+Output=Get_SynapseCount_In_Rois("NO3",TRUE)
 list2env(Output ,.GlobalEnv)
+NO3_NamedBodies=NamedBodies
+NO3_NamedBodies_TypeAverage=NamedBodies_TypeAverage
 NO3_roi_Connect_bytype_df=roi_Connect_bytype_df
 NO3_roi_Connect_df=roi_Connect_df
-rm(Output, roi_Connect_bytype_df, roi_Connect_df)
-
-
-
-
+rm(Output, roi_Connect_bytype_df, roi_Connect_df, NamedBodies, NamedBodies_TypeAverage)
 
 
 ```
 
-
-
-### Add ROI and neuron type names that will be displayed on plots
+# Filter data by synapse counts, which also gets rid of NA values
 ```{r}
 
 # NO
-NO_roi_Connect_bytype_df$roi_names = paste(NO_roi_Connect_bytype_df$roi, '(', NO_roi_Connect_bytype_df$roi_hemi, ')', sep="")
-NO_roi_Connect_bytype_df$type_name = paste(NO_roi_Connect_bytype_df$type, '(', NO_roi_Connect_bytype_df$neuron_hemi, ')', sep="")
+NO_roi_Connect_bytype_df=filter(NO_roi_Connect_bytype_df, count > 0 )
+NO_roi_Connect_df=filter(NO_roi_Connect_df, count > 0 )
 
 # NO1
-NO1_roi_Connect_bytype_df$roi_names = paste(NO1_roi_Connect_bytype_df$roi, '(', NO1_roi_Connect_bytype_df$roi_hemi, ')', sep="")
-NO1_roi_Connect_bytype_df$type_name = paste(NO1_roi_Connect_bytype_df$type, '(', NO1_roi_Connect_bytype_df$neuron_hemi, ')', sep="")
+NO1_roi_Connect_bytype_df=filter(NO1_roi_Connect_bytype_df, count > 0 )
+NO1_roi_Connect_df=filter(NO1_roi_Connect_df, count > 0 )
 
 # NO2
-NO2_roi_Connect_bytype_df$roi_names = paste(NO2_roi_Connect_bytype_df$roi, '(', NO2_roi_Connect_bytype_df$roi_hemi, ')', sep="")
-NO2_roi_Connect_bytype_df$type_name = paste(NO2_roi_Connect_bytype_df$type, '(', NO2_roi_Connect_bytype_df$neuron_hemi, ')', sep="")
+NO2_roi_Connect_bytype_df=filter(NO2_roi_Connect_bytype_df, count > 0 )
+NO2_roi_Connect_df=filter(NO2_roi_Connect_df, count > 0 )
 
 # NO3
-NO3_roi_Connect_bytype_df$roi_names = paste(NO3_roi_Connect_bytype_df$roi, '(', NO3_roi_Connect_bytype_df$roi_hemi, ')', sep="")
-NO3_roi_Connect_bytype_df$type_name = paste(NO3_roi_Connect_bytype_df$type, '(', NO3_roi_Connect_bytype_df$neuron_hemi, ')', sep="")
+NO3_roi_Connect_bytype_df=filter(NO3_roi_Connect_bytype_df, count > 0 )
+NO3_roi_Connect_df=filter(NO3_roi_Connect_df, count > 0 )
 
-  
+
 ```
 
-
-
-## Make plot of ALL neurons in NO, NO1, NO2, and NO3, before thresholding
+## Make plot of ALL neurons and histogram of synapse counts
 ```{r}
-
 
 # Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
 p0<-ggplot(NO_roi_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("ALL NO Neuron Input/Output ROIs")
-print(p0)
 ggsave(paste(PlotDir, "ALL_NO_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
+       width = 30, height = 20, units ="in", dpi = 300, limitsize = TRUE)
 
-
-# Plot all of the ROIs (and sub ROIs) that all NO1 neurons innervate
-p0<-ggplot(NO1_roi_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL NO1 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "ALL_NO1_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO2 neurons innervate
-p0<-ggplot(NO2_roi_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL NO2 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "ALL_NO2_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO3 neurons innervate
-p0<-ggplot(NO3_roi_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL NO3 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "ALL_NO3_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-```
-
-
-
-### Plot synapse counts in just the NO compartments, which will help decide which neurons belong in which ROIs
-```{r}
 
 # get just the NO compartments
 JustNoROIs=filter(NO_roi_Connect_bytype_df, NO_roi_Connect_bytype_df$roi %in% c("NO1","NO2","NO3") )
@@ -242,9 +146,8 @@ JustNoROIs=filter(NO_roi_Connect_bytype_df, NO_roi_Connect_bytype_df$roi %in% c(
 p0<-ggplot(JustNoROIs, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("NO Neuron Input/Output NO sub ROIs")
-print(p0)
 ggsave(paste(PlotDir, "ALL_NO_","subROIs.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 15, height = 7.5, units ="in", dpi = 600, limitsize = TRUE)
+       width = 15, height = 7.5, units ="in", dpi = 300, limitsize = TRUE)
 
 
 ```
@@ -264,191 +167,92 @@ NO2_Type=NO2_NamedBodies_TypeAverage$bodytype[NO2_NamedBodies_TypeAverage$PrePos
 NO3_Type=NO3_NamedBodies_TypeAverage$bodytype[NO3_NamedBodies_TypeAverage$PrePost_Relative>RelSynThresh]
 
 # Add/Remove types as needed
-NO1_Type = NO1_Type[ !(NO1_Type %in% c("FB4M","LN3")) ]
+NO1_Type = NO1_Type[ !(NO1_Type %in% c("FB4M","LN3","SIFamide","LN3")) ]
 NO2_Type = NO2_Type[ !(NO2_Type %in% c("FB1C","LNa")) ]
-NO3_Type = NO3_Type[ !(NO3_Type %in% c()) ]
+NO3_Type = NO3_Type[ !(NO3_Type %in% c("ADM03oe_pct","Delta0N","PDM13y_pct","PVL11r_pct","PVM09i_pct")) ]
 NO_Type = NO_Type[ NO_Type %in% c(NO1_Type, NO2_Type, NO3_Type) ]
 
 # Threshold NO
 NO_ExcludedTypes=unique(filter(NO_roi_Connect_bytype_df, !(type %in% NO_Type) )$type)
-NO_roi_Connect_bytype_dfThresh=filter(NO_roi_Connect_bytype_df, type %in% NO_Type)
+NO_roi_Connect_bytype_df=filter(NO_roi_Connect_bytype_df, type %in% NO_Type)
 
 # Threshold NO1
 NO1_ExcludedTypes=unique(filter(NO1_roi_Connect_bytype_df, !(type %in% NO1_Type) )$type)
-NO1_roi_Connect_bytype_dfThresh=filter(NO1_roi_Connect_bytype_df, type %in% NO1_Type)
+NO1_roi_Connect_bytype_df=filter(NO1_roi_Connect_bytype_df, type %in% NO1_Type)
 
 # Threshold NO2
 NO2_ExcludedTypes=unique(filter(NO2_roi_Connect_bytype_df, !(type %in% NO2_Type) )$type)
-NO2_roi_Connect_bytype_dfThresh=filter(NO2_roi_Connect_bytype_df, type %in% NO2_Type)
+NO2_roi_Connect_bytype_df=filter(NO2_roi_Connect_bytype_df, type %in% NO2_Type)
 
 # Threshold NO3
 NO3_ExcludedTypes=unique(filter(NO3_roi_Connect_bytype_df, !(type %in% NO3_Type) )$type)
-NO3_roi_Connect_bytype_dfThresh=filter(NO3_roi_Connect_bytype_df, type %in% NO3_Type)
+NO3_roi_Connect_bytype_df=filter(NO3_roi_Connect_bytype_df, type %in% NO3_Type)
 
-save(NO_Type, NO1_Type, NO2_Type, NO3_Type, RelSynThresh, file = paste(SaveDir,"NO_Types.RData",sep=""))
-
-```
-
-
-
-## Make plot of THRESHOLDED neurons in NO, NO1, NO2, and NO3
-```{r}
-
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(NO_roi_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh NO Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Thresh_NO_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO1 neurons innervate
-p0<-ggplot(NO1_roi_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh NO1 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Thresh_NO1_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO2 neurons innervate
-p0<-ggplot(NO2_roi_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh NO2 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Thresh_NO2_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO3 neurons innervate
-p0<-ggplot(NO3_roi_Connect_bytype_dfThresh, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh NO3 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "Thresh_NO3_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
+# Save neuron type list for other's use
+save(NO_Type, NO1_Type, NO2_Type, NO3_Type, RelSynThresh, NO_ExcludedTypes, file = paste(SaveDir,"NO_Types.RData",sep=""))
 
 ```
 
 
 
-# Remove some regions/layers and replot data
-```{r}
-
-Remove_NO_ROIs=c("CX", "FB-column3", "LX","NO","dACA","gL")
-Remove_SubRois=c("PB[(]R","PB[(]L","FBl","EBr","a","b","g")
-
-
-NO_ROISubset=subset(NO_roi_Connect_bytype_dfThresh, !((roi %in% Remove_NO_ROIs) | 
-                                                      roi_names %in% c("PB(C)","LAL(R)") | 
-                                                      grepl(paste(Remove_SubRois, collapse="|"), roi)) ) 
-NO1_ROISubset=subset(NO1_roi_Connect_bytype_dfThresh, !((roi %in% Remove_NO_ROIs) | 
-                                                      roi_names %in% c("PB(C)","LAL(R)") | 
-                                                      grepl(paste(Remove_SubRois, collapse="|"), roi)) ) 
-NO2_ROISubset=subset(NO2_roi_Connect_bytype_dfThresh, !((roi %in% Remove_NO_ROIs) | 
-                                                      roi_names %in% c("PB(C)","LAL(R)") | 
-                                                      grepl(paste(Remove_SubRois, collapse="|"), roi)) ) 
-NO3_ROISubset=subset(NO3_roi_Connect_bytype_dfThresh, !((roi %in% Remove_NO_ROIs) | 
-                                                      roi_names %in% c("PB(C)","LAL(R)") | 
-                                                      grepl(paste(Remove_SubRois, collapse="|"), roi)) ) 
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(NO_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F_ThreshSubset_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO1 neurons innervate
-p0<-ggplot(NO1_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO1 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F_ThreshSubset_NO1_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 12, height = 6, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO2 neurons innervate
-p0<-ggplot(NO2_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO2 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F_ThreshSubset_NO2_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 16, height = 8, units ="in", dpi = 600, limitsize = TRUE)
-
-
-# Plot all of the ROIs (and sub ROIs) that all NO3 neurons innervate
-p0<-ggplot(NO3_ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO3 Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F_ThreshSubset_NO3_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 16, height = 8, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
-```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## Subset on parent ROIs and some sub ROIs as a princpled way of showing ROIs
 ```{r}
 
 # Divide parent ROIs into smaller subROIs that we want to show
-ROI_LIST=c("hemibrain","CX","NO","NO(R)","NO(L)","LX","LX(R)","LX(L)","PB","LAL(R)") #INP to include crepine or not?
+ROI_LIST=c("hemibrain","CX","NO","NO(R)","NO(L)","LX","LX(R)","LX(L)","PB","LAL(R)") # List of parent ROIs to include
 HB_Children=subset(heir, parent %in%  ROI_LIST)
 HB_Children=subset(HB_Children, !(roi %in% ROI_LIST) )
-HB_Children=subset(HB_Children, !(roi %in% c("POC","mALT(L)","mALT(R)","GF(R)","GC","AOT(R)")))
-HB_Children$parent=strsplit(as.character(HB_Children$parent), "[(]L[)]") # Get rid of L/R
-HB_Children$parent=strsplit(as.character(HB_Children$parent), "[(]R[)]") # Get rid of L/R
-HB_Children$roi=strsplit(as.character(HB_Children$roi), "[(]L[)]") # Get rid of L/R
-HB_Children$roi=strsplit(as.character(HB_Children$roi), "[(]R[)]") # Get rid of L/R
+HB_Children=subset(HB_Children, !(roi %in% c("POC","mALT(L)","mALT(R)","GF(R)","GC","AOT(R)"))) # Remove fiber bundles
+colnames(HB_Children)[2]='roi_heir_names'
+HB_Children$roi_heir_names=as.character(HB_Children$roi_heir_names)
 
 
-# Subset data based on ROIs
-NO_ROISubset2=subset(NO_roi_Connect_bytype_dfThresh, (roi %in% HB_Children$roi) & !(roi_names %in% c("LAL(R)","MB(R)")) )
+# Create new dataframe (ROISubset) and create a new field (roi_heir_names) with roi names that match those in HB_Children$roi_heir_names
+ROISubset=NO_roi_Connect_bytype_df
+ROISubset$roi_heir_names= ROISubset$roi_names # Make new field with names that match those in HB_Children$roi, the desired ROI list
+ROISubset$roi_heir_names= unlist(strsplit(as.character(ROISubset$roi_names), "[(]C[)]")) # Get rid of (C) in those ROIs that have it
 
 
-# compute average of PB(L#) and PB(R#) ROIs
-NO_ROISubset2$roi[startsWith(NO_ROISubset2$roi,'PB(L')] <- "PB"
-NO_ROISubset2$roi[startsWith(NO_ROISubset2$roi,'PB(R')] <- "PB"
-NO_ROISubset2$roi_names = paste(NO_ROISubset2$roi, '(', NO_ROISubset2$roi_hemi, ')', sep="")
-NO_ROISubset_PlotData=aggregate(NO_ROISubset2$count, by=list(NO_ROISubset2$type, NO_ROISubset2$roi_names, NO_ROISubset2$prepost, NO_ROISubset2$type_name), mean)
-colnames(NO_ROISubset_PlotData)[c(1,2,3,4,5)]=c("type","roi_names","prepost","type_name","count")
+# Check ExcludedRois to make sure we arent missing an ROI we want
+ExcludedRois=unique( unlist(ROISubset$roi_heir_names[ !(ROISubset$roi_heir_names %in% HB_Children$roi_heir_names) ]))
 
 
-# Manually set layers for x Axis
-ROI_LEVELS=c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)","EB(C)","PB(L)","PB(R)","FB(C)","AB(R)",
-             "BU(L)","BU(R)","LAL(L)","LAL(-GA)(R)","GA(R)","VLNP(R)","INP(C)","VMNP(C)","SNP(L)","SNP(R)",
-             "GNG(C)","MB(+ACA)(R)","MB(L)","LH(R)","AL(R)")
-
-ROI_LEVELS[which(!ROI_LEVELS %in% unique(NO_ROISubset_PlotData$roi_names))]
-NO_ROISubset_PlotData$roi_names[ which(!NO_ROISubset_PlotData$roi_names %in% ROI_LEVELS)]
-
-NO_ROISubset_PlotData$roi_names <- factor(NO_ROISubset_PlotData$roi_names, levels = ROI_LEVELS)
+# Remove ROIs in ROISubset that aren't in the list provided by HB_Children$roi_heir_names Also remove LAL(R) and MB(R), which have super ROIs.
+ROISubset=subset(ROISubset, (roi_heir_names %in% HB_Children$roi) & !(roi_names %in% c("LAL(R)","MB(R)")) )
 
 
-# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(NO_ROISubset_PlotData, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=type)) +
-  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("Thresh/Subset NO Neuron Input/Output ROIs")
-print(p0)
-ggsave(paste(PlotDir, "F2b_ThreshSubset_NO_","inputOutputRegions_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 20, height = 10, units ="in", dpi = 600, limitsize = TRUE)
+# Join ROISubset with the ROI level information
+ROISubset <- merge(ROISubset,HB_Children,by="roi_heir_names")
 
+# Compute relative synapse counts in each ROI for each neuron type
+ROISubset=ROI_RelativeSynapses(ROISubset)
 
-
-
-
-
-
-
-
-
+# check to make sure that all plotted ROIs are a subset of the HD_Children ROIs
+if (sum(ROISubset$roi_heir_names %in% unique(HB_Children$roi_heir_names)) != length(ROISubset$roi_heir_names)){
+  warning('Not all plotted ROIs are in HD_Children!!!!')}
 
 
 ```
@@ -456,12 +260,142 @@ ggsave(paste(PlotDir, "F2b_ThreshSubset_NO_","inputOutputRegions_perType.pdf",se
 
 
 
+# Set the levels for the X-axis (ROIs) and Y-axis (neuron types) and plot the data.
+```{r}
+
+
+# Manually set levels for x Axis
+ROI_LEVELS=c("NO1(L)","NO1(R)","NO2(L)","NO2(R)","NO3(L)","NO3(R)","EB(C)","PB(L)","PB(R)","FB(C)","AB(R)","AB(L)",
+             "BU(L)","BU(R)","LAL(L)","LAL(-GA)(R)","GA(R)","VLNP(R)","INP(C)","VMNP(C)","SNP(L)","SNP(R)",
+             "GNG(C)","MB(+ACA)(R)","MB(L)","LH(R)","AL(R)","AL(L)","PENP(C)")
+ROI_LEVELS[which(!ROI_LEVELS %in% unique(ROISubset$roi_names))]
+ROISubset$roi_names[ which(!ROISubset$roi_names %in% ROI_LEVELS)]
+ROISubset$roi_names <- factor(ROISubset$roi_names, levels = ROI_LEVELS)
+
+
+# Make facet for y axis
+ROISubset$FACET <- NA
+ROISubset$FACET[ (ROISubset$type %in% NO1_Type) & !( (ROISubset$type %in% NO2_Type) | (ROISubset$type %in% NO3_Type) ) ] <- "NO1"
+ROISubset$FACET[ (ROISubset$type %in% NO2_Type) & !( (ROISubset$type %in% NO1_Type) | (ROISubset$type %in% NO3_Type) ) ] <- "NO2"
+ROISubset$FACET[ (ROISubset$type %in% NO3_Type) & !( (ROISubset$type %in% NO1_Type) | (ROISubset$type %in% NO2_Type) ) ] <- "NO3"
+ROISubset$FACET[ (ROISubset$type %in% NO1_Type  &     ROISubset$type %in% NO2_Type) & !(ROISubset$type %in% NO3_Type)  ] <- "NO1/2"
+ROISubset$FACET[ (ROISubset$type %in% NO1_Type  &     ROISubset$type %in% NO3_Type) & !(ROISubset$type %in% NO2_Type)  ] <- "NO1/3"
+ROISubset$FACET[ (ROISubset$type %in% NO2_Type  &     ROISubset$type %in% NO3_Type) & !(ROISubset$type %in% NO1_Type)  ] <- "NO2/3"
+sum(is.na(ROISubset$FACET))
+ROISubset$FACET = factor(ROISubset$FACET, levels=c('NO1','NO2','NO3','NO1/2','NO1/3','NO2/3'))
+
+
+# Factor the types for plotting so the color is good
+ROISubset$type = factor(ROISubset$type, levels=c( sort(unique(ROISubset$type[ROISubset$FACET == "NO1"]),decreasing = TRUE),
+                                                         sort(unique(ROISubset$type[ROISubset$FACET == "NO2"]),decreasing = TRUE),
+                                                         sort(unique(ROISubset$type[ROISubset$FACET == "NO3"]),decreasing = TRUE),
+                                                         sort(unique(ROISubset$type[ROISubset$FACET == "NO1/3"]),decreasing = TRUE),
+                                                         sort(unique(ROISubset$type[ROISubset$FACET == "NO2/3"]),decreasing = TRUE)))
+
+
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle("NO Neuron Input/Output ROIs")
+ggsave(paste(PlotDir, "All_Abs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(ROISubset, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("NO Neuron Relative Input/Output ROIs"))
+ggsave(paste(PlotDir, "All_Rel_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
+```
 
 
 
+# Plot the relative data and thresholded relative data
+```{r}
+
+
+Input_MaxThresh=30               # 30 is good
+Input_MinSynThresh=12            # 12 is good
+Input_MinRelSynThresh=0.0125     # 0.0125 is good
+Ouput_MaxThresh=30               # 30 is good  
+Output_MinSynThresh=6            # 6 is good
+Output_MinRelSynThresh=0.01      # 0.01 is good
+
+
+# Include neurons that have a minimum relative AND absolute number of synapses OR have above a certain higher number of absolute synapses.
+# This second threshold is meant to catch large neurons whos relative counts may be low in an ROI but their absolute counts are high, as happens with many ExR neurons.
+ROISubset_Thresh =   filter(ROISubset,   ((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
+ROISubset_Excluded = filter(ROISubset,  !((  ((count > Input_MinSynThresh   & RelativeCount  > Input_MinRelSynThresh)   | count > Input_MaxThresh) &  prepost == "Input ROI")     |
+                                         (   ((count > Output_MinSynThresh  & RelativeCount  > Output_MinRelSynThresh)  | count > Ouput_MaxThresh) &  prepost == "Output ROI"))   )
+
+
+
+# Plot scatter plots of absolute and relative synapse counts for input and output ROIs
+InputHistDat= rbind( subset(ROISubset, (prepost == "Input ROI")) %>% mutate(TTT='ALL'), 
+                     subset(ROISubset_Excluded, (prepost == "Input ROI")) %>% mutate(TTT='Excluded'))
+OutputHistDat= rbind(subset(ROISubset, (prepost == "Output ROI")) %>% mutate(TTT='ALL'), 
+                     subset(ROISubset_Excluded, (prepost == "Output ROI")) %>% mutate(TTT='Excluded'))
+plot_ly(data = InputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Inputs')
+plot_ly(data = OutputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, text = ~paste("ROI: ", roi_names, '$<br>Type:', type_name)) %>% layout(title = 'Outputs')
+
+
+
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("NO Neuron Relative Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "Thresh_Abs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("NO Neuron Input/Output ROIs", " Thresholded"))
+ggsave(paste(PlotDir, "Thresh_Rel_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=log10(count))) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("NO Neuron Input/Output ROIs", " Thresholded"))
+ggsave(paste(PlotDir, "Thresh_LogAbs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# Plot the excluded data
+p0<-ggplot(ROISubset_Excluded, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("NO Neuron Relative Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "Ex_Abs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
+
+
+
+# Look at single rows to adjust thresholds as needed
+ROISubset[ (ROISubset$roi_names=="PFGs(R)" & ROISubset$roi_names=="LAL(-GA)(R)" & ROISubset$prepost=="Output ROI")  , ]
+
+
+
+plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap") %>% layout(title = 'All Inputs')
+plot_ly(data = subset(ROISubset, prepost=="Input ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap") %>% layout(title = 'All Inputs')
+plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap") %>% layout(title = 'All Outputs')
+plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap") %>% layout(title = 'All Outputs')
+
+```
 
 
 

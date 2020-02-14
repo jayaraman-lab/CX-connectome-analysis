@@ -63,13 +63,15 @@ structureMatrixPlotByType = function(conmatPlot){
 
 ### Graph
 #Reroganize to make graph with types instead of bodyids
-reorganizeGraphData = function(fromData, toData, weightData,relWeightData, cutoff){
-  graphData = data.frame(from = fromData, to = toData, weight = weightData, relWeight = relWeightData)
-  graphData = graphData %>% group_by(from, to) %>% 
-    summarise(weight = mean(weight, na.rm = TRUE),
-              relWeight = mean(relWeight, na.rm = TRUE)) %>% 
-    ungroup() %>% 
-    filter(weight > cutoff)
+reorganizeGraphData = function(fromData, toData, fromTypeData, toTypeData, weightData,relWeightData, cutoff){
+  graphData = data.frame(from = fromTypeData, to = toTypeData,
+                         fromid = fromData, toid = toData, 
+                         weight = weightData, relWeight = relWeightData)
+  
+  graphData = graphData %>% group_by(from) %>% mutate(relWeightSumFrom = sum(relWeight)) %>% 
+    group_by(from, to) %>% 
+    mutate(connectTypeCount = length(fromid), relWeightNormFrom = mean(relWeightSumFrom/connectTypeCount)) %>%
+    ungroup() %>% filter(weight > cutoff)
   
   return(graphData)
 }
@@ -88,12 +90,14 @@ getNoSelfGraphData = function(graphData){
 #Reroganize to make graph with types instead of bodyids
 getSelfFBGraphData = function(graphData){
   graphData_toSelf = graphData %>% filter(as.character(from) == as.character(to))
+
   graphData_selfFB = full_join(data.frame("from" = graphData_toSelf$from,
                                           #"weight" = graphData_toSelf$weight,
                                           "relWeightSelf" = graphData_toSelf$relWeight),
                                data.frame("from" = getGraphNodes(graphData)))
   #graphData_selfFB$weight[is.na(graphData_selfFB$weight)] <- 0
   graphData_selfFB$relWeightSelf[is.na(graphData_selfFB$relWeightSelf)] <- 0
+
   
   return(graphData_selfFB)
 }
@@ -109,6 +113,7 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
     ncol = colors()[colorValueLookup$col[colorValueLookup$type ==  getSimpleTypeNames(V(connectGraph)$name[i])]]
     if (length(ncol) > 0) {nodeCols[i] = ncol}
   }
+
   
   # The labels are currently node IDs. Setting them to NA will render no labels
   V(connectGraph)$label.color="black"
@@ -120,7 +125,9 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
   V(connectGraph)$color=nodeCols
 
   # Set edge width based on weight:
+
   E(connectGraph)$width = E(connectGraph)$relWeight/edgeNorm
+
   #change arrow size and edge color:
   E(connectGraph)$arrow.size = arrowSize
   

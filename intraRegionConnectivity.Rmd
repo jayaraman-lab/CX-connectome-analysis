@@ -35,6 +35,7 @@ useCuratedListPre = TRUE
 useCustomPostSelection = FALSE
 useCustomPreSelection = FALSE
 
+
 ROI = "NO"#"EB"
 slctROI = "FB"#"LAL(-GA)(R)"#"EB"
 
@@ -43,6 +44,7 @@ splitLR = TRUE# FALSE
 preName = paste0("NOneurons in ", ROI)
 saveName = paste0("NOneuronOutputs",ROI)
 ```
+
 
 ***Selection of post neurons***
 ```{r}
@@ -96,6 +98,7 @@ if (useCuratedListPre) {
   preIDs = getBodyIdsForList(preNeuron, field="type")
   preName = paste0(ROI, "neurons")
 
+
 } else{
   if(useCustomPreSelection){
     preNeuron = c("PEN","PFN")
@@ -117,6 +120,7 @@ if (useCuratedListPre) {
     theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
     print(parnerPlot)
   }
+
   
   preIDs = getBodyIdsForList(preNeuron)
 }
@@ -197,6 +201,7 @@ for (connectionMeasure in connectionMeasures){
 ```
 
 ###  Draw graph
+
 ```{r, warning=FALSE}
 source("visualizeConnectivityTables.R")
 require(igraph)
@@ -204,6 +209,7 @@ require(igraph)
 connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
 cutoff = 0.03 # for weight 0.05, 0.01, 0
+
 
 # Graph parameter
 largeGraph = TRUE
@@ -217,6 +223,7 @@ if(largeGraph){
 }
 selfFBscale = vertexSize
 arrowSize= 0
+
 edgeNorm = 0.05#0.07
 
 
@@ -228,6 +235,7 @@ graphData = data.frame(from = myConnectionsT2T$type.from,
 
 myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm)
 
+
 # remove isolated nodes
 Isolated = which(degree(myGraph) == 0)
 myGraph = delete.vertices(myGraph, Isolated)
@@ -237,8 +245,8 @@ l = layout_with_fr(myGraph)#layout_with_dh(myGraph)
 myGraph$main = paste0("Connectivity within the ",slctROI) 
 plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
-                      "_",connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',roiName,
+                      "_",connectionMeasure, round(100*cutoff),"perc.pdf"), width=plotSize, height=plotSize)
 ```
 
 ### Use knowledge about ROI innervation to position the vertices
