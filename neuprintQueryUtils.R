@@ -77,19 +77,27 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     myConnections <- myConnections %>% mutate(databaseTypeTo = type.to,
                                               databaseTypeFrom = refMetaOrig$type)
   }
-  myConnections[["weightRelativeTotal"]] <- myConnections[["weight"]]/outMeta[["post"]]
+  
+  if (synapseType == "PRE"){
+    inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
+    inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+    inp <- "partner"
+  }else{
+    inputsTable <- myConnections
+    inp <- "bodyid"
+  }
+  
+  totalPre <- inputsTable %>% group_by(from) %>%
+    summarise(totalPreWeight = sum(weight))
+  
+  myConnections <- myConnections %>% mutate(weightRelativeTotal = weight/outMeta[["post"]],
+                                            totalPreWeight = totalPre[["totalPreWeight"]][match(myConnections$from,totalPre$from)],
+                                            outputContributionTotal = weight/totalPreWeight
+                                            )
   
   if (by.roi | !is.null(slctROI)){
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
     outInfo <- neuprint_get_roiInfo(myConnections$to)
-    if (synapseType == "PRE"){
-      inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
-      inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
-      inp <- "partner"
-    }else{
-      inputsTable <- myConnections
-      inp <- "bodyid"
-    }
     
     totalPre <- inputsTable %>% group_by(from) %>%
                     summarise(totalPreROIweight = sum(ROIweight))
