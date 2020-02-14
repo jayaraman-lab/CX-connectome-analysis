@@ -117,9 +117,12 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
                  outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
+  }else{
+  return(myConnections %>% mutate(roi = "All brain", 
+                                  outputContribution = outputContributionTotal,
+                                  weightRelative = weightRelativeTotal,
+                                  ROIweight = weight)) 
   }
-  return(myConnections)
-  
   
 }
 
@@ -314,14 +317,14 @@ getTypeToTypeTable <- function(connectionTable,
   connectionTable <- retype.na(connectionTable)
   
   ## Gather the outputContributions
-  connectionTable <-  connectionTable %>% group_by(from,type.to) %>%
+  connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
                                           mutate(outputContribution = sum(outputContribution)) %>%
-                                          group_by(type.from,type.to) %>%
+                                          group_by(type.from,type.to,roi) %>%
                                           mutate(outputContribution = mean(outputContribution))
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by(type.from,type.to) %>%
+                                group_by(type.from,type.to,roi) %>%
                                 summarize(weightRelative = sum(weightRelative),
                                           weight = sum(ROIweight),
                                           outputContribution = outputContribution[1],
@@ -333,14 +336,14 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
-                                group_by(type.from,to,type.to) %>%
+                                group_by(type.from,to,type.to,roi) %>%
                                 summarise(weightRelative = sum(weightRelative),
                                           weight = sum(ROIweight),
                                           n = n[1],
                                           outputContribution = outputContribution[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
-                                group_by(type.from,type.to) %>%
+                                group_by(type.from,type.to,roi) %>%
                                 summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
                                                                   t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
