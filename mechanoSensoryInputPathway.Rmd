@@ -62,7 +62,7 @@ Also get body ID's of putative downstream partners (these were identified in a s
 WPN = neuprint_search("PDL27e_pct.*")#5813047683)
 
 # Partner of APN2 and putative WPN: ADM06b_b
-ADM06b = neuprint_search("ADM06b_b.*")
+ADM06b = neuprint_search("ADM06b.*")
 
 # R1s
 R1 = neuprint_search("R1_.*_R")
@@ -118,7 +118,7 @@ for (myroi in as.character(colnames(roi_Connect_rois))[6:(length(colnames(roi_Co
 }
 
 # remove ROIs that are collections of regions
-exclue = c("PENP", "VMNP", "VLNP")
+exclue = c("PENP", "VMNP", "VLNP", "SAD")
 `%nin%` = Negate(`%in%`)
 roi_Connect_rois_df = roi_Connect_rois_df %>% filter(roi %nin% exclue)
 
@@ -137,14 +137,14 @@ ggsave("APNs_inputOutputRegions_perName.pdf", plot = last_plot(), device='pdf', 
 
 cntCutoff = 20
 
-preCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(type, roi) %>% filter(prepost == "pre") %>% summarise(preCt = sum(count, na.rm = TRUE))
-postCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(type, roi) %>% filter(prepost == "post") %>% summarise(postCt = sum(count, na.rm = TRUE))
+preCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(name, roi) %>% filter(prepost == "pre") %>% summarise(preCt = sum(count, na.rm = TRUE))
+postCoutnsPerRegionAndType =  roi_Connect_rois_df %>% group_by(name, roi) %>% filter(prepost == "post") %>% summarise(postCt = sum(count, na.rm = TRUE))
 
 countsPerRegionAndType = full_join(preCoutnsPerRegionAndType, postCoutnsPerRegionAndType) %>% 
   filter((preCt+postCt) > cntCutoff) %>%
   mutate(post_minus_pre = (postCt-preCt)/(preCt+postCt)) %>% na.omit()
 
-ggplot(countsPerRegionAndType, aes(x=roi, y=type, size=(preCt+postCt))) + 
+ggplot(countsPerRegionAndType, aes(x=roi, y=name, size=(preCt+postCt))) + 
   geom_point(aes(color=post_minus_pre)) + scale_color_gradient2(high = 'salmon', mid = "purple", low = 'cyan', midpoint = 0) +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE)
 
@@ -167,11 +167,10 @@ R1_skel = neuprint_read_neurons(R1$bodyid[1])
 
 Visualize the relevant ROIs
 ```{r}
-AMMCmesh = neuprint_ROI_mesh("AMMC")
-GNGmesh = neuprint_ROI_mesh("GNG")
+#AMMCmesh = neuprint_ROI_mesh("AMMC")
+#GNGmesh = neuprint_ROI_mesh("GNG")
 # PENP does not appear to be a defined mesh (it's just a collection: SAD, AMMC, ...)
-SADmesh = neuprint_ROI_mesh("SAD")
-SADAMMCmesh = neuprint_ROI_mesh("SAD(-AMMC)")
+#SADAMMCmesh = neuprint_ROI_mesh("SAD(-AMMC)")
 # VLNP: collection of rois (AOTU, PLP, WED, ...)
 WEDmesh = neuprint_ROI_mesh("WED(R)")
 ```
@@ -192,7 +191,7 @@ plot3d(APN2_skel, col="cyan")
 plot3d(WPN_skel, col="magenta")
 plot3d(ADM06b_skel, col="orange")
 plot3d(R1_skel, col="pink")
-#plot3d(WEDmesh, alpha=0.2,  add=TRUE, col="#ff9900")
+plot3d(WEDmesh, alpha=0.2,  add=TRUE, col="#ff9900")
 #plot3d(SADmesh, alpha=0.2,  add=TRUE, col="#ff99ff")
 ```
 
@@ -202,27 +201,31 @@ Primary ROIs were identified manually based on inspection of neuron arborization
 
 ### Connectivity matrix: APNs don't directly talk to WPN
 ```{r}
+source("visualizeConnectivityTables.R")
 preNeurons = c(APNBodies, ADM06b$bodyid, WPN$bodyid)
 postNeurons = preNeurons
 preName = "APNs, ADM06b and put. WPN"
 postName = preName#"APN3, APN2"
 
-for (slctROI in  c("SAD", "WED(R)")) {
+connectionMeasure = "weightRelative"
+synCutoff = 3
+
+for (slctROI in  c("SAD(-AMMC)", "WED(R)")) {
   myConnections = getConnectionTable_forSubset(preNeurons,postNeurons, slctROI)
  
   ### Connectivity matrix  by name
-  conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = FALSE)
-  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+  conMatPlot = plotConnectivityMatrix(myConnections %>% filter(ROIweight > synCutoff), byType = TRUE, connectionMeasure)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
   
-   ggsave(paste0("APNs_connectivityMatrix_",slctROI,"_byName.pdf"), plot = last_plot(), device='pdf', 
+  ggsave(paste0("APNs_connectivityMatrix_",slctROI,"_byName.pdf"), plot = last_plot(), device='pdf', 
          path = "../neuprintR_analysis_plots/mechanoPW/",
          scale = 1.5, width = 15, height = 15  , units ="cm", dpi = 600, limitsize = TRUE)
   
   ### Connectivity matrix by type
-  conMatPlot = plotConnectivityMatrix(myConnections, synapseCutOff = 3, byType = TRUE)
-  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI)
+  conMatPlot = plotConnectivityMatrix(myConnections %>% filter(ROIweight > synCutoff), byType = FALSE, connectionMeasure)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   print(conMatPlot)
   
   ggsave(paste0("APNs_connectivityMatrix_",slctROI,"_byType.pdf"), plot = last_plot(), device='pdf', 
@@ -232,7 +235,58 @@ for (slctROI in  c("SAD", "WED(R)")) {
 
 ```
 
+Do this without regard for the ROI
+
+
+
 ###  Draw graph
+```{r, warning=FALSE}
+source("visualizeConnectivityTables.R")
+require(igraph)
+
+connectionMeasure = "weightRelative"
+cutoff = 0.05 # for weight 0.05, 0.01, 0
+
+# drop na in "to" column
+myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
+graphData = data.frame(from = myConnectionsT2T$type.from,
+                       to = myConnectionsT2T$type.to,
+                       relWeight = myConnectionsT2T$weightRelative)
+
+#graphData_noSelf = getNoSelfGraphData(graphData)
+#graphData_selfFB = getSelfFBGraphData(graphData)
+
+# Graph parameter
+largeGraph = FALSE
+selfFeedbackScale = 5
+if(largeGraph){
+  vertexSize = 8 #+ 8 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 20
+}else{
+  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 15
+}
+selfFBscale = vertexSize
+arrowSize= 0
+edgeNorm = 0.07#0.02
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm)
+
+# remove isolated nodes
+Isolated = which(degree(myGraph) == 0)
+myGraph = delete.vertices(myGraph, Isolated)
+
+l = layout_with_dh(myGraph)
+
+myGraph$main = paste0("Connectivity within the ",slctROI) 
+plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
+                      "_",connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
+```
+
+
+
 
 ```{r, warning=FALSE}
 require(igraph)
@@ -240,7 +294,7 @@ require(igraph)
 preIDs = bind_rows(APN3, APN2, ADM06b, WPN)
 postIDs = preIDs
 
-for (slctROI in  c("SAD", "WED(R)")) {
+for (slctROI in  c("SAD(-AMMC)", "WED(R)")) {
   myConnections = getConnectionTable_forSubset(preIDs$bodyid, postIDs$bodyid, slctROI)
   
   cutoff = 3
