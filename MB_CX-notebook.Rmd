@@ -1,0 +1,38 @@
+---
+title: "MB-CX connections"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+source("/Users/danc/Repos/neuprintR-notebooks/pathways.R")
+source("/Users/danc/Repos/neuprintR-notebooks/visualizeConnectivityTables.R")
+source("/Users/danc/Repos/neuprintR-notebooks/neuprintQueryUtils.R")
+source("/Users/danc/Repos/neuprintR-notebooks/inputOutputRegionsVis.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Define the MBON types
+```{r}
+# Find all MBONs
+
+
+
+```
+
+Define the FB neuron types
+```{r}
+# Find the name of all neurons that get input in the FB
+FBNronTypes = neuprint_find_neurons("FB")$bodytype %>% unique()
+FBNronTypes <- FBNronTypes[which(!is.na(FBNronTypes))]
+```
+
+Find all connections between all MBONs and FB neurons
