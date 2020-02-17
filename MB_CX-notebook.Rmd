@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 Load the libraries
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
 library(tidyverse)
@@ -20,19 +20,30 @@ Connect to neuprint
 neuprint_login()
 ```
 
-Define the MBON types
+Get the MBONs
 ```{r}
 # Find all MBONs
+MBON_Names <- neuprint_search("MBON.*")
+head(MBON_Names)
+```
 
+Find who the MBONs talk to
+```{r}
+# Find the postsynaptic partners of all MBONs
+MBON_PostConnections <- getConnectionTable.data.frame(MBON_Names,synapseType = "POST",synThresh=3)
+head(MBON_PostConnections)
+```
+
+Among these, find who innervate the CX
+```{r}
+# Find the MBON postsynaptic partners that innervate the FB
 
 
 ```
 
-Define the FB neuron types
+
+Get the FB neuron types
 ```{r}
-# Find the name of all neurons that get input in the FB
-FBNronTypes = neuprint_find_neurons("FB")$bodytype %>% unique()
-FBNronTypes <- FBNronTypes[which(!is.na(FBNronTypes))]
 ```
 
 Find all connections between all MBONs and FB neurons
