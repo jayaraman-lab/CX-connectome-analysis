@@ -6,7 +6,7 @@ Get_SynapseCount_In_Rois <- function (ROI, Paired){
   ### Get neurons in the ROI and compute synapse statistics
   NamedBodies = Get_AllNeurons_InRoi(ROI, Paired)
   NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
-  NamedBodies = ComputeMaxWeights(NamedBodies)
+  # NamedBodies = ComputeMaxWeights(NamedBodies)
   
   
   ### Compute type averages of named bodies to get an idea of which neurons belong in which compartments
@@ -262,28 +262,6 @@ filterNeuronTypes = function(df,minSynapses,minSumSynapses){
   
   return(df)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

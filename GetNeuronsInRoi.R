@@ -10,7 +10,7 @@ Get_AllNeurons_InRoi <- function(slctROI, pairedRegion) {
     roiR_Connect <- neuprint_find_neurons( paste(slctROI, "(R)", sep=""), all_segments = FALSE)
     roiL_Connect <- neuprint_find_neurons( paste(slctROI, "(L)", sep=""), all_segments = FALSE)
   } else {
-    roi_Connect <- neuprint_find_neurons(slctROI, all_segments = FALSE) #not currently working for "NO"
+    roi_Connect <- neuprint_find_neurons(slctROI, all_segments = FALSE)
   }
   
   
@@ -71,7 +71,7 @@ ComputeRelativeSynapseCounts <- function(NamedBodies) {
 ComputeMaxWeights <- function(NamedBodies) {
   
   # Pre-to-Post connections for named bodies (return all segements and filter) --> subet at end is important or it returns bodyids not contained in NamedBodies
-  NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
+    NamedConnectTable = neuprint_connection_table(NamedBodies$bodyid,"PRE",ROI, all_segments=FALSE)   %>%
     mutate( PreName =neuprint_get_meta(bodyid)[["name"]], PostName = neuprint_get_meta(partner)[["name"]] )   %>% 
     mutate( PreType =neuprint_get_meta(bodyid)[["type"]], PostType = neuprint_get_meta(partner)[["type"]])   %>%  
     group_by(PreName) %>% 
