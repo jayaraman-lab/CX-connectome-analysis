@@ -1,0 +1,120 @@
+---
+title: "How to build a type to type table?"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+source("neuprintQueryUtils.R")
+```
+
+This tutorial explains how to build a summary of type to type connections. It does select connections that are significant based on a Student t-test. Complications arise because one need to keep track of all the instances of a given type (even if it's not making synapses), and because one often want to divide types into subtypes.
+
+## Simplest case: querying inputs, no retyping
+ Let's say you're interested in summarizing the inputs to the PFLs in the Fan shaped body.
+ First, you get a table of metadata of the PFL types:
+ 
+```{r}
+PFLNames <- getTypesTable(c("PFL1","PFL2","PFL3"))
+head(PFLNames)
+```
+
+You can use this table to root a connectivity search, of all the inputs to the PFLs in the FB:
+
+```{r}
+fbPreConnections <- getConnectionTable(PFLNames,synapseType = "PRE",slctROI = "FB",synThresh=3)
+head(fbPreConnections)
+```
+
+
+`getConnectionTable` is similar to `neuprint_connection_table` but with a few enhancements:
+    - It computes relative weights (of various kind) for you
+    - It computes an outputContribution variable (which is, for each input neuron, what proportion of its total outputs is covered by a given connection)
+    - It filters out connections of a weight strictly inferior to the argument `synThresh` (3 by default)
+    - It formats the table in a `to/from` format. The variable 'to/name.to/type.to' and 'from/name.from/type.from' correspond to the input and output neurons respectively.
+
+ When no redefinition of types is necessary you can get a type to type table directly using `getTypetoTypeTable`
+    
+```{r}
+fbPreByTypes <- getTypeToTypeTable(fbPreConnections)
+head(fbPreByTypes)
+```
+
+`getTypetoTypeTable` computes the weight summed over inputs, averaged over outputs by type to type combination (that's what the `weightRelative` column is). The results are filtered following our three step procedure:
+  - keep connections that account for a fraction of outputs larger than `majorOutputThreshold` (default 0.8) of a given input type
+  - for types that have only a single instance, remove connections from input types that contribute to less than `singleNeuronThreshold` (default 1%) of that neuron inputs
+  - test all other connections across instances of the output with a Wilcoxon test and keep connections with a p-value inferior to `pThresh` (default 0.05)
+
+ It also returns
+  - `n_targets` the number of neurons in the output type receiving a connection from the input type.
+  - `n_type` how many instances of the output type are present in the database
+  
+## Retyping of the inputs
+Once you have a connection table from neuron to neuron, you may want to divide the inputs into subtypes. As all the statistics are concerned with the output neurons, this won't affect the correctness of the results (but it might be strange if those types are also members of the output population). A couple of convenience functions exist to rename types in a table:
+  - `lrSplit` divides types in column `typeCol` (default "type.to") according to their left/right provenance, using the names in `nameCol` (default "name.to") to determine the side. By default all the neurons with "_L" or "_R" in their name are considered, unless the types to consider are specified in `typeList`:
+```{r}
+## Divide all the inputs neurons in left vs right
+fbPreByLRConnections <- lrSplit(fbPreConnections,nameCol="name.from",typeCol="type.from")
+tail(fbPreByLRTypes)
+```
+  - `redefineType` is a more generic function. It divides a type `type` in two subtypes specified in `newTypes` according to a condition defined in `condition`. It operates on the column `type_col` of the table
+```{r}
+## Arbitrary example : Divide PFL2 type in the PFLNames table between neurons that are shared between two columns and those that are restricted to a column
+PFLretyped <- redefineType(PFLNames,type="PFL2",condition=grepl(".*/.*",PFLNames$name),newTypes = c("PFL2dbl","PFL2"),type_col = "type")
+PFLretyped %>% filter(startsWith(type,"PFL2"))
+```
+If you've only changed types on the input side, you can use `getTypeToTypeTable` the same way you did in the simple case:
+```{r}
+fbPreByTypes2 <- getTypeToTypeTable(fbPreByLRConnections)
+head(fbPreByTypes2)
+```
+
+## Retyping of the outputs
+It's likely you'll want to change the types of the outputs too. In that case, one more step will be needed. The `getTypeToTypeTable` function cannot guess how many instances exist for the user defined output types -- but need that information when considering how significant a connection is. The `typesTable` argument allows you to do just that. Note that for convenience, `getConnectionTable` and `getTypeToTypeTable` have `databaseTypeTo` (and `databaseTypeFrom`) columns: they are here to contain the type name as it is in neuprint (and not how you redefined it), therefore should never be edited. Here are two examples of how this plays out:
+### Example 1: querying for inputs, renaming the outputs
+One start with the `fbPreConnections` object we just created and retype "PFL2" to "PFL2_R" and "PFL2_L" in the "type.to" column:
+```{r}
+fbPreConnections <- lrSplit(fbPreConnections,nameCol="name.to",typeCol="type.to",typeList =c("PFL2"))
+```
+One now need a table to counts how many instances of each type exist. We can create such a table by modifying `PFLNames` in the exact same way:
+```{r}
+PFLNewTypes <- lrSplit(PFLNames,nameCol = "name",typeCol = "type",typeList=c("PFL2"))
+```
+One can now use this as the `typesTable` argument in `getTypeToTypeTable`:
+```{r}
+fbPreByTypes3 <- getTypeToTypeTable(fbPreConnections,typesTable = PFLNewTypes)
+head(fbPreByTypes3)
+```
+
+### Example 2: querying for outputs, renaming the outputs
+Let's now query the outputs of the PFLs in the LAL. We can use the already renamed PFLs to start with:
+```{r}
+lalPostConnections <- getConnectionTable(PFLNewTypes,synapseType = "POST",slctROI = "LAL(-GA)(R)")
+head(lalPostConnections)
+```
+This is a case where one clearly want to split up the post-synaptic types into left and right types as they are a lot of asymetric neurons in the LAL (everywhere it's possible, so we leave the `typeList` argument to its default value):
+```{r}
+lalPostConnections <- lrSplit(lalPostConnections,nameCol="name.to",typeCol="type.to")
+head(lalPostConnections)
+```
+Now to summarize it by type, we need a table summarizing all the instances of all the output types. We can do that by querying the database for all unique types in `databaseTypeTo` then splitting the resulting table. The `getTypesTable` is a light wrapper around `neuprint_search` allowing to fetch a collection of types (this can take a minute since those are a lot of types).
+```{r}
+outputTypes <- getTypesTable(unique(lalPostConnections$databaseTypeTo))
+outputTypes <- lrSplit(outputTypes,nameCol="name",typeCol="type")
+head(outputTypes)
+```
+
+One can then create the per types table:
+
+```{r}
+lalPostByTypes <- getTypeToTypeTable(lalPostConnections,typesTable = outputTypes)
+head(lalPostByTypes)
+```
+
+## Parameters not used in the tutorial
+In getConnectionTable, if `slctROI` is NULL and `by.roi` is FALSE (the default), all synapses are counted regardless of where they are.
+If if `slctROI` is NULL and `by.roi` is TRUE, all synapses are counted but they are split up by ROI (meaning you'll end up with type to type connections in every ROI).
+
+## Next step: how to use those tables to create nice network figures
