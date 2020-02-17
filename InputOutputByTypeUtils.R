@@ -19,9 +19,11 @@ redefineTypeByNameInList <- function(IOList,
                                      pattern,
                                      newPostFixes){
 
+  
+  
   for (t in typeList){
     for (col in c("from","to")){
-      for (df in c("inputs","outputs","inputs_raw","outputs_raw")){
+      for (df in c("inputs_raw","outputs_raw")){
         IOList[[df]] = redefineTypeByName(IOList[[df]],
                                          type=t,
                                          pattern=pattern,
@@ -38,6 +40,22 @@ redefineTypeByNameInList <- function(IOList,
                                       type_col="type",
                                       name_col="name")
   }
+  
+  outputNames <- unique(IOList$outputs$databaseTypeTo)
+  outputsLatNames <- getTypesTable(outputNames)
+  for (t in typeList){
+    outputsLatNames <- redefineTypeByName(outputsLatNames,
+                                          type=t,
+                                          pattern=pattern,
+                                          newPostFixes=newPostFixes,
+                                          type_col="type",
+                                          name_col="name")
+  }
+     
+  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = outputsLatNames)
+  IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names)
+
+  
   return(IOList)
 }
 
