@@ -28,21 +28,21 @@ library(docstring)
 ### Make selection of neurons to be used in connecitivy analysis
 This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
 ```{r}
-useCuratedListPost = FALSE
-useCuratedListPre = TRUE
-
-#only relevant if one of the above is false:
-useCustomPostSelection = FALSE
-useCustomPreSelection = FALSE
-
-
 ROI = "NO"#"EB"
 slctROI = "FB"#"LAL(-GA)(R)"#"EB"
 
 splitLR = TRUE# FALSE
 
-preName = paste0("NOneurons in ", ROI)
-saveName = paste0("NOneuronOutputs",ROI)
+preName = paste0("PFNa inputs in ", ROI)
+saveName = paste0("PFNaInputs",ROI)
+
+useCuratedListPost = FALSE#TRUE#
+useCuratedListPre = FALSE#
+
+#only relevant if one of the above is false:
+useCustomPostSelection = FALSE
+useCustomPreSelection = TRUE
+
 ```
 
 
@@ -60,8 +60,8 @@ if (useCuratedListPost) {
   postIDs = getBodyIdsForList(postNeuron, field="type")
   
 } else{
-  if(useCustomPreSelection){
-    postNeuron = c("PEN","PFN")
+  if(useCustomPostSelection){
+    postNeuron = c("PFNa")
     postName = paste0("Collumnar in ", ROI)
   }else{
     postName = paste0("Inputs to ", ROI)
@@ -81,7 +81,7 @@ if (useCuratedListPost) {
     print(parnerPlot)
   }
   
-  postIDs = getBodyIdsForList(preNeuron)
+  postIDs = getBodyIdsForList(postNeuron)
 }
 ```
 
@@ -101,7 +101,7 @@ if (useCuratedListPre) {
 
 } else{
   if(useCustomPreSelection){
-    preNeuron = c("PEN","PFN")
+    preNeuron = c("PFNa")
     preName = paste0("Collumnar in ", ROI)
   }else{
     preName = paste0("Inputs to ", ROI)
@@ -168,8 +168,8 @@ ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.to))
 
 ### Connectivity matrix
 ```{r}
-plotW = 15 # 20
-plotH = 40  #17
+plotW = 35 # 20
+plotH = 30  #17
 connectionMeasures = c("weightRelative")#,"weightROIRelativeTotal")
 
 for (connectionMeasure in connectionMeasures){
@@ -208,7 +208,7 @@ require(igraph)
 
 connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
-cutoff = 0.03 # for weight 0.05, 0.01, 0
+cutoff = 0.01 # for weight 0.05, 0.01, 0
 
 
 # Graph parameter
@@ -224,7 +224,7 @@ if(largeGraph){
 selfFBscale = vertexSize
 arrowSize= 0
 
-edgeNorm = 0.05#0.07
+edgeNorm = 0.07#0.07#0.05#
 
 
 # drop na in "to" column
@@ -240,12 +240,12 @@ myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale,
 Isolated = which(degree(myGraph) == 0)
 myGraph = delete.vertices(myGraph, Isolated)
 
-l = layout_with_fr(myGraph)#layout_with_dh(myGraph)
+l = layout_with_dh(myGraph)#layout_with_fr(myGraph)
 
 myGraph$main = paste0("Connectivity within the ",slctROI) 
 plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',roiName,
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
                       "_",connectionMeasure, round(100*cutoff),"perc.pdf"), width=plotSize, height=plotSize)
 ```
 
