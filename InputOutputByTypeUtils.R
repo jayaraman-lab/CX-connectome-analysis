@@ -1,3 +1,5 @@
+source("neuprintQueryUtils.R")
+
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
   TypeNames <- neuprint_search(typeQuery,field="type",fixed=fixed)
   outputs <- getConnectionTable(TypeNames,synapseType = "POST",by.roi=TRUE,...)
@@ -12,17 +14,44 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
               ))
 }
 
-lateralizeInputOutputList <- function(inputOutputList){
+redefineTypeByNameInList <- function(IOList,
+                                     typeList,
+                                     pattern,
+                                     newPostFixes){
+
+  for (t in typeList){
+    for (col in c("from","to")){
+      for (df in c("inputs","outputs","inputs_raw","outputs_raw")){
+        IOList[[df]] = redefineTypeByName(IOList[[df]],
+                                         type=t,
+                                         pattern=pattern,
+                                         newPostFixes=newPostFixes,
+                                         type_col=paste0("type.",col),
+                                         name_col=paste0("name.",col))
+                  
+      }
+    }
+    IOList$names = redefineTypeByName(IOList$names,
+                                      type=t,
+                                      pattern=pattern,
+                                      newPostFixes=newPostFixes,
+                                      type_col="type",
+                                      name_col="name")
+  }
+  return(IOList)
+}
+
+lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
  
-  outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from")
-  outputsLat <- lrSplit(outputsLat)
+  outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  outputsLat <- lrSplit(outputsLat,typeList=typeList)
   
-  inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from")
-  inputsLat <- lrSplit(inputsLat)
+  inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  inputsLat <- lrSplit(inputsLat,typeList=typeList)
  
   outputsLatNames <- getTypesTable(unique(outputsLat$databaseTypeTo))
-  outputsLatNames <- lrSplit(outputsLatNames,nameCol="name",typeCol="type")
-  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type")
+  outputsLatNames <- lrSplit(outputsLatNames,nameCol="name",typeCol="type",typeList=typeList)
+  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
  
   outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsLatNames)
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
