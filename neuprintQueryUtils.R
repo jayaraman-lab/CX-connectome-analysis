@@ -155,6 +155,15 @@ getTypesTable <- function(types){
   return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
 }
 
+redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name"){
+  condition <- grepl(pattern,table[[name_col]])
+  redefineType(table=table,
+               type=type,
+               condition=condition,
+               newTypes=paste0(type,newPostFixes),
+               type_col=type_col)
+}
+
 redefineType <- function(table,type,condition,newTypes,type_col="type"){
   #' Split a type in 2 categories according to a condition
   #' @param table: A table with a column of types to be renamed
@@ -207,11 +216,12 @@ lrSplit <- function(connectionTable,
     typeList <- typeList[[typeCol]]
   }
   for (t in typeList){
-    connectionTable <- redefineType(table=connectionTable,
-                                    type=t,
-                                    condition=grepl("_L",connectionTable[[nameCol]]),
-                                    newTypes=c(paste0(t,"_L"),paste0(t,"_R")),
-                                    type_col = typeCol)
+    connectionTable <- redefineTypeByName(table=connectionTable,
+                                          type=t,
+                                          pattern="_L",
+                                          newPostFixes=c("_L","_R"),
+                                          type_col = typeCol,
+                                          name_col=nameCol)
   }
   return(connectionTable)
 }
