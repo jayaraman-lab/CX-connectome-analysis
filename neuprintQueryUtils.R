@@ -212,9 +212,13 @@ lrSplit <- function(connectionTable,
   #' } 
   if (is.null(typeList)){
     typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
-    typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
-    typeList <- typeList[[typeCol]]
+  }else{
+    typeList <- filter(connectionTable,(!!as.name(typeCol)) %in% typeList)
+    typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }
+  typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
+  typeList <- typeList[[typeCol]]
+  
   for (t in typeList){
     connectionTable <- redefineTypeByName(table=connectionTable,
                                           type=t,
@@ -243,7 +247,7 @@ retype.na <- function(connectionTable){
 getTypeToTypeTable <- function(connectionTable,
                                majorOutputThreshold=0.8,
                                singleNeuronThreshold=0.01,
-                               singleNeuronThresholdN=5,
+                               singleNeuronThresholdN=3,
                                pThresh = 0.05,
                                typesTable = NULL){
   #' Generate a table of type to type connections, keeping only the significant links
@@ -366,7 +370,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) %>% filter(pVal < pThresh | outputContribution > majorOutputThreshold) %>%
+                                ) %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
                                 select(-pVal)
                                 
           return(bind_rows(sTable,loners))                  
