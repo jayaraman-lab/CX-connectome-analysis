@@ -17,7 +17,8 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
 redefineTypeByNameInList <- function(IOList,
                                      typeList,
                                      pattern,
-                                     newPostFixes){
+                                     newPostFixes,
+                                     perl=FALSE){
 
   
   
@@ -29,7 +30,8 @@ redefineTypeByNameInList <- function(IOList,
                                          pattern=pattern,
                                          newPostFixes=newPostFixes,
                                          type_col=paste0("type.",col),
-                                         name_col=paste0("name.",col))
+                                         name_col=paste0("name.",col),
+                                         perl=perl)
                   
       }
     }
@@ -38,7 +40,8 @@ redefineTypeByNameInList <- function(IOList,
                                       pattern=pattern,
                                       newPostFixes=newPostFixes,
                                       type_col="type",
-                                      name_col="name")
+                                      name_col="name",
+                                      perl=perl)
   }
   
   outputNames <- unique(IOList$outputs$databaseTypeTo)
@@ -49,7 +52,8 @@ redefineTypeByNameInList <- function(IOList,
                                           pattern=pattern,
                                           newPostFixes=newPostFixes,
                                           type_col="type",
-                                          name_col="name")
+                                          name_col="name",
+                                          perl=perl)
   }
      
   IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = outputsLatNames)
