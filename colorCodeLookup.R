@@ -71,7 +71,11 @@ colorValueLookup = data.frame(
            'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
            'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
            'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
-           'PFN', 'PFL', 'GLN', 'Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother' ),
+           'PFN', 'PFL', 'GLN', 'Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother',
+           'Delta0A_a', 'Delta0A_b', 'Delta0B', 'Delta0C', 'Delta0D', 'Delta0E','Delta0F', 'Delta0G_a',
+           'Delta0G_b', 'Delta0H', 'Delta0I', 'Delta0J',  'Delta0K', 'Delta0L', 'Delta0M', 'Delta0N',
+           'Delta6A', 'Delta6B', 'Delta6C', 'Delta6D', 'Delta6E', 'Delta6F_a', 'Delta6F_b', 'Delta6G',
+           'Delta6H_a', 'Delta6H_b', 'Delta6I', 'Delta6J', 'Delta6K'),
   col = c( 367 ,   9,   34,    101,   32,    21,     58,    11,    12,    657,  517,
            468,   456,  467,   463,   464,   465,   466,    98,
            592,   591,   590,   589,   616,   617,   618,   619,   128,   130,
@@ -79,6 +83,9 @@ colorValueLookup = data.frame(
            499,    499,    143,   144,    573,  640, 
            639, 430, 431, 630, 452,632, 103, 104,105, 651,
            420, 420, 420, 420, 76, 535, 535,535,535,
-           657, 86, 656, 520, 468, 404,565, 447, 450, 651, 484)
+           657, 86, 656, 520, 468, 404,565, 447, 450, 651, 484,
+           367, 9, 34, 101, 32, 21, 58, 11, 12, 657, 517,
+           468, 456, 467, 463, 464, 465, 466, 98,
+           592, 591, 590, 589, 616, 617, 618, 619, 128, 130)
 
 )
