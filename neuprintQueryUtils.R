@@ -84,7 +84,11 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   if (synapseType == "PRE"){
     inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
-    inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+    if (!by.roi & is.null(slctROI)){
+      inputsTable <- inputsTable %>% mutate(from = bodyid)
+    }else{
+      inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+    }
     inp <- "partner"
   }else{
     inputsTable <- myConnections
@@ -155,8 +159,8 @@ getTypesTable <- function(types){
   return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
 }
 
-redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name"){
-  condition <- grepl(pattern,table[[name_col]])
+redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name",perl=FALSE){
+  condition <- grepl(pattern,table[[name_col]],perl=perl)
   redefineType(table=table,
                type=type,
                condition=condition,

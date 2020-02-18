@@ -119,20 +119,30 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/pyramidPlots/PFR-PB
 ```
 
 ### Round body
-
+Group L1 with R and R1 with L (innervation similar to PFL2/3)
 ```{r}
-PFRInOutLat <- lateralizeInputOutputList(PFRInOut)
+## Divide PFR taking into account the column 1 exception
+PFRInOut <- redefineTypeByNameInList(PFRInOut,typeList = c("PFR_a","PFR_b"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
 ```
 
 ```{r}
-PFROutputsRob <- makePyramidGraph(PFRInOutLat,c("ROB(R)"),plot=TRUE,polarity = "outputs")
+## Divide all the output neurons (except PFRs) according to Left/Right
+PFRoutputTypes <- unique((PFRInOut[["outputs"]] %>% filter(!(grepl("PFR.*",type.to))))[["type.to"]])
+```
+
+```{r}
+PFRInOut <- lateralizeInputOutputList(PFRInOut,typeList=PFRoutputTypes)
+```
+
+
+```{r}
+PFROutputsRob <- makePyramidGraph(PFRInOut,c("ROB(R)"),plot=TRUE,polarity = "outputs")
 ```
 
 ```{r}
 PFROutputsRob
 ```
-
-Seems the left/right distinction is not the correct one for PFR (similar to PFLs?)
+This is an imperfect division (because PFRb(R1) is not a pure "instance", they go to different sides).
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Accessory/pyramidPlots/PFR-ROBOutputs.svg",PFROutputsRob,width = 15,height=12)
 ```
@@ -175,9 +185,29 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/pyramidPlots/PFL-PB
 ```
 
 ### LAL
-(will also require a slightly different subdivision of PFLs)
 ```{r}
-PFLInOutLat <- lateralizeInputOutputList(PFLInOut)
+## Divide PFL2 according to left/right
+PFLInOutLat <- redefineTypeByNameInList(PFLInOut,typeList = c("PFL2"),pattern = "_L",newPostFixes = c("_L","_R"))
+```
+
+```{r}
+## Divide PFL1  L/R taking into account the column 1 exception
+PFLInOutLat <- redefineTypeByNameInList(PFLInOutLat,typeList = c("PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
+```
+
+```{r}
+## Divide PFL3  L/R taking into account the "irregular" neurons
+PFLInOutLat <- redefineTypeByNameInList(PFLInOutLat,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+```
+
+
+```{r}
+## Divide all the output neurons (except PFLs) according to Left/Right
+outputTypes <- unique((PFLInOutLat[["outputs"]] %>% filter(!(grepl("PFL1.*|PFL2.*|PFL3.*",type.to))))[["type.to"]])
+```
+
+```{r}
+PFLInOutLat <- lateralizeInputOutputList(PFLInOutLat,typeList=outputTypes)
 ```
 
 ```{r}

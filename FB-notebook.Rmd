@@ -201,126 +201,6 @@ plotConnectivityMatrix(PFRbs_Post, synapseCutOff = 3, 1)
 
 ```
 
-
-
-Get all Delta neurons and plot presynapses
-```{r}
-Deltas = neuprint_search("Delta.*")
-DeltaTypes = unique(Deltas$type)
-
-for (typeNow in 1:length(DeltaTypes)){
-  if (is.na(DeltaTypes[typeNow])) {
-    next
-  }
-  DeltaSyns = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
-  DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-  
-  p1 <- ggplot(DeltaSyns[which(DeltaSyns$prepost == 1),]) + geom_point(aes(x,z,color= bodyid))+coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(DeltaTypes[typeNow]))
-  
-  print(p1)
-}
-
-```
-
-Get all Delta neurons and plot postsynapses - for the Delta 0s, info goes up but doesn't come down...
-```{r}
-Deltas = neuprint_search("Delta.*")
-DeltaTypes = unique(Deltas$type)
-
-for (typeNow in 1:length(DeltaTypes)){
-  if (is.na(DeltaTypes[typeNow])) {
-    next
-  }
-  DeltaSyns = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
-  DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-  
-  p1 <- ggplot(DeltaSyns[which(DeltaSyns$prepost == 0),]) + geom_point(aes(x,z,color= bodyid))+coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(DeltaTypes[typeNow]))
-  
-  print(p1)
-}
-
-```
-
-Cluster each Delta into groups of 3 and plot the centers.
-```{r}
-for (typeNow in 1:length(DeltaTypes)){
-  if (is.na(DeltaTypes[typeNow])) {
-    next
-  }
-  bodyIds = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid
-  
-  #allCentsPre = data.frame(cents.x = c(), cents.y = c(), cents.z = c(), bodyid = c())
-  allDists = data.frame(dist1 = c(), dist2 = c(), dist3 = c(), bodyid = c())
-
-  
-  for (bId in 1:length(bodyIds)){
-    DeltaSyns = neuprint_get_synapses(bodyIds[bId])
-    DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-    
-    kmeanMat = DeltaSyns[which(DeltaSyns$prepost == 1),] %>% select(x,y,z)
-    synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
-
-    centDist = dist(synClusts$centers)
-    distsNow = data.frame(dist1 = centDist[1], dist2 = centDist[2], dist3 = centDist[3], bodyid = as.factor(bodyIds[bId]))
-    allDists <- rbind(allDists,distsNow)
-    #centsNow = data.frame(cents = synClusts$centers, bodyid = as.factor(bodyIds[bId]))
-    #allCentsPre <- rbind(allCentsPre,centsNow)
-  }
-  
-  p1 <- ggplot(allDists)+geom_point(aes(x=bodyid, y=dist1))+geom_point(aes(x=bodyid, y=dist2))+geom_point(aes(x=bodyid, y=dist3))
-  
-  print(p1)
-}
-```
-
-```{r}
-ThreeClusts = c("Delta0S","Delta12a","Delta12c","Delta12g","Delta12h","Delta6D","Delta6F_a")
-
-for (typeNow in 1:length(DeltaTypes)){
-  if (is.na(DeltaTypes[typeNow])) {
-    next
-  }
-  bodyIds = Deltas[which(Deltas$type == DeltaTypes[typeNow]),]$bodyid
-  if (DeltaTypes[typeNow] %in% ThreeClusts)
-    numClusts = 3
-  else
-    numClusts = 2
-  
-  allPostGps = data.frame(dist1 = c(), dist2 = c(), dist3 = c(), bodyid = c())
-  
-  for (bId in 1:length(bodyIds)){
-    DeltaSyns = neuprint_get_synapses(bodyIds[bId])
-    DeltaSyns <-  DeltaSyns %>% mutate(name=as.character(DeltaTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-    
-    kmeanMat = DeltaSyns[which(DeltaSyns$prepost == 1),] %>% select(x,y,z)
-   
-    synClusts = kmeans(kmeanMat,numClusts, iter.max = 50, nstart = 10)
-    
-    postSyns = DeltaSyns[which(DeltaSyns$prepost == 0),] %>% select(x,y,z) %>% 
-      mutate(dist1 = sqrt((x-synClusts$centers[1,1])^2+(y-synClusts$centers[1,2])^2+(z-synClusts$centers[1,3])^2))  %>% 
-      mutate(dist2 = sqrt((x-synClusts$centers[2,1])^2+(y-synClusts$centers[2,2])^2+(z-synClusts$centers[2,3])^2))
-    if (numClusts == 2){
-      postClustIDs = postSyns %>% select(dist1, dist2) %>% apply(1,which.max)
-      clustGps = data.frame(numGp1 = length(which(postClustIDs == 1)), numGp2 = length(which(postClustIDs == 2)), bodyid = as.factor(bodyIds[bId]))
-    } else if (numClusts == 3){
-      postSyns <- postSyns %>% mutate(dist3 = sqrt((x-synClusts$centers[3,1])^2+(y-synClusts$centers[3,2])^2+(z-synClusts$centers[3,3])^2))
-      postClustIDs = postSyns %>% select(dist1, dist2, dist3) %>% apply(1,which.max)
-      clustGps = data.frame(numGp1 = length(which(postClustIDs == 1)), numGp2 = length(which(postClustIDs == 2)), numGp3 = length(which(postClustIDs == 3)), bodyid = as.factor(bodyIds[bId]))
-    }
-
-    allPostGps <- rbind(allPostGps,clustGps)
-    
-  }
-  if (numClusts==2)
-    p1 <- ggplot(allPostGps)+geom_point(aes(x=bodyid, y=numGp1))+geom_point(aes(x=bodyid, y=numGp2))
-  else
-    p1 <- ggplot(allPostGps)+geom_point(aes(x=bodyid, y=numGp1))+geom_point(aes(x=bodyid, y=numGp2))+geom_point(aes(x=bodyid, y=numGp3))
-  
-  print(p1)
-}
-```
-
-Analyses to do:
 Show connections between those inputs and outputs
 ```{r}
 PFNs_Post <- getConnectionTable(getBodyIdsForList(c("PFN")),"POST","FB")
@@ -516,6 +396,7 @@ ggsave("Delta6BInputs.pdf", plot = last_plot(), device='pdf',
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
+
 Look at primary outputs of PFNs
 ```{r}
 
@@ -786,8 +667,6 @@ sankeyNetwork(Links = SPLinks, Nodes = SPNodes, Source = "source", Target = "tar
 ```
 
 
-
-
 Pull out an example Delta6
 ```{r}
 D6s = neuprint_search("Delta6C.*")
@@ -813,84 +692,6 @@ synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
 ggplot(D6syns[which(D6syns$prepost == 1),], aes(x,z, color = as.factor(synClusts$cluster))) + geom_point()
 ```
 
-Get all PFLs and plot presynapses
-```{r}
-# Load the reshape library 
-library(reshape2)
-
-# Specify the number of bins to use
-nbins <- 100
-
-# Pull the FB mesh
-FB_Mesh = neuprint_ROI_mesh("FB")
-FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
-
-# Get the x and z bins
-x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
-z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
-
-# Create a 2D histogram of the FB points
-FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
-FBfreq2D <- diag(nbins)*0
-FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
-dimnames(FBfreq2D) <- list(x.bin, z.bin)
-FBhist.melt <- melt(FBfreq2D)
-names(FBhist.melt) <- c("x", "z", "numPts")
-
-# Make a binary mask out of the FB points
-FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- 0.1
-FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
-FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
-
-# Pull the PFL type names
-PFLs = neuprint_search("PFL.*")
-PFLTypes = unique(PFLs$type)
-
-# Step through the PFL types, plotting the synapses for each
-for (typeNow in 1:length(PFLTypes)){
-  # Skip over empty types
-  if (is.na(PFLTypes[typeNow])) {
-    next
-  }
-  
-  # Get the body ids
-  PFLBodyIds = PFLs[which(PFLs$type == PFLTypes[typeNow]),]$bodyid
-  cMap = c("#000000FF")
-  cMap = append(cMap,rainbow(length(PFLBodyIds)))
-  
-  # Create a plot with the FB outline
-  p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
-  for (bid in 1:length(PFLBodyIds)){
-    
-    # Pull the individual PFL synapses
-    PFLSyns = neuprint_get_synapses(PFLBodyIds[bid], roi="FB")
-    PFLSyns <-  PFLSyns[which(PFLSyns$prepost == 1),] %>% mutate(name=as.character(PFLTypes[typeNow]))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-     
-    # Create a 2D histogram of the synapses
-    freq <-  melt(table(findInterval(PFLSyns$x, x.bin),findInterval(PFLSyns$z, z.bin)))
-    freq2D <- diag(nbins)*0
-    freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
-    dimnames(freq2D) <- list(x.bin, z.bin)
-    hist.melt <- melt(freq2D)
-    names(hist.melt) <- c("xPos", "zPos", "numSyns")
-    
-    # Make a binary mask out of the synapses
-    hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- bid+1
-    hist.melt[which(hist.melt$numSyns<0.1),]$numSyns <- 0
-    
-    hist.melt$bodyid = PFLBodyIds[bid]
-
-    #p1 <- p1 + geom_contour(data=hist.melt, aes(x = xPos,y = zPos,z = numSyns,color=bodyid),bins=1)
-    hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
-    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.25))
-    
-  }
-  p1 <- p1 + coord_fixed(ratio = 1) + theme_void()+ ggtitle(as.character(PFLTypes[typeNow])) + scale_x_reverse() + scale_y_reverse() + scale_fill_gradientn(colors=cMap)
-  
-  print(p1)
-}
-
-```
 
 ```{r}
 preSynFBPlot <- function(type,prePost){
@@ -972,6 +773,7 @@ preSynFBPlot <- function(type,prePost){
   return(p1)
 }
 ```
+
 
 ```{r}
 plotAndSaveSynDistrosFB <- function(typeRoot,prePost){
@@ -1074,7 +876,247 @@ gD6 <-grid.arrange(gD61,gD62,gD63,gD64,gD65,gD66,gD67,gD68,ncol=1)
 ggsave(paste0("Delta6Synapses.pdf"), gD6, device='pdf', 
    path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
    scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+```
 
+Plot histograms of inputs and outputs of a set of types by layer
+```{r}
+FBLayerHist <- function(searchStr,legOff){
+  
+  library(gridExtra)
+  
+  ROIs = neuprint_ROIs()
+  ROIs <- ROIs[which(grepl("FB",ROIs) & (ROIs!="FB"))]
+  
+  plot_list = list()
+  for (pp in 1:2){
+    if (pp == 1)
+      prePost = "PRE"
+    else
+      prePost = "POST"
+    FBSyns = neuprint_connection_table(
+      neuprint_search(paste0(searchStr,".*"))$bodyid,
+      prepost=prePost,by.roi=TRUE)
+    FBSyns <- FBSyns[FBSyns$roi %in% ROIs,]
+    FBSyns <- FBSyns %>% mutate(type = neuprint_get_meta(bodyid)$type, 
+                                    partnerType = neuprint_get_meta(partner)$type)
+    emptyROIs = ROIs[which(!(ROIs %in% unique(FBSyns$roi)))]
+    if (length(emptyROIs)>0){
+      for (eR in 1:length(emptyROIs)){
+        dfTmp = data.frame(bodyid  = 0, partner = 0, prepost = pp-1,
+                           roi = emptyROIs[eR],
+                           ROIweight = 0, weight = 0, type = NA, partnerType = NA)
+        FBSyns <- rbind(FBSyns,dfTmp)
+      }
+    }
+  
+    p <- ggplot(FBSyns,aes(x=roi,y=ROIweight,fill=factor(type))) + geom_bar(stat="identity") +
+      ggtitle(paste(searchStr,prePost,sep="-")) + coord_flip() + ylim(0, 100000)
+    if (legOff == 1)
+      p <- p + theme(legend.position="none")
+    
+    plot_list[[pp]] = p
+  }
+  g = do.call("grid.arrange", c(c(plot_list), nrow=2))
+  return(g)
+}
 
+```
+
+```{r}
+gPFN = FBLayerHist("PFN",0)
+ggsave(paste0("PFNSynsByLayer.pdf"), gPFN, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gPFR = FBLayerHist("PFR",0)
+ggsave(paste0("PFRSynsByLayer.pdf"), gPFR, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gPFG = FBLayerHist("PFG",0)
+ggsave(paste0("PFGSynsByLayer.pdf"), gPFG, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gPFL = FBLayerHist("PFL",0)
+ggsave(paste0("PFLSynsByLayer.pdf"), gPFL, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gFQ = FBLayerHist("FQ",0)
+ggsave(paste0("FQSynsByLayer.pdf"), gFQ, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gD0 = FBLayerHist("Delta0",0)
+ggsave(paste0("Delta0SynsByLayer.pdf"), gD0, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+gD6 = FBLayerHist("Delta6",0)
+ggsave(paste0("Delta6SynsByLayer.pdf"), gD6, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+```
+
+Show where 
+```{r}
+# Get the FB tangential neuron names
+tangFBtypes = neuprint_search("FB.*")$type %>% unique
+tangFBtypes <- tangFBtypes[which(!is.na(tangFBtypes) & !(tangFBtypes=="SA3"))]
+
+gFBTang = FBLayerHist("FB",1)
+ggsave(paste0("FBTangentialSynsByLayer.pdf"), gFBTang, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+```
+
+Plot the FB layers
+```{r}
+ # Load the reshape library 
+library(reshape2)
+
+# Specify the number of bins to use
+nbins <- 100
+
+# Assign a color map for each layer
+cMap = rainbow(9)
+
+# Pull the FB mesh
+FB_Mesh = neuprint_ROI_mesh("FB")
+FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+
+# Get the x and z bins
+x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
+y.bin <- seq(floor(min(FB_xyz$y)), ceiling(max(FB_xyz$y)), length=nbins)
+z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
+
+# Create a plot with the FB outline
+p1 <- ggplot()
+
+# Pull and plot the FB mesh for each layer
+for (l in 1:9){
+  FB_Mesh = neuprint_ROI_mesh(paste0("FBl",l))
+  FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+  
+  # Create a 2D histogram of the FB points
+  FBfreq <-  melt(table(findInterval(FB_xyz$y, y.bin),findInterval(FB_xyz$z, z.bin)))
+  FBfreq2D <- diag(nbins)*0
+  FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
+  dimnames(FBfreq2D) <- list(y.bin, z.bin)
+  FBhist.melt <- melt(FBfreq2D)
+  names(FBhist.melt) <- c("x", "z", "numPts")
+  
+  # Make a binary mask out of the FB points
+  FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- l
+  FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
+  FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
+  
+  FBhist.melt$numPts <- as.factor(FBhist.melt$numPts)
+  p1 <- p1 + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+}
+
+p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
+  scale_x_reverse() + scale_y_reverse() +
+  scale_fill_manual(values=cMap,name = "FB layer")
+
+ggsave(paste0("FBLayerOverview_yz.pdf"), p1, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+```
+
+Plot the FB columns - color by PB glom
+```{r}
+type = "PFNd"
+prePost = "PRE"
+
+PBGloms = c("FB",
+            "L9","L8","L7","L6","L5","L4","L3","L2","L1",
+            "R1","R2","R3","R4","R5","R6","R7","R8","R9")
+
+# Load the reshape library 
+library(reshape2)
+
+# Specify the number of bins to use
+nbins <- 100
+
+# Pull the FB mesh
+FB_Mesh = neuprint_ROI_mesh("FB")
+FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+
+# Get the x and z bins
+x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
+z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
+
+# Create a 2D histogram of the FB points
+FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
+FBfreq2D <- diag(nbins)*0
+FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
+dimnames(FBfreq2D) <- list(x.bin, z.bin)
+FBhist.melt <- melt(FBfreq2D)
+names(FBhist.melt) <- c("x", "z", "numPts")
+
+# Make a binary mask out of the FB points
+FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
+FBhist.melt$numPts <- "FB"
+FBhist.melt$numPts <- factor(FBhist.melt$numPts, levels = PBGloms)
+
+# Get the body ids
+bodyIds = neuprint_search(paste0(type,".*"))$bodyid
+
+# Assign a color map given the number of synapsese
+cMap = c("#000000FF")
+cMap = append(cMap,rainbow(length(PBGloms)))
+
+# Create a plot with the FB outline
+p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+
+for (bid in 1:length(bodyIds)){
+  
+  # Pull the individual PFL synapses
+  syns = neuprint_get_synapses(bodyIds[bid], roi="FB")
+  if (grepl("PRE",prePost)){
+    syns <-  syns[which(syns$prepost == 0),]
+  } else{
+    syns <- syns[which(syns$prepost == 1),]
+  }
+  if (nrow(syns)==0)
+    next
+  syns <- syns %>% mutate(name=as.character(type))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+   
+  # Create a 2D histogram of the synapses
+  freq <-  melt(table(findInterval(syns$x, x.bin),findInterval(syns$z, z.bin)))
+  freq2D <- diag(nbins)*0
+  freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
+  dimnames(freq2D) <- list(x.bin, z.bin)
+  hist.melt <- melt(freq2D)
+  names(hist.melt) <- c("xPos", "zPos", "numSyns")
+  
+  # Get the PB ROI
+  ROIDat = neuprint_get_roiInfo(bodyIds[bid])
+  PBROIs = colnames(ROIDat)
+  PBROIs <- PBROIs[which(grepl("PB",PBROIs) & PBROIs != "PB.post")]
+  if (length(PBROIs) > 1){
+    PBROI = names(which.max(ROIDat[,which(colnames(ROIDat) %in% PBROIs)]))
+  } else {
+    PBROI = PBROIs
+  }
+  if (length(PBROI) == 0)
+    next
+    
+  
+  # Make a binary mask out of the synapses
+  hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
+  glomIndex = PBGloms %>% lapply(function(x){grepl(x[[1]],PBROI)}) %>% unlist() %>% which() 
+  hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- PBGloms[glomIndex]
+  hist.melt$numSyns <- factor(hist.melt$numSyns,levels=PBGloms)
+  
+  hist.melt$bodyid = bodyIds[bid]
+
+  p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.25))
+  
+}
+p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
+  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap,name = "PB Glom")
+if (grepl("PRE",prePost)) {
+  p1 <-  p1 + ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
+} else {
+  p1 <-  p1 + ggtitle(paste0(as.character(type),": inputs (n=",length(bodyIds),")")) 
+}
+print(p1)
 ```
 

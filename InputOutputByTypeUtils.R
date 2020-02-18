@@ -10,14 +10,16 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
               inputs = INByTypes,
               names = TypeNames,
               outputs_raw = outputs,
-              inputs_raw = inputs
+              inputs_raw = inputs,
+              outputsTableRef = getTypesTable(unique(outputs$type.to))
               ))
 }
 
 redefineTypeByNameInList <- function(IOList,
                                      typeList,
                                      pattern,
-                                     newPostFixes){
+                                     newPostFixes,
+                                     perl=FALSE){
 
   
   
@@ -29,7 +31,8 @@ redefineTypeByNameInList <- function(IOList,
                                          pattern=pattern,
                                          newPostFixes=newPostFixes,
                                          type_col=paste0("type.",col),
-                                         name_col=paste0("name.",col))
+                                         name_col=paste0("name.",col),
+                                         perl=perl)
                   
       }
     }
@@ -38,47 +41,48 @@ redefineTypeByNameInList <- function(IOList,
                                       pattern=pattern,
                                       newPostFixes=newPostFixes,
                                       type_col="type",
-                                      name_col="name")
+                                      name_col="name",
+                                      perl=perl)
+    
+    IOList$outputsTableRef <- redefineTypeByName(IOList$outputsTableRef,
+                                                 type=t,
+                                                 pattern=pattern,
+                                                 newPostFixes=newPostFixes,
+                                                 type_col="type",
+                                                 name_col="name",
+                                                 perl=perl)
   }
   
-  outputNames <- unique(IOList$outputs$databaseTypeTo)
-  outputsLatNames <- getTypesTable(outputNames)
-  for (t in typeList){
-    outputsLatNames <- redefineTypeByName(outputsLatNames,
-                                          type=t,
-                                          pattern=pattern,
-                                          newPostFixes=newPostFixes,
-                                          type_col="type",
-                                          name_col="name")
-  }
-     
-  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = outputsLatNames)
+ 
+  ## In case recursive modifs have been made
+  
+  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef)
   IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names)
 
-  
   return(IOList)
 }
 
 lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
  
   outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  outputsLat <- lrSplit(outputsLat,typeList=typeList)
+  outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
   
   inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  inputsLat <- lrSplit(inputsLat,typeList=typeList)
+  inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
  
-  outputsLatNames <- getTypesTable(unique(outputsLat$databaseTypeTo))
-  outputsLatNames <- lrSplit(outputsLatNames,nameCol="name",typeCol="type",typeList=typeList)
+  outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
+  
   TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
  
-  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsLatNames)
+  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef)
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
 
   return(list(outputs = outByTypesLat,
               inputs = inByTypesLat,
               names = TypeNamesLat,
               outputs_raw = outputsLat,
-              inputs_raw=inputsLat))
+              inputs_raw=inputsLat,
+              outputsTableRef=outputsRef))
   
 }
 
@@ -88,7 +92,9 @@ bind_InoutLists <- function(...){
               inputs = distinct(bind_rows(lapply(full,function(i) i$inputs))),
               names = distinct(bind_rows(lapply(full,function(i) i$names))),
               outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
-              inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))))
+              inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
+              outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
+              )
   return(out)
   
 }
