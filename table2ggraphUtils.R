@@ -32,7 +32,7 @@ makePyramidGraph <- function(type2typeList,ROIs,polarity="inputs",plot=FALSE){
 pyramidGraph <- function(graphT,nodeT,edgeT){
     ggraph(graphT,layout="sugiyama",layers=nodeT$layer) + 
       geom_edge_fan(aes(width=weightRelative),colour="grey",alpha=0.5) + 
-      geom_edge_loop(colour="grey",aes(direction=10,span=10),alpha=0.5) +
+      geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
       geom_node_point(aes(color=name),size=5) + 
       geom_node_text(aes(label=name),angle=40,size=4) +
       guides(color="none") + 

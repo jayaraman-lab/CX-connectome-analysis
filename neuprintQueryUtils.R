@@ -248,6 +248,19 @@ retype.na <- function(connectionTable){
   return(connectionTable)
 }
 
+retype.na_meta <- function(metaTable){
+  #' Fill in the type and name field in case they are NAs, using the name field if it exists
+  #' (removing the _L/_R) or the neuron id. By default expects a table in to/from format.
+  #'
+  metaTable <- metaTable %>% 
+    mutate(
+           name = ifelse(is.na(name),as.character(bodyid),name),
+           type = ifelse(is.na(type),gsub("_L$|_R$","",name),type)
+    )
+  
+  return(metaTable)
+}
+
 getTypeToTypeTable <- function(connectionTable,
                                majorOutputThreshold=0.8,
                                singleNeuronThreshold=0.01,
