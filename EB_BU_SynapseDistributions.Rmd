@@ -60,18 +60,20 @@ source("GetRoiMeshOutline.r")
 
 
 ### Get neurons in the ROI and
-### Threshold neurons (need to agree on criteria and clean up code)
+### Exclude neurons not in known EB types
 ```{r}
 
 # get all EB bodies
 NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
-# Threshold based on weights (criteria needs to be agreed on)
-PreMaxThresh=10
-PostMaxThresh=10
-Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
-list2env(Output ,.GlobalEnv)
-remove(Output)
+# Load known types
+load("C:/Users/labadmin/Dropbox/FIBSEM CX Paper Jan 2020/Figures/EB/EB_Types.Rdata")
+
+# Exclude bodies not in known types
+ExcludedTypes=unique(NamedBodies$bodytype[!(NamedBodies$bodytype %in% EB_Type)])
+NamedBodies=subset(NamedBodies, NamedBodies$bodytype %in% EB_Type)
+
 
 ```
 
@@ -107,6 +109,8 @@ RingNeuron_LALsyns = mutate(RingNeuron_LALsyns, name=neuprint_get_meta(bodyid)$t
                            x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
 
 
+
+RingNeuron_EBsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid[1:10], roi = 'EB') 
 
 ```
 
