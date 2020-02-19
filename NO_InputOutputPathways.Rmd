@@ -348,11 +348,12 @@ plot_ly(data = OutputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, tex
 
 
 # Plot all of the ROIs (and sub ROIs) that all NO neurons innervate
-p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
-  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count))   + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") + 
+  geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("NO Neuron Relative Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "Thresh_Abs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_Thresh_Abs_Figure_NOAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
