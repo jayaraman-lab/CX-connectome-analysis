@@ -84,7 +84,11 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   if (synapseType == "PRE"){
     inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
-    inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+    if (!by.roi & is.null(slctROI)){
+      inputsTable <- inputsTable %>% mutate(from = bodyid)
+    }else{
+      inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+    }
     inp <- "partner"
   }else{
     inputsTable <- myConnections
@@ -155,8 +159,8 @@ getTypesTable <- function(types){
   return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
 }
 
-redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name"){
-  condition <- grepl(pattern,table[[name_col]])
+redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name",perl=FALSE){
+  condition <- grepl(pattern,table[[name_col]],perl=perl)
   redefineType(table=table,
                type=type,
                condition=condition,
@@ -212,9 +216,13 @@ lrSplit <- function(connectionTable,
   #' } 
   if (is.null(typeList)){
     typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
-    typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
-    typeList <- typeList[[typeCol]]
+  }else{
+    typeList <- filter(connectionTable,(!!as.name(typeCol)) %in% typeList)
+    typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }
+  typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
+  typeList <- typeList[[typeCol]]
+  
   for (t in typeList){
     connectionTable <- redefineTypeByName(table=connectionTable,
                                           type=t,
@@ -243,7 +251,7 @@ retype.na <- function(connectionTable){
 getTypeToTypeTable <- function(connectionTable,
                                majorOutputThreshold=0.8,
                                singleNeuronThreshold=0.01,
-                               singleNeuronThresholdN=5,
+                               singleNeuronThresholdN=3,
                                pThresh = 0.05,
                                typesTable = NULL){
   #' Generate a table of type to type connections, keeping only the significant links
@@ -366,7 +374,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) %>% filter(pVal < pThresh | outputContribution > majorOutputThreshold) %>%
+                                ) %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
                                 select(-pVal)
                                 
           return(bind_rows(sTable,loners))                  

@@ -115,18 +115,22 @@ ggplot(FAFB_PB_df  %>% filter(weight > synapseCutOff)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
-neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7",
+ggsave("FAFB_PB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
@@ -142,10 +146,14 @@ neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 
-ggplot(FIBSEM_PB  %>% filter(weight > synapseCutOff)) + 
+ggplot(FIBSEM_PB  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+
+ggsave("FIBSEM_PB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 Compare the FAFB data to the FIBSEM data - EB
@@ -160,18 +168,22 @@ ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
-neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7",
+ggsave("FAFB_EB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
@@ -184,10 +196,14 @@ neuronList = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
 
 FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
 
-ggplot(FIBSEM_EB  %>% filter(weight > synapseCutOff)) + 
+ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+
+ggsave("FIBSEM_EB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 Compare the FAFB data to the FIBSEM data - NO
@@ -202,25 +218,33 @@ ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
-neuronListPost = c("PEN\\\\\\\\(PB06\\\\\\\\)_a_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_a_L7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L5",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L6",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_R7",
-              "PEN\\\\\\\\(PB06\\\\\\\\)_b_L7")
+ggsave("FAFB_NO.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+neuronListPost = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7")
 
 neuronListPre = append(neuronListPost,"GLN\\\\\\\\(LAL-NO1\\\\\\\\)\\\\\\\\(AVM08\\\\\\\\)_L")
 
 FIBSEM_NO = getConnectionTable_forSubset(getBodyIdsForList(neuronListPre)$bodyid, getBodyIdsForList(neuronListPost)$bodyid, "NO")
 
-ggplot(FIBSEM_NO  %>% filter(weight > synapseCutOff)) + 
+ggplot(FIBSEM_NO  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+
+ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
