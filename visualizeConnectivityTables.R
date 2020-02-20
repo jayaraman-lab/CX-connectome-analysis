@@ -15,7 +15,7 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
   # cool: low = "papayawhip", mid = "darkseagreen2", high = "steelblue4"
   # warm: 
   
-  myConTab = myConTab %>% mutate(plotWeight = myConTab[[connectionMeasure]])
+  myConTab = myConTab %>% ungroup() %>% mutate(plotWeight = myConTab[[connectionMeasure]])
   
   if (byGroup == "id"){
     myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
