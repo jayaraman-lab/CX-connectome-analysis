@@ -15,7 +15,7 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
     }
   if (nrow(inputsR)==0){INByTypes <- NULL}else{
     INByTypes <- getTypeToTypeTable(inputsR)
-    inputsR <- retype.na(outputsR)}
+    inputsR <- retype.na(inputsR)}
   
   return(list(outputs = OUTByTypes,
               inputs = INByTypes,
