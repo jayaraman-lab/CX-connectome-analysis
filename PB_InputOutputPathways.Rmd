@@ -260,19 +260,24 @@ plot_ly(data = OutputHistDat,  x = ~count, y = ~RelativeCount, color = ~TTT, tex
 
 
 
+
+
+
+
 # Plot all of the ROIs (and sub ROIs) that all PB neurons innervate
-p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count)) + geom_point()  + 
-  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count))   + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") + 
+  geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("PB Neuron Relative Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "Thresh_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+  ggtitle(paste("PB Neuron Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "FIGURE_Thresh_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
 
 # Plot all of the ROIs (and sub ROIs) that all PB neurons innervate
-p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=RelativeCount)) + geom_point()  + 
-  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) +
+p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=RelativeCount)) +  geom_point(color="black", stroke = 1.75)   + 
+  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") +  scale_fill_manual(values = vars(type)) + aes(color = type) + geom_point()   + 
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("PB Neuron Input/Output ROIs", " Thresholded"))
 ggsave(paste(PlotDir, "Thresh_Rel_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
@@ -305,6 +310,12 @@ ROISubset[ (ROISubset$roi_names=="PFGs(R)" & ROISubset$roi_names=="LAL(-GA)(R)" 
 
 plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~RelativeCount, type = "heatmap") %>% layout(title = 'All Outputs')
 plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~type_name, z = ~count, type = "heatmap") %>% layout(title = 'All Outputs')
+
+
+
+
+
+
 
 
 ```

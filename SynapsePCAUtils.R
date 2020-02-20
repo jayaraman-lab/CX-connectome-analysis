@@ -2,6 +2,9 @@
 # 1) Performing PCA on meshes or synapse locations to get primary axes
 # 2) Projecting a set of synapses or mesh points onto new axes
 # 3) Plotting the distribution of synapses over ROI outlins
+# 4) Getting synapse locations in a loop so the query doesnt time out
+
+
 
 
 PCA_SynapseRoi <- function(Input_DF, Rotate) {
@@ -66,6 +69,10 @@ PCA_SynapseRoi <- function(Input_DF, Rotate) {
 }
 
 
+
+
+
+
 Project_NewCoordinates <- function(Input_DF, NewAxes) {
   
   
@@ -115,13 +122,13 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
   
   
   # Make same plot for each neuron type now
-  PlotHandles1 <- vector("list", length(unique(Synapses$name)))
-  PlotHandles2 <- vector("list", length(unique(Synapses$name)))
+  PlotHandles1 <- vector("list", length(unique(Synapses$type)))
+  PlotHandles2 <- vector("list", length(unique(Synapses$type)))
   # Get 95% contour and plot all on one plot
-  for (nnn in 1:length(unique(Synapses$name)) ){
+  for (nnn in 1:length(unique(Synapses$type)) ){
     
     # Get the synapses to plot
-    ToPlotSyns=subset(Synapses, Synapses$name == sort(unique(Synapses$name))[nnn] )
+    ToPlotSyns=subset(Synapses, Synapses$type == sort(unique(Synapses$type))[nnn] )
     
     # Plot the 2D hisogram without contour lines
     ppp=ggplot()  + geom_polygon(data=ROI_Outline1, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
@@ -129,11 +136,11 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
       geom_polygon(data=ROI_Outline3, aes(x = x, y = -y), colour='black', fill=NA, size = 0.75 ) +
       geom_hex(data=ToPlotSyns, aes(x = x, y = -y), bins=50 ) + 
       scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
-      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$name))[nnn]) +
+      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$type))[nnn]) +
       coord_fixed() + theme_void()  + theme(legend.position="none")
       
     
-    #ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_",sort(unique(Synapses$name))[nnn],".png",sep=""),
+    #ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_",sort(unique(Synapses$type))[nnn],".png",sep=""),
            #plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
     PlotHandles1[[nnn]] <- ppp
     remove(ppp)
@@ -146,12 +153,12 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
       kd <- ks::kde(d, compute.cont=TRUE, bgridsize=c(7,7))
       contour_95 <- with(kd, contourLines(x=eval.points[[1]], y=eval.points[[2]], z=estimate, levels=cont["2%"])[[1]])
       contour_95 <- data.frame(contour_95)
-      contour_95$name=sort(unique(Synapses$name))[nnn]
+      contour_95$name=sort(unique(Synapses$type))[nnn]
       
       # Smooth contour 
       Contour=data.frame(x = rollmean(contour_95$x,4),
                          y = rollmean(contour_95$y,4),
-                         name = sort(unique(Synapses$name))[nnn])
+                         name = sort(unique(Synapses$type))[nnn])
     } else if (ContourType==2){
       
       plot_data=ToPlotSyns[,c(3,4,9)]
@@ -182,11 +189,11 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
       geom_hex(data=ToPlotSyns, aes(x = x, y = -y), bins=50 ) + 
       geom_polygon(data=Contour, aes(x=x, y=-y), colour='red', fill=NA, size = 0.5) +
       scale_fill_gradientn(colors = brewer.pal(3,"Blues"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
-      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$name))[nnn]) +
+      xlim(XLIM[1], XLIM[2]) + ylim(YLIM[1], YLIM[2]) + ggtitle(sort(unique(Synapses$type))[nnn]) +
       coord_fixed() + theme_void()  + theme(legend.position="none")
     
     
-    #ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_",sort(unique(Synapses$name))[nnn],".png",sep=""),
+    #ggsave(paste(PlotDir, ROI, "_RingNeuronSynDistribution_Contour_",sort(unique(Synapses$type))[nnn],".png",sep=""),
            #plot = ppp, device='png', scale = 1, width = 8, height = 7, units ="in", dpi = 600, limitsize = TRUE)
     PlotHandles2[[nnn]] <- ppp
     remove(ppp)
@@ -215,6 +222,81 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
 
   
   
+
+# Loop over bodyids and get synapse locations to avoid queries that time out
+GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
   
   
+  if (GROUP==TRUE){
+    
+    if (length(BodyIDs)>=20){Chunks=10}else{Chunks=1}
+    
+    Starts=seq(from = 1, to = floor(length(BodyIDs)/Chunks)*Chunks+1, by = Chunks)
+    Stops=c(Starts[2:length(Starts)]-1, length(BodyIDs))
+    
+    for (bbb in 1:length(Starts)){
+      print(bbb)
+      if (bbb==1){
+        
+        if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
+        } else {SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)}
+        
+        SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                          x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+      } else {
+        
+        if (ROI=="all"){TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
+        } else {TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)} 
+        
+        TempLocs =  mutate(TempLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+        SynLocs=rbind(SynLocs,TempLocs)
+        remove(TempLocs)
+      }
+      
+    }
+    
+  } else {
+    
+    if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs)
+    } else {SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)}
+    
+    SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                      x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+    
+  }
+  
+  SynLocs$prepost[SynLocs$prepost==0]="Input"
+  SynLocs$prepost[SynLocs$prepost==1]="Output"
+  
+  return(SynLocs)
+  
+}
+
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
