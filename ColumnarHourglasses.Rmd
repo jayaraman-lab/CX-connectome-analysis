@@ -38,8 +38,8 @@ PFNInputsByLayer
 ```
 
 ```{r}
-ggsave("~/Desktop/PFN-FBInputsByFBlayer.svg",PFNInputsByLayer,width = 15,height=10)
-ggsave("~/Desktop/PFN-FBOutputsByFBlayer.svg",PFNOutputsByLayer,width = 49,height=12)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Accessory/pyramidPlots/PFN-FBInputsByFBlayer.svg",PFNInputsByLayer,width = 20,height=10)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Accessory/pyramidPlots/PFN-FBOutputsByFBlayer.svg",PFNOutputsByLayer,width = 49,height=12)
 ```
 
 ### PFNs in the PB
@@ -87,13 +87,32 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/pyramidPlots/PFN-Ou
 PFRInOut <- buildInputsOutputsByType("PFR.*")
 ```
 
+Retyping:
+Group L1 with R and R1 with L (innervation similar for PFRa)
 ```{r}
-fbROIs <- c("FBl1","FBl2","FBl3","FBl4","FBl5","FBl6","FBl7","FBl8")
+## Divide PFR taking into account the column 1 exception
+PFRInOut <- redefineTypeByNameInList(PFRInOut,typeList = c("PFR_a"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
+```
+
+For PFR_b it gets complicated
+```{r}
+PFRInOut <- redefineTypeByNameInList(PFRInOut,typeList = c("PFR_b"),pattern = "(^.*_L(?!.*C9))|(^.*C1.*)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+```
+
+
+```{r}
+## Divide all the output neurons (except PFRs) according to Left/Right
+PFRoutputTypes <- unique((PFRInOut[["outputs"]] %>% filter(!(grepl("PFR.*",type.to))))[["type.to"]])
 ```
 
 ```{r}
+PFRInOut <- lateralizeInputOutputList(PFRInOut,typeList=PFRoutputTypes)
+```
+
+
+```{r}
 PFRInputsByLayer <- makePyramidGraph(PFRInOut,fbROIs,plot=TRUE,polarity = "inputs")
-PFROutputsByLayer <-  makePyramidGraph(PFRInOut$outputs,fbROIs,plot=TRUE,polarity = "outputs")
+PFROutputsByLayer <-  makePyramidGraph(PFRInOut,fbROIs,plot=TRUE,polarity = "outputs")
 ```
 
 ```{r}
@@ -118,40 +137,68 @@ PFRInputsPB
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/pyramidPlots/PFR-PBInputs.svg",PFRInputsPB,width = 15,height=12)
 ```
 
-### Round body
-Group L1 with R and R1 with L (innervation similar to PFL2/3)
-```{r}
-## Divide PFR taking into account the column 1 exception
-PFRInOut <- redefineTypeByNameInList(PFRInOut,typeList = c("PFR_a","PFR_b"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
-```
+### Round body (+Crepine)
 
 ```{r}
-## Divide all the output neurons (except PFRs) according to Left/Right
-PFRoutputTypes <- unique((PFRInOut[["outputs"]] %>% filter(!(grepl("PFR.*",type.to))))[["type.to"]])
-```
-
-```{r}
-PFRInOut <- lateralizeInputOutputList(PFRInOut,typeList=PFRoutputTypes)
-```
-
-
-```{r}
-PFROutputsRob <- makePyramidGraph(PFRInOut,c("ROB(R)"),plot=TRUE,polarity = "outputs")
+PFROutputsRob <- makePyramidGraph(PFRInOut,c("ROB(R)","CRE(-ROB,-RUB)(R)"),plot=TRUE,polarity = "outputs")
+PFRInputsRob <- makePyramidGraph(PFRInOut,c("ROB(R)","CRE(-ROB,-RUB)(R)"),plot=TRUE,polarity = "inputs")
 ```
 
 ```{r}
 PFROutputsRob
 ```
-This is an imperfect division (because PFRb(R1) is not a pure "instance", they go to different sides).
+
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Accessory/pyramidPlots/PFR-ROBOutputs.svg",PFROutputsRob,width = 15,height=12)
+PFRInputsRob
 ```
+
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Accessory/pyramidPlots/PFR-ROBOutputs.svg",PFROutputsRob,width = 30,height=15)
+```
+
+Crepine?
+
+```{r}
+PFROutputsCre <- makePyramidGraph(PFRInOut,c("CRE(-ROB,-RUB)(R)"),plot=TRUE,polarity = "outputs")
+```
+
+```{r}
+PFROutputsCre
+```
+
 
 ## PFLs
 
 ```{r}
 PFLInOut <- buildInputsOutputsByType("PFL.*")
 ```
+
+Some general type renaming:
+```{r}
+## Divide PFL2 according to left/right
+PFLInOut <- redefineTypeByNameInList(PFLInOut,typeList = c("PFL2"),pattern = "_L",newPostFixes = c("_L","_R"))
+```
+
+```{r}
+## Divide PFL1  L/R taking into account the column 1 exception
+PFLInOut <- redefineTypeByNameInList(PFLInOut,typeList = c("PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
+```
+
+```{r}
+## Divide PFL3  L/R taking into account the "irregular" neurons
+PFLInOut <- redefineTypeByNameInList(PFLInOut,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+```
+
+```{r}
+## Divide all the output neurons (except PFLs) according to Left/Right
+outputTypes <- unique((PFLInOut[["outputs"]] %>% filter(!(grepl("PFL1.*|PFL2.*|PFL3.*",type.to))))[["type.to"]])
+```
+
+```{r}
+PFLInOut <- lateralizeInputOutputList(PFLInOut,typeList=outputTypes)
+```
+
 
 ### FB
 ```{r}
@@ -162,13 +209,10 @@ PFLOutputsByLayer <- makePyramidGraph(PFLInOut,fbROIs,plot=TRUE,polarity="output
 ```{r}
 PFLInputsByLayer
 ```
-```{r}
-PFLOutputsByLayer
-```
+
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/pyramidPlots/PFL-FBInputsByFBlayer.svg",PFLInputsByLayer,width = 49,height=12)
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/pyramidPlots/PFL-FBOutputsByFBlayer.svg",PFLOutputsByLayer,width = 15,height=12)
 ```
 
 ### PB
@@ -185,33 +229,9 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/pyramidPlots/PFL-PB
 ```
 
 ### LAL
-```{r}
-## Divide PFL2 according to left/right
-PFLInOutLat <- redefineTypeByNameInList(PFLInOut,typeList = c("PFL2"),pattern = "_L",newPostFixes = c("_L","_R"))
-```
 
 ```{r}
-## Divide PFL1  L/R taking into account the column 1 exception
-PFLInOutLat <- redefineTypeByNameInList(PFLInOutLat,typeList = c("PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
-```
-
-```{r}
-## Divide PFL3  L/R taking into account the "irregular" neurons
-PFLInOutLat <- redefineTypeByNameInList(PFLInOutLat,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
-```
-
-
-```{r}
-## Divide all the output neurons (except PFLs) according to Left/Right
-outputTypes <- unique((PFLInOutLat[["outputs"]] %>% filter(!(grepl("PFL1.*|PFL2.*|PFL3.*",type.to))))[["type.to"]])
-```
-
-```{r}
-PFLInOutLat <- lateralizeInputOutputList(PFLInOutLat,typeList=outputTypes)
-```
-
-```{r}
-PFLLalOutputs <- makePyramidGraph(PFLInOutLat,ROIs = c("LAL(-GA)(R)"),polarity="outputs",plot = TRUE)
+PFLLalOutputs <- makePyramidGraph(PFLInOut,ROIs = c("LAL(-GA)(R)"),polarity="outputs",plot = TRUE)
 ```
 
 ```{r}
