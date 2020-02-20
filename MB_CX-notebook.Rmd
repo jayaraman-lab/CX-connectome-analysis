@@ -19,13 +19,11 @@ options(nat.plotengine = 'rgl')
 
 ### Configurable inputs: choose save/plot directories
 ```{r}
-
 # Directory to save data to.
 SaveDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
 
 # Directory to save plots to.
 PlotDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
-
 ```
 
 ### Create save/plot directory if they dont exists yet
@@ -33,7 +31,6 @@ PlotDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 ```
-
 
 ### Connect to neuprint
 ```{r}
@@ -73,9 +70,16 @@ MBONFbConnections <- MBON_PostConnections %>% filter(to %in% FBOutputs$bodyid)
 MBONFbConnections %>% plotConnectivityMatrix
 ```
 
-
 ### Make the TypeToType connection table from MBON to CX
+```{r}
+MBONFbTypeToTypeConnections <- getTypeToTypeTable(MBONFbConnections)
+head(MBONFbTypeToTypeConnections)
+```
 
+### Plot the TypeToType connetivity matrix
+```{r}
+plotConnectivityMatrix(MBONFbTypeToTypeConnections,byGroup = "type")
+```
 
 
 ### Make type-by-type synapse heat map in the CX
