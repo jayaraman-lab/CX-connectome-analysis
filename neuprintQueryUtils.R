@@ -61,9 +61,9 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   myConnections <- filter(myConnections,partnerMeta$status == "Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
   
-  refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
-  refMetaOrig <- slice(refMetaOrig,sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid)))
-  
+  refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
+  refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
+
   myConnections <-myConnections %>%
     mutate(partnerName = partnerMeta[["name"]],
            name = refMeta[["name"]],
@@ -112,11 +112,13 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     
     myConnections <- myConnections %>% group_by(roi) %>%
              mutate(totalPreROIweight = totalPre[["totalPreROIweight"]][totalPre$roi == roi[1]][match(from,totalPre$from[totalPre$roi == roi[1]])]) %>% ungroup()
-    
+    if (length(myConnections[["roi"]]) == 0){
+      postVar <- character(0)}else{
     postVar <- paste0(myConnections[["roi"]],".post")
+      }
     
     myConnections <- myConnections %>%
-          mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
+          mutate(totalROIweight = as.integer(sapply(seq_len(length(postVar)),function(v) outInfo[[postVar[v]]][v])),
                  weightRelative=ROIweight/totalROIweight,
                  outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
