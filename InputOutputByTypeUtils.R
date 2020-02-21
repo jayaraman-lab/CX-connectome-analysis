@@ -78,31 +78,27 @@ redefineTypeByNameInList <- function(IOList,
 }
 
 lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
-  if (is.null(typeList)){
-    typeList <- unique(inputOutputList$outputs$type.to,inputOutputList$inputs$type.from,names$type)
-  }
-  redefineTypeByNameInList(inputOutputList,typeList = typeList,pattern = "_L",newPostFixes = c("_L","_R"))
   
-  #outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  #outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
+  outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
   
-  #inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  #inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
+  inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
  
-  #outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
+  outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
   
-  #TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
+  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
  
-  #outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef)
-  #inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
+  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef,oldTable = inputOutputList$outputs)
+  inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)
   
   
-  #return(list(outputs = outByTypesLat,
-  #            inputs = inByTypesLat,
-  #            names = TypeNamesLat,
-  #            outputs_raw = outputsLat,
-  #            inputs_raw=inputsLat,
-  #            outputsTableRef=outputsRef))
+  return(list(outputs = outByTypesLat,
+              inputs = inByTypesLat,
+              names = TypeNamesLat,
+              outputs_raw = outputsLat,
+              inputs_raw=inputsLat,
+              outputsTableRef=outputsRef))
   
 }
 
