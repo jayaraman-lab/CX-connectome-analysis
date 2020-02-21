@@ -229,14 +229,13 @@ lrSplit <- function(connectionTable,
   }
   typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
   typeList <- typeList[[typeCol]]
-  
+  condition <- grepl("_L",connectionTable[[nameCol]])
+  connectionTable[[paste0("previous.",typeCol)]] <- connectionTable[[typeCol]] ## keeping track of the last named types
   for (t in typeList){
-    connectionTable <- redefineTypeByName(table=connectionTable,
-                                          type=t,
-                                          pattern="_L",
-                                          newPostFixes=c("_L","_R"),
-                                          type_col = typeCol,
-                                          name_col=nameCol)
+    rightType <- paste0(t,"_R")
+    leftType <- paste0(t,"_L")
+    connectionTable[[typeCol]][connectionTable[[typeCol]] == t] <-  rightType
+    connectionTable[[typeCol]][(connectionTable[[typeCol]] == rightType) & condition] <-  leftType 
   }
   return(connectionTable)
 }
