@@ -1,0 +1,87 @@
+---
+title: "Neurons in ROI/Romain trials"
+output: html_notebook
+---
+
+
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+
+source("neuprintQueryUtils.R")
+source("table2ggraphUtils.R")
+source("InputOutputByTypeUtils.R")
+source("romainNeuronsInRoi.R")
+library(pbapply)
+```
+
+# EB
+This might take a while
+```{r}
+EBTypes <- getTypesInRoi("EB")
+```
+
+How do those compare to the Brad Types
+```{r}
+load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/EB_Types.RData")
+```
+
+```{r}
+EB_Type[!(EB_Type %in% EBTypes)]
+```
+That's fine, EQ5 is not a type anymore (it's called EL now)
+```{r}
+EBTypes[!(EBTypes %in% EB_Type)]
+```
+
+# NO
+```{r}
+NOTypes <- getTypesInRoi("NO(R)",lateralize=TRUE,big=FALSE)
+```
+
+How do those compare to the Brad Types
+
+```{r}
+load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/NO_Types.RData")
+```
+
+```{r}
+NO_Type[!(NO_Type %in% NOTypes)]
+```
+```{r}
+NOTypes[!(NOTypes %in% NO_Type)]
+```
+
+# PB
+```{r}
+PBTypes <- getTypesInRoi("PB",big=FALSE)
+```
+
+```{r}
+load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/PB_Types.RData")
+```
+
+```{r}
+PB_Type[!(PB_Type %in% PBTypes)]
+```
+```{r}
+PBTypes[!(PBTypes %in% PB_Type)]
+```
+
+# FB
+Tighten your seat belts, there are many neurons here.
+```{r}
+FBTypes <- getTypesInRoi("FB")
+```
+
+```{r}
+load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/FB_Types.RData")
+```
+
+```{r}
+FB_Type[!(FB_Type %in% FBTypes)]
+```
+```{r}
+FBTypes[!(FBTypes %in% FB_Type)]
+```
