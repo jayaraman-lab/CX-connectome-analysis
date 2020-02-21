@@ -32,7 +32,8 @@ redefineTypeByNameInList <- function(IOList,
                                      newPostFixes,
                                      perl=FALSE){
 
-  
+  oldOutputs <- IOList$outputs
+  oldInputs <- IOList$inputs
   
   for (t in typeList){
     for (col in c("from","to")){
@@ -67,33 +68,41 @@ redefineTypeByNameInList <- function(IOList,
  
   ## In case recursive modifs have been made
   
-  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef)
-  IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names)
+  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef,oldTable = oldOutputs)
+  IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names,oldTable = oldInputs)
+  
+  ## Exception: we want to keep connections that were lost through division of input types.
+  
 
   return(IOList)
 }
 
 lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
- 
-  outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
+  if (is.null(typeList)){
+    typeList <- unique(inputOutputList$outputs$type.to,inputOutputList$inputs$type.from,names$type)
+  }
+  redefineTypeByNameInList(inputOutputList,typeList = typeList,pattern = "_L",newPostFixes = c("_L","_R"))
   
-  inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
-  inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
- 
-  outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
+  #outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  #outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
   
-  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
+  #inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
+  #inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
  
-  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef)
-  inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
-
-  return(list(outputs = outByTypesLat,
-              inputs = inByTypesLat,
-              names = TypeNamesLat,
-              outputs_raw = outputsLat,
-              inputs_raw=inputsLat,
-              outputsTableRef=outputsRef))
+  #outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
+  
+  #TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
+ 
+  #outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef)
+  #inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
+  
+  
+  #return(list(outputs = outByTypesLat,
+  #            inputs = inByTypesLat,
+  #            names = TypeNamesLat,
+  #            outputs_raw = outputsLat,
+  #            inputs_raw=inputsLat,
+  #            outputsTableRef=outputsRef))
   
 }
 
