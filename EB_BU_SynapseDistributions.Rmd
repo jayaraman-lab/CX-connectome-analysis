@@ -37,6 +37,7 @@ SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
 # Directory to save plots to.
 PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
 
+
 ```
 
 ### Create save/plot directory if they dont exists yet
@@ -60,51 +61,66 @@ source("GetRoiMeshOutline.r")
 
 
 ### Get neurons in the ROI and
-### Threshold neurons (need to agree on criteria and clean up code)
+### Exclude neurons not in known EB types
 ```{r}
 
 # get all EB bodies
 NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
-# Threshold based on weights (criteria needs to be agreed on)
-PreMaxThresh=10
-PostMaxThresh=10
-Output <-  SynapseStats_And_Threshold(NamedBodies, SaveDir, PreMaxThresh, PostMaxThresh)
-list2env(Output ,.GlobalEnv)
-remove(Output)
+# Load known types
+load("C:/Users/labadmin/Dropbox/FIBSEM CX Paper Jan 2020/Figures/EB/EB_Types.Rdata")
+
+# Exclude bodies not in known types
+ExcludedTypes=unique(NamedBodies$bodytype[!(NamedBodies$bodytype %in% EB_Type)])
+NamedBodies=subset(NamedBodies, NamedBodies$bodytype %in% EB_Type)
+
 
 ```
 
 
-### Get synapse distributions for all ring neurons
+### Get synapse distributions for all ring neurons (or load the previously generated data)
 ```{r}
+
+# load(paste(SaveDir,"RingNeuronSynapses.RData",sep=""))
 
 # Get type name for all ring neurons
 UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
 RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R")]
 RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R") )
 
+
 # Get all synapses for the ring neurons
-RingNeuronSynsAll = RingNeuronBodies$bodyid %>% neuprint_get_synapses()
-RingNeuronSynsAll = mutate(RingNeuronSynsAll, name=neuprint_get_meta(bodyid)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+SynLocs=GetSynapseLocs(RingNeuronBodies$bodyid, "all",TRUE)
+RingNeuronSynsAll=SynLocs
+remove(SynLocs)
 
-# Get just those synapses in the EB, BU, LAL, and GA
-RingNeuron_EBsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'EB') 
-RingNeuron_EBsyns = mutate(RingNeuron_EBsyns, name=neuprint_get_meta(bodyid)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
 
-RingNeuron_BUsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'BU(R)') 
-RingNeuron_BUsyns = mutate(RingNeuron_BUsyns, name=neuprint_get_meta(bodyid)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+# EB
+SynLocs=GetSynapseLocs(RingNeuronBodies$bodyid, "EB", TRUE)
+RingNeuron_EBsyns=SynLocs
+remove(SynLocs)
 
-RingNeuron_GAsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'GA(R)') 
-RingNeuron_GAsyns = mutate(RingNeuron_GAsyns, name=neuprint_get_meta(bodyid)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+# BU(R)
+SynLocs=GetSynapseLocs(RingNeuronBodies$bodyid, "BU(R)", TRUE)
+RingNeuron_BUsyns=SynLocs
+remove(SynLocs)
 
-RingNeuron_LALsyns =  neuprint_get_synapses(RingNeuronBodies$bodyid, roi = 'LAL(-GA)(R)') # The gal is part of the LAL, so use LAL(-GA)
-RingNeuron_LALsyns = mutate(RingNeuron_LALsyns, name=neuprint_get_meta(bodyid)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+# GA(R)
+SynLocs=GetSynapseLocs(RingNeuronBodies$bodyid, "GA(R)", FALSE)
+RingNeuron_GAsyns=SynLocs
+remove(SynLocs)
+
+
+# LAL(-GA)(R)
+SynLocs=GetSynapseLocs(RingNeuronBodies$bodyid, "LAL(-GA)(R)", FALSE)
+RingNeuron_LALsyns=SynLocs
+remove(SynLocs)
+
+
+# Save synapse locations for later loading
+save(RingNeuronSynsAll, RingNeuron_EBsyns, RingNeuron_BUsyns, RingNeuron_GAsyns, RingNeuron_LALsyns,
+     UniqueNamedBodies, RingNeuronTypes, RingNeuronBodies, file = paste(SaveDir,"RingNeuronSynapses.RData",sep=""))
 
 
 
@@ -117,24 +133,24 @@ RingNeuron_LALsyns = mutate(RingNeuron_LALsyns, name=neuprint_get_meta(bodyid)$t
 MinSyns=20
 
 # Get average synapses in EB per type and filter
-SynsPerType_EB=RingNeuron_EBsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_EB=RingNeuron_EBsyns %>% group_by(type) %>% summarize(n=n())
 SynsPerType_EB=filter(SynsPerType_EB,n>MinSyns)
-RingNeuron_EBsyns=filter(RingNeuron_EBsyns,name %in% SynsPerType_EB$name)
+RingNeuron_EBsyns=filter(RingNeuron_EBsyns,type %in% SynsPerType_EB$type)
 
 # Get average synapses in BU per type and filter
-SynsPerType_BU=RingNeuron_BUsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_BU=RingNeuron_BUsyns %>% group_by(type) %>% summarize(n=n())
 SynsPerType_BU=filter(SynsPerType_BU,n>MinSyns)
-RingNeuron_BUsyns=filter(RingNeuron_BUsyns,name %in% SynsPerType_BU$name)
+RingNeuron_BUsyns=filter(RingNeuron_BUsyns,type %in% SynsPerType_BU$type)
 
 # Get average synapses in GA per type and filter
-SynsPerType_GA=RingNeuron_GAsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_GA=RingNeuron_GAsyns %>% group_by(type) %>% summarize(n=n())
 SynsPerType_GA=filter(SynsPerType_GA,n>MinSyns)
-RingNeuron_GAsyns=filter(RingNeuron_GAsyns,name %in% SynsPerType_GA$name)
+RingNeuron_GAsyns=filter(RingNeuron_GAsyns,type %in% SynsPerType_GA$type)
 
 # Get average synapses in LAL per type and filter
-SynsPerType_LAL=RingNeuron_LALsyns %>% group_by(name) %>% summarize(n=n())
+SynsPerType_LAL=RingNeuron_LALsyns %>% group_by(type) %>% summarize(n=n())
 SynsPerType_LAL=filter(SynsPerType_LAL,n>MinSyns)
-RingNeuron_LALsyns=filter(RingNeuron_LALsyns,name %in% SynsPerType_LAL$name)
+RingNeuron_LALsyns=filter(RingNeuron_LALsyns,type %in% SynsPerType_LAL$type)
 
 ```
 
@@ -242,12 +258,12 @@ remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
 
 
 # Plot the synapses and the ROI outlines in same plot to make sure they are in the same coordinates
-ggplot()  + geom_point(data=RingNeuron_BUsyns_BUax, aes(x = x, y = -y, color=name)) +  geom_polygon(data=BU_Outline, aes(x = x, y = -y), colour='black', fill=NA)
+ggplot()  + geom_point(data=RingNeuron_BUsyns_BUax, aes(x = x, y = -y, color=type)) +  geom_polygon(data=BU_Outline, aes(x = x, y = -y), colour='black', fill=NA)
 
-ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=name)) +  geom_polygon(data=EB_Ring1, aes(x = x, y = -y), colour='black', fill=NA) +  geom_polygon(data=EB_Ring2, aes(x = x, y = -y), colour='black', fill=NA)
+ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=type)) +  geom_polygon(data=EB_Ring1, aes(x = x, y = -y), colour='black', fill=NA) +  geom_polygon(data=EB_Ring2, aes(x = x, y = -y), colour='black', fill=NA)
 
 
-ggplot()  + geom_point(data=RingNeuron_LALsyns_LALax, aes(x = x, y = -y, color=name)) +  
+ggplot()  + geom_point(data=RingNeuron_LALsyns_LALax, aes(x = x, y = -y, color=type)) +  
   geom_polygon(data=LAL_Outline1, aes(x = x, y = -y), colour='black', fill=NA) + 
   geom_polygon(data=LAL_Outline2, aes(x = x, y = -y), colour='black', fill=NA) + 
   geom_polygon(data=GA_Outline, aes(x = x, y = -y), colour='black', fill=NA)

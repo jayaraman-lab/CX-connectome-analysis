@@ -3,47 +3,124 @@ title: "MB-CX connections"
 output: html_notebook
 ---
 
-Load the libraries
+### Load the libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
 library(tidyverse)
-source("/Users/danc/Repos/neuprintR-notebooks/pathways.R")
-source("/Users/danc/Repos/neuprintR-notebooks/visualizeConnectivityTables.R")
-source("/Users/danc/Repos/neuprintR-notebooks/neuprintQueryUtils.R")
-source("/Users/danc/Repos/neuprintR-notebooks/inputOutputRegionsVis.R")
+library(plotly)
+library(dplyr)
+library(pbapply)
+
+# Go to the neurpintR-notebooks directory before loading these functions
+source("pathways.R")
+source("visualizeConnectivityTables.R")
+source("neuprintQueryUtils.R")
+source("inputOutputRegionsVis.R")
+source("table2ggraphUtils.R")
+source("InputOutputByTypeUtils.R")
+source("romainNeuronsInRoi.R")
+
 options(nat.plotengine = 'rgl')
 ```
 
-Connect to neuprint
+### Configurable inputs: choose save/plot directories
+```{r}
+# Directory to save data to.
+SaveDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+
+# Directory to save plots to.
+PlotDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+```
+
+### Create save/plot directory if they dont exists yet
+```{r}
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+```
+
+### Connect to neuprint
 ```{r}
 neuprint_login()
 ```
 
-Get the MBONs
+### Get a list of all ROIs
+```{r}
+# Get all ROIs
+allROIs = neuprint_ROIs()
+```
+
+
+### Get all CX neurons
+```{r}
+# Get all CX neurons
+allEBneurons <- getNeuronsInRoi("EB")
+allFBneurons <- getNeuronsInRoi("FB")
+allPBneurons <- getNeuronsInRoi("PB")
+allNOneurons <- getNeuronsInRoi("NO")
+```
+
+### Get all LAL neurons
+```{r}
+allLALneurons <- getNeuronsInRoi("LAL")
+```
+
+### Get CX neurons with inputs from MB directly
+```{r}
+
+FbBodiesROIinfo <- neuprint_get_roiInfo(allFBneurons$bodyid)
+FbBodiesInfoInMB <- FbBodiesROIinfo  %>% filter(MB.pre +MB.post > 30)
+FBneuronsInMB <- allFBneurons %>% filter(bodyid %in% FbBodiesInfoInMB$bodyid)
+```
+
+### Get CX neurons with outputs in MB directly
+
+
+### Get the MBONs
 ```{r}
 # Find all MBONs
 MBON_Names <- neuprint_search("MBON.*")
 head(MBON_Names)
 ```
 
-Find who the MBONs talk to
+### Find who the MBONs talk to
 ```{r}
 # Find the postsynaptic partners of all MBONs
-MBON_PostConnections <- getConnectionTable.data.frame(MBON_Names,synapseType = "POST",synThresh=3)
+MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST",synThresh=3)
 head(MBON_PostConnections)
 ```
 
-Among these, find who innervate the CX
+### Among these, find who innervate the CX
 ```{r}
 # Find the MBON postsynaptic partners that innervate the FB
-
-
+outputROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
+FBOutputs <- outputROIinfo  %>% filter(FB.pre +FB.post > 30)
+MBONFbConnections <- MBON_PostConnections %>% filter(to %in% FBOutputs$bodyid)
 ```
 
-
-Get the FB neuron types
+### Plot the connectivity matrix
 ```{r}
+MBONFbConnections %>% plotConnectivityMatrix
 ```
 
-Find all connections between all MBONs and FB neurons
+### Make the TypeToType connection table from MBON to CX
+```{r}
+MBONFbTypeToTypeConnections <- getTypeToTypeTable(MBONFbConnections)
+head(MBONFbTypeToTypeConnections)
+```
+
+### Plot the TypeToType connetivity matrix
+```{r}
+plotConnectivityMatrix(MBONFbTypeToTypeConnections,byGroup = "type")
+```
+
+
+### Make type-by-type synapse heat map in the CX
+
+
+### Get the FB neuron types
+```{r}
+
+```
+
+### Find all connections between all MBONs and FB neurons

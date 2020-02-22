@@ -1,15 +1,22 @@
 source("neuprintQueryUtils.R")
 
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
-  TypeNames <- neuprint_search(typeQuery,field="type",fixed=fixed)
+  TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed)))
   outputsR <- getConnectionTable(TypeNames,synapseType = "POST",by.roi=TRUE,...)
   inputsR <- getConnectionTable(TypeNames,synapseType = "PRE",by.roi=TRUE,...)
-  OUTByTypes <- getTypeToTypeTable(outputsR)
-  INByTypes <- getTypeToTypeTable(inputsR)
-  outputsR <- retype.na(outputsR)
-  inputsR <- retype.na(outputsR)
-  outputsTableRef <- getTypesTable(unique(outputsR$type.to))
-  unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
+  if (nrow(outputsR)==0){OUTByTypes <- NULL
+                         outputsTableRef <- NULL
+                         unknowns <- NULL
+                         }else{
+    OUTByTypes <- getTypeToTypeTable(outputsR)
+    outputsR <- retype.na(outputsR)
+    outputsTableRef <- getTypesTable(unique(outputsR$type.to))
+    unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
+    }
+  if (nrow(inputsR)==0){INByTypes <- NULL}else{
+    INByTypes <- getTypeToTypeTable(inputsR)
+    inputsR <- retype.na(inputsR)}
+  
   return(list(outputs = OUTByTypes,
               inputs = INByTypes,
               names = TypeNames,
