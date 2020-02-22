@@ -10,10 +10,17 @@ library(neuprintr)
 library(tidyverse)
 library(plotly)
 library(dplyr)
-source("/Users/danc/Repos/neuprintR-notebooks/pathways.R")
-source("/Users/danc/Repos/neuprintR-notebooks/visualizeConnectivityTables.R")
-source("/Users/danc/Repos/neuprintR-notebooks/neuprintQueryUtils.R")
-source("/Users/danc/Repos/neuprintR-notebooks/inputOutputRegionsVis.R")
+library(pbapply)
+
+# Go to the neurpintR-notebooks directory before loading these functions
+source("pathways.R")
+source("visualizeConnectivityTables.R")
+source("neuprintQueryUtils.R")
+source("inputOutputRegionsVis.R")
+source("table2ggraphUtils.R")
+source("InputOutputByTypeUtils.R")
+source("romainNeuronsInRoi.R")
+
 options(nat.plotengine = 'rgl')
 ```
 
@@ -37,11 +44,34 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login()
 ```
 
-### Get CX neurons with inputs from MB directly
+### Get a list of all ROIs
 ```{r}
-MBTypes <- getTypesInRoi("MB")
+# Get all ROIs
+allROIs = neuprint_ROIs()
 ```
 
+
+### Get all CX neurons
+```{r}
+# Get all CX neurons
+allEBneurons <- getNeuronsInRoi("EB")
+allFBneurons <- getNeuronsInRoi("FB")
+allPBneurons <- getNeuronsInRoi("PB")
+allNOneurons <- getNeuronsInRoi("NO")
+```
+
+### Get all LAL neurons
+```{r}
+allLALneurons <- getNeuronsInRoi("LAL")
+```
+
+### Get CX neurons with inputs from MB directly
+```{r}
+
+FbBodiesROIinfo <- neuprint_get_roiInfo(allFBneurons$bodyid)
+FbBodiesInfoInMB <- FbBodiesROIinfo  %>% filter(MB.pre +MB.post > 30)
+FBneuronsInMB <- allFBneurons %>% filter(bodyid %in% FbBodiesInfoInMB$bodyid)
+```
 
 ### Get CX neurons with outputs in MB directly
 
