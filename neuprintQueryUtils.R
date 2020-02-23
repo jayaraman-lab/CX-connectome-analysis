@@ -202,12 +202,15 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
+                    databaseCol =paste0("databaseType",str_to_title(unlist(strsplit(typeCol,"\\."))[2])),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
   #' @param nameCol : the name of the column containing the names of the neurons (to be used
   #' to determine laterality)
   #' @param typeCol : the name of the column containing the types to modify
+  #' @param databaseCol : the column of the table holding database type names (we only want to change
+  #' type if it's not been modified before)
   #' @param typeList : which types to lateralize (by default all the neurons which names
   #' contains L or R)
   #' @example 
@@ -224,7 +227,7 @@ lrSplit <- function(connectionTable,
   if (is.null(typeList)){
     typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }else{
-    typeList <- filter(connectionTable,(!!as.name(typeCol)) %in% typeList)
+    typeList <- filter(connectionTable,((!!as.name(typeCol)) %in% typeList) & (!!as.name(typeCol)) == (!!as.name(databaseCol)))
     typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }
   typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
