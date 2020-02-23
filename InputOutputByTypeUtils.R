@@ -1,9 +1,17 @@
 source("neuprintQueryUtils.R")
 
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
+  UseMethod("buildInputsOutputsByType")}
+
+buildInputsOutputsByType.string <- function(typeQuery,fixed=FALSE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed)))
-  outputsR <- getConnectionTable(TypeNames,synapseType = "POST",by.roi=TRUE,...)
-  inputsR <- getConnectionTable(TypeNames,synapseType = "PRE",by.roi=TRUE,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
+}
+  
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,...){
+  
+  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
+  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
   if (nrow(outputsR)==0){OUTByTypes <- NULL
                          outputsTableRef <- NULL
                          unknowns <- NULL
@@ -14,12 +22,16 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
     unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
     }
   if (nrow(inputsR)==0){INByTypes <- NULL}else{
+    if (selfRef){
+      INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
+    }else{
     INByTypes <- getTypeToTypeTable(inputsR)
+    }
     inputsR <- retype.na(inputsR)}
   
   return(list(outputs = OUTByTypes,
               inputs = INByTypes,
-              names = TypeNames,
+              names = typeQuery,
               outputs_raw = outputsR,
               inputs_raw = inputsR,
               outputsTableRef = bind_rows(outputsTableRef,unknowns)
@@ -32,7 +44,8 @@ redefineTypeByNameInList <- function(IOList,
                                      newPostFixes,
                                      perl=FALSE){
 
-  
+  oldOutputs <- IOList$outputs
+  oldInputs <- IOList$inputs
   
   for (t in typeList){
     for (col in c("from","to")){
@@ -67,14 +80,17 @@ redefineTypeByNameInList <- function(IOList,
  
   ## In case recursive modifs have been made
   
-  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef)
-  IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names)
+  IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef,oldTable = oldOutputs)
+  IOList$inputs <- getTypeToTypeTable(IOList$inputs_raw,typesTable = IOList$names,oldTable = oldInputs)
+  
+  ## Exception: we want to keep connections that were lost through division of input types.
+  
 
   return(IOList)
 }
 
 lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
- 
+  
   outputsLat <- lrSplit(inputOutputList$outputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
   outputsLat <- lrSplit(outputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
   
@@ -85,9 +101,10 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   
   TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
  
-  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef)
-  inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat)
-
+  outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef,oldTable = inputOutputList$outputs)
+  inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)
+  
+  
   return(list(outputs = outByTypesLat,
               inputs = inByTypesLat,
               names = TypeNamesLat,
