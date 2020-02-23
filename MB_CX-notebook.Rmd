@@ -50,8 +50,12 @@ neuprint_login()
 allROIs = neuprint_ROIs()
 ```
 
-
 ### Get all CX neurons
+```{r}
+allCXneurons <- getNeuronsInRoi("CX")
+```
+
+### Get CX neurons separated by ROIs
 ```{r}
 # Get all CX neurons
 allEBneurons <- getNeuronsInRoi("EB")
@@ -62,12 +66,17 @@ allNOneurons <- getNeuronsInRoi("NO")
 
 ### Get all LAL neurons
 ```{r}
-allLALneurons <- getNeuronsInRoi("LAL")
+allLAL_Rneurons <- getNeuronsInRoi("LAL(R)")
+allLAL_Lneurons <- getNeuronsInRoi("LAL(L)")
+
 ```
 
 ### Get CX neurons with inputs from MB directly
 ```{r}
+# Get all MB(+ACA)(R) neurons
+allMB_ACA_Rneurons <- getNeuronsInRoi("MB(+ACA)(R)")
 
+# Find those that innervate the CX
 FbBodiesROIinfo <- neuprint_get_roiInfo(allFBneurons$bodyid)
 FbBodiesInfoInMB <- FbBodiesROIinfo  %>% filter(MB.pre +MB.post > 30)
 FBneuronsInMB <- allFBneurons %>% filter(bodyid %in% FbBodiesInfoInMB$bodyid)
