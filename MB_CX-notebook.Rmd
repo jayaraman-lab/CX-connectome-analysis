@@ -41,7 +41,8 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ### Connect to neuprint
 ```{r}
-neuprint_login()
+# neuprint_login()
+neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 ```
 
 ### Get a list of all ROIs
@@ -53,7 +54,14 @@ allROIs = neuprint_ROIs()
 ### Get all CX neurons
 ```{r}
 allCXneurons <- getNeuronsInRoi("CX")
+head(allCXneurons)
 ```
+
+### Find any CX neurons with input/output in the MB
+```{r}
+outputROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
+```
+
 
 ### Get CX neurons separated by ROIs
 ```{r}
