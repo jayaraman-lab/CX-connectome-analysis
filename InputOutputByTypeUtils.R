@@ -124,5 +124,44 @@ bind_InoutLists <- function(...){
               outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
               )
   return(out)
+}
+
+
+getROISummary <- function(InOutList,filter=TRUE){
+  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from)   %>%
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from)
+  
+  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to)   %>%
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to)
+  
+  if (filter){
+  ROIOutputs <- ROIOutputs %>% 
+    filter(paste0(roi,type) %in% paste0(InOutList$outputs$roi,InOutList$outputs$type.from)) 
+  ROIInputs <- ROIInputs %>%
+    filter(paste0(roi,type) %in% paste0(InOutList$inputs$roi,InOutList$inputs$type.to))
+  }
+  
+  roiSummary <- 
+    full_join(ROIInputs,ROIOutputs,by=c("roi","type")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
+    mutate(fullWeight = OutputWeight+InputWeight,
+           deltaWeight = (OutputWeight - InputWeight)/fullWeight)
+  
+  return(roiSummary)
+}
+
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi))){
+  roiTable <- roiTable %>% filter(roi %in% roiSelect)
+  
+  ggplot(roiTable,aes(x=roi,y=type)) + 
+    geom_line(aes(group=type)) +
+    geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
+    scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
+                        space = "Lab", na.value = "grey50", guide = "legend",
+                        aesthetics = "fill") +
+    guides(fill = guide_legend(override.aes = list(size=5))) +
+    scale_size_continuous(name = "# Synapses") +
+    theme_minimal()+ theme(axis.text.x = element_text(angle = 90)) 
   
 }
+  
+  
