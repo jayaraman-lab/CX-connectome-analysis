@@ -202,7 +202,7 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
-                    databaseCol =paste0("databaseType",str_to_title(unlist(strsplit(typeCol,"\\."))[2])),
+                    databaseCol =paste0("databaseType",str_to_title(c(unlist(strsplit(typeCol,"\\.")),"")[2])),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
