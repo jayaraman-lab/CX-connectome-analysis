@@ -15,7 +15,12 @@ supertype <- function(types){
   supertype[grepl("LCN.*",types)] <- "LN"
   supertype[grepl("^R[1-6].*",types)] <- "Ring neuron"
   supertype[grepl("SA.*",types)] <- "SA"
-  supertype[grepl("SpsP.*")] <- "SPS-PB"
+  supertype[grepl("SpsP.*",types)] <- "SPS-PB"
+  supertype[grepl("AVM09v_.*|AVM09p_.*|AVM09x_.*",types)] <- "LAL-LAL contra"
+  supertype[grepl("AVL01op_.*|AVL01ln_.*",types)] <- "LAL-WED"
+  supertype[grepl("PDL11f_.*|PVM03m_.*",types)] <- "LAL-SMP"
+  supertype[grepl("1882031306|5813104472|PVM09r_.*",types)] <- "LAL-WED-(X)contra"
+  supertype[grepl("ADM05a_.*",types)] <- "CRE-LAL"
   supertype
 }
 
