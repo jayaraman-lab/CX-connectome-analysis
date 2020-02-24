@@ -1,0 +1,283 @@
+---
+title: "Using Neuprint to explore EM data"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+This assumes you installed [*natverse*](http://natverse.org/install/).
+
+You first must configure your .Renviron file (which sits in your home folder) by adding lines specifying the emdata server access. It would look something like (you do need a return line at the end): 
+```
+neuprint_server = "https://emdata1.int.janelia.org:11000"
+neuprint_token = "xxxx"
+neuprint_dataset = "hemibrain"
+
+```
+
+
+Loading packages is done via the `library` function in R. `nat` is the Jefferies general neuroanatomy package. `neuprintr` is the R API to neuprint. [*tidyverse*](https://www.tidyverse.org/) is a data analysis/plotting set of packages we'll use. You can install it with *install.packages('tidyverse')*
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+options(nat.plotengine = 'rgl')
+```
+
+If it's been a while since you installed natverse, I'd recommend running ```remotes::update_packages("natverse")``` to update it and all dependencies.
+
+## Neuprintr
+
+You can connect to the database with the `neuprint_login` function
+
+```{r}
+neuprint_login()
+```
+
+`neuprint` searches (similar to the search box in the web API) are run as:
+
+```{r}
+PFLaNames <- neuprint_search("PB12a.*")
+head(PFLaNames)
+```
+which returns a data.frame with basic information.
+
+Another useful basic function allows you to know which ROIs are defined on the server.
+```{r}
+rois <-  neuprint_ROIs()
+head(rois)
+```
+One can then get a table of connections in a roi with a given polarity (for selected neurons):
+
+```{r}
+lalPostConnections  <-  neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL")
+head(lalPostConnections)
+```
+
+`lalPostConnections` is a R `data.frame` (I'd recommend to read a bit about this class, as it's one of R most useful, and powerful once one knows how to use them optimally, notably with packages like `dplyr` and `ggplot2`).
+
+As this table only contains bodyIds, we'll use the `neuprint_get_meta` that collects extra metadata about a bodyid to populate a `partnerName` column. `within` allows to run operations inside an environment - here the environment is the data frame. 
+
+```{r}
+## Using the "within function"
+lalPostConnections <-  within(lalPostConnections,{partnerName <-neuprint_get_meta(partner)[["name"]]
+                                                name <-neuprint_get_meta(bodyid)[["name"]]})
+
+## Doing the exact same thing using dplyr and piping
+lalPostConnections <- lalPostConnections %>%
+                      mutate(partnerName = neuprint_get_meta(partner)[["name"]],
+                             name =neuprint_get_meta(bodyid)[["name"]],
+                             type = neuprint_get_meta(bodyid)[["type"]],
+                             partnerType = neuprint_get_meta(partner)[["type"]])   
+
+
+head(lalPostConnections)
+```
+We're then using the various utilities to process `data.frames` in dplyr (see [this chapter](https://r4ds.had.co.nz/transform.html) of the reference book on `tidyverse`) to summarise (in this case)
+
+```{r}
+lalPostConnections <-  lalPostConnections %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() %>%
+                       filter(weight>5)
+## lalPostConnections now only contains connections of more than 5 synapses, and a column of weight relative to the total input in the given region. We use the "group" operation so we can calculate the weight relative to the pre synaptic neuron outputs.
+
+connectionsPerName <-  lalPostConnections %>%
+                       group_by(name,partnerName) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> partnerName combination 
+
+connectionsPerNeuron <-  lalPostConnections %>%
+                       group_by(name,partner) %>%
+                       summarise(
+                         weightRelative = sum(weightRelative),
+                         weight = sum(weight)
+                       )
+## same data summed by neuronName -> bodyId combination 
+
+```
+
+Then plot it with `ggplot2` (see [this other chapter](https://r4ds.had.co.nz/data-visualisation.html))
+```{r}
+ggplot(connectionsPerName) + geom_bar(aes(x=name,y=weightRelative,fill=partnerName),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+ggplot(connectionsPerNeuron) + geom_bar(aes(x=name,y=weightRelative,fill=as.character(partner)),stat="identity") +theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+head(connectionsPerName)
+```
+
+Operations of the type of what we were doing with `listUniquePartners` in Python, can be done simply with `data.frame` operations (no neuron `type` is pulled from neuprint yet, we could write an equivalent of the simplistic name to type function we wrote in python)
+
+```{r}
+pbPostConnections <-  neuprint_connection_table(PFLaNames[["bodyid"]],"POST","PB") %>%
+                    mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])
+
+with(pbPostConnections,unique(partnerName))
+
+```
+
+As a general remark, `neuprintr` is relatively well documented. You can access any function's documentation:
+```{r}
+?neuprint_connection_table
+```
+Some functions (`neuprint_simple_connectivity` or `neuprint_get_neuron_names`) seem to not be working in my hands -- I suspect because they haven't been adapted to the latest iteration of the ever changing `neuprint` conventions.
+
+### Adjacency matrix
+```{r}
+Delta6aNames <-  neuprint_search("Delta6A.*")
+PFLbNames <-  neuprint_search("PB12b.*")
+```
+
+Getting the connection tables for the neurons we're interested in, in a given compartment then process to limit to connections within that set.
+
+```{r}
+PFLDelta6Connections <-  neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"POST","FB")
+```
+
+```{r}
+PFLDelta6Connections <-  PFLDelta6Connections %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                        ungroup()  %>%
+                        filter(partner %in% bodyid) 
+                     
+## The filter operation select partners so that they're also part of the neuron set (meaning we want connections within our neuron set, not to any neuron). The rest of the operations are the same we used before, adding neuron names and defining the weight as the proportion of inputs to that neuron in that neuropile
+
+```
+
+Plotting the table with ggplot (one might want to define a different order for the PFL names so that they're arranged in a more logical way)
+```{r}
+ggplot(PFLDelta6Connections) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post synaptic neuron") + ylab("Pre synaptic") + labs(fill="% of input")
+```
+
+If we want that as a matrix, we can play around with some dplyr functions, then transform it to a matrix
+```{r}
+PFLDelta6ConnectionsWide <-  pivot_wider(PFLDelta6Connections,id_cols=name,names_from = partnerName,values_from = weightRelative)
+PFLDelta6Matrix <- data.matrix(PFLDelta6ConnectionsWide[,2:ncol(PFLDelta6ConnectionsWide)])
+rownames(PFLDelta6Matrix) <- PFLDelta6ConnectionsWide$name
+```
+
+PFLDelta6Matrix is now a simple matrix you can plot using base functions.
+
+```{r}
+PFLDelta6Matrix[is.na(PFLDelta6Matrix)] <- 0
+heatmap(PFLDelta6Matrix)
+```
+
+
+### Neurons in a region
+
+```{r}
+no1Connect <-  neuprint_find_neurons("NO1",all_segments = FALSE)
+no1Table <-  neuprint_connection_table(no1Connect$bodyid,"POST","NO1")   %>%
+                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
+                       group_by(name) %>% 
+                       mutate(weightRelative = weight/sum(weight)) %>%
+                       ungroup() %>% filter(partner %in% bodyid)
+```
+
+```{r}
+ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(axis.text.x = element_text(angle = 90)) + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron")+labs(fill="Input % in NO1")
+```
+
+
+## Using `Nat` : Neurons and neuronlists
+`neuron` and `neuronlist` are the base `nat` objects (see this [tutorial by Greg Jefferies](http://natverse.org/nat/articles/neurons-intro.html#neuronlists)) that help deal with anatomy. We can get a `neuronlist` object from bodyIds:  
+
+```{r message=FALSE, warning=FALSE}
+PFLa <-  neuprint_read_neurons(PFLaNames$bodyid)
+```
+
+We can use set operations on `neuronlist`
+```{r message=FALSE, warning=FALSE}
+PFLaRNames <-  neuprint_search("PB12a.*_R.*")
+PFLaR <-  neuprint_read_neurons(PFLaRNames$bodyid)
+```
+
+```{r}
+PFLaL <-  setdiff(PFLa,PFLaR)
+```
+
+Those objects can be plotted super simply
+
+```{r}
+plot(PFLa,WithNodes=FALSE)
+```
+
+And plotted in 3d in an interactive session.
+```{r} 
+nclear3d()
+plot3d(PFLa)
+```
+
+
+
+### Synapses locations
+
+Collecting left EPGs and R4dAs:
+```{r}
+EPGLNames <-  neuprint_search("PB08.*_L.*")
+R4dNames <-  neuprint_search("R4dA.*_L.*")
+```
+
+One can get all synapses in a ROI (as a `data.frame`) using the `neuprint_get_synapes` function
+
+```{r}
+EPG_L_synapses <-  neuprint_get_synapses(EPGLNames$bodyid,"EB")
+R4d_L_synapses <-  neuprint_get_synapses(R4dNames$bodyid,"EB")
+EPG_L0_synapses <-  neuprint_get_synapses(EPGLNames$bodyid[1],"EB")
+R4d_L0_synapses <-  neuprint_get_synapses(R4dNames$bodyid[1],"EB")
+head(R4d_L0_synapses)
+```
+```{r}
+
+EPG_L0_synapses <-  EPG_L0_synapses %>% mutate(name="EPG-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+R4d_L0_synapses <-  R4d_L0_synapses %>% mutate(name="R4d-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+R4d_L_synapses <-  R4d_L_synapses %>% mutate(name="R4d-1")%>%
+                    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+
+
+EPGandR4d0synapes <-  rbind(EPG_L0_synapses,R4d_L0_synapses)  ## Somehow those are by default factors
+
+```
+
+
+
+```{r}
+ggplot(EPGandR4d0synapes) + geom_point(aes(x,z,color= interaction(name,prepost))) +scale_color_brewer(palette="Set2")+coord_fixed(ratio = 1) + theme_void()
+ggplot(EPGandR4d0synapes) + geom_point(aes(y,z,color= interaction(name,prepost))) +scale_color_brewer(palette="Set2")+coord_fixed(ratio = 1) + theme_void()
+```
+
+#### Seeing the R4d-L synapses in the cloud of EPG synapes
+
+```{r}
+R4dToEPG0synapes <-  R4d_L_synapses %>%
+                    filter(partner == EPGLNames$bodyid[1]) %>%
+                    filter(prepost == 1)
+```
+
+```{r}
+ggplot() + geom_point(data=EPG_L0_synapses,aes(x,z,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,z),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
+ggplot() + geom_point(data=EPG_L0_synapses,aes(x,y,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,y),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
+```
+
+

@@ -53,13 +53,21 @@ allROIs = neuprint_ROIs()
 
 ### Get all CX neurons
 ```{r}
+# Get all CX neurons
 allCXneurons <- getNeuronsInRoi("CX")
 head(allCXneurons)
 ```
 
-### Find any CX neurons with input/output in the MB
+### Find all CX neurons with input/output in the MB
 ```{r}
-outputROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
+# Get roiInfo for all CX neurons
+allCXneuronsROIinfo <- neuprint_get_roiInfo(allCXneurons$bodyid)
+allCXneuronsPostInMBinfo <- allCXneuronsROIinfo  %>% filter(MB*.post > 5)
+allCXneuronsPostInMB <- allCXneurons %>% filter(bodyid %in% allCXneuronsPostInMBinfo$bodyid)
+
+# allCXneuronsPreInMBinfo <- allCXneuronsROIinfo  %>% filter("MB(L).pre" + "MB(R).pre" > 5)
+# allCXneuronsPreInMB <- allCXneurons %>% filter(bodyid %in% allCXneuronsPreInMBinfo$bodyid)
+
 ```
 
 
