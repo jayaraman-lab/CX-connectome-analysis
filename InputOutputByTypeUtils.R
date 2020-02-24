@@ -4,7 +4,8 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
   UseMethod("buildInputsOutputsByType")}
 
 buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,...){
-  TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed)))
+  TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
+                  mutate(databaseType = type)
   buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
 }
   
@@ -25,7 +26,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     if (selfRef){
       INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
     }else{
-    INByTypes <- getTypeToTypeTable(inputsR)
+      INByTypes <- getTypeToTypeTable(inputsR)
     }
     inputsR <- retype.na(inputsR)}
   
@@ -97,9 +98,9 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
   inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
  
-  outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList,databaseCol = "type")
+  outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
   
-  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList,databaseCol = "type")
+  TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
  
   outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef,oldTable = inputOutputList$outputs)
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)

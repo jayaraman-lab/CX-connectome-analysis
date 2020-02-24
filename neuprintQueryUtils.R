@@ -162,7 +162,9 @@ getTypesTable <- function(types){
   #' @return A data frame of instances of those types
   #' 
   #' 
-  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
+  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))) %>%
+                mutate(databaseType = type)
+  return(typesTable)
 }
 
 redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name",perl=FALSE){
@@ -225,11 +227,11 @@ lrSplit <- function(connectionTable,
   #' 
   #' } 
   if (is.null(typeList)){
-    typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
+    typeList <- filter(connectionTable,((!!as.name(typeCol)) == (!!as.name(databaseCol))))
   }else{
     typeList <- filter(connectionTable,((!!as.name(typeCol)) %in% typeList) & (!!as.name(typeCol)) == (!!as.name(databaseCol)))
-    typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }
+  typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
   typeList <- typeList[[typeCol]]
   condition <- grepl("_L",connectionTable[[nameCol]])
