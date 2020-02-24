@@ -3,7 +3,7 @@ source("neuprintQueryUtils.R")
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.string <- function(typeQuery,fixed=FALSE,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed)))
   buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
 }
