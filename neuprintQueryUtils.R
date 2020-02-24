@@ -388,20 +388,21 @@ getTypeToTypeTable <- function(connectionTable,
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
-                                summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                                summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
+                                          pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
-                                                                  t.test(c(weightRelative,unlist(rep(n[1]-n(),0))),
+                                                                  t.test(c(weightRelative,rep(0,missingV)),
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,unlist(rep(n[1]-n(),0)))),
-                                          weightRelative = mean(c(weightRelative,unlist(rep(n[1]-n(),0)))),
-                                          weight = mean(c(weight,unlist(rep(n[1]-n(),0)))),
+                                          varWeight = var(c(weightRelative,rep(0,missingV))),
+                                          weightRelative = mean(c(weightRelative,rep(0,missingV))),
+                                          weight = mean(c(weight,rep(0,missingV))),
                                           absoluteWeight = sum(weight),
                                           outputContribution = outputContribution[1],
                                           n_targets = n(),
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) 
+                                ) %>% select(-missingV)
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
