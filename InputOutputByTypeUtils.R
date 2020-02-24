@@ -3,8 +3,9 @@ source("neuprintQueryUtils.R")
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.string <- function(typeQuery,fixed=FALSE,...){
-  TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed)))
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,...){
+  TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
+                  mutate(databaseType = type)
   buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
 }
   
@@ -25,7 +26,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     if (selfRef){
       INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
     }else{
-    INByTypes <- getTypeToTypeTable(inputsR)
+      INByTypes <- getTypeToTypeTable(inputsR)
     }
     inputsR <- retype.na(inputsR)}
   

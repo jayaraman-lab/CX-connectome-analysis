@@ -162,7 +162,9 @@ getTypesTable <- function(types){
   #' @return A data frame of instances of those types
   #' 
   #' 
-  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
+  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))) %>%
+                mutate(databaseType = type)
+  return(typesTable)
 }
 
 redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name",perl=FALSE){
@@ -202,7 +204,7 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
-                    databaseCol =paste0("databaseType",str_to_title(unlist(strsplit(typeCol,"\\."))[2])),
+                    databaseCol =paste0("databaseType",str_to_title(c(unlist(strsplit(typeCol,"\\.")),"")[2])),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
@@ -225,11 +227,11 @@ lrSplit <- function(connectionTable,
   #' 
   #' } 
   if (is.null(typeList)){
-    typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
+    typeList <- filter(connectionTable,((!!as.name(typeCol)) == (!!as.name(databaseCol))))
   }else{
     typeList <- filter(connectionTable,((!!as.name(typeCol)) %in% typeList) & (!!as.name(typeCol)) == (!!as.name(databaseCol)))
-    typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   }
+  typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
   typeList <- typeList[[typeCol]]
   condition <- grepl("_L",connectionTable[[nameCol]])
@@ -376,10 +378,6 @@ getTypeToTypeTable <- function(connectionTable,
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) 
   
-  
-  
-  
-  
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
                                 group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
@@ -390,20 +388,21 @@ getTypeToTypeTable <- function(connectionTable,
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
-                                summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                                summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
+                                          pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
-                                                                  t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
+                                                                  t.test(c(weightRelative,rep(0,missingV)),
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
-                                          weightRelative = mean(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
-                                          weight = mean(c(weight,unlist(replicate(n[1]-n(),0)))),
+                                          varWeight = var(c(weightRelative,rep(0,missingV))),
+                                          weightRelative = mean(c(weightRelative,rep(0,missingV))),
+                                          weight = mean(c(weight,rep(0,missingV))),
                                           absoluteWeight = sum(weight),
                                           outputContribution = outputContribution[1],
                                           n_targets = n(),
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) 
+                                ) %>% select(-missingV)
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
