@@ -150,10 +150,10 @@ getROISummary <- function(InOutList,filter=TRUE){
   return(roiSummary)
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi))){
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
-  ggplot(roiTable,aes(x=roi,y=type)) + 
+  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
     geom_line(aes(group=type)) +
     geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
@@ -161,7 +161,11 @@ haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi))){
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") +
-    theme_minimal()+ theme(axis.text.x = element_text(angle = 90)) 
+    theme_minimal()
+  if (by.supertype){
+    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y") + theme_gray()
+  }
+  hanesch + theme(axis.text.x = element_text(angle = 90)) 
   
 }
   
