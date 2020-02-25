@@ -21,6 +21,7 @@ supertype <- function(types){
   supertype[grepl("PDL11f_.*|PVM03m_.*",types)] <- "LAL-SMP"
   supertype[grepl("1882031306|5813104472|PVM09r_.*",types)] <- "LAL-WED-(X)contra"
   supertype[grepl("ADM05a_.*",types)] <- "CRE-LAL"
+  supertype[grepl("OA_V.*",types)] <- "OA"
   supertype
 }
 
