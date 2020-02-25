@@ -129,11 +129,11 @@ bind_InoutLists <- function(...){
 
 
 getROISummary <- function(InOutList,filter=TRUE){
-  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from)
+  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom)
   
-  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to)
+  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo)
   
   if (filter){
   ROIOutputs <- ROIOutputs %>% 
@@ -143,7 +143,7 @@ getROISummary <- function(InOutList,filter=TRUE){
   }
   
   roiSummary <- 
-    full_join(ROIInputs,ROIOutputs,by=c("roi","type")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
+    full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
            deltaWeight = (OutputWeight - InputWeight)/fullWeight)
   
@@ -164,7 +164,7 @@ haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F)
     scale_size_continuous(name = "# Synapses") +
     theme_minimal()
   if (by.supertype){
-    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y") + theme_gray()
+    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y",space="free_y") + theme_gray()
   }
   hanesch + theme(axis.text.x = element_text(angle = 90)) 
   

@@ -1,4 +1,6 @@
-getNeuronsInRoi <- function(slctROI,minTypePercentage=0.5) {
+library(parallel)
+
+getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
   #' @param slctROI : the ROI to look for
   #' @return : a table of metadata for all neurons in the ROI, with extra columns \code{ROI_pre}
@@ -26,30 +28,34 @@ getNeuronsInRoi <- function(slctROI,minTypePercentage=0.5) {
   return(roi_Innervate)
 }
 
-getTypesInRoi <- function(ROI,lateralize=FALSE,big=TRUE){
-  neuronTable <- getNeuronsInRoi(ROI,minTypePercentage=ifelse(lateralize,0.25,0.5)) ## Remove types if less than 
+getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE){
+  neuronTable <- getNeuronsInRoiTable(ROI,minTypePercentage=ifelse(lateralize,0.25,0.5)) ## Remove types if less than 
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
   
   if (big){
-    roiConnections <- pblapply(typesUnfiltered,buildInputsOutputsByType,fixed=TRUE,slctROI=ROI)
+    roiConnections <- pblapply(typesUnfiltered,buildInputsOutputsByType,fixed=TRUE,cl=5)
     roiConnections <- do.call(bind_InoutLists,roiConnections)
   }else{
-    roiConnections <- buildInputsOutputsByType(typesUnfiltered,fixed=TRUE,slctROI=ROI)
+    roiConnections <- buildInputsOutputsByType(typesUnfiltered,fixed=TRUE)
   }
   
-  if (lateralize){
+  if (lateralize == TRUE){
     roiConnections <- lateralizeInputOutputList(roiConnections)
   }
   
-  inputs <- roiConnections$inputs %>% filter((databaseTypeTo %in% typesUnfiltered) &
-                                              (databaseTypeFrom %in% typesUnfiltered))
-  outputs <- roiConnections$outputs %>% filter((databaseTypeTo %in% typesUnfiltered) &
-                                                (databaseTypeFrom %in% typesUnfiltered))
+  roiConnections
+}
+
+typesInROI <- function(roiConnections,ROI){
+  typesUnfiltered <- roiConnections$names$type
+  inputs <- roiConnections$inputs %>% filter((roi == ROI) & (type.to %in% typesUnfiltered) &
+                                              (type.from %in% typesUnfiltered))
+  outputs <- roiConnections$outputs %>% filter((roi == ROI) & (type.to %in% typesUnfiltered) &
+                                                (type.from %in% typesUnfiltered))
   
-  roiTypes <- unique(c(inputs$databaseTypeTo,
-                       outputs$databaseTypeFrom))
+  roiTypes <- data.frame(type = unique(c(inputs$type.to,outputs$type.from))) %>%
+    mutate(databaseType = roiConnections$names$databaseType[match(type,roiConnections$names$type)])
   
   return(roiTypes)
-  
 }
