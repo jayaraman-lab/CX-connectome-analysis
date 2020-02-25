@@ -120,6 +120,7 @@ ExcludedTypes=unique(filter(roi_Connect_bytype_df, !(type %in% PB_Type) )$type)
 roi_Connect_bytype_df=filter(roi_Connect_bytype_df, type %in% PB_Type)
 
 # Save neuron type list for other's use
+# load(file = paste(SaveDir,"PB_Types.RData",sep=""))
 save(PB_Type, RelSynThresh, ExcludedTypes, file = paste(SaveDir,"PB_Types.RData",sep=""))
 
 ```
@@ -270,7 +271,7 @@ p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count))   +
   geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("PB Neuron Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_Thresh_Abs_Figure_PBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_ROI_PB_ALL.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 
