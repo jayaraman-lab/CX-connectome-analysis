@@ -9,6 +9,12 @@
 
 
 
+MeshPoints <- function(roiMesh){
+  roiMeshPts = data.frame(dotprops(roiMesh)$points)
+  names(roiMeshPts) <- c("x","y","z")
+  return(roiMeshPts)
+}
+
 getCOM <- function(pointsXYZ){
   return(c(mean(pointsXYZ$x),mean(pointsXYZ$y),mean(pointsXYZ$z)))
 }
@@ -50,10 +56,11 @@ makeRotMatXZ <- function(angle){
 covPCA <- function(pointsXYZ){
   # calculate covariance matrix
   cov = data.frame(cov(pointsXYZ))
-  # calculate eigenvectors and values
-  covEigen = eigen(cov)
+  # calculate eigenvectors and values (columns contain PCs, ranked from most variance accounted for to least)
+  covEigen = eigen(cov) 
   return(covEigen)
 }
+
 
 changeBasis <- function(pointsXYZ, covEigen){
   # points should be centered at origin
@@ -71,26 +78,35 @@ changeBasis <- function(pointsXYZ, covEigen){
 }
 
 
-Project_NewCoordinates <- function(Input_DF, NewAxes) {
+
+
+changeBasis_df <- function(Input_DF, NewAxes) {
   
   
-  # Make a matrix from the synapse or mesh points
-  syn_locs=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
-  StartMat = matrix(c(syn_locs$x, syn_locs$y, syn_locs$z), nrow = length(syn_locs$x), ncol = 3)
-  colnames(StartMat) <- c("x","y","z")
+  # Project just the x,y,z into new space
+  pointsXYZ=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
+  NewProjection=changeBasis(pointsXYZ, NewAxes)
   
-  
-  # Project the original data onto PCs and create a new data frame with the synapse locations (for plotting)
-  NewProjection = StartMat %*% NewAxes$vectors
+  # Populate new data frame
   NewProjection_DF = Input_DF
-  NewProjection_DF$x=NewProjection[,1]
-  NewProjection_DF$y=NewProjection[,2]
-  NewProjection_DF$z=NewProjection[,3]
+  NewProjection_DF$x=NewProjection$x
+  NewProjection_DF$y=NewProjection$y
+  NewProjection_DF$z=NewProjection$z
+  NewProjection_DF$X=NewProjection$X
+  NewProjection_DF$Y=NewProjection$Y
+  NewProjection_DF$Z=NewProjection$Z
   
   
   return(NewProjection_DF)
   
 }
+
+
+
+
+
+
+
 
 
 
