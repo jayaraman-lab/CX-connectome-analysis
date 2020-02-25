@@ -1,7 +1,8 @@
 #############################################################
 
 nodesFromTypeTable <- function(type2typeTable){
-  nodes <- data.frame(name = unique(c(type2typeTable$type.from,type2typeTable$type.to)),stringsAsFactors = F) 
+  nodes <- data.frame(name = unique(c(type2typeTable$type.from,type2typeTable$type.to)),
+                      stringsAsFactors = F) 
 }
 
 edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(type2typeTable)){
@@ -9,11 +10,35 @@ edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(typ
                             from = sapply(type.from, function(f) which(f == pathNodes$name)))
 }
 
+graphFromInOut <- function(type2typeList,kind="intra"){
+  nodesIn <- nodesFromTypeTable(type2typeList$inputs) 
+  nodesOut <- nodesFromTypeTable(type2typeList$outputs)
+  nodes <- distinct(bind_rows(nodesIn,nodesOut))
+  
+  inp <- type2typeList$inputs
+  outp <- type2typeList$outputs
+  if (kind=="intra"){
+    nodes <- nodes %>% filter(name %in% type2typeList$names$type)
+    inp <- type2typeList$inputs %>% filter(type.from %in% type2typeList$names$type)
+    outp <- type2typeList$outputs %>% filter(type.to %in% type2typeList$names$type)
+  }
+  
+  edges <- edgesFromTypeTable(distinct(bind_rows(inp,outp)),nodes)
+  
+  graph <- tbl_graph(nodes,edges)
+}
 
-makePyramidGraph <- function(type2typeList,ROIs,polarity="inputs",plot=FALSE){
+makePyramidGraph <- function(type2typeList,ROIs=NULL,by.roi=FALSE,polarity="inputs",plot=FALSE){
   type2typeTable <- type2typeList[[polarity]]
   sourceTable <- type2typeList[["names"]]
-  type2typeTable <- type2typeTable %>% filter(roi %in% ROIs)
+  if (is.null(ROIs) & by.roi==FALSE){
+    type2typeTable <- type2typeTable %>% group_by(type.from,type.to) %>%
+                                     summarize_if(is.numeric,sum)
+  }else{
+    if (!is.null(ROIs)){
+    type2typeTable <- type2typeTable %>% filter(roi %in% ROIs)
+    }
+  }
   nodes <- nodesFromTypeTable(type2typeTable)
   if (polarity == "inputs"){
     nodes <- nodes %>% mutate(layer=ifelse(name %in% sourceTable$type,2,1))
@@ -25,16 +50,19 @@ makePyramidGraph <- function(type2typeList,ROIs,polarity="inputs",plot=FALSE){
   if (!plot){
       return(list(graph = graph,nodes = nodes,edges= edges))
   }else{
-      return(pyramidGraph(graph,nodes,edges))
+      return(pyramidGraph(graph,nodes,edges,by.roi=by.roi))
   }
 }
 
-pyramidGraph <- function(graphT,nodeT,edgeT){
-    ggraph(graphT,layout="sugiyama",layers=nodeT$layer) + 
+pyramidGraph <- function(graphT,nodeT,edgeT,by.roi=T){
+    g <- ggraph(graphT,layout="sugiyama",layers=nodeT$layer) + 
       geom_edge_fan(aes(width=weightRelative),colour="grey",alpha=0.5) + 
       geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
       geom_node_point(aes(color=name),size=5) + 
       geom_node_text(aes(label=name),angle=40,size=4) +
-      guides(color="none") + 
-      facet_edges(~roi)
+      guides(color="none") 
+    if (by.roi){
+      g <- g+facet_edges(~roi)
+    }
+    g
 }

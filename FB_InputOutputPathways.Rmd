@@ -45,8 +45,8 @@ neuprint_login()
 
 ### Get general functions
 ```{r}
-source("inputOutputRegionsVis.r")
-source("GetNeuronsInRoi.r")
+source("inputOutputRegionsVis.R")
+source("GetNeuronsInRoi.R")
 ```
 
 ### Get neuprint ROIs 
@@ -71,6 +71,8 @@ Output=Get_SynapseCount_In_Rois(ROI, FALSE)
 list2env(Output ,.GlobalEnv)
 remove(Output)
 
+
+
 ```
 
 
@@ -89,7 +91,7 @@ roi_Connect_df=filter(roi_Connect_df, count > 0 )
 # Plot all of the ROIs (and sub ROIs) that all PB neurons innervate
 p0<-ggplot(roi_Connect_bytype_df, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle("ALL PB Neuron Input/Output ROIs")
+  ggtitle("ALL FB Neuron Input/Output ROIs")
 ggsave(paste(PlotDir, "ALL_PB_","inputOutputRegions_perType.png",sep=""), plot = p0, device='png', scale = 1, 
        width = 30, height = 20, units ="in", dpi = 300, limitsize = TRUE)
 
@@ -113,7 +115,8 @@ RelSynThresh=0.01
 FB_Type=NamedBodies_TypeAverage$bodytype[NamedBodies_TypeAverage$PrePost_Relative>RelSynThresh]
 
 # Add/Remove types as needed
-FB_Type = FB_Type[ !(FB_Type %in% c("EPGt","EQ5","ExR8","PDM21a_pct","PEN_b(PEN2)","PVM09w_pct","SA1_a","SA1_b","SA2_a","SIFamide", "TuBu09_c","TuBu04")) ]
+FB_Type = FB_Type[ !(FB_Type %in% c("EPGt","EL","ExR8","PDM21a_pct","PEN_b(PEN2)","PVM09w_pct","SA1_a","SA1_b","SA2_a","SIFamide", "TuBu09_c","TuBu04")) ]
+unique(FB_Type)
 
 # Threshold EB neurons
 ExcludedTypes=unique(filter(roi_Connect_bytype_df, !(type %in% FB_Type) )$type)
@@ -132,7 +135,7 @@ save(FB_Type, RelSynThresh, ExcludedTypes, file = paste(SaveDir,"FB_Types.RData"
 
 
 # Divide parent ROIs into smaller subROIs that we want to show
-ROI_LIST=c("hemibrain","CX","NO","LX","LX(R)","LX(L)","LAL(R)","PB","FB","SNP(R)","SNP(L)","INP") # List of parent ROIs to include
+ROI_LIST=c("hemibrain","CX","NO","LX","LX(R)","LX(L)","LAL(R)","PB","FB","SNP(R)","SNP(L)","INP","CRE(R)","CRE(L)") # List of parent ROIs to include
 HB_Children=subset(heir, parent %in%  ROI_LIST)
 HB_Children=subset(HB_Children, !(roi %in% ROI_LIST) )
 HB_Children=subset(HB_Children, !(roi %in% c("POC","mALT(L)","mALT(R)","GF(R)","GC","AOT(R)"))) # Remove fiber bundles
@@ -180,7 +183,7 @@ ROI_LEVELS=c("FBl1(C)","FBl2(C)", "FBl3(C)", "FBl4(C)", "FBl5(C)", "FBl6(C)", "F
              "PB(L)","PB(R)", "EB(C)","NO(L)","NO(R)","LAL(L)","LAL(-GA)(R)","GA(R)","AB(L)","AB(R)","BU(L)","BU(R)",
              "VLNP(R)","VMNP(C)",
               "SMP(L)","SMP(R)", "SIP(L)", "SIP(R)", "SLP(R)",
-              "ATL(L)","ATL(R)", "CRE(L)", "CRE(R)", "IB(C)", "ICL(L)", "ICL(R)", "SCL(L)","SCL(R)",
+              "ATL(L)","ATL(R)", "CRE(-RUB)(L)", "CRE(-ROB,-RUB)(R)", "ROB(R)" , "RUB(L)" , "RUB(R)" , "IB(C)", "ICL(L)", "ICL(R)", "SCL(L)","SCL(R)",
              "GNG(C)", "PENP(C)",
              "AL(L)", "AL(R)", "MB(L)",  "MB(+ACA)(R)","LH(R)" )
 ROI_LEVELS[which(!ROI_LEVELS %in% unique(ROISubset$roi_names))]
@@ -192,28 +195,25 @@ ROISubset$roi_names <- factor(ROISubset$roi_names, levels = ROI_LEVELS)
 # Make facet for y axis
 ROISubset$FACET <- NA
 ROISubset$FACET[ startsWith(ROISubset$type_name,"FB")]  <- "FB Tangential"
-ROISubset$FACET[ startsWith(ROISubset$type_name,"PFN") | startsWith(ROISubset$type_name,"PFR") | 
-                   startsWith(ROISubset$type_name,"PFG")] <- "FB Columnar Reccurent"
+ROISubset$FACET[ startsWith(ROISubset$type_name,"PFN") | startsWith(ROISubset$type_name,"PFR") | startsWith(ROISubset$type_name,"PFG")] <- "PB-FB Columnar Input"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"Delta0")] <- "Delta0s"   
 ROISubset$FACET[ startsWith(ROISubset$type_name,"Delta6")] <- "Delta6s"   
-ROISubset$FACET[ startsWith(ROISubset$type_name,"PFL")] <- "FB Columnar Outputs"                
-ROISubset$FACET[ startsWith(ROISubset$type_name,"FQ")] <- "FB Qs"  
+ROISubset$FACET[ startsWith(ROISubset$type_name,"PFL") | startsWith(ROISubset$type_name,"FC") | startsWith(ROISubset$type_name,"FR") | startsWith(ROISubset$type_name,"FS")] <- "FB Columnar Outputs"  
 ROISubset$FACET[ startsWith(ROISubset$type_name,"Ex")] <- "ExRs FB-EB"  
 ROISubset$FACET[ startsWith(ROISubset$type_name,"OA")] <- "OA"                  
 ROISubset$FACET[ startsWith(ROISubset$type_name,"SA")] <- "AB"                  
 ROISubset$type_name[is.na(ROISubset$FACET)]
 sum(is.na(ROISubset$FACET))
-ROISubset$FACET = factor(ROISubset$FACET, levels=c('FB Tangential','FB Columnar Reccurent', "Delta0s" ,"Delta6s" ,'FB Columnar Outputs', 
-                                                   'FB Qs','ExRs FB-EB','OA','AB'))
+ROISubset$FACET = factor(ROISubset$FACET, levels=c('FB Tangential','PB-FB Columnar Input', "Delta0s" ,"Delta6s" ,'FB Columnar Outputs', 
+                                                   'ExRs FB-EB','OA','AB'))
 
 
 # Factor the types for plotting so the color is good
 ROISubset$type = factor(ROISubset$type, levels=c( sort(unique(ROISubset$type[ROISubset$FACET == "FB Tangential"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset$type[ROISubset$FACET == "FB Columnar Reccurent"]),decreasing = TRUE),
+                                                         sort(unique(ROISubset$type[ROISubset$FACET == "PB-FB Columnar Input"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "Delta0s"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "Delta6s"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "FB Columnar Outputs"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset$type[ROISubset$FACET == "FB Qs"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "ExRs FB-EB"]),decreasing = TRUE),
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "OA"]),decreasing = TRUE), 
                                                          sort(unique(ROISubset$type[ROISubset$FACET == "AB"]),decreasing = TRUE)))
@@ -251,6 +251,7 @@ Input_MinRelSynThresh=0.0125     # 0.0125 is good
 Ouput_MaxThresh=30               # 30 is good  
 Output_MinSynThresh=6            # 6 is good
 Output_MinRelSynThresh=0.01      # 0.01 is good
+
 
 
 # Include neurons that have a minimum relative AND absolute number of synapses OR have above a certain higher number of absolute synapses.
@@ -322,7 +323,8 @@ plot_ly(data = subset(ROISubset, prepost=="Output ROI"),  x = ~roi_names, y = ~t
 ```
 
 
-### Plot just the FB tangential neurons, using unilateral ROIs
+### Plot just the FB tangential neurons, using unilateral ROIs (Note, for unpaired structures this underestimtes the total synapses, since we're summing 
+### left and right ROIs. But, there are other ROIs that are cut so there is no perfect soultion).
 ```{r}
 
 # Get just the FB tangential neurons
@@ -330,10 +332,8 @@ ROISubset_Thresh_FBT=subset(ROISubset_Thresh, FACET=="FB Tangential")
 ROISubset_Thresh_FBT_Uni=aggregate(ROISubset_Thresh_FBT[,c(8,12)], by=list(ROISubset_Thresh_FBT$type, ROISubset_Thresh_FBT$roi, ROISubset_Thresh_FBT$prepost), FUN=sum)
 colnames(ROISubset_Thresh_FBT_Uni)[c(1,2,3)] <- c("type","roi_names","prepost")
 
-
 # Facet by FB type
 ROISubset_Thresh_FBT_Uni$FACET=substr(ROISubset_Thresh_FBT_Uni$type, 1, 3)
-
 
 # Need to sum LAL(L), LAL(-GA)(R), and GA(R) by type
 LalGalTemp=subset(ROISubset_Thresh_FBT_Uni, roi_names %in% c("LAL", "LAL(-GA)", "GA"))
@@ -345,50 +345,50 @@ MBTemp=subset(ROISubset_Thresh_FBT_Uni, roi_names %in% c("MB", "MB(+ACA)"))
 MBTemp=aggregate(MBTemp[, c(4,5)], by=list(type=MBTemp$type, prepost=MBTemp$prepost, FACET=MBTemp$FACET), FUN=sum)
 MBTemp$roi_names="MB"
 
+# Need to sum "CRE(-ROB,-RUB)" and "CRE(-RUB)"
+CRETemp=subset(ROISubset_Thresh_FBT_Uni, roi_names %in% c("CRE(-ROB,-RUB)", "CRE(-RUB)"))
+CRETemp=aggregate(CRETemp[, c(4,5)], by=list(type=CRETemp$type, prepost=CRETemp$prepost, FACET=CRETemp$FACET), FUN=sum)
+CRETemp$roi_names="CRE(-ROB,-RUB)"
+
 
 # Combien the LAL and MB data with the other rois
-ROISubset_Thresh_FBT_Uni=subset(ROISubset_Thresh_FBT_Uni, !(roi_names %in% c("LAL", "LAL(-GA)", "GA","MB", "MB(+ACA)")))
+ROISubset_Thresh_FBT_Uni=subset(ROISubset_Thresh_FBT_Uni, !(roi_names %in% c("LAL", "LAL(-GA)", "GA","MB", "MB(+ACA)", "CRE(-ROB,-RUB)", "CRE(-RUB)")))
 ROISubset_Thresh_FBT_Uni=rbind(ROISubset_Thresh_FBT_Uni, LalGalTemp)
 ROISubset_Thresh_FBT_Uni=rbind(ROISubset_Thresh_FBT_Uni, MBTemp)
+ROISubset_Thresh_FBT_Uni=rbind(ROISubset_Thresh_FBT_Uni, CRETemp)
 
 # Manually set levels for x Axis
 ROI_LEVELS2=c("FBl1","FBl2", "FBl3", "FBl4", "FBl5", "FBl6", "FBl7", "FBl8", "FBl9",
-             "EB","NO","LAL(+GA)","AB", "VLNP","VMNP", "SMP", "SIP", "SLP", "ATL", "CRE", "SCL","MB")
+             "EB","NO","LAL(+GA)","AB", "VLNP","VMNP", "SMP", "SIP", "SLP", "CRE(-ROB,-RUB)","ROB","RUB", "ATL", "SCL","MB")
 ROI_LEVELS2[which(!ROI_LEVELS2 %in% unique(ROISubset_Thresh_FBT_Uni$roi_names))]
 ROISubset_Thresh_FBT_Uni$roi_names[ which(!ROISubset_Thresh_FBT_Uni$roi_names %in% ROI_LEVELS2)]
 ROISubset_Thresh_FBT_Uni$roi_names <- factor(ROISubset_Thresh_FBT_Uni$roi_names, levels = ROI_LEVELS2)
 
 
 # set levels
-ROISubset_Thresh_FBT_Uni$FACET = factor(ROISubset_Thresh_FBT_Uni$FACET, levels=c("FB1","FB2","FB3","FB4","FB5","FB6","FB7","FB8","FB9"))
-ROISubset_Thresh_FBT_Uni$type=as.character(ROISubset_Thresh_FBT_Uni$type)
-ROISubset_Thresh_FBT_Uni$type = factor(ROISubset_Thresh_FBT_Uni$type, levels=c(sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB1"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB2"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB3"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB4"]),decreasing = TRUE), 
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB5"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB6"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB7"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB8"]),decreasing = TRUE),
-                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB9"]),decreasing = TRUE)) )
+ROISubset_Thresh_FBT_Uni$FACET = factor(ROISubset_Thresh_FBT_Uni$FACET, levels=c("FB9","FB8","FB7","FB6","FB5","FB4","FB3","FB2","FB1"))
+ROISubset_Thresh_FBT_Uni$type= as.character(ROISubset_Thresh_FBT_Uni$type)
+ROISubset_Thresh_FBT_Uni$type = factor(ROISubset_Thresh_FBT_Uni$type, levels=c(sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB1"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB2"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB3"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB4"]),decreasing = FALSE), 
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB5"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB6"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB7"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB8"]),decreasing = FALSE),
+                                                         sort(unique(ROISubset_Thresh_FBT_Uni$type[ROISubset_Thresh_FBT_Uni$FACET == "FB9"]),decreasing = FALSE)) )
 
-
-# Plot all of the ROIs (and sub ROIs) that all FB neurons innervate
-p0<-p0<-ggplot(ROISubset_Thresh_FBT_Uni, aes(x=roi_names, y=type, size=log10(count)))   + 
-  facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") + 
-  geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
-  ggtitle(paste("FB Tangential Neuron Absolute Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_log10_FBT_Thresh_Abs_Figure_FBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
-       width = 36, height = 36, units ="in", dpi = 600, limitsize = TRUE)
+ROISubset_Thresh_FBT_Uni$color=ROISubset_Thresh_FBT_Uni$type
+ROISubset_Thresh_FBT_Uni$color=as.character(ROISubset_Thresh_FBT_Uni$color)
+ROISubset_Thresh_FBT_Uni$color = factor(ROISubset_Thresh_FBT_Uni$color, levels=c( rev(sort(unique(ROISubset_Thresh_FBT_Uni$color)) ) ))
 
 # Plot all of the ROIs (and sub ROIs) that all FB neurons innervate
-p0<-p0<-ggplot(ROISubset_Thresh_FBT_Uni, aes(x=roi_names, y=type, size=count))   + 
+p0<-ggplot(ROISubset_Thresh_FBT_Uni, aes(x=roi_names, y=type, size=count))   +  
   facet_grid(cols=vars(prepost), rows=vars(FACET), scales="free_y", space="free_y") + 
-  geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  geom_point(shape = 21, colour = "black", aes(fill = color, stroke=1.5)) +  scale_color_brewer( direction = -1) +
+   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("FB Tangential Neuron Absolute Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_FBT_Thresh_Abs_Figure_FBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_ROI_FB_Tangential.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 36, height = 36, units ="in", dpi = 600, limitsize = TRUE)
 
 ```
@@ -400,7 +400,8 @@ ggsave(paste(PlotDir, "FIGURE_FBT_Thresh_Abs_Figure_FBAll_InputOutput_perType.pd
 
 
 # Get all non-tangential cells
-ROISubset_Thresh_NonFB=subset(ROISubset_Thresh, ! (FACET=="FB Tangential" |  FACET=="FB Qs" | FACET=="FB Tangential"| FACET=="FB Columnar Outputs" | FACET=="ExRs FB-EB" | FACET=="OA") ) 
+ROISubset_Thresh_NonFB=subset(ROISubset_Thresh, ! (FACET=="FB Tangential"| FACET=="FB Columnar Outputs" | FACET=="ExRs FB-EB" | FACET=="OA") ) 
+
 
 # Average the L/R/C Delta0s together
 ROISubset_Delta0s=subset(ROISubset_Thresh_NonFB, startsWith(as.character(type),"Delta0")  )
@@ -410,21 +411,24 @@ ROISubset_Delta0s$type_name=paste(as.character(ROISubset_Delta0s$type_name),"(R/
 ROISubset_Delta0s$FACET="Delta0s"  
 ROISubset_Delta0s=ROISubset_Delta0s[,c(1,2,3,5,6,4)]
 
+
 # Get Non tangential cells and non Delta0s
 ROISubset_Thresh_NonFBNonD0=subset(ROISubset_Thresh_NonFB, !startsWith(as.character(type),"Delta0") )  
 ROISubset_Thresh_NonFBNonD0=ROISubset_Thresh_NonFBNonD0[,c(10, 9, 7,8, 12, 13)]
+
 
 # Combine the two to get a table with all non-tangengial cells 
 remove(ROISubset_Thresh_NonFB)
 ROISubset_Thresh_NonFB=rbind(ROISubset_Thresh_NonFBNonD0,ROISubset_Delta0s)
 ROISubset_Thresh_NonFB$type = unlist(strsplit(ROISubset_Thresh_NonFB$type_name, "[(]",fixed = TRUE))
 
+
 # Set levels again
-ROISubset_Thresh_NonFB$FACET = factor(ROISubset_Thresh_NonFB$FACET, levels=c('FB Columnar Reccurent', "Delta0s" ,"Delta6s" , "AB"))
+ROISubset_Thresh_NonFB$FACET = factor(ROISubset_Thresh_NonFB$FACET, levels=c('PB-FB Columnar Input', "Delta0s" ,"Delta6s" , "AB"))
 
 
 # Factor the types for plotting so the color is good
-ROISubset_Thresh_NonFB$type = factor(ROISubset_Thresh_NonFB$type, levels=c(sort(unique(ROISubset_Thresh_NonFB$type[ROISubset_Thresh_NonFB$FACET == "FB Columnar Reccurent"]),decreasing = TRUE),
+ROISubset_Thresh_NonFB$type = factor(ROISubset_Thresh_NonFB$type, levels=c(sort(unique(ROISubset_Thresh_NonFB$type[ROISubset_Thresh_NonFB$FACET == "PB-FB Columnar Input"]),decreasing = TRUE),
                                                          sort(unique(ROISubset_Thresh_NonFB$type[ROISubset_Thresh_NonFB$FACET == "Delta0s"]),decreasing = TRUE),
                                                          sort(unique(ROISubset_Thresh_NonFB$type[ROISubset_Thresh_NonFB$FACET == "Delta6s"]),decreasing = TRUE),
                                                          sort(unique(ROISubset_Thresh_NonFB$type[ROISubset_Thresh_NonFB$FACET == "AB"]),decreasing = TRUE)))
@@ -436,7 +440,7 @@ p0<-ggplot(ROISubset_Thresh_NonFB, aes(x=roi_names, y=type_name, size=count))   
   geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("FB Neuron Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_IntraFB_Thresh_Abs_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_ROI_FB_Intra.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 18, height = 18, units ="in", dpi = 600, limitsize = TRUE)
 
 
@@ -447,7 +451,7 @@ ggsave(paste(PlotDir, "FIGURE_IntraFB_Thresh_Abs_InputOutput_perType.pdf",sep=""
 ```{r}
 
 # Get all potential outputs
-ROISubset_Thresh_Output=subset(ROISubset_Thresh,  FACET=="FB Qs" | FACET=="FB Columnar Outputs" | FACET=="ExRs FB-EB" | FACET=="OA")
+ROISubset_Thresh_Output=subset(ROISubset_Thresh, FACET=="FB Columnar Outputs" | FACET=="ExRs FB-EB" | FACET=="OA")
 
 
 # Plot all of the ROIs (and sub ROIs) that all FB neurons innervate
@@ -456,7 +460,7 @@ p0<-ggplot(ROISubset_Thresh_Output, aes(x=roi_names, y=type_name, size=count))  
   geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("FB Neuron Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_FBOuputModulatory_Thresh_Abs_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_ROI_FB_Outputs.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 

@@ -61,9 +61,9 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   myConnections <- filter(myConnections,partnerMeta$status == "Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
   
-  refMeta <- slice(refMeta,sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid)))
-  refMetaOrig <- slice(refMetaOrig,sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid)))
-  
+  refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
+  refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
+
   myConnections <-myConnections %>%
     mutate(partnerName = partnerMeta[["name"]],
            name = refMeta[["name"]],
@@ -83,12 +83,16 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   }
   
   if (synapseType == "PRE"){
-    inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
-    if (!by.roi & is.null(slctROI)){
-      inputsTable <- inputsTable %>% mutate(from = bodyid)
+    if (nrow(myConnections)==0){
+      inputsTable <- myConnections
     }else{
-      inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
-    }
+      inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
+      if (!by.roi & is.null(slctROI)){
+        inputsTable <- inputsTable %>% mutate(from = bodyid)
+      }else{
+        inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+      }
+      }
     inp <- "partner"
   }else{
     inputsTable <- myConnections
@@ -112,11 +116,13 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     
     myConnections <- myConnections %>% group_by(roi) %>%
              mutate(totalPreROIweight = totalPre[["totalPreROIweight"]][totalPre$roi == roi[1]][match(from,totalPre$from[totalPre$roi == roi[1]])]) %>% ungroup()
-    
+    if (length(myConnections[["roi"]]) == 0){
+      postVar <- character(0)}else{
     postVar <- paste0(myConnections[["roi"]],".post")
+      }
     
     myConnections <- myConnections %>%
-          mutate(totalROIweight = sapply(1:length(postVar),function(v) outInfo[[postVar[v]]][v]),
+          mutate(totalROIweight = as.integer(sapply(seq_len(length(postVar)),function(v) outInfo[[postVar[v]]][v])),
                  weightRelative=ROIweight/totalROIweight,
                  outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
@@ -156,7 +162,9 @@ getTypesTable <- function(types){
   #' @return A data frame of instances of those types
   #' 
   #' 
-  return(bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))))
+  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))) %>%
+                mutate(databaseType = type)
+  return(typesTable)
 }
 
 redefineTypeByName <- function(table,type,pattern,newPostFixes,type_col="type",name_col="name",perl=FALSE){
@@ -187,20 +195,24 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
   #'                             newTypes=c("PFL2_L","PFL2_R"))
   #' }
   #' 
+  table[[paste0("previous.",type_col)]] <- table[[type_col]] ## keeping track of the last named types
   table[[type_col]][table[[type_col]] == type] <-  newTypes[2]
-  table[[type_col]][table[[type_col]] == newTypes[2] & condition] <-  newTypes[1] 
+  table[[type_col]][(table[[type_col]] == newTypes[2]) & condition] <-  newTypes[1] 
   return(table)
 }
 
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
+                    databaseCol =paste0("databaseType",str_to_title(c(unlist(strsplit(typeCol,"\\.")),"")[2])),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
   #' @param nameCol : the name of the column containing the names of the neurons (to be used
   #' to determine laterality)
   #' @param typeCol : the name of the column containing the types to modify
+  #' @param databaseCol : the column of the table holding database type names (we only want to change
+  #' type if it's not been modified before)
   #' @param typeList : which types to lateralize (by default all the neurons which names
   #' contains L or R)
   #' @example 
@@ -215,21 +227,20 @@ lrSplit <- function(connectionTable,
   #' 
   #' } 
   if (is.null(typeList)){
-    typeList <- distinct(connectionTable,(!!as.name(nameCol)),(!!as.name(typeCol)))
+    typeList <- filter(connectionTable,((!!as.name(typeCol)) == (!!as.name(databaseCol))))
   }else{
-    typeList <- filter(connectionTable,(!!as.name(typeCol)) %in% typeList)
-    typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
+    typeList <- filter(connectionTable,((!!as.name(typeCol)) %in% typeList) & (!!as.name(typeCol)) == (!!as.name(databaseCol)))
   }
+  typeList <- distinct(typeList,(!!as.name(nameCol)),(!!as.name(typeCol)))
   typeList <- filter(typeList,grepl("_R|_L",(!!as.name(nameCol)))) %>% na.omit()
   typeList <- typeList[[typeCol]]
-  
+  condition <- grepl("_L",connectionTable[[nameCol]])
+  connectionTable[[paste0("previous.",typeCol)]] <- connectionTable[[typeCol]] ## keeping track of the last named types
   for (t in typeList){
-    connectionTable <- redefineTypeByName(table=connectionTable,
-                                          type=t,
-                                          pattern="_L",
-                                          newPostFixes=c("_L","_R"),
-                                          type_col = typeCol,
-                                          name_col=nameCol)
+    rightType <- paste0(t,"_R")
+    leftType <- paste0(t,"_L")
+    connectionTable[[typeCol]][connectionTable[[typeCol]] == t] <-  rightType
+    connectionTable[[typeCol]][(connectionTable[[typeCol]] == rightType) & condition] <-  leftType 
   }
   return(connectionTable)
 }
@@ -266,7 +277,8 @@ getTypeToTypeTable <- function(connectionTable,
                                singleNeuronThreshold=0.01,
                                singleNeuronThresholdN=3,
                                pThresh = 0.05,
-                               typesTable = NULL){
+                               typesTable = NULL,
+                               oldTable = NULL){
   #' Generate a table of type to type connections, keeping only the significant links
   #' @param connectionTable: A table of neuron to neuron connections (as generated by \code{getConnectionTable})
   #' @param majorOutputThreshold: Threshold of the fraction of the outputs of a presynaptic type 
@@ -281,6 +293,7 @@ getTypeToTypeTable <- function(connectionTable,
   #' @param  typesTable: A table of all the instances of the output types (as generated by a search 	  
   #' for example). If NULL (the default), it will be computed from the unique types of post synaptic	 
   #' partners. Necessary to use if there are some user defined types
+  #' @param oldTable : only to be used in renaming functions. The type to type table before renaming.
   #' @return A data frame with the columns:
   #'              - type.to
   #'              - type.from
@@ -355,42 +368,53 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by(type.from,type.to,roi) %>%
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarize(weightRelative = sum(weightRelative),
                                           weight = sum(ROIweight),
+                                          absoluteWeight = sum(ROIweight),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
                                           n_targets = n(),
                                           databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]) %>%
-                                filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
+                                          databaseTypeFrom = databaseTypeFrom[1]) 
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
-                                group_by(type.from,to,type.to,roi) %>%
+                                group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarise(weightRelative = sum(weightRelative),
                                           weight = sum(ROIweight),
                                           n = n[1],
                                           outputContribution = outputContribution[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]) %>%
-                                group_by(type.from,type.to,roi) %>%
-                                summarize(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
+                                summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
+                                          pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
-                                                                  t.test(c(weightRelative,unlist(replicate(n[1]-n(),0))),
+                                                                  t.test(c(weightRelative,rep(0,missingV)),
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
-                                          weightRelative = mean(c(weightRelative,unlist(replicate(n[1]-n(),0)))),
-                                          weight = mean(c(weight,unlist(replicate(n[1]-n(),0)))),
+                                          varWeight = var(c(weightRelative,rep(0,missingV))),
+                                          weightRelative = mean(c(weightRelative,rep(0,missingV))),
+                                          weight = mean(c(weight,rep(0,missingV))),
+                                          absoluteWeight = sum(weight),
                                           outputContribution = outputContribution[1],
                                           n_targets = n(),
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
+                                ) %>% select(-missingV)
+  if (is.null(oldTable)){
+    loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
+    sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
+      select(-pVal)
+  }else{
+    loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
+    sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
                                 select(-pVal)
-                                
-          return(bind_rows(sTable,loners))                  
+  }               
+  
+  
+  return(bind_rows(sTable,loners))                  
 
 }
 
