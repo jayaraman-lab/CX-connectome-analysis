@@ -1,8 +1,97 @@
 # This file contain functions for:
+# 0) A number of modular functions from 1-4 for performing many PCA/projection related manipulations of synapse and roi locations.
 # 1) Performing PCA on meshes or synapse locations to get primary axes
 # 2) Projecting a set of synapses or mesh points onto new axes
 # 3) Plotting the distribution of synapses over ROI outlins
 # 4) Getting synapse locations in a loop so the query doesnt time out
+# Note, eventually, we should remove the large functions and work off the modular ones near the top
+
+
+
+
+getCOM <- function(pointsXYZ){
+  return(c(mean(pointsXYZ$x),mean(pointsXYZ$y),mean(pointsXYZ$z)))
+}
+
+resetOrigin <- function(pointsXYZ, origin){
+  pointsXYZ = transform(pointsXYZ, x = x-origin[1], y = y-origin[2], z = z-origin[3])
+  return(pointsXYZ)
+}
+
+makeRotMatXY <- function(angle){
+  # Rotate the first two PCs to align ROI in direction we want 
+  angRad=angle/360*2*pi
+  RotationMatrix=matrix( c(cos(angRad), sin(angRad), 0, 
+                           -sin(angRad),cos(angRad),0,
+                           0,0,1) , nrow = 3, ncol = 3)
+  return(RotationMatrix)
+}
+
+makeRotMatYZ <- function(angle){
+  # Rotate the first two PCs to align ROI in direction we want 
+  angRad=angle/360*2*pi
+  RotationMatrix=matrix( c(1,0,0,
+                           0,cos(angRad), sin(angRad), 
+                           0,-sin(angRad),cos(angRad)), 
+                         nrow = 3, ncol = 3)
+  return(RotationMatrix)
+}
+
+makeRotMatXZ <- function(angle){
+  # Rotate the first two PCs to align ROI in direction we want 
+  angRad=angle/360*2*pi
+  RotationMatrix=matrix( c(cos(angRad),0,sin(angRad),
+                           0,1,0,
+                           -sin(angRad),0,cos(angRad)), 
+                         nrow = 3, ncol = 3)
+  return(RotationMatrix)
+}
+
+covPCA <- function(pointsXYZ){
+  # calculate covariance matrix
+  cov = data.frame(cov(pointsXYZ))
+  # calculate eigenvectors and values
+  covEigen = eigen(cov)
+  return(covEigen)
+}
+
+changeBasis <- function(pointsXYZ, covEigen){
+  # points should be centered at origin
+  
+  #Convert all points to the coordinate system defined by covariance matrix eigen vectors
+  pts = matrix(0, nrow = length(pointsXYZ$x), ncol = 3)
+  for (i in seq(1,length(pointsXYZ$x))) {
+    pt = as.numeric(pointsXYZ[i,])  %*% covEigen$vectors
+    pts[i,] = pt
+  }
+  pointsNewBase = data.frame(x = pointsXYZ$x, y = pointsXYZ$y, z = pointsXYZ$z,
+                             X = pts[,1], Y = pts[,2], Z = pts[,3])
+  
+  return(pointsNewBase)
+}
+
+
+Project_NewCoordinates <- function(Input_DF, NewAxes) {
+  
+  
+  # Make a matrix from the synapse or mesh points
+  syn_locs=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
+  StartMat = matrix(c(syn_locs$x, syn_locs$y, syn_locs$z), nrow = length(syn_locs$x), ncol = 3)
+  colnames(StartMat) <- c("x","y","z")
+  
+  
+  # Project the original data onto PCs and create a new data frame with the synapse locations (for plotting)
+  NewProjection = StartMat %*% NewAxes$vectors
+  NewProjection_DF = Input_DF
+  NewProjection_DF$x=NewProjection[,1]
+  NewProjection_DF$y=NewProjection[,2]
+  NewProjection_DF$z=NewProjection[,3]
+  
+  
+  return(NewProjection_DF)
+  
+}
+
 
 
 
@@ -73,26 +162,7 @@ PCA_SynapseRoi <- function(Input_DF, Rotate) {
 
 
 
-Project_NewCoordinates <- function(Input_DF, NewAxes) {
-  
-  
-  # Make a matrix from the synapse or mesh points
-  syn_locs=data.frame(x=Input_DF$x, y=Input_DF$y, z=Input_DF$z)
-  StartMat = matrix(c(syn_locs$x, syn_locs$y, syn_locs$z), nrow = length(syn_locs$x), ncol = 3)
-  colnames(StartMat) <- c("x","y","z")
-  
-  
-  # Project the original data onto PCs and create a new data frame with the synapse locations (for plotting)
-  NewProjection = StartMat %*% NewAxes$vectors
-  NewProjection_DF = Input_DF
-  NewProjection_DF$x=NewProjection[,1]
-  NewProjection_DF$y=NewProjection[,2]
-  NewProjection_DF$z=NewProjection[,3]
 
-
-  return(NewProjection_DF)
-  
-}
   
   
   
