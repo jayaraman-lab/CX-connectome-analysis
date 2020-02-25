@@ -129,11 +129,11 @@ bind_InoutLists <- function(...){
 
 
 getROISummary <- function(InOutList,filter=TRUE){
-  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from)
+  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom)
   
-  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to)
+  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo)
   
   if (filter){
   ROIOutputs <- ROIOutputs %>% 
@@ -143,17 +143,17 @@ getROISummary <- function(InOutList,filter=TRUE){
   }
   
   roiSummary <- 
-    full_join(ROIInputs,ROIOutputs,by=c("roi","type")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
+    full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
            deltaWeight = (OutputWeight - InputWeight)/fullWeight)
   
   return(roiSummary)
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi))){
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
-  ggplot(roiTable,aes(x=roi,y=type)) + 
+  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
     geom_line(aes(group=type)) +
     geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
@@ -161,7 +161,11 @@ haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi))){
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") +
-    theme_minimal()+ theme(axis.text.x = element_text(angle = 90)) 
+    theme_minimal()
+  if (by.supertype){
+    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y",space="free_y") + theme_gray()
+  }
+  hanesch + theme(axis.text.x = element_text(angle = 90)) 
   
 }
   

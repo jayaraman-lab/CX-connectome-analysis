@@ -113,13 +113,14 @@ RelSynThresh=0.01
 EB_Type=NamedBodies_TypeAverage$bodytype[NamedBodies_TypeAverage$PrePost_Relative>RelSynThresh]
 
 # Add/Remove types as needed
-EB_Type = EB_Type[ !(EB_Type %in% c("FB1C","FB3E","Delta6I","FB6P","FQ10_a","SA3","SIFamide" )) ]
+EB_Type = EB_Type[ !(EB_Type %in% c("FB1C","FB3E","Delta6I","FB6P","FS2A","SAF","SIFamide" )) ]
 
 # Threshold EB neurons
 ExcludedTypes=unique(filter(roi_Connect_bytype_df, !(type %in% EB_Type) )$type)
 roi_Connect_bytype_df=filter(roi_Connect_bytype_df, type %in% EB_Type)
 
-# Save neuron type list for other's use
+# Save neuron type list for other's use 
+# load(file = paste(SaveDir,"EB_Types.RData",sep=""))
 save(EB_Type, RelSynThresh, ExcludedTypes, file = paste(SaveDir,"EB_Types.RData",sep=""))
 
 ```
@@ -189,7 +190,7 @@ ROISubset$FACET <- NA
 ROISubset$FACET[ startsWith(ROISubset$type_name,"R") ] <- "Right Ring Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"ExR")] <- "Extrinsic Ring Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"EP") | startsWith(ROISubset$type_name,"PE")|
-                   startsWith(ROISubset$type_name,"PE") | startsWith(ROISubset$type_name,"EQ")] <- "Columnar Neurons"
+                   startsWith(ROISubset$type_name,"PE") | startsWith(ROISubset$type_name,"EL")] <- "Columnar Neurons"
 ROISubset$FACET[ startsWith(ROISubset$type_name,"FB") | startsWith(ROISubset$type_name,"Delta")] <- "FB-EB Neurons"
 ROISubset$type_name[is.na(ROISubset$FACET)]
 sum(is.na(ROISubset$FACET))
@@ -263,7 +264,7 @@ p0<-ggplot(ROISubset_Thresh, aes(x=roi_names, y=type_name, size=count))   +
   geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle(paste("EB Neuron Relative Input/Output ROIs"," Thresholded "))
-ggsave(paste(PlotDir, "FIGURE_Thresh_Abs_Figure_EBAll_InputOutput_perType.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+ggsave(paste(PlotDir, "FIGURE_ROI_EB_ALL.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
        width = 16, height = 16, units ="in", dpi = 600, limitsize = TRUE)
 
 

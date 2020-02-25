@@ -16,10 +16,37 @@ source("romainNeuronsInRoi.R")
 library(pbapply)
 ```
 
+Picking the lowest level ROIs
+```{r}
+roiH <- neuprint_ROI_hierarchy()
+normalROIs <- neuprint_ROIs()
+normalROIs <- normalROIs[sapply(normalROIs, function(r) !(r %in% roiH$parent))]
+```
+
 # EB
 This might take a while
 ```{r}
-EBTypes <- getTypesInRoi("EB")
+EBTypesTable <- getTypesInRoiTable("EB",big = TRUE,lateralize = FALSE)
+```
+```{r}
+EBTypes <- typesInROI(EBTypesTable,ROI = "EB")
+```
+
+```{r}
+EBSummary <- getROISummary(EBTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
+```
+
+```{r}
+haneschEB <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type),by.supertype = T,roiSelect = normalROIs)
+```
+
+```{r}
+haneschEB
+```
+
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes.svg",haneschEB,width = 15,height=18)
 ```
 
 How do those compare to the Brad Types
@@ -28,17 +55,34 @@ load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/EB_Types.RData")
 ```
 
 ```{r}
-EB_Type[!(EB_Type %in% EBTypes)]
+EB_Type[!(EB_Type %in% EBTypes$databaseType)]
 ```
 That's fine, EQ5 is not a type anymore (it's called EL now)
 ```{r}
-EBTypes[!(EBTypes %in% EB_Type)]
+EBTypes$databaseType[!(EBTypes$databaseType %in% EB_Type)]
 ```
 
 # NO
+
 ```{r}
-NOTypes <- getTypesInRoi("NO(R)",lateralize=TRUE,big=FALSE)
+NOTypesTable <- getTypesInRoiTable("NO(R)",lateralize=TRUE,big=TRUE)
 ```
+```{r}
+NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
+```
+
+```{r}
+NOSummary <- getROISummary(NOTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
+```
+
+```{r}
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),by.supertype = T,roiSelect = normalROIs)
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.svg",haneschNOR,width = 15,height=16)
+```
+
 
 How do those compare to the Brad Types
 
@@ -47,15 +91,31 @@ load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/NO_Types.RData")
 ```
 
 ```{r}
-NO_Type[!(NO_Type %in% NOTypes)]
+NO_Type[!(NO_Type %in% NOTypes$databaseType)]
 ```
 ```{r}
-NOTypes[!(NOTypes %in% NO_Type)]
+NOTypes$databaseType[!(NOTypes$databaseType %in% NO_Type)]
 ```
 
 # PB
 ```{r}
-PBTypes <- getTypesInRoi("PB",big=FALSE)
+PBTypesTable <- getTypesInRoiTable("PB",big=TRUE,lateralize = FALSE)
+```
+
+```{r}
+PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
+```
+
+```{r}
+PBSummary <- getROISummary(PBTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
+```
+
+```{r}
+haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),by.supertype = T,roiSelect = normalROIs)
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 15,height=16)
 ```
 
 ```{r}
@@ -63,25 +123,45 @@ load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/PB_Types.RData")
 ```
 
 ```{r}
-PB_Type[!(PB_Type %in% PBTypes)]
+PB_Type[!(PB_Type %in% PBTypes$databaseType)]
 ```
 ```{r}
-PBTypes[!(PBTypes %in% PB_Type)]
+PBTypes$databaseType[!(PBTypes$databaseType %in% PB_Type)]
 ```
 
 # FB
 Tighten your seat belts, there are many neurons here.
 ```{r}
-FBTypes <- getTypesInRoi("FB")
+FBTypesTable <- getTypesInRoiTable("FB",big = T,lateralize = F)
 ```
+```{r}
+FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
+```
+
+```{r}
+FBSummary <- getROISummary(FBTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
+```
+
+```{r}
+haneschFB <- haneschPlot(FBSummary %>% filter(type %in% FBTypes$type),by.supertype = T,roiSelect = normalROIs)
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypes.svg",haneschFB,width = 15,height=24)
+```
+
+```{r}
+FBlayers <- c("FB")
+```
+
 
 ```{r}
 load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/FB_Types.RData")
 ```
 
 ```{r}
-FB_Type[!(FB_Type %in% FBTypes)]
+FB_Type[!(FB_Type %in% FBTypes$databaseType)]
 ```
 ```{r}
-FBTypes[!(FBTypes %in% FB_Type)]
+FBTypes$databaseType[!(FBTypes$databaseType %in% FB_Type)]
 ```
