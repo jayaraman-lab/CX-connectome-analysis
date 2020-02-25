@@ -19,6 +19,7 @@ source("neuprintQueryUtils.R")
 source("inputOutputRegionsVis.R")
 source("table2ggraphUtils.R")
 source("InputOutputByTypeUtils.R")
+source("GetNeuronsInRoi.R")
 source("romainNeuronsInRoi.R")
 
 options(nat.plotengine = 'rgl')
@@ -27,10 +28,10 @@ options(nat.plotengine = 'rgl')
 ### Configurable inputs: choose save/plot directories
 ```{r}
 # Directory to save data to.
-SaveDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+SaveDir = "/Users/danc/Documents/Data_Analysis/FIBSEM_Analysis"
 
 # Directory to save plots to.
-PlotDir="/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+PlotDir = "/Users/danc/Documents/Data_Analysis/FIBSEM_Analysis"
 ```
 
 ### Create save/plot directory if they dont exists yet
@@ -58,17 +59,41 @@ allCXneurons <- getNeuronsInRoi("CX")
 head(allCXneurons)
 ```
 
-### Find all CX neurons with input/output in the MB
+### Find all CX neurons and their connected ROIs
 ```{r}
-# Get roiInfo for all CX neurons
-allCXneuronsROIinfo <- neuprint_get_roiInfo(allCXneurons$bodyid)
-allCXneuronsPostInMBinfo <- allCXneuronsROIinfo  %>% filter(MB*.post > 5)
-allCXneuronsPostInMB <- allCXneurons %>% filter(bodyid %in% allCXneuronsPostInMBinfo$bodyid)
+# Get the synapse counts in all ROIs for all CX neurons
+Output = Get_SynapseCount_In_Rois("CX", FALSE)
+list2env(Output ,.GlobalEnv)
+remove(Output)
 
-# allCXneuronsPreInMBinfo <- allCXneuronsROIinfo  %>% filter("MB(L).pre" + "MB(R).pre" > 5)
-# allCXneuronsPreInMB <- allCXneurons %>% filter(bodyid %in% allCXneuronsPreInMBinfo$bodyid)
+# Filter data by synapse counts
+roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > 0 )
+roi_Connect_df = filter(roi_Connect_df, count > 0 )
+```
+
+### Find all CX neuron types with input/output in the MB
+```{r}
+CXtypes_connect2MB <- roi_Connect_bytype_df  %>% filter(roi == "MB")
+```
+
+### Make plot of all these neurons and histogram of synapse counts
+```{r}
+# Plot all of the ROIs (and sub ROIs) that all MB-touching CX neurons innervate
+p0 <- ggplot(CXtypes_connect2MB, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+  facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle("All CX Neuron Types with Input/Output in MB")
+ggsave(paste(PlotDir, "All_CX_","inputOutputInMB_perType.png",sep=""), plot = p0, device='png', scale = 1, 
+       width = 30, height = 20, units ="in", dpi = 300, limitsize = TRUE)
+
+# Plot histogram of synapse counts
+HistDat = data.frame(NumberOfSyns = CXtypes_connect2MB$count)
+p1 <- ggplot(HistDat, aes(x=NumberOfSyns)) + geom_histogram(binwidth=10) + xlim(0, 500) +
+  ylim(0, length(HistDat$NumberOfSyns[HistDat$NumberOfSyns>2 & HistDat$NumberOfSyns<=11]) )
+print(p1)
 
 ```
+
+
 
 
 ### Get CX neurons separated by ROIs
