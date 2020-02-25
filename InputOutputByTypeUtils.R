@@ -150,6 +150,7 @@ getROISummary <- function(InOutList,filter=TRUE){
   return(roiSummary)
 }
 
+
 haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
