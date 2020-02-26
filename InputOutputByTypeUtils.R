@@ -1,4 +1,5 @@
 source("neuprintQueryUtils.R")
+source("supertypeUtils.R")
 
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
   UseMethod("buildInputsOutputsByType")}
@@ -145,11 +146,12 @@ getROISummary <- function(InOutList,filter=TRUE){
   roiSummary <- 
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
-           deltaWeight = (OutputWeight - InputWeight)/fullWeight)
+           deltaWeight = (OutputWeight - InputWeight)/fullWeight,
+           supertype = supertype(type),
+           megatype = megatype(supertype))
   
   return(roiSummary)
 }
-
 
 haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
