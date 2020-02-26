@@ -155,28 +155,43 @@ getROISummary <- function(InOutList,filter=TRUE){
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
            deltaWeight = (OutputWeight - InputWeight)/fullWeight,
-           supertype = supertype(type),
-           megatype = megatype(supertype))
+           supertype1 = supertype(type,level=1),
+           supertype2 = supertype(type,level=2),
+           supertype3 = supertype(type,level=3))
   
   return(roiSummary)
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL){
+compressROISummary <- function(roiSummary,stat=median,level=1){
+  spt <- paste0("supertype",level)
+  roiSummary %>% group_by(roi,!!(as.name(spt))) %>%
+    summarise(type = (!!(as.name(spt)))[1],
+              fullWeight = stat(fullWeight),
+              deltaWeight = mean(deltaWeight),
+              supertype2 = supertype2[1],
+              supertype3 = supertype3[1]
+              )
+}
+
+
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL,flip=FALSE){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
   
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
-    geom_line(aes(group=type)) +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
+    geom_line(aes(group=type),colour="grey40") +
+    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") +
-    theme_minimal()
+    theme_minimal() 
   if (!(is.null(grouping))){
-    hanesch <- hanesch + facet_grid(as.formula(paste(grouping,"~ .")),scale="free_y",space="free_y") + theme_gray()
+    if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
+    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
   }
+  if (flip==TRUE){hanesch <- hanesch + coord_flip()}
   hanesch + theme(axis.text.x = element_text(angle = 90)) 
   
 }
