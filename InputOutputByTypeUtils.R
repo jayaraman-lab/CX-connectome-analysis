@@ -161,8 +161,9 @@ getROISummary <- function(InOutList,filter=TRUE){
   return(roiSummary)
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
+  
   
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
     geom_line(aes(group=type)) +
@@ -173,8 +174,8 @@ haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F)
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") +
     theme_minimal()
-  if (by.supertype){
-    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y",space="free_y") + theme_gray()
+  if (!(is.null(grouping))){
+    hanesch <- hanesch + facet_grid(as.formula(paste(grouping,"~ .")),scale="free_y",space="free_y") + theme_gray()
   }
   hanesch + theme(axis.text.x = element_text(angle = 90)) 
   
