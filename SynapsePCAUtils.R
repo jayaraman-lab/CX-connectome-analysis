@@ -7,6 +7,21 @@
 # Note, eventually, we should remove the large functions and work off the modular ones near the top
 
 
+MeshOutline <- function(Mesh, Plane){
+  
+  if (Plane=="XY"){
+    meshOutline <- ahull(x=Mesh$X, y=-Mesh$Y,alpha=100)
+  } else if (Plane=="XZ"){
+    meshOutline <- ahull(x=Mesh$X, y=Mesh$Z,alpha=100)
+  } else if (Plane=="YZ"){
+    meshOutline <- ahull(x=Mesh$Y, y=Mesh$Z,alpha=100)
+  }
+  
+  outline = data.frame(meshOutline$arcs)
+  outline = bind_rows(outline, outline[1,]) # close the shape
+  
+  return(outline)
+}
 
 
 MeshPoints <- function(roiMesh){
@@ -14,6 +29,7 @@ MeshPoints <- function(roiMesh){
   names(roiMeshPts) <- c("x","y","z")
   return(roiMeshPts)
 }
+
 
 getCOM <- function(pointsXYZ){
   return(c(mean(pointsXYZ$x),mean(pointsXYZ$y),mean(pointsXYZ$z)))
@@ -23,6 +39,7 @@ resetOrigin <- function(pointsXYZ, origin){
   pointsXYZ = transform(pointsXYZ, x = x-origin[1], y = y-origin[2], z = z-origin[3])
   return(pointsXYZ)
 }
+
 
 makeRotMatXY <- function(angle){
   # Rotate the first two PCs to align ROI in direction we want 
@@ -104,7 +121,62 @@ changeBasis_df <- function(Input_DF, NewAxes) {
 
 
 
-
+# Loop over bodyids and get synapse locations to avoid queries that time out
+GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
+  
+  
+  if (GROUP==TRUE){
+    
+    if (length(BodyIDs)>=25){Chunks=25}else{Chunks=1} # chunk of 25 works for FB
+    
+    Starts=seq(from = 1, to = floor(length(BodyIDs)/Chunks)*Chunks+1, by = Chunks)
+    Stops=c(Starts[2:length(Starts)]-1, length(BodyIDs))
+    
+    # Make sure last block is not length 1
+    if (tail(Starts,n=1)== tail(Stops,n=1)){
+      Starts=Starts[1:length(Starts)-1]
+      Stops=Stops[1:length(Stops)-1]
+      Stops[length(Stops)]<-length(BodyIDs)
+    }
+    
+    for (bbb in 1:length(Starts)){
+      print(bbb)
+      if (bbb==1){
+        
+        if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
+        } else {SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)}
+        
+        SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                          x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+      } else {
+        
+        if (ROI=="all"){TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
+        } else {TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)} 
+        
+        TempLocs =  mutate(TempLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+        SynLocs=rbind(SynLocs,TempLocs)
+        remove(TempLocs)
+      }
+      
+    }
+    
+  } else {
+    
+    if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs)
+    } else {SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)}
+    
+    SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                      x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+    
+  }
+  
+  SynLocs$prepost[SynLocs$prepost==0]="Input"
+  SynLocs$prepost[SynLocs$prepost==1]="Output"
+  
+  return(SynLocs)
+  
+}
 
 
 
@@ -309,62 +381,7 @@ PlotSynapseDistributions <- function(Synapses, ROI_Outline1, ROI_Outline2, ROI_O
   
   
 
-# Loop over bodyids and get synapse locations to avoid queries that time out
-GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
-  
-  
-  if (GROUP==TRUE){
-    
-    if (length(BodyIDs)>=50){Chunks=50}else{Chunks=1}
-    
-    Starts=seq(from = 1, to = floor(length(BodyIDs)/Chunks)*Chunks+1, by = Chunks)
-    Stops=c(Starts[2:length(Starts)]-1, length(BodyIDs))
-    
-    # Make sure last block is not length 1
-    if (tail(Starts,n=1)== tail(Stops,n=1)){
-      Starts=Starts[1:length(Starts)-1]
-      Stops=Stops[1:length(Stops)-1]
-      Stops[length(Stops)]<-length(BodyIDs)
-    }
-    
-    for (bbb in 1:length(Starts)){
-      print(bbb)
-      if (bbb==1){
-        
-        if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
-        } else {SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)}
-        
-        SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                          x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-      } else {
-        
-        if (ROI=="all"){TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
-        } else {TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)} 
-        
-        TempLocs =  mutate(TempLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-        SynLocs=rbind(SynLocs,TempLocs)
-        remove(TempLocs)
-      }
-      
-    }
-    
-  } else {
-    
-    if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs)
-    } else {SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)}
-    
-    SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                      x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-    
-  }
-  
-  SynLocs$prepost[SynLocs$prepost==0]="Input"
-  SynLocs$prepost[SynLocs$prepost==1]="Output"
-  
-  return(SynLocs)
-  
-}
+
 
   
   
