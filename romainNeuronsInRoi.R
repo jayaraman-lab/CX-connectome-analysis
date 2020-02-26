@@ -33,12 +33,8 @@ getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
   
-  if (big){
-    roiConnections <- pblapply(typesUnfiltered,buildInputsOutputsByType,fixed=TRUE,cl=clN)
-    roiConnections <- do.call(bind_InoutLists,roiConnections)
-  }else{
-    roiConnections <- buildInputsOutputsByType(typesUnfiltered,fixed=TRUE)
-  }
+  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,big=big,nc=clN)
+
   
   if (lateralize == TRUE){
     roiConnections <- lateralizeInputOutputList(roiConnections)
