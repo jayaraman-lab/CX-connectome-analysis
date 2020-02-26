@@ -40,7 +40,7 @@ makePyramidGraph <- function(type2typeList,ROIs=NULL,by.roi=FALSE,polarity="inpu
     type2typeTable <- type2typeTable %>% filter(roi %in% ROIs)
     }
   }
-  nodes <- nodesFromTypeTable(type2typeTable,supertype=supertype)
+  nodes <- nodesFromTypeTable(type2typeTable)
   if (polarity == "inputs"){
     nodes <- nodes %>% mutate(layer=ifelse(name %in% sourceTable$type,2,1))
   }else{

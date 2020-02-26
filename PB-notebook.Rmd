@@ -463,8 +463,8 @@ plotConnectivityMatrixPB = function(myConTab) {
   myConTab = myConTab %>% mutate(plotWeight = myConTab[["ROIweight"]])
   myConTab <- myConTab[which(myConTab$plotWeight>2),]
   
-  myConTab$nameid = paste(as.character(myConTab$name), as.character(myConTab$bodyid), sep = "_")
-  myConTab$partnerid = paste(as.character(myConTab$partnerName), as.character(myConTab$partner), sep = "_")
+  myConTab$nameid = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
+  myConTab$partnerid = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
   
   allNames = myConTab$nameid %>% unique() %>% sort()
   types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
@@ -489,7 +489,7 @@ plotConnectivityMatrixPB = function(myConTab) {
     
   conmatPlot = ggplot(myConTab) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,max(myConTab$plotWeight)))
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))
   
   conmatPlot =  conmatPlot + geom_tile(aes(partnerid,nameid,fill=plotWeight))
 }
@@ -558,4 +558,3 @@ conmatPlot <- structureMatrixPlotByType(conmatPlot)
 conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "PB")
 print(conmatPlot)
 ```
-

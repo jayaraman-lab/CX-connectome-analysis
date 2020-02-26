@@ -23,12 +23,22 @@ require(RColorBrewer)
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 ```
 
+
 ### (0) Get some synapse locations
-Query for R4d neurons (could do this will all EB neurons or just subset)
+Choose ROI and get curated list of neurons
 ```{r}
 myROI = "EB"
-saveName = paste0("ringNeurons_in_", myROI)
-my_neurons = getBodyIdsForList(c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*"))
+load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
+
+```
+
+```{r}
+saveName = paste0("Columnar_in_", myROI)
+my_neurons = getBodyIdsForList(c("EL","EPG","EPGt","PEG","PEN_a","PEN_b"))
+
+# Ring neurons c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
+# ExR: EB_Type[grep("ExR.*", EB_Type)]
+# Columnar: c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")
 ```
 ...use this list to get synapse locations
 ```{r}
@@ -94,7 +104,7 @@ decorate3d(box=FALSE)
 ### (3) Plot
 ***Select either original or EV coordinates and rotate***
 ```{r}
-rot = c(0,0,180) #BU (45,180, 0) #EB: (0,0,180)
+rot = c(0,180,0) #BU (45,180, 0) #EB: (0,0,180)
 
 roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
                              y=roiMeshPtsRot$Y,
@@ -127,7 +137,7 @@ synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
 ***Get outline using alpha shape and plot***
 ```{r}
 plotW = 16
-plotH =  10
+plotH =  6#10
 Cmax = 100#20
 nbins = 50#40
 ```
@@ -138,6 +148,7 @@ meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=100)
 outline = data.frame(meshOutline$arcs)
 #outline = bind_rows(outline, outline[1,]) # close the shape
 ```
+
 ```{r}
 synprojFront = ggplot() + 
   geom_hex(data=synPtsPlane, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
@@ -151,22 +162,22 @@ ggsave( paste("synapseDistributions_",saveName,'_front.pdf', sep=''), plot = syn
 ```
 
 ```{r}
-nlevel = 4
 synprojFront = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=6, geom = "polygon") +
+  stat_density_2d(data=synPtsPlane, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=3, geom = "polygon") +
   facet_wrap(~simpleType, ncol=5) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
 print(synprojFront)
-ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
-    scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
+#    scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 ```{r}
-nlevel = 4
 synprojFront = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=x, y=y, fill=simpleType, alpha = stat(nlevel)), bins=5, geom = "polygon") +
+  stat_density_2d(data=synPtsPlane, aes(x=x, y=y, color=simpleType), 
+                  bins=2, geom ="contour", show.legend=TRUE) + 
+  #stat_density_2d(data=synPtsPlane, aes(x=x, y=y, fill=simpleType, alpha = stat(nlevel)), bins=3, geom = "polygon") +
   coord_fixed(ratio = 1) + theme_void() +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
@@ -215,7 +226,6 @@ ggsave( paste("synapseDistributions_",saveName,'_side_simpletype.pdf', sep=''), 
 
 ### Collapse along EB ring
 ***Compute angle of vectors to each point relative to x-axis***
-
 ```{r}
 syn_ang = numeric(length(synPtsPlane$x))
 syn_dist = numeric(length(synPtsPlane$x))
@@ -325,21 +335,41 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels.pdf', sep=''), plo
     scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-
-
-# TODO: Make poygons from synapse densities, compute area and center of mass...
-
 ```{r}
 nlevel = 3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=syn_dist, y=z, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=synPtsPlane, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojSlice)
+
+ggsave( paste("synapseDistributions_",saveName,'_slice_levels2.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+
+# TODO: Make poygons from synapse densities, compute area and center of mass...
+```{r}
+synprojSlice = ggplot() + 
+  stat_density_2d(data=synPtsPlane, aes(x=z, y=dist, color=simpleType, fill=nlevel), bins=2, geom ="contour", show.legend=TRUE) + 
+  coord_fixed(ratio = 1) + theme_void() + #guides(alpha=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSlice)
 ```
 
+```{r}
+#dens = MASS::kde2d(synPtsPlane$z, synPtsPlane$dist, n = 100)
+
+synprojSlice = ggplot() + 
+  geom_contour(data=synPtsPlane, aes(x=z, y=dist, z=..density.., color=simpleType)) + 
+  coord_fixed(ratio = 1) + theme_void() + #guides(alpha=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojSlice)
+```
 
 ```{r}
+synPtsPlane
 
 ```
 
