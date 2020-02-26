@@ -71,8 +71,6 @@ Output=Get_SynapseCount_In_Rois(ROI, FALSE)
 list2env(Output ,.GlobalEnv)
 remove(Output)
 
-
-
 ```
 
 
@@ -468,7 +466,75 @@ ggsave(paste(PlotDir, "FIGURE_ROI_FB_Outputs.pdf",sep=""), plot = p0, device='pd
 ```
 
 
+# Plot the sum of tangential cells innervating each layer
+```{r}
 
+
+# Plot the percent of tangential cells that innervate each region by layer
+ROISubset_Thresh_FBT_Uni_PerLayer=ROISubset_Thresh_FBT_Uni[, c(1,2,3,4)]
+ROISubset_Thresh_FBT_Uni_PerLayer=complete(ROISubset_Thresh_FBT_Uni_PerLayer, type, roi_names, prepost)
+ROISubset_Thresh_FBT_Uni_PerLayer$count[is.na(ROISubset_Thresh_FBT_Uni_PerLayer$count)]<-0
+ROISubset_Thresh_FBT_Uni_PerLayer$type=sapply(ROISubset_Thresh_FBT_Uni_PerLayer$type, substring, 1, 3)
+ROISubset_Thresh_FBT_Uni_PerLayer$count[ROISubset_Thresh_FBT_Uni_PerLayer$count>0]=1
+ROISubset_Thresh_FBT_Uni_PerLayer=aggregate(ROISubset_Thresh_FBT_Uni_PerLayer[,4], by=list(ROISubset_Thresh_FBT_Uni_PerLayer$type,
+                          ROISubset_Thresh_FBT_Uni_PerLayer$roi_names, ROISubset_Thresh_FBT_Uni_PerLayer$prepost), FUN = mean)
+colnames(ROISubset_Thresh_FBT_Uni_PerLayer)[c(1,2,3)]<-c("type","roi_names","prepost")
+ROISubset_Thresh_FBT_Uni_PerLayer=ROISubset_Thresh_FBT_Uni_PerLayer[!(ROISubset_Thresh_FBT_Uni_PerLayer$count==0),]
+
+# Threshold based on proportion
+Prop_Thresh=0.3
+ROISubset_Thresh_FBT_Uni_PerLayer=subset(ROISubset_Thresh_FBT_Uni_PerLayer, count>Prop_Thresh)
+
+
+
+
+
+# Plot all of the ROIs (and sub ROIs) that all FB neurons innervate
+p0<-ggplot(ROISubset_Thresh_FBT_Uni_PerLayer, aes(x=roi_names, y=type, size=count))   +  
+  facet_grid(cols=vars(prepost), scales="free_y", space="free_y") + 
+  geom_point(shape = 21, colour = "black", aes(fill = type, stroke=1.5)) +  scale_color_brewer( direction = -1) +
+   theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
+  ggtitle(paste("FB Tangential Neuron Proportion Input/Output ROIs"," Thresholded "))
+ggsave(paste(PlotDir, "FIGURE_ROI_FB_Tangential_Proportion.pdf",sep=""), plot = p0, device='pdf', scale = 1, 
+       width = 12, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+# compute difference
+Tangential_Difference=ROISubset_Thresh_FBT_Uni_PerLayer
+Tangential_Difference=complete(Tangential_Difference, type, roi_names, prepost)
+Tangential_Difference$count[is.na(Tangential_Difference$count)]<-0
+
+Inputs=subset(Tangential_Difference, prepost=="Input ROI") 
+colnames(Inputs)[4]<-"InputProportion"
+Inputs=Inputs[,c(1,2,4)]
+
+
+Outputs=subset(Tangential_Difference, prepost=="Output ROI")
+colnames(Outputs)[4]<-"OutputProportion"
+Outputs=Outputs[,c(1,2,4)]
+
+InputOutput <- merge(Inputs, Outputs, by=c("type","roi_names")) 
+
+InputOutput$OutMinusIn=InputOutput$OutputProportion - InputOutput$InputProportion
+InputOutput$Average= (InputOutput$OutputProportion + InputOutput$InputProportion)/2
+
+InputOutput=subset(InputOutput, OutMinusIn>0 | Average>0)
+
+
+
+hanesch <- ggplot(InputOutput,aes(x=roi_names,y=type)) + 
+  geom_point(aes(size=Average,fill=OutMinusIn),colour="black",shape=21)+
+  scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
+                      space = "Lab", na.value = "grey50", guide = "legend",
+                      aesthetics = "fill") +
+  guides(fill = guide_legend(override.aes = list(size=5))) +
+  scale_size_continuous(name = "Propotion with synapses") +
+  theme_minimal() +  ylab("FB tangetial neurons by layer")
+ggsave(paste(PlotDir, "FIGURE_ROI_FB_Tangential_hanesch.pdf",sep=""), plot = hanesch, device='pdf', scale = 1, 
+       width = 14, height = 8, units ="in", dpi = 600, limitsize = TRUE)
+
+
+```
 
 
 

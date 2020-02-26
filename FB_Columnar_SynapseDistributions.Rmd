@@ -22,6 +22,7 @@ library(zoo)
 library(ggpubr)
 library(ks)
 library(RColorBrewer)
+require(alphahull)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -178,20 +179,208 @@ save(ColumnarNeuronSynsAll, FBl1_Syns, FBl2_Syns, FBl3_Syns, FBl4_Syns, FBl5_Syn
 ```
 
 
+# Get mesh points
+```{r}
+
+Mesh_FB_Points=MeshPoints(Mesh_FB)
+Mesh_FB_L1_Points=MeshPoints(Mesh_FB_L1)
+Mesh_FB_L2_Points=MeshPoints(Mesh_FB_L2)
+Mesh_FB_L3_Points=MeshPoints(Mesh_FB_L3)
+Mesh_FB_L4_Points=MeshPoints(Mesh_FB_L4)
+Mesh_FB_L5_Points=MeshPoints(Mesh_FB_L5)
+Mesh_FB_L6_Points=MeshPoints(Mesh_FB_L6)
+Mesh_FB_L7_Points=MeshPoints(Mesh_FB_L7)
+Mesh_FB_L8_Points=MeshPoints(Mesh_FB_L8)
+Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
+
+```
+
+
+# Center synapses at new origin
+```{r}
+
+
+# define new origin from roi center of mass
+origin = getCOM(Mesh_FB_Points)
+
+
+#reset orgin of all layers
+Mesh_FB_Points = resetOrigin(Mesh_FB_Points, origin)
+Mesh_FB_L1_Points = resetOrigin(Mesh_FB_L1_Points, origin)
+Mesh_FB_L2_Points = resetOrigin(Mesh_FB_L2_Points, origin)
+Mesh_FB_L3_Points = resetOrigin(Mesh_FB_L3_Points, origin)
+Mesh_FB_L4_Points = resetOrigin(Mesh_FB_L4_Points, origin)
+Mesh_FB_L5_Points = resetOrigin(Mesh_FB_L5_Points, origin)
+Mesh_FB_L6_Points = resetOrigin(Mesh_FB_L6_Points, origin)
+Mesh_FB_L7_Points = resetOrigin(Mesh_FB_L7_Points, origin)
+Mesh_FB_L8_Points = resetOrigin(Mesh_FB_L8_Points, origin)
+Mesh_FB_L9_Points = resetOrigin(Mesh_FB_L9_Points, origin)
+
+
+# Reset origin of all synapses 
+ColumnarNeuronSynsAll = resetOrigin(ColumnarNeuronSynsAll, origin)
+FBl1_Syns = resetOrigin(FBl1_Syns, origin)
+FBl2_Syns = resetOrigin(FBl2_Syns, origin)
+FBl3_Syns = resetOrigin(FBl3_Syns, origin)
+FBl4_Syns = resetOrigin(FBl4_Syns, origin)
+FBl5_Syns = resetOrigin(FBl5_Syns, origin)
+FBl6_Syns = resetOrigin(FBl6_Syns, origin)
+FBl7_Syns = resetOrigin(FBl7_Syns, origin)
+FBl8_Syns = resetOrigin(FBl8_Syns, origin)
+FBl9_Syns = resetOrigin(FBl9_Syns, origin)
+
+```
+
+
+# Perform PCA and rotation to get axes
+```{r}
+
+#get eigenvectors
+roiEigen = covPCA(Mesh_FB_Points)
+
+# Rotate PCs some
+RotMat=makeRotMatYZ(-33) # 33
+roiEigen$vectors= roiEigen$vectors %*% RotMat
+RotMat=makeRotMatXY(-3) # -3
+roiEigen$vectors= roiEigen$vectors %*% RotMat
+
+# Project meshes into PCA space
+Mesh_FB_Points = changeBasis(Mesh_FB_Points, roiEigen)
+Mesh_FB_L1_Points = changeBasis(Mesh_FB_L1_Points, roiEigen)
+Mesh_FB_L2_Points = changeBasis(Mesh_FB_L2_Points, roiEigen)
+Mesh_FB_L3_Points = changeBasis(Mesh_FB_L3_Points, roiEigen)
+Mesh_FB_L4_Points = changeBasis(Mesh_FB_L4_Points, roiEigen)
+Mesh_FB_L5_Points = changeBasis(Mesh_FB_L5_Points, roiEigen)
+Mesh_FB_L6_Points = changeBasis(Mesh_FB_L6_Points, roiEigen)
+Mesh_FB_L7_Points = changeBasis(Mesh_FB_L7_Points, roiEigen)
+Mesh_FB_L8_Points = changeBasis(Mesh_FB_L8_Points, roiEigen)
+Mesh_FB_L9_Points = changeBasis(Mesh_FB_L9_Points, roiEigen)
+
+
+# Project synapses into PCA space
+ColumnarNeuronSynsAll=changeBasis_df(ColumnarNeuronSynsAll, roiEigen)
+FBl1_Syns=changeBasis_df(FBl1_Syns, roiEigen)
+FBl2_Syns=changeBasis_df(FBl2_Syns, roiEigen)
+FBl3_Syns=changeBasis_df(FBl3_Syns, roiEigen)
+FBl4_Syns=changeBasis_df(FBl4_Syns, roiEigen)
+FBl5_Syns=changeBasis_df(FBl5_Syns, roiEigen)
+FBl6_Syns=changeBasis_df(FBl6_Syns, roiEigen)
+FBl7_Syns=changeBasis_df(FBl7_Syns, roiEigen)
+FBl8_Syns=changeBasis_df(FBl8_Syns, roiEigen)
+FBl9_Syns=changeBasis_df(FBl9_Syns, roiEigen)
+
+  
+
+```
+
+
+# Plot data in new and old reference frame
+```{r message=FALSE}
+
+
+# Make scatter plot of two projections
+p1<-ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2")
+print(p1)
+
+p1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= 'seagreen3',  size=1, alpha = 0.01) + 
+               geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=-PC2")
+print(p1)
+
+
+# Make scatter plot of two projections
+p1<-ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2")
+print(p1)
+
+p1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= 'seagreen3',  size=1, alpha = 0.01) + 
+               geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+               geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=-PC2")
+print(p1)
+
+
+```
+
+
+
+# Save data for later loading
+```{r}
+# load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+# Save synapse locations for later loading
+save(ColumnarNeuronSynsAll, FBl1_Syns, FBl2_Syns, FBl3_Syns, FBl4_Syns, FBl5_Syns, FBl6_Syns, FBl7_Syns, FBl8_Syns, FBl9_Syns,
+     Mesh_FB_Points, Mesh_FB_L1_Points, Mesh_FB_L2_Points, Mesh_FB_L3_Points, Mesh_FB_L4_Points, Mesh_FB_L5_Points, Mesh_FB_L6_Points, Mesh_FB_L7_Points, Mesh_FB_L8_Points, Mesh_FB_L9_Points,
+     roiEigen, origin, 
+     file = paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+
+```
+
+
+# Get rid of original frame (the lowercase x,y,z data)
+```{r}
+
+# Meshes
+Mesh_FB_Points=Mesh_FB_Points[ , !(names(Mesh_FB_Points) %in% c("x","y","z"))]
+Mesh_FB_L1_Points=Mesh_FB_L1_Points[ , !(names(Mesh_FB_L1_Points) %in% c("x","y","z"))]
+Mesh_FB_L2_Points=Mesh_FB_L2_Points[ , !(names(Mesh_FB_L2_Points) %in% c("x","y","z"))]
+Mesh_FB_L3_Points=Mesh_FB_L3_Points[ , !(names(Mesh_FB_L3_Points) %in% c("x","y","z"))]
+Mesh_FB_L4_Points=Mesh_FB_L4_Points[ , !(names(Mesh_FB_L4_Points) %in% c("x","y","z"))]
+Mesh_FB_L5_Points=Mesh_FB_L5_Points[ , !(names(Mesh_FB_L5_Points) %in% c("x","y","z"))]
+Mesh_FB_L6_Points=Mesh_FB_L6_Points[ , !(names(Mesh_FB_L6_Points) %in% c("x","y","z"))]
+Mesh_FB_L7_Points=Mesh_FB_L7_Points[ , !(names(Mesh_FB_L7_Points) %in% c("x","y","z"))]
+Mesh_FB_L8_Points=Mesh_FB_L8_Points[ , !(names(Mesh_FB_L8_Points) %in% c("x","y","z"))]
+Mesh_FB_L9_Points=Mesh_FB_L9_Points[ , !(names(Mesh_FB_L9_Points) %in% c("x","y","z"))]
+
+
+#Synapses
+ColumnarNeuronSynsAll=ColumnarNeuronSynsAll[ , !(names(ColumnarNeuronSynsAll) %in% c("x","y","z"))]
+FBl1_Syns=FBl1_Syns[ , !(names(FBl1_Syns) %in% c("x","y","z"))]
+FBl2_Syns=FBl2_Syns[ , !(names(FBl2_Syns) %in% c("x","y","z"))]
+FBl3_Syns=FBl3_Syns[ , !(names(FBl3_Syns) %in% c("x","y","z"))]
+FBl4_Syns=FBl4_Syns[ , !(names(FBl4_Syns) %in% c("x","y","z"))]
+FBl5_Syns=FBl5_Syns[ , !(names(FBl5_Syns) %in% c("x","y","z"))]
+FBl6_Syns=FBl6_Syns[ , !(names(FBl6_Syns) %in% c("x","y","z"))]
+FBl7_Syns=FBl7_Syns[ , !(names(FBl7_Syns) %in% c("x","y","z"))]
+FBl8_Syns=FBl8_Syns[ , !(names(FBl8_Syns) %in% c("x","y","z"))]
+FBl9_Syns=FBl9_Syns[ , !(names(FBl9_Syns) %in% c("x","y","z"))]
+
+```
 
 
 
 
 
+```{r}
+
+# get outline
+meshOutline <- ahull(x=Mesh_FB_L6_Points$X, y=-Mesh_FB_L6_Points$Z,alpha=100)
+outline = data.frame(meshOutline$arcs)
+outline = bind_rows(outline, outline[1,]) # close the shape
 
 
 
+ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 1)
 
 
+ggplot() + geom_point(data=subset(FBl6_Syns,   bodyid == 	977667682 ), aes(x=X, y=-Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 1)
 
-
-
-
+```
 
 
 

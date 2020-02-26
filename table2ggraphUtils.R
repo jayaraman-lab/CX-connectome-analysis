@@ -2,7 +2,8 @@
 
 nodesFromTypeTable <- function(type2typeTable){
   nodes <- data.frame(name = unique(c(type2typeTable$type.from,type2typeTable$type.to)),
-                      stringsAsFactors = F) 
+                      stringsAsFactors = F) %>% mutate(supertype = supertype(name),
+                                                       community = as.factor(match(supertype,unique(supertype))))
 }
 
 edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(type2typeTable)){
@@ -39,7 +40,7 @@ makePyramidGraph <- function(type2typeList,ROIs=NULL,by.roi=FALSE,polarity="inpu
     type2typeTable <- type2typeTable %>% filter(roi %in% ROIs)
     }
   }
-  nodes <- nodesFromTypeTable(type2typeTable)
+  nodes <- nodesFromTypeTable(type2typeTable,supertype=supertype)
   if (polarity == "inputs"){
     nodes <- nodes %>% mutate(layer=ifelse(name %in% sourceTable$type,2,1))
   }else{
@@ -58,7 +59,7 @@ pyramidGraph <- function(graphT,nodeT,edgeT,by.roi=T){
     g <- ggraph(graphT,layout="sugiyama",layers=nodeT$layer) + 
       geom_edge_fan(aes(width=weightRelative),colour="grey",alpha=0.5) + 
       geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
-      geom_node_point(aes(color=name),size=5) + 
+      geom_node_point(aes(color=supertype),size=5) + 
       geom_node_text(aes(label=name),angle=40,size=4) +
       guides(color="none") 
     if (by.roi){
