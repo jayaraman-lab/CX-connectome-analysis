@@ -112,11 +112,11 @@ FAFB_PB_df <-FAFBLoad("PB")
 
 ggplot(FAFB_PB_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 ggsave("FAFB_PB.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
 neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
@@ -145,14 +145,16 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
+FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
+FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
 ggplot(FIBSEM_PB  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,120)) +
-  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
 ggsave("FIBSEM_PB.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
@@ -165,11 +167,11 @@ FAFB_EB_df <-FAFBLoad("EB")
 
 ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,175)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 ggsave("FAFB_EB.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
 neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
@@ -195,14 +197,16 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "R4m")
 
 FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
+FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
+FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
 
 ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,175)) +
-  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,175)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
 ggsave("FIBSEM_EB.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
@@ -215,11 +219,11 @@ FAFB_NO_df <-FAFBLoad("NO")
 
 ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,200)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 ggsave("FAFB_NO.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
 neuronListPost = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
@@ -238,13 +242,16 @@ neuronListPost = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
 neuronListPre = append(neuronListPost,"GLN\\\\\\\\(LAL-NO1\\\\\\\\)\\\\\\\\(AVM08\\\\\\\\)_L")
 
 FIBSEM_NO = getConnectionTable_forSubset(getBodyIdsForList(neuronListPre)$bodyid, getBodyIdsForList(neuronListPost)$bodyid, "NO")
+FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FIBSEM_NO$from), sep = "_")
+FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
+
 
 ggplot(FIBSEM_NO  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,200)) +
-  geom_tile(aes(nameid,partnerid,fill=ROIweight))+coord_fixed(ratio=1)
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,200)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
 ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\",
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
