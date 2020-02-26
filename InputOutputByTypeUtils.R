@@ -1,16 +1,24 @@
 source("neuprintQueryUtils.R")
 source("supertypeUtils.R")
+library(pbapply)
+library(parallel)
 
-buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
+buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+  if (big == TRUE){
+    inoutList <- pblapply(unique(typeQuery$type),
+                          function(t) buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE),cl = nc)
+                          
+    return(do.call(bind_InoutLists,inoutList))
+  }
   
   outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
   inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
