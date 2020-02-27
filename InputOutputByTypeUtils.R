@@ -1,15 +1,24 @@
 source("neuprintQueryUtils.R")
+source("supertypeUtils.R")
+library(pbapply)
+library(parallel)
 
-buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,...){
+buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+  if (big == TRUE){
+    inoutList <- pblapply(unique(typeQuery$type),
+                          function(t) buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE),cl = nc)
+                          
+    return(do.call(bind_InoutLists,inoutList))
+  }
   
   outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
   inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
@@ -145,27 +154,44 @@ getROISummary <- function(InOutList,filter=TRUE){
   roiSummary <- 
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
-           deltaWeight = (OutputWeight - InputWeight)/fullWeight)
+           deltaWeight = (OutputWeight - InputWeight)/fullWeight,
+           supertype1 = supertype(type,level=1),
+           supertype2 = supertype(type,level=2),
+           supertype3 = supertype(type,level=3))
   
   return(roiSummary)
 }
 
+compressROISummary <- function(roiSummary,stat=median,level=1){
+  spt <- paste0("supertype",level)
+  roiSummary %>% group_by(roi,!!(as.name(spt))) %>%
+    summarise(type = (!!(as.name(spt)))[1],
+              fullWeight = stat(fullWeight),
+              deltaWeight = mean(deltaWeight),
+              supertype2 = supertype2[1],
+              supertype3 = supertype3[1]
+              )
+}
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),by.supertype=F){
+
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL,flip=FALSE){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
+  
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
-    geom_line(aes(group=type)) +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
+    geom_line(aes(group=type),colour="grey40") +
+    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") +
-    theme_minimal()
-  if (by.supertype){
-    hanesch <- hanesch + facet_grid(supertype~.,scale="free_y",space="free_y") + theme_gray()
+    theme_minimal() 
+  if (!(is.null(grouping))){
+    if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
+    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
   }
+  if (flip==TRUE){hanesch <- hanesch + coord_flip()}
   hanesch + theme(axis.text.x = element_text(angle = 90)) 
   
 }

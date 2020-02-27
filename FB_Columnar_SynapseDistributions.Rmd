@@ -85,14 +85,9 @@ ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
 # load(paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
 
 
-# Chose method to get synapses in each layer ("Neuprint" VS ROI "Subset")
-# Getting them from neuprint or subsetting from the ROI meshes give slightly different results for some reason.
-Layer_Method="Subset"
-
-
 # Get all synapses for the ring neurons
 SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FB",TRUE)
-ColumnarNeuronSynsAll=SynLocs
+FBC_SynsAll=SynLocs
 remove(SynLocs)
 
 
@@ -109,70 +104,22 @@ Mesh_FB_L8= neuprint_ROI_mesh("FBl8")
 Mesh_FB_L9= neuprint_ROI_mesh("FBl9")
 
 
-if (Layer_Method=="Neuprint"){
-# Layer 1
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl1",TRUE)
-FBl1_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 2
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl2",TRUE)
-FBl2_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 3
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl3",TRUE)
-FBl3_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 4
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl4",TRUE)
-FBl4_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 5
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl5",TRUE)
-FBl5_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 6
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl6",TRUE)
-FBl6_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 7
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl7",TRUE)
-FBl7_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 8
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl8",TRUE)
-FBl8_Syns=SynLocs
-remove(SynLocs)
-
-# Layer 9
-SynLocs=GetSynapseLocs(ColumnarBodies$bodyid, "FBl9",TRUE)
-FBl9_Syns=SynLocs
-remove(SynLocs)
-
-} else if (Layer_Method=="Subset"){
-
-  # Subset by layer instead
-  FBl1_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L1),] # Layer 1
-  FBl2_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L2),] # Layer 2
-  FBl3_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L3),] # Layer 3
-  FBl4_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L4),] # Layer 4
-  FBl5_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L5),] # Layer 5
-  FBl6_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L6),] # Layer 6
-  FBl7_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L7),] # Layer 7
-  FBl8_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L8),] # Layer 8
-  FBl9_Syns = ColumnarNeuronSynsAll[pointsinside(ColumnarNeuronSynsAll, Mesh_FB_L9),] # Layer 9
-}
+# Assign synapses to layers (Note ~0.05% of synapses are not in a layer, where layer=NA )
+FBC_SynsAll$Layer=NA
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L1)] <- "L1"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L2)] <- "L2"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L3)] <- "L3"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L4)] <- "L4"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L5)] <- "L5"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L6)] <- "L6"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L7)] <- "L7"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L8)] <- "L8"
+FBC_SynsAll$Layer[pointsinside(FBC_SynsAll, Mesh_FB_L9)] <- "L9"
+FBC_SynsAll$Layer=as.factor(FBC_SynsAll$Layer)
 
 # Save synapse locations for later loading
-save(ColumnarNeuronSynsAll, FBl1_Syns, FBl2_Syns, FBl3_Syns, FBl4_Syns, FBl5_Syns, FBl6_Syns, FBl7_Syns, FBl8_Syns, FBl9_Syns,
-     Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_FB_L5, Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9,
-     file = paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
+save(FBC_SynsAll, Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_FB_L5,
+     Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
 
 
 
@@ -196,7 +143,7 @@ Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
 ```
 
 
-# Center synapses at new origin
+# Center synapses and mesh points at new origin
 ```{r}
 
 
@@ -218,16 +165,8 @@ Mesh_FB_L9_Points = resetOrigin(Mesh_FB_L9_Points, origin)
 
 
 # Reset origin of all synapses 
-ColumnarNeuronSynsAll = resetOrigin(ColumnarNeuronSynsAll, origin)
-FBl1_Syns = resetOrigin(FBl1_Syns, origin)
-FBl2_Syns = resetOrigin(FBl2_Syns, origin)
-FBl3_Syns = resetOrigin(FBl3_Syns, origin)
-FBl4_Syns = resetOrigin(FBl4_Syns, origin)
-FBl5_Syns = resetOrigin(FBl5_Syns, origin)
-FBl6_Syns = resetOrigin(FBl6_Syns, origin)
-FBl7_Syns = resetOrigin(FBl7_Syns, origin)
-FBl8_Syns = resetOrigin(FBl8_Syns, origin)
-FBl9_Syns = resetOrigin(FBl9_Syns, origin)
+FBC_SynsAll = resetOrigin(FBC_SynsAll, origin)
+
 
 ```
 
@@ -258,18 +197,9 @@ Mesh_FB_L9_Points = changeBasis(Mesh_FB_L9_Points, roiEigen)
 
 
 # Project synapses into PCA space
-ColumnarNeuronSynsAll=changeBasis_df(ColumnarNeuronSynsAll, roiEigen)
-FBl1_Syns=changeBasis_df(FBl1_Syns, roiEigen)
-FBl2_Syns=changeBasis_df(FBl2_Syns, roiEigen)
-FBl3_Syns=changeBasis_df(FBl3_Syns, roiEigen)
-FBl4_Syns=changeBasis_df(FBl4_Syns, roiEigen)
-FBl5_Syns=changeBasis_df(FBl5_Syns, roiEigen)
-FBl6_Syns=changeBasis_df(FBl6_Syns, roiEigen)
-FBl7_Syns=changeBasis_df(FBl7_Syns, roiEigen)
-FBl8_Syns=changeBasis_df(FBl8_Syns, roiEigen)
-FBl9_Syns=changeBasis_df(FBl9_Syns, roiEigen)
+FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 
-  
+
 
 ```
 
@@ -278,38 +208,40 @@ FBl9_Syns=changeBasis_df(FBl9_Syns, roiEigen)
 ```{r message=FALSE}
 
 
-# Make scatter plot of two projections
-p1<-ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2")
-print(p1)
-
-p1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= 'seagreen3',  size=1, alpha = 0.01) + 
-               geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= 'cadetblue3',  size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=-PC2")
-print(p1)
+# Make scatter plot new projection
+ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
 
 
-# Make scatter plot of two projections
-p1<-ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2")
-print(p1)
 
-p1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= 'seagreen3',  size=1, alpha = 0.01) + 
-               geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
-               geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= 'cadetblue3',  size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=-PC2")
-print(p1)
+# Make scatter plot of original space
+ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
+
+
+# Scatter subset of synapses, colored by layer
+data2=FBC_SynsAll[seq(from = 1, to = length(FBC_SynsAll$x), by = 500), ]
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  size=1, alpha = 0.01) +
+           geom_point(data=data2, aes(x=X, y=-Y, colour= Layer),  size=1, alpha = 0.7) + coord_fixed(ratio = 1) 
+remove(data2)
 
 
 ```
@@ -320,10 +252,9 @@ print(p1)
 ```{r}
 # load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
 # Save synapse locations for later loading
-save(ColumnarNeuronSynsAll, FBl1_Syns, FBl2_Syns, FBl3_Syns, FBl4_Syns, FBl5_Syns, FBl6_Syns, FBl7_Syns, FBl8_Syns, FBl9_Syns,
-     Mesh_FB_Points, Mesh_FB_L1_Points, Mesh_FB_L2_Points, Mesh_FB_L3_Points, Mesh_FB_L4_Points, Mesh_FB_L5_Points, Mesh_FB_L6_Points, Mesh_FB_L7_Points, Mesh_FB_L8_Points, Mesh_FB_L9_Points,
-     roiEigen, origin, 
-     file = paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+save(FBC_SynsAll, Mesh_FB_Points, Mesh_FB_L1_Points, Mesh_FB_L2_Points, Mesh_FB_L3_Points, Mesh_FB_L4_Points,
+     Mesh_FB_L5_Points, Mesh_FB_L6_Points, Mesh_FB_L7_Points, Mesh_FB_L8_Points, Mesh_FB_L9_Points,
+     roiEigen, origin, file = paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
 
 ```
 
@@ -345,420 +276,61 @@ Mesh_FB_L9_Points=Mesh_FB_L9_Points[ , !(names(Mesh_FB_L9_Points) %in% c("x","y"
 
 
 #Synapses
-ColumnarNeuronSynsAll=ColumnarNeuronSynsAll[ , !(names(ColumnarNeuronSynsAll) %in% c("x","y","z"))]
-FBl1_Syns=FBl1_Syns[ , !(names(FBl1_Syns) %in% c("x","y","z"))]
-FBl2_Syns=FBl2_Syns[ , !(names(FBl2_Syns) %in% c("x","y","z"))]
-FBl3_Syns=FBl3_Syns[ , !(names(FBl3_Syns) %in% c("x","y","z"))]
-FBl4_Syns=FBl4_Syns[ , !(names(FBl4_Syns) %in% c("x","y","z"))]
-FBl5_Syns=FBl5_Syns[ , !(names(FBl5_Syns) %in% c("x","y","z"))]
-FBl6_Syns=FBl6_Syns[ , !(names(FBl6_Syns) %in% c("x","y","z"))]
-FBl7_Syns=FBl7_Syns[ , !(names(FBl7_Syns) %in% c("x","y","z"))]
-FBl8_Syns=FBl8_Syns[ , !(names(FBl8_Syns) %in% c("x","y","z"))]
-FBl9_Syns=FBl9_Syns[ , !(names(FBl9_Syns) %in% c("x","y","z"))]
+FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
+
 
 ```
 
 
 
-
-
+# Get outlines of each layer
 ```{r}
 
-# get outline
-meshOutline <- ahull(x=Mesh_FB_L6_Points$X, y=-Mesh_FB_L6_Points$Z,alpha=100)
-outline = data.frame(meshOutline$arcs)
-outline = bind_rows(outline, outline[1,]) # close the shape
+# Get XY outlines of each layer, with Y direction reverse so dorsal is up
+Outline_L1_XY=MeshOutline(Mesh_FB_L1_Points, "XY")
+Outline_L2_XY=MeshOutline(Mesh_FB_L2_Points, "XY")
+Outline_L3_XY=MeshOutline(Mesh_FB_L3_Points, "XY")
+Outline_L4_XY=MeshOutline(Mesh_FB_L4_Points, "XY")
+Outline_L5_XY=MeshOutline(Mesh_FB_L5_Points, "XY")
+Outline_L6_XY=MeshOutline(Mesh_FB_L6_Points, "XY")
+Outline_L7_XY=MeshOutline(Mesh_FB_L7_Points, "XY")
+Outline_L8_XY=MeshOutline(Mesh_FB_L8_Points, "XY")
+Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY")
 
 
+# Get XZ outlines of each layer, with Y direction reverse so dorsal is up
+Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ")
+Outline_L2_XZ=MeshOutline(Mesh_FB_L2_Points, "XZ")
+Outline_L3_XZ=MeshOutline(Mesh_FB_L3_Points, "XZ")
+Outline_L4_XZ=MeshOutline(Mesh_FB_L4_Points, "XZ")
+Outline_L5_XZ=MeshOutline(Mesh_FB_L5_Points, "XZ")
+Outline_L6_XZ=MeshOutline(Mesh_FB_L6_Points, "XZ")
+Outline_L7_XZ=MeshOutline(Mesh_FB_L7_Points, "XZ")
+Outline_L8_XZ=MeshOutline(Mesh_FB_L8_Points, "XZ")
+Outline_L9_XZ=MeshOutline(Mesh_FB_L9_Points, "XZ")
 
-ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+
+# Check layer 6 for alignment
+ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 1)
+  geom_path(data=Outline_L6_XY, aes(x=c1, y=c2), size = 1) 
 
-
-ggplot() + geom_point(data=subset(FBl6_Syns,   bodyid == 	977667682 ), aes(x=X, y=-Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 1)
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Get average number of synapses per type and filter 
-```{r}
-
-MinSyns=20
-
-# Get average synapses in EB per type and filter
-SynsPerType_EB=RingNeuron_EBsyns %>% group_by(type) %>% summarize(n=n())
-SynsPerType_EB=filter(SynsPerType_EB,n>MinSyns)
-RingNeuron_EBsyns=filter(RingNeuron_EBsyns,type %in% SynsPerType_EB$type)
-
-# Get average synapses in BU per type and filter
-SynsPerType_BU=RingNeuron_BUsyns %>% group_by(type) %>% summarize(n=n())
-SynsPerType_BU=filter(SynsPerType_BU,n>MinSyns)
-RingNeuron_BUsyns=filter(RingNeuron_BUsyns,type %in% SynsPerType_BU$type)
-
-# Get average synapses in GA per type and filter
-SynsPerType_GA=RingNeuron_GAsyns %>% group_by(type) %>% summarize(n=n())
-SynsPerType_GA=filter(SynsPerType_GA,n>MinSyns)
-RingNeuron_GAsyns=filter(RingNeuron_GAsyns,type %in% SynsPerType_GA$type)
-
-# Get average synapses in LAL per type and filter
-SynsPerType_LAL=RingNeuron_LALsyns %>% group_by(type) %>% summarize(n=n())
-SynsPerType_LAL=filter(SynsPerType_LAL,n>MinSyns)
-RingNeuron_LALsyns=filter(RingNeuron_LALsyns,type %in% SynsPerType_LAL$type)
-
-```
-
-
-# Combine GA and LAL data
-```{r}
-
-RingNeuron_LALsyns=mutate(RingNeuron_LALsyns,ROI="LAL")
-RingNeuron_GAsyns=mutate(RingNeuron_GAsyns,ROI="GA")
-RingNeuron_LALsyns=rbind(RingNeuron_LALsyns,RingNeuron_GAsyns)
-remove(RingNeuron_GAsyns)
-
-```
-
-
-### Get ROIs and ROI coordinates
-```{r}
-
-# Get meshes for ROIs
-ebMesh = neuprint_ROI_mesh("EB")
-EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
-
-buMesh = neuprint_ROI_mesh("BU(R)")
-BUData=data.frame(x=buMesh$vb[1,], y=buMesh$vb[2,],z=buMesh$vb[3,],name="BU(R)")
-
-RgaMesh = neuprint_ROI_mesh("GA(R)")
-GAData=data.frame(x=RgaMesh$vb[1,], y=RgaMesh$vb[2,],z=RgaMesh$vb[3,],name="LAL(R)")
-
-RlalMesh = neuprint_ROI_mesh("LAL(R)")
-LALData=data.frame(x=RlalMesh$vb[1,], y=RlalMesh$vb[2,],z=RlalMesh$vb[3,],name="LAL(R)")
-
-
-```
-
-
-### Use PCA to get axes with the most variance and project the data onto 
-### a plane defined by the first two PCs (with an optional rotation).
-```{r}
-
-# Perform PCA + rotation on ROI meshes to get new axes
-EB_Axes=PCA_SynapseRoi(EBData, 0)
-BU_Axes=PCA_SynapseRoi(BUData, 45)
-LAL_Axes=PCA_SynapseRoi(LALData, 90)
-LAL_Axes$vectors[,2] = -LAL_Axes$vectors[,2]
-
-# Project the synapse locations and meshes onto the new axes (no longer PCs if rotated)
-RingNeuron_EBsyns_EBax=Project_NewCoordinates(RingNeuron_EBsyns, EB_Axes)
-EBData_EBax=Project_NewCoordinates(EBData, EB_Axes)
-
-RingNeuron_BUsyns_BUax=Project_NewCoordinates(RingNeuron_BUsyns, BU_Axes)
-BUData_BUax=Project_NewCoordinates(BUData, BU_Axes)
-
-RingNeuron_LALsyns_LALax=Project_NewCoordinates(RingNeuron_LALsyns, LAL_Axes)
-LALData_LALax=Project_NewCoordinates(LALData, LAL_Axes)
-GAData_LALax=Project_NewCoordinates(GAData, LAL_Axes)
-
+  geom_path(data=Outline_L6_XZ, aes(x=c1, y=c2), size = 1) 
 
 
 ```
 
 
 
-# Get the ROI outlines in their new coordinates
-```{r}
 
 
-# Get EB Mesh outline in x/y
-OUTPUT=Get_MeshRoiOutline(EBData_EBax, 40, 3,"EB", DIM=c(1,2)) # Spacing=40, smooth=3 is good
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-EB_Ring1=EdgesOrdered1_OUT %>% mutate(name="EB1")
-EB_Ring2=EdgesOrdered2_OUT %>% mutate(name="EB2")
-remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
 
 
-# Get EB Mesh outline in x/z (Not used at the moment, but might be useful later)
-OUTPUT=Get_MeshRoiOutline(EBData_EBax, 6, 21,"EB", DIM=c(1,3)) # Spacing=40, smooth=3 is good
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
 
 
-# Get BU Mesh in x/y
-OUTPUT=Get_MeshRoiOutline(BUData_BUax, 40, 3,"BU", DIM=c(1,2)) # Spacing=40, smooth=3 is good
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-BU_Outline=EdgesOrdered1_OUT %>% mutate(name="BU(R)")
-remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
 
-
-# Get GA Mesh in x/y
-OUTPUT=Get_MeshRoiOutline(GAData_LALax, 40, 3,"GA", DIM=c(1,2)) # Spacing=40, smooth=3 is good
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-GA_Outline=EdgesOrdered1_OUT %>% mutate(name="GA")
-remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
-
-
-# Get LAL Mesh in x/y
-OUTPUT=Get_MeshRoiOutline(LALData_LALax, 50, 5,"LAL", DIM=c(1,2)) # Spacing=40, smooth=3 is good
-list2env(OUTPUT ,.GlobalEnv)
-remove(OUTPUT)
-LAL_Outline1=EdgesOrdered1_OUT %>% mutate(name="LAL1")
-LAL_Outline2=EdgesOrdered2_OUT %>% mutate(name="LAL2")
-remove(list=c("EdgesOrdered","EdgesOrdered1_OUT","EdgesOrdered2_OUT"))
-
-
-# Plot the synapses and the ROI outlines in same plot to make sure they are in the same coordinates
-ggplot()  + geom_point(data=RingNeuron_BUsyns_BUax, aes(x = x, y = -y, color=type)) +  geom_polygon(data=BU_Outline, aes(x = x, y = -y), colour='black', fill=NA)
-
-ggplot()  + geom_point(data=RingNeuron_EBsyns_EBax, aes(x = x, y = -y, color=type)) +  geom_polygon(data=EB_Ring1, aes(x = x, y = -y), colour='black', fill=NA) +  geom_polygon(data=EB_Ring2, aes(x = x, y = -y), colour='black', fill=NA)
-
-
-ggplot()  + geom_point(data=RingNeuron_LALsyns_LALax, aes(x = x, y = -y, color=type)) +  
-  geom_polygon(data=LAL_Outline1, aes(x = x, y = -y), colour='black', fill=NA) + 
-  geom_polygon(data=LAL_Outline2, aes(x = x, y = -y), colour='black', fill=NA) + 
-  geom_polygon(data=GA_Outline, aes(x = x, y = -y), colour='black', fill=NA)
-
-```
-
-
-### Make plots of 2D synapse distributions for BU and EB
-```{r}
-
-# To Do:
-# 1) Improve getting outline of data and get it to work with ring neurons in EB
-# 2) Look at synapse distributions in BU in Z
-# 3) Look at synapse distributions in cross section of EB
-
-
-# Make plots for BU 
-Cmax=20 # Max for color bar
-ROI_Name="BUr"
-
-Output=PlotSynapseDistributions(RingNeuron_BUsyns_BUax, BU_Outline, BU_Outline, BU_Outline, ROI_Name , Cmax, PlotDir)
-list2env(Output ,.GlobalEnv)
-remove(Output)
-
-ppp=ggarrange(plotlist=PlotHandles1, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
-       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-ppp=ggarrange(plotlist=PlotHandles2, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-# Make plots for EB
-Cmax=100 # Max for color bar
-ROI_Name="EB"
-
-Output=PlotSynapseDistributions(RingNeuron_EBsyns_EBax, EB_Ring1, EB_Ring2, EB_Ring2, ROI_Name , Cmax, PlotDir)
-list2env(Output ,.GlobalEnv)
-remove(Output)
-
-ppp=ggarrange(plotlist=PlotHandles1, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
-       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-ppp=ggarrange(plotlist=PlotHandles2, ncol = ceiling(length(PlotHandles1)/3), nrow = floor(length(PlotHandles1)/6))
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-# Make plots for LAL
-Cmax=50 # Max for color bar
-ROI_Name="LAL"
-
-Output=PlotSynapseDistributions(RingNeuron_LALsyns_LALax, LAL_Outline1, LAL_Outline2, GA_Outline, ROI_Name , Cmax, PlotDir)
-list2env(Output ,.GlobalEnv)
-remove(Output)
-
-ppp=ggarrange(plotlist=PlotHandles1, ncol = 3, nrow = 3)
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_NoContour_ALL",".pdf",sep=""),
-       plot = ppp, device='pdf', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-ppp=ggarrange(plotlist=PlotHandles2, ncol = 3, nrow = 3)
-ggsave(paste(PlotDir, ROI_Name, "_RingNeuronSynDistribution_Contour_ALL",".png",sep=""),
-       plot = ppp, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 600, limitsize = TRUE)
-
-
-
-
-
-```
-
-
-# Make plot showing overlay of all neurons in each region
-```{r}
-
-
-# Make plots of all neurons
-ggplot(RingNeuron_BUsyns_BUax, aes(x=x, y=-y, fill=name)) +
-  stat_density_2d(aes(alpha = 0.00001 ),bins=5, geom = "polygon") +
-  facet_grid(cols=vars(post)) + theme_classic() + xlim(500, 5000) + ylim(-1500, 1500) #+ guides(color=FALSE)
-
-
-```
-
-
-
-
-
-
-# Make plot of each ring neuron's distribution of synapses in 3D
-```{r}
-
-
-
-# Get neuron morphologies
-MorphFile=paste(SaveDir,"RingNeuronMorpho.rds",sep="")
-if (file.exists(MorphFile)){
-  RingNeuronMorpho=readRDS(MorphFile)
-} else {
-  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
-  saveRDS(RingNeuronMorpho, file = MorphFile)
-}
-
-# Get min/max of x,y,z from morphologies
-RingNeuronCharacter=names(RingNeuronMorpho)
-X_MaxOut=c()
-X_MinOut=c()
-Y_MaxOut=c()
-Y_MinOut=c()
-Z_MaxOut=c()
-Z_MinOut=c()
-for (NNN in 1:length(RingNeuronCharacter)){
-  X_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$X",sep="")
-  Y_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Y",sep="")
-  Z_tempstring=paste("RingNeuronMorpho$'",as.symbol(as.name(RingNeuronCharacter[NNN])),"'$d$Z",sep="")
-  
-  
-  X_MaxOut=max( c(X_MaxOut, max(eval(parse(text=X_tempstring))) ) )
-  X_MinOut=min( c(X_MinOut, min(eval(parse(text=X_tempstring))) ) )
-  Y_MaxOut=max( c(Y_MaxOut, max(eval(parse(text=Y_tempstring))) ) )
-  Y_MinOut=min( c(Y_MinOut, min(eval(parse(text=Y_tempstring))) ) )
-  Z_MaxOut=max( c(Z_MaxOut, max(eval(parse(text=Z_tempstring))) ) )
-  Z_MinOut=min( c(Z_MinOut, min(eval(parse(text=Z_tempstring))) ) )
-  
-}
-
-# Get max and min synapse positions, since clipping doesnt work well.
-XLIM=c( min(c(RingNeuronSynsAll$x,X_MinOut)) , max(c(RingNeuronSynsAll$x),X_MaxOut) )
-YLIM=c( min(c(RingNeuronSynsAll$y,Y_MinOut)) , max(c(RingNeuronSynsAll$y),Y_MaxOut) )
-ZLIM=c( min(c(RingNeuronSynsAll$z,Z_MinOut)) , max(c(RingNeuronSynsAll$z),Z_MaxOut) )
-
-
-# Get meshes for ROIs
-ebMesh = neuprint_ROI_mesh("EB")
-RbuMesh = neuprint_ROI_mesh("BU(R)")
-noMesh = neuprint_ROI_mesh("NO")
-lalMesh = neuprint_ROI_mesh("LAL(R)")
-galMesh = neuprint_ROI_mesh("GA(R)")
-
-
-# Get view file
-RingNeuronView= readRDS('Z:/Cx_Connectome/BradData/code/RingNeuronView.rds')
-
-# For each ring neuron type, loop over and plot synapse distributions
-for (typeNow in 1:length(RingNeuronTypes)){
-
-  
-  TempBodies=NamedBodies$bodyid[ as.character(NamedBodies$bodytype)==RingNeuronTypes[typeNow] ]
-  
-  TempMorphos=RingNeuronMorpho[as.character(TempBodies)]
-  TempMorphos=TempMorphos[lengths(TempMorphos) != 0 ]
-
-  
-  RingNeuronSyns = subset(RingNeuronSynsAll,RingNeuronSynsAll$name==RingNeuronTypes[typeNow])
-  
-  # Assign synapses into pre and post groups
-  RingNeuronSyns_Post = RingNeuronSyns %>% filter(prepost==0) 
-  RingNeuronSyns_Pre = RingNeuronSyns %>% filter(prepost==1)
-  
-  # Get view paramters
-  #zoom<-par3d()$zoom
-  #userMatrix<-par3d()$userMatrix
-  #windowRect<-par3d()$windowRect
-  #bbox2<-par3d()$bbox
-  #scale<-par3d()$scale
-  #viewport<-par3d()$viewport
-  #FOV<-par3d()$FOV
-  #pp2 <- par3d(no.readonly=TRUE)
-  
-  nclear3d()
-  
-  
-  bgplot3d({
-    plot.new()
-    title(main = as.character(RingNeuronTypes[typeNow]), line = 3)})
-  
-  plot3d(RingNeuronSyns_Pre[c('x','y','z')], col='seagreen3', xlim = c(XLIM), ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
-  plot3d(RingNeuronSyns_Post[c('x','y','z')], col='violet', add=TRUE, xlim = XLIM, ylim = YLIM, zlim = ZLIM,	forceClipregion = TRUE)
-  
-  
-  plot3d(TempMorphos,color="black")
-  plot3d(ebMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
-  plot3d(RbuMesh, color="blue", alpha=0.1,  WithNodes=FALSE, add=TRUE)
-  plot3d(noMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  plot3d(lalMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  plot3d(galMesh, type="shade", alpha=0.05,  WithNodes=FALSE, add=TRUE)
-  decorate3d(box=FALSE) 
-  #aspect3d(1,1,1)
-  listener=par3d()$listener
-   
-
-  #FrontView=rbind(c(1,0,0,0),c(0, -0.15,-1,0),c(0, 1, -0.14,0),c(0,0,0,1))
-  #par3d(zoom=0.6)
-  #par3d(windowRect=c(1271, 332, 2563, 1231))
-  #par3d(scale=c(0.813438, 1.333599, 1.038952))
-  #par3d(viewport=c(0, 0, 1292, 899))
-  #par3d(FOV=30)
-  #par3d(userMatrix=FrontView)
-  
-  par3d(RingNeuronView)
-  par3d(listeners=listener)
-  par3d(viewport=c(0, 0, 1292, 899))
-  par3d(windowRect=c(1271, 332, 2563, 1231))
-  
-  
-  
-  
-  FileName=paste('Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/',as.character(RingNeuronTypes[typeNow]),'.png', sep = "")
-  rgl.snapshot(FileName,fmt='png')
-
-  
-  rgl.close()
-  
-}
-
-```
 
 
 
