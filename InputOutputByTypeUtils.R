@@ -203,14 +203,12 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               )
 }
 
-
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL,flip=FALSE){
+haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL,flip=FALSE,alphaG=1){
   roiTable <- roiTable %>% filter(roi %in% roiSelect)
   
-  
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
-    geom_line(aes(group=type),colour="grey40") +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21)+
+    geom_line(aes(group=type),colour="grey40",alpha=alphaG) +
+    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
