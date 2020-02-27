@@ -3,7 +3,33 @@ source("supertypeUtils.R")
 library(pbapply)
 library(parallel)
 
+## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
+neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRef){
+  #' neuronBag objects contain information about the connectivity of a bunch of neurons
+  #' @field names : a table of metadata associated with the neurons in the bag -- with an extra column, 'databaseType'
+  #' which keeps the type name used in the database
+  #' @field outputs : a type to type connectivity table of the outputs of the set of neurons
+  #' @field inputs : a type to type connectivity table of the inputs of the set of neurons
+  #' @field outputs_raw : a neuron to neuron connection table of the outputs of the set of neurons
+  #' @field inputs_raw : a neuron to neuron connection table of the inputs of the set of neurons
+  #' @field outputsTableRef : a table holding all instances of all the output types and their associated metadata
+  res <- list(outputs=outputs,
+              inputs=inputs,
+              names=names,
+              outputs_raw=outputs_raw,
+              inputs_raw=inputs_raw,
+              outputsTableRef=outputsTableRef)
+  attr(res,"class") <- "neuronBag"
+  return(res)
+}
+
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+  #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
+  #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
+  #' metadata data.frame for a set of neurons
+  #' @param fixed : if typeQuery is a query string, is it fixed?
+  #' @param big : is the query large/timing out. If TRUE runs through pblapply
+  #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
   UseMethod("buildInputsOutputsByType")}
 
 buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
@@ -13,6 +39,10 @@ buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,n
 }
   
 buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+  #'
+  #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
+  #'neurons/types in that data frame)
+  #'
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE),cl = nc)
@@ -39,7 +69,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     }
     inputsR <- retype.na(inputsR)}
   
-  return(list(outputs = OUTByTypes,
+  return(neuronBag(outputs = OUTByTypes,
               inputs = INByTypes,
               names = typeQuery,
               outputs_raw = outputsR,
@@ -115,23 +145,23 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)
   
   
-  return(list(outputs = outByTypesLat,
-              inputs = inByTypesLat,
-              names = TypeNamesLat,
-              outputs_raw = outputsLat,
-              inputs_raw=inputsLat,
-              outputsTableRef=outputsRef))
+  return(neuronBag(outputs = outByTypesLat,
+                   inputs = inByTypesLat,
+                   names = TypeNamesLat,
+                   outputs_raw = outputsLat,
+                   inputs_raw=inputsLat,
+                   outputsTableRef=outputsRef))
   
 }
 
 bind_InoutLists <- function(...){
   full <- list(...)
-  out <- list(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
-              inputs = distinct(bind_rows(lapply(full,function(i) i$inputs))),
-              names = distinct(bind_rows(lapply(full,function(i) i$names))),
-              outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
-              inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
-              outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
+  out <- neuronBag(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
+                   inputs = distinct(bind_rows(lapply(full,function(i) i$inputs))),
+                   names = distinct(bind_rows(lapply(full,function(i) i$names))),
+                   outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
+                   inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
+                   outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
               )
   return(out)
 }
