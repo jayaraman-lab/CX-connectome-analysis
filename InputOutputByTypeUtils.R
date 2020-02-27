@@ -168,6 +168,11 @@ bind_InoutLists <- function(...){
 
 
 getROISummary <- function(InOutList,filter=TRUE){
+  #' Build a pre roi summary of innervation for neurons in a neuronBag
+  #' @param InOutList : a neuronBag object
+  #' @param filter : if TRUE (the default), only return results in ROIs where significant type to 
+  #' type connections are found. Otherwise consider all connections
+  #' 
   ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
     summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom)
   
