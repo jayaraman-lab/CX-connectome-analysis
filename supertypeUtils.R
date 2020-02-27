@@ -1,5 +1,10 @@
 supertype <- function(types,level=2){
-  #' Supertypes can be defined at 3 levels of depth (default 2)
+  #' Gets a supertype from a type name, with various levels of depth
+  #' @param types : a type name or vector of type names
+  #' @param level : depth of the supertype. Possible values are 1,2 or 3 (default 2), 1 being the finest 
+  #' subdivision and 3 the coarsest
+  #' @details For example, at level 1 delta0 neurons are just divided in DeltaA to K, at level 2 they are
+  #' D0, and at level 3 they are FB Interneurons
   supertype <- types
   if (level == 1){## Minimum change
     supertype[grepl("FB.*",types)] <- str_extract(types,"FB[1-9]")[grepl("FB.*",types)]
@@ -45,14 +50,3 @@ supertype <- function(types,level=2){
   }
   supertype
 }
-
-
-#megatype <- function(supertypes){
-#  megatype <- supertypes
-#  megatype[supertypes %in% c("PFL","PFN","PFR","PFGs")] <- "FB Columnar"
-#  megatype[supertypes %in% c("EPG","PEG","PEN")] <- "EB Columnar"
-#  megatype[grepl("FB[1-9]",supertypes)] <- "FB tangential"
-#  megatype[grepl("Delta0.*",supertypes)] <- "D0"
-#  megatype[grepl("Delta6.*",supertypes)] <- "D6"
-#  megatype
-#}
