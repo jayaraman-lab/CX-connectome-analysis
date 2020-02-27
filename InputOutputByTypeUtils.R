@@ -198,6 +198,12 @@ getROISummary <- function(InOutList,filter=TRUE){
 }
 
 compressROISummary <- function(roiSummary,stat=median,level=1){
+  #' Summarise a roi summary by supertype
+  #' @param roiSummary : a table as returned by \code{getROISummary}
+  #' @param stat : what statistic to use to summarise accross supertypes?
+  #' @param level : what level of supertype to group by (default 1)
+  #' 
+  
   spt <- paste0("supertype",level)
   roiSummary %>% group_by(roi,!!(as.name(spt))) %>%
     summarise(type = (!!(as.name(spt)))[1],
