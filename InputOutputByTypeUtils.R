@@ -3,7 +3,33 @@ source("supertypeUtils.R")
 library(pbapply)
 library(parallel)
 
+## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
+neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRef){
+  #' neuronBag objects contain information about the connectivity of a bunch of neurons
+  #' @field names : a table of metadata associated with the neurons in the bag -- with an extra column, 'databaseType'
+  #' which keeps the type name used in the database
+  #' @field outputs : a type to type connectivity table of the outputs of the set of neurons
+  #' @field inputs : a type to type connectivity table of the inputs of the set of neurons
+  #' @field outputs_raw : a neuron to neuron connection table of the outputs of the set of neurons
+  #' @field inputs_raw : a neuron to neuron connection table of the inputs of the set of neurons
+  #' @field outputsTableRef : a table holding all instances of all the output types and their associated metadata
+  res <- list(outputs=outputs,
+              inputs=inputs,
+              names=names,
+              outputs_raw=outputs_raw,
+              inputs_raw=inputs_raw,
+              outputsTableRef=outputsTableRef)
+  attr(res,"class") <- "neuronBag"
+  return(res)
+}
+
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+  #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
+  #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
+  #' metadata data.frame for a set of neurons
+  #' @param fixed : if typeQuery is a query string, is it fixed?
+  #' @param big : is the query large/timing out. If TRUE runs through pblapply
+  #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
   UseMethod("buildInputsOutputsByType")}
 
 buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
@@ -13,6 +39,10 @@ buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,n
 }
   
 buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+  #'
+  #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
+  #'neurons/types in that data frame)
+  #'
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE),cl = nc)
@@ -39,7 +69,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     }
     inputsR <- retype.na(inputsR)}
   
-  return(list(outputs = OUTByTypes,
+  return(neuronBag(outputs = OUTByTypes,
               inputs = INByTypes,
               names = typeQuery,
               outputs_raw = outputsR,
@@ -115,34 +145,39 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)
   
   
-  return(list(outputs = outByTypesLat,
-              inputs = inByTypesLat,
-              names = TypeNamesLat,
-              outputs_raw = outputsLat,
-              inputs_raw=inputsLat,
-              outputsTableRef=outputsRef))
+  return(neuronBag(outputs = outByTypesLat,
+                   inputs = inByTypesLat,
+                   names = TypeNamesLat,
+                   outputs_raw = outputsLat,
+                   inputs_raw=inputsLat,
+                   outputsTableRef=outputsRef))
   
 }
 
 bind_InoutLists <- function(...){
   full <- list(...)
-  out <- list(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
-              inputs = distinct(bind_rows(lapply(full,function(i) i$inputs))),
-              names = distinct(bind_rows(lapply(full,function(i) i$names))),
-              outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
-              inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
-              outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
+  out <- neuronBag(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
+                   inputs = distinct(bind_rows(lapply(full,function(i) i$inputs))),
+                   names = distinct(bind_rows(lapply(full,function(i) i$names))),
+                   outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
+                   inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
+                   outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
               )
   return(out)
 }
 
 
 getROISummary <- function(InOutList,filter=TRUE){
+  #' Build a pre roi summary of innervation for neurons in a neuronBag
+  #' @param InOutList : a neuronBag object
+  #' @param filter : if TRUE (the default), only return results in ROIs where significant type to 
+  #' type connections are found. Otherwise consider all connections
+  #' 
   ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom)
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
   
   ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo)
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo) %>% ungroup()
   
   if (filter){
   ROIOutputs <- ROIOutputs %>% 
@@ -155,29 +190,50 @@ getROISummary <- function(InOutList,filter=TRUE){
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
            deltaWeight = (OutputWeight - InputWeight)/fullWeight,
-           supertype = supertype(type),
-           megatype = megatype(supertype))
+           supertype1 = supertype(type,level=1),
+           supertype2 = supertype(type,level=2),
+           supertype3 = supertype(type,level=3))
   
   return(roiSummary)
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL){
-  roiTable <- roiTable %>% filter(roi %in% roiSelect)
+compressROISummary <- function(roiSummary,stat=median,level=1){
+  #' Summarise a roi summary by supertype
+  #' @param roiSummary : a table as returned by \code{getROISummary}
+  #' @param stat : what statistic to use to summarise accross supertypes?
+  #' @param level : what level of supertype to group by (default 1)
+  #' 
   
+  spt <- paste0("supertype",level)
+  roiSummary %>% group_by(roi,!!(as.name(spt))) %>%
+    summarise(type = (!!(as.name(spt)))[1],
+              fullWeight = stat(fullWeight),
+              deltaWeight = mean(deltaWeight),
+              supertype2 = supertype2[1],
+              supertype3 = supertype3[1]
+              )
+}
+
+haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
+  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$customRois))  %>% 
+                      mutate(roi = factor(roi,levels=levels(roiSelect$customRois)),
+                             superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$customRois)])
   
-  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
-    geom_line(aes(group=type)) +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),colour="black",shape=21)+
+  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
+    geom_line(aes(group=type),alpha=alphaG) +
+    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") +
-    theme_minimal()
+    scale_size_continuous(name = "# Synapses") 
   if (!(is.null(grouping))){
-    hanesch <- hanesch + facet_grid(as.formula(paste(grouping,"~ .")),scale="free_y",space="free_y") + theme_gray()
+    if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
+    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
   }
-  hanesch + theme(axis.text.x = element_text(angle = 90)) 
+  
+  if (flip==TRUE){hanesch <- hanesch + coord_flip()}
+  hanesch + theme(axis.text.x = element_text(angle = 90))
   
 }
   
