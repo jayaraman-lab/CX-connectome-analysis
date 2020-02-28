@@ -3,6 +3,8 @@ library(parallel)
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
   #' @param slctROI : the ROI to look for
+  #' @param minTypePercentage : the minimum proportion of the instances of a type that should be innervating the ROI for 
+  #' it to be considered
   #' @return : a table of metadata for all neurons in the ROI, with extra columns \code{ROI_pre}
   #'  and \code{ROI_post}, the counts in the queried ROI.
   
@@ -29,6 +31,12 @@ getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
 }
 
 getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
+  #' Returns a neuronBag object of all the neurons in the ROI
+  #' @param ROI : the ROI to consider
+  #' @param lateralize : should the neuron types be divided in left/right (default FALSE)
+  #' @param big : if TRUE, run through a pblapply call
+  #' @param clN : if big is TRUE, this is the number of cores to use.
+  #' 
   neuronTable <- getNeuronsInRoiTable(ROI,minTypePercentage=ifelse(lateralize,0.25,0.5)) ## Remove types if less than 
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
