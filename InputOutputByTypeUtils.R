@@ -174,10 +174,10 @@ getROISummary <- function(InOutList,filter=TRUE){
   #' type connections are found. Otherwise consider all connections
   #' 
   ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom)
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
   
   ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo)
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo) %>% ungroup()
   
   if (filter){
   ROIOutputs <- ROIOutputs %>% 
@@ -214,24 +214,27 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               )
 }
 
-haneschPlot <- function(roiTable,roiSelect=unique(roiTable(roi)),grouping=NULL,flip=FALSE,alphaG=1){
-  roiTable <- roiTable %>% filter(roi %in% roiSelect)
+haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
+  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$customRois))  %>% 
+                      mutate(roi = factor(roi,levels=levels(roiSelect$customRois)),
+                             superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$customRois)])
   
-  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) + 
-    geom_line(aes(group=type),colour="grey40",alpha=alphaG) +
+  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
+    geom_line(aes(group=type),alpha=alphaG) +
     geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") +
-    theme_minimal() 
+    scale_size_continuous(name = "# Synapses") 
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
   }
+  
   if (flip==TRUE){hanesch <- hanesch + coord_flip()}
-  hanesch + theme(axis.text.x = element_text(angle = 90)) 
+  hanesch + theme(axis.text.x = element_text(angle = 90)) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
   
 }
   
