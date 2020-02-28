@@ -69,6 +69,8 @@ source("GetRoiMeshOutline.r")
 NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
 NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
+# Load known FB types
+load(paste(SaveDir,"FB_Types.RData",sep=""))
 
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","Delta","FR","FS","FC")
@@ -204,6 +206,24 @@ FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 ```
 
 
+# Get pre and post type names based on bodyids, and subset based on known types
+```{r}
+
+# Get pre and post body names (to get pb columns later)
+BodyId_And_Names=NamedBodies[c("bodyid","bodyname")]
+BodyId_And_PartnerNames=NamedBodies[c("bodyid","bodyname")]
+colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_Names, by="bodyid")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
+
+# subset based on known types
+FBC_SynsAll=subset(FBC_SynsAll, (type %in% FB_Type) & (partner_type %in% FB_Type) )
+
+
+```
+
+
+
 # Plot data in new and old reference frame
 ```{r message=FALSE}
 
@@ -242,6 +262,8 @@ data2=FBC_SynsAll[seq(from = 1, to = length(FBC_SynsAll$x), by = 500), ]
 ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  size=1, alpha = 0.01) +
            geom_point(data=data2, aes(x=X, y=-Y, colour= Layer),  size=1, alpha = 0.7) + coord_fixed(ratio = 1) 
 remove(data2)
+
+
 
 
 ```
@@ -287,6 +309,7 @@ FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
 ```{r}
 
 # Get XY outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XY=MeshOutline(Mesh_FB_Points, "XY")
 Outline_L1_XY=MeshOutline(Mesh_FB_L1_Points, "XY")
 Outline_L2_XY=MeshOutline(Mesh_FB_L2_Points, "XY")
 Outline_L3_XY=MeshOutline(Mesh_FB_L3_Points, "XY")
@@ -299,6 +322,7 @@ Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY")
 
 
 # Get XZ outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XZ=MeshOutline(Mesh_FB_Points, "XZ")
 Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ")
 Outline_L2_XZ=MeshOutline(Mesh_FB_L2_Points, "XZ")
 Outline_L3_XZ=MeshOutline(Mesh_FB_L3_Points, "XZ")
@@ -322,6 +346,314 @@ ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=Z), colour= 'blueviolet
 
 ```
 
+
+# Make plots of FB layers as a schematic
+```{r}
+
+
+# Make scatter plot new projection
+CCC=rainbow(9)
+AAA=0.02
+SSS=2
+P1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=SSS, alpha = AAA) + 
+          coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none")
+ggsave(paste(PlotDir, "FB_1.png",sep=""),
+       plot = P1, device='png', scale = 1, width = 6, height = 6, units ="in", dpi = 300, limitsize = TRUE)
+
+
+P1<-ggplot() + geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= CCC[1],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= CCC[2],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= CCC[3],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= CCC[4],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= CCC[5],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= CCC[6],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= CCC[7],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= CCC[8],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= CCC[9],  size=SSS, alpha = AAA) + 
+           coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none")
+ggsave(paste(PlotDir, "FB_2.png",sep=""),
+       plot = P1, device='png', scale = 1, width = 6, height = 6, units ="in", dpi = 300, limitsize = TRUE)
+
+
+```
+
+
+
+# Get PB glomeruli or columns (Some columns are mixed and are named _L1/2 for example)
+```{r}
+
+
+# Assign side (pb or fb column half)
+FBC_SynsAll$Side=NA
+FBC_SynsAll$Side[grepl("_R",FBC_SynsAll$bodyname)]<-"R"
+FBC_SynsAll$Side[grepl("_L",FBC_SynsAll$bodyname)]<-"L"
+
+# Assign PB glom
+FBC_SynsAll$PBglom=NA
+RightColumns=str_extract(FBC_SynsAll$bodyname, "_R(\\d+)")
+LeftColumns=str_extract(FBC_SynsAll$bodyname, "_L(\\d+)")
+FBC_SynsAll$PBglom[which(!is.na(RightColumns))]=RightColumns[which(!is.na(RightColumns))]
+FBC_SynsAll$PBglom[which(!is.na(LeftColumns))]=LeftColumns[which(!is.na(LeftColumns))]
+FBC_SynsAll$PBglom=sapply(FBC_SynsAll$PBglom, substring, 2, 3)
+
+# Assign FB glom
+FBC_SynsAll$FBcol=NA
+FBC_SynsAll$FBcol=str_extract(FBC_SynsAll$bodyname, "_C(\\d+)")
+FBC_SynsAll$FBcol=sapply(FBC_SynsAll$FBcol, substring, 2, 3)
+
+# print list of PF body names to make sure parsing worked. 
+A=subset(FBC_SynsAll, startsWith(type, "PF"))
+unique(A$bodyname)
+
+```
+
+
+
+# Various functions
+```{r}
+
+
+SetColumnOrder <- function(TypeX_Syns){
+  TypeX_MeanPos= aggregate(TypeX_Syns[c("X","Y","Z")], by = list(bodyid=TypeX_Syns$bodyid), FUN=mean)
+  colnames(TypeX_MeanPos)[c(2,3,4)]<-c("mean_X","mean_Y","mean_Z")
+  TypeX_MeanPos$Order_X=order(TypeX_MeanPos$mean_X)
+  TypeX_Syns = merge(TypeX_Syns, TypeX_MeanPos)
+  return(TypeX_Syns)
+}
+
+
+
+PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName){
+  
+  
+  col_vector=brewer.pal(8, "Paired")
+  col_vector[9]=col_vector[1]
+  col_vector=col_vector[c(1,4,7,2,5,8,3,6,9)]
+  
+  P1<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=-Y, color=FBcol) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(Title)
+  
+  
+  P2<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=Z, color=FBcol) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(Title)
+  
+  
+  P12<-ggarrange(plotlist=list(P1,P2), ncol =2, nrow = 1)
+  ggsave(paste(PlotDir, PlotName,".png",sep=""),
+         plot = P12, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
+  
+}
+
+
+PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName){
+  
+  # Get neurons that innervate the left or right pb
+  Plot_Syns_Lpb=subset(Plot_Syns, startsWith(PBglom,"L") )
+  Plot_Syns_Lpb$PBglom=factor( Plot_Syns_Lpb$PBglom, levels= sort(unique(Plot_Syns_Lpb$PBglom)) )
+  
+  Plot_Syns_Rpb=subset(Plot_Syns, startsWith(PBglom,"R") )
+  Plot_Syns_Rpb$PBglom=factor( Plot_Syns_Rpb$PBglom, levels= sort(unique(Plot_Syns_Rpb$PBglom)) )
+  
+  
+  L_col_vector=brewer.pal(8, "Paired")
+  L_col_vector[9]=L_col_vector[1]
+  L_col_vector=L_col_vector[c(1,4,7,2,5,8,3,6,9)]
+  R_col_vector=rev(L_col_vector)
+  RL_col_Vector=c(L_col_vector, R_col_vector)
+  
+  
+  # Make color map for each that maps PB glomeruli to their appropriate columns
+  P1<-ggplot() + geom_point(data=Plot_Syns_Lpb, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=L_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("LEFT ", Title))
+  
+  
+  P2<-ggplot() + geom_point(data=Plot_Syns_Lpb, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=L_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("LEFT ", Title))
+  
+  
+  
+  P3<-ggplot() + geom_point(data=Plot_Syns_Rpb, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=R_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("RIGHT ", Title))
+  
+  
+  P4<-ggplot() + geom_point(data=Plot_Syns_Rpb, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=R_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("RIGHT ", Title))
+  
+  
+  
+  P5<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=RL_col_Vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("RIGHT ", Title))
+  
+  
+  P6<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
+    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
+    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=RL_col_Vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
+    ggtitle(paste("RIGHT ", Title))
+  
+  
+  
+  P12<-ggarrange(plotlist=list(P1,P2,P3,P4,P5,P6), ncol =2, nrow = 2)
+  ggsave(paste(PlotDir, PlotName,".png",sep=""),
+         plot = P12, device='png', scale = 1, width = 8, height = 12, units ="in", dpi = 300, limitsize = TRUE)
+  
+}
+
+```
+
+
+# Make plot of all Fx neurons, each FX neuron type individually, and similar plots per FB layer
+```{r}
+
+All_Fx=subset(FBC_SynsAll, !(is.na(FBcol)) & startsWith(type,"F"))
+All_Fx$FBcol=factor(All_Fx$FBcol, levels=sort(unique(All_Fx$FBcol)) )
+
+PlotSyns_byColumn(All_Fx, "FX All", "FX_All")
+
+FX_Types=unique(All_Fx$type)
+for (ttt in 1:length(FX_Types)){
+  SubData=subset(All_Fx, type == FX_Types[ttt])
+  PlotSyns_byColumn(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],sep=""))
+}
+
+
+```
+
+
+# Make a plot of all PFX neurons, each PFX neuron type individually, and similar plots per FB layer
+```{r}
+
+
+All_PFX=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
+
+PlotSyns_byGlom(All_PFX, "PB-FB-XX ALL", "PB_FB_XX_ALL")
+
+
+PFX_Types=unique(All_PFX$type)
+for (ttt in 1:length(PFX_Types)){
+  SubData=subset(All_PFX, type == PFX_Types[ttt])
+  PlotSyns_byGlom(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],sep=""))
+}
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Make plot of all Delta0 neurons
+```{r}
+
+col_vector=brewer.pal(8, "Paired")
+col_vector[9]=col_vector[1]
+col_vector=col_vector[c(1,4,7,2,5,8,3,6,9)]
+
+
+All_D0=subset(FBC_SynsAll, startsWith(type,"Delta0"))
+All_D0$FBcol=factor(All_Fx$FBcol, levels=sort(unique(All_Fx$FBcol)) )
+
+PlotSyns(All_Fx, All_Fx$FBcol, col_vector, "FX All", "FX_All")
+
+```
+
+
+
+
+
+
+# for each type plot the full front view of synapses, colored by cell type x position order
+```{r}
+
+ColumnarTypes=unique(FBC_SynsAll$type)
+
+
+col_vector=brewer.pal(12, "Paired")
+col_vector=col_vector[c(1,4,7,10,2,5,8,11,3,6,9,12)]
+
+
+for (nnn in 1:length(ColumnarTypes) ){
+  
+  # Take subset of of this type
+  TypeX_Syns=subset(FBC_SynsAll, FBC_SynsAll$type %in% ColumnarTypes[nnn])
+  
+  # Get ordering
+  TypeX_Syns=SetColumnOrder(TypeX_Syns)
+  
+  
+  P1<-ggplot() + geom_point(data=TypeX_Syns, aes(x=X, y=-Y, color = mean_X ) ,  size=2, alpha = 0.1, stroke = 0, shape=16) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none") +
+  geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) + scale_colour_gradientn(colours = col_vector) + 
+  ggtitle(as.character(TypeX_Syns$type[1]))
+  
+  
+  P2<-ggplot() + geom_point(data=TypeX_Syns, aes(x=X, y=Z, color= mean_X ),  size=2, alpha = 0.1, stroke = 0, shape=16) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none") +
+  geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) + scale_colour_gradientn(colours = col_vector) 
+    
+
+
+  P12<-ggarrange(plotlist=list(P1,P2), ncol =2, nrow = 1)
+  ggsave(paste(PlotDir, as.character(TypeX_Syns$type[1]) , "_ALL",".png",sep=""),
+       plot = P12, device='png', scale = 1, width = 12, height = 7, units ="in", dpi = 300, limitsize = TRUE)
+  
+}
+
+
+
+
+```
 
 
 
