@@ -233,8 +233,7 @@ haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=N
   }
   
   if (flip==TRUE){hanesch <- hanesch + coord_flip()}
-  hanesch + theme(axis.text.x = element_text(angle = 90)) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  hanesch + theme(axis.text.x = element_text(angle = 90))
   
 }
   
