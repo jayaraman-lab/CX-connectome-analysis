@@ -106,7 +106,7 @@ selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelM
     #}))
     rois <- bind_rows(normalRois,exceptionsRois)
   }else{
-    rois <- rois %>% mutate(customRois = (!!(paste0("level",default_level))))
+    rois <- roiTree %>% mutate(customRois = (!!(paste0("level",default_level))))
   }
   
   rois <- rois %>% arrange(side2,level1) %>% 
