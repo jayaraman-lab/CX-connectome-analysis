@@ -11,7 +11,6 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
                                 X_Mean=as.numeric(), X_STD=as.numeric(), 
                                 Y_Mean=as.numeric(), Y_STD=as.numeric(), 
                                 Z_Mean=as.numeric(), Z_STD=as.numeric(),
-                                X_Layer_Range=as.numeric(),Y_Layer_Range=as.numeric(),Z_Layer_Range=as.numeric(),
                                 X_Range=as.numeric(),Y_Range=as.numeric(),Z_Range=as.numeric()) 
   
   Neuron_Types=unique(All_Neurons$type)
@@ -26,11 +25,6 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
     for (lll in 1:9){
       LayerData=subset(SubData, Layer==Layers_All[lll])
       
-      X_Layer_Range = abs(quantile(LayerData$X, probs = 0.01) - quantile(LayerData$X, probs = 0.99) )
-      Y_Layer_Range = abs(quantile(LayerData$Y, probs = 0.01) - quantile(LayerData$Y, probs = 0.99) )
-      Z_Layer_Range = abs(quantile(LayerData$Z, probs = 0.01) - quantile(LayerData$Z, probs = 0.99) )
-      
-      
       # Loop over individual neurons
       for (nnn in 1:length(NeuronIDs)){
         NeuronData=subset(LayerData, bodyid==NeuronIDs[nnn])
@@ -38,13 +32,23 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
         
         if (length(NeuronData$X)>Thresh){
           
-          # Mean and std
+          # Mean 
           TempMean=colMeans(NeuronData[c("X","Y","Z")])
+          
+          # Run PCA and get x/Y axis
+          covPCA <- function(pointsXYZ)
+          
+          
+          
+          
+          
+          
+          
           TempSTD=sapply(NeuronData[c("X","Y","Z")], sd)
           
-          X_Range = abs(quantile(NeuronData$X, probs = 0.01) - quantile(NeuronData$X, probs = 0.99) )
-          Y_Range = abs(quantile(NeuronData$Y, probs = 0.01) - quantile(NeuronData$Y, probs = 0.99) )
-          Z_Range = abs(quantile(NeuronData$Z, probs = 0.01) - quantile(NeuronData$Z, probs = 0.99) )
+          X_Range = abs(quantile(NeuronData$X, probs = 0.02) - quantile(NeuronData$X, probs = 0.98) )
+          Y_Range = abs(quantile(NeuronData$Y, probs = 0.02) - quantile(NeuronData$Y, probs = 0.98) )
+          Z_Range = abs(quantile(NeuronData$Z, probs = 0.02) - quantile(NeuronData$Z, probs = 0.98) )
           
           
           TempDF=data.frame(bodyid=NeuronData$bodyid[1], type=NeuronData$type[1], Layer=NeuronData$Layer[1], 
@@ -52,7 +56,6 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
                             X_Mean=TempMean["X"], X_STD=TempSTD["X"], 
                             Y_Mean=TempMean["Y"], Y_STD=TempSTD["Y"], 
                             Z_Mean=TempMean["Z"], Z_STD=TempSTD["Z"],
-                            X_Layer_Range=X_Layer_Range,Y_Layer_Range=Y_Layer_Range,Z_Layer_Range=Z_Layer_Range,
                             X_Range=X_Range,Y_Range=Y_Range,Z_Range=Z_Range) 
           
           Syn_Distribution=rbind(Syn_Distribution,TempDF)
