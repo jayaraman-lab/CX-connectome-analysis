@@ -167,9 +167,11 @@ getTypesTable <- function(types){
   #' @param types: A vector of type names
   #' @return A data frame of instances of those types
   #' 
-  #' 
-  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE))) %>%
-                mutate(databaseType = type)
+  
+  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE)))
+  
+  if (length(typesTable)>0){typesTable <- typesTable %>%
+                                            mutate(databaseType = type)}
   return(typesTable)
 }
 
