@@ -394,7 +394,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           n = n[1],
                                           outputContribution = outputContribution[1],
                                           databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]) %>%
+                                          databaseTypeFrom = databaseTypeFrom[1]) %>% ungroup() %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
                                           pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
