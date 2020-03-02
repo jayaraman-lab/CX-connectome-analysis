@@ -492,38 +492,6 @@ ggplot() + geom_point(data=FX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range
 
 
 
-BisectShape <- function(Outline, Axis){
-  
-  
-  if (Axis=="X"){
-    colnames(Outline)[colnames(Outline)=="c1"] <- "X"
-    colnames(Outline)[colnames(Outline)=="c2"] <- "Y"
-  } 
-  
-  # Get furthest point out on layer outline 
-  Pos=subset(Outline, X>0)
-  Neg=subset(Outline, X<0)
-  Pos_Rad=( abs(Pos$X) + abs(Pos$Y) )
-  Neg_Rad=( abs(Neg$X) + abs(Neg$Y) )
-  #Neg_Rad=(Neg$X^2 + Neg$Y^2)^0.5
-  Pos_IND=which(Pos_Rad==max(Pos_Rad))
-  Neg_IND=which(Neg_Rad==max(Neg_Rad))
-  
-  XXX=seq( Neg$X[Neg_IND] , Pos$X[Pos_IND], by=100)
-  YYY_Max=numeric()
-  YYY_Min=numeric()
-  for (xxx in 1:(length(XXX)-1)){
-    TempLines=subset(Outline, X >= XXX[xxx] & X < XXX[xxx+1])
-    YYY_Max[xxx]=max(TempLines$Y)
-    YYY_Min[xxx]=min(TempLines$Y)
-   
-  }
-  Line_Max=data.frame(X=XXX[1:(length(XXX)-1)], Y=YYY_Max, Half="Upper")
-  Line_Min=data.frame(X=XXX[1:(length(XXX)-1)], Y=YYY_Min, Half="Lower")
-  Line=rbind(Line_Max, Line_Min)
-  
-  return(Line)
-}
 
 
 CutTips_FB <- function(Outline, PRC){
@@ -544,9 +512,81 @@ UpperLower_FB <- function(Outline){
   Lower=Outline[c(seq(1,Breaks[1]-1), seq((Breaks[2]+1),length(Outline$c1))) , ]
   Lower=Lower[order(Lower$c1),]
   Lower$UpLow="Lower"
-  UpLow=rbind(Upper, Lower)
-  return(UpLow)
+  UpperLower=rbind(Upper, Lower)
+  return(UpperLower)
 }
+
+
+
+BisectShape <- function(UpperLower){
+  
+  Upper=subset(UpperLower, UpLow=="Upper")
+  Lower=subset(UpperLower, UpLow=="Lower")
+
+  Mid=data.frame(X=numeric(), Y=numeric())
+  for (ppp in 1:length(Upper$c1)){
+    Distance=((Lower$c1-Upper$c1[ppp])^2  + (Lower$c2-Upper$c2[ppp])^2 )^0.5
+    IND=which( Distance == min(Distance) )
+    Temp_df=data.frame( X = mean(c(Upper$c1[ppp],Lower$c1[IND])), Y = mean(c(Upper$c2[ppp],Lower$c2[IND])) )
+    Mid=rbind(Mid,Temp_df)
+  }
+  return(Mid)
+}
+
+
+BisectShape_Ortho <- function(UpperLower){
+  
+  # Get upper and lower boundaries
+  Upper=subset(UpperLower, UpLow=="Upper")
+  Lower=subset(UpperLower, UpLow=="Lower")
+  
+  # Smooth upper and low lines
+  Upper=as.data.frame(rollapply(Upper[c("c1","c2")], 25, mean, partial = TRUE))
+  Lower=as.data.frame(rollapply(Lower[c("c1","c2")], 25, mean, partial = TRUE))
+ 
+  Mid=data.frame(X=numeric(), Y=numeric())
+  for (ppp in 3:(length(Upper$c1)-3) ){
+    
+    # compute local slope and intercept
+    Local_Xs=Upper$c1[seq(ppp-3,ppp+3)]
+    Local_Ys=Upper$c2[seq(ppp-3,ppp+3)]
+    Local_Slope = median(diff(Local_Ys)/diff(Local_Xs))
+    Local_OrthoSlope=-1/Local_Slope
+    Intercept=Upper$c2[ppp]-(Upper$c1[ppp]*Local_OrthoSlope)
+    
+    # make line that goes through this point
+    XXX_Temp=Lower$c1
+    Line_Temp=data.frame(X = XXX_Temp , Y = XXX_Temp*Local_OrthoSlope + Intercept)
+    
+    # Find point of lower edge that intersects the line 
+    Distance= ((Line_Temp$X-Lower$c1)^2 + (Line_Temp$Y-Lower$c2)^2)
+    IND=which(Distance == min(Distance))
+    
+    # Get average of two points
+    Temp_df=data.frame( X = mean(c(Upper$c1[ppp],Lower$c1[IND])), Y = mean(c(Upper$c2[ppp],Lower$c2[IND])) )
+    Mid=rbind(Mid,Temp_df)
+    
+    # Optional plotting for debugging
+    PLOT=0
+    if (PLOT==1){
+      plot_point=data.frame( X = Upper$c1[ppp], Y =Upper$c2[ppp] )
+      plot_point2=data.frame( X = Lower$c1[IND], Y =Lower$c2[IND] )
+      ggplot() +  geom_path(data=Upper, aes(x=c1, y=c2), size = 1, color="orange") +
+        geom_path(data=Lower, aes(x=c1, y=c2), size = 1, color="red") +
+        geom_path(data=Line_Temp, aes(x=X, y=Y), size = 1, color="green") +
+        geom_point(data=plot_point, aes(x=X, y=Y)) + geom_point(data=plot_point2, aes(x=X, y=Y)) + ylim(c( min(Lower$c2), max(Upper$c2)))
+    }
+  }
+
+  # Order and smooth
+  Mid=Mid[order(Mid$X),]
+  Mid=as.data.frame(rollapply(Mid, 5, median, partial = TRUE))
+  Mid=as.data.frame(rollapply(Mid, 50, mean, partial = TRUE))
+  
+  return(Mid)
+}
+
+
 
 
 # Cut the tips off the layer
@@ -557,11 +597,16 @@ Outline_L3_XZ_Cut=CutTips_FB(Outline_L3_XZ, 0.85)
 Outline_L3_XZ_Cut_UpLow=UpperLower_FB(Outline_L3_XZ_Cut)
 
 
+# Get orthogonal mid points
+Outline_L3_XZ_MID=BisectShape_Ortho(Outline_L3_XZ_Cut_UpLow)
+ 
+
 
 ggplot() +  geom_path(data=Outline_L3_XZ, aes(x=c1, y=c2), size = 1, color="red") +
   geom_path(data=Outline_L3_XZ_Cut, aes(x=c1, y=c2), size = 1, color="black") + 
   geom_path(data=subset(Outline_L3_XZ_Cut_UpLow, UpLow=="Upper"), aes(x=c1, y=c2), size = 1, color="blue")  +
-  geom_path(data=subset(Outline_L3_XZ_Cut_UpLow, UpLow=="Lower"), aes(x=c1, y=c2), size = 1, color="green") 
+  geom_path(data=subset(Outline_L3_XZ_Cut_UpLow, UpLow=="Lower"), aes(x=c1, y=c2), size = 1, color="green") +
+  geom_path(data=Outline_L3_XZ_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1)
 
   
 ```
