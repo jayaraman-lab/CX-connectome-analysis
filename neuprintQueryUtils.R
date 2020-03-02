@@ -258,8 +258,8 @@ retype.na <- function(connectionTable){
   #' (removing the _L/_R) or the neuron id. By default expects a table in to/from format.
   #'
   connectionTable <- connectionTable %>% 
-                     mutate(name.from = ifelse(is.na(name.from),from,name.from),
-                            name.to = ifelse(is.na(name.to),to,name.to),
+                     mutate(name.from = ifelse(is.na(name.from),as.character(from),name.from),
+                            name.to = ifelse(is.na(name.to),as.character(to),name.to),
                             type.from = ifelse(is.na(type.from),gsub("_L$|_R$","",name.from),type.from),
                             type.to = ifelse(is.na(type.to),gsub("_L$|_R$","",name.to),type.to)
                             )
