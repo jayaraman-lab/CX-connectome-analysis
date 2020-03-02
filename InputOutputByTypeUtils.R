@@ -154,6 +154,19 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   
 }
 
+cxRetyping <- function(neurons){
+  #' Convenience function to deal with the tricky left/right asymetries
+  print("Renaming PFL3")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+  print("Renaming PFL1/PFR_a")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_a","PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
+  print("Renaming PFR_b")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_b"),pattern = "(^.*_L(?!.*C9))|(^.*C1.*)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+  print("All other L/R retyping")
+  neurons <- lateralizeInputOutputList(neurons)
+  return(neurons)
+}
+
 bind_InoutLists <- function(...){
   full <- list(...)
   out <- neuronBag(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
