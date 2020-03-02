@@ -223,8 +223,9 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               fullWeight = stat(fullWeight),
               deltaWeight = mean(deltaWeight),
               supertype2 = supertype2[1],
-              supertype3 = supertype3[1]
-              )
+              supertype3 = supertype3[1],
+              databaseType=databaseType[1]
+              ) %>% ungroup()
 }
 
 haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
