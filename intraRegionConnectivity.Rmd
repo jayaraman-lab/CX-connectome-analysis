@@ -1,5 +1,5 @@
 ---
-title: "Illustration of tools for analysing connectivity between neurons within a region"
+title: "Tools for analysing connectivity between neurons within a region"
 output:
   html_document:
     df_print: paged
@@ -28,20 +28,21 @@ library(docstring)
 ### Make selection of neurons to be used in connecitivy analysis
 This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
 ```{r}
-ROI = "NO"#"EB"
-slctROI = "FB"#"LAL(-GA)(R)"#"EB"
+ROI = "AB"
+slctROI = "AB(R)"#"LAL(-GA)(R)"
 
-splitLR = TRUE# FALSE
+splitLR = FALSE
 
-preName = paste0("PFNa inputs in ", ROI)
-saveName = paste0("PFNaInputs",ROI)
+preName = paste0("all", ROI)#paste0("Ring & EPG connectivity ", ROI)
+saveName = paste0("allABr")#paste0("allBU")
+if(splitLR){saveName = paste0(saveName,"_LR")}
 
 useCuratedListPost = FALSE#TRUE#
-useCuratedListPre = FALSE#
+useCuratedListPre = FALSE#TRUE#
 
 #only relevant if one of the above is false:
 useCustomPostSelection = FALSE
-useCustomPreSelection = TRUE
+useCustomPreSelection = FALSE
 
 ```
 
@@ -61,24 +62,34 @@ if (useCuratedListPost) {
   
 } else{
   if(useCustomPostSelection){
-    postNeuron = c("PFNa")
-    postName = paste0("Collumnar in ", ROI)
+    postNeuron = c("ExR")#c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*", "TuBu.*")#"EPG","EL","EPGt","PEG","PEN_a","PEN_b")
+        #c("R6.*", "EL","EPG","EPGt","PEG","PEN_a","PEN_b")#c("PFN")
+    postName = paste0("ExR")#paste0("PFN in ", ROI)#
   }else{
     postName = paste0("Inputs to ", ROI)
 
-    synCutoff = 3
+    synCutoff = 20
     relWeightCutoff = .01 # percent input or output in that region
     relWeightROICutoff = .005 # percent total input
     
+    
     # get all connections
-    partnersInRoi = getConnectionTable(preIDs$bodyid, "POST", slctROI)
+    roiNeurons = neuprint_bodies_in_ROI(slctROI) %>% 
+      mutate(name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+             type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]])
+    #partnersInRoi = getConnectionTable(preIDs$bodyid, "POST", slctROI)
     
     # find relevant partners
-    postNeuron = unique( c(unique(partnersInRoi$type.from) , unique(partnersInRoi$type)) )
-  
-    parnerPlot = ggplot(partnersInRoi %>% filter(type.from %in% preNeuron), aes(x=type.from, fill=type.from)) + geom_bar() + theme_classic() + 
-    theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
+    postNeuron = roiNeurons %>% group_by(type) %>% filter((roipre > synCutoff) | (roipost > synCutoff))
+    #postNeuron = unique( c(unique(partnersInRoi$type.from) , unique(partnersInRoi$type)) )
+    
+    #parnerPlot = ggplot(partnersInRoi %>% filter(type.from %in% preNeuron), aes(x=type.from, fill=type.from)) 
+    parnerPlot = ggplot(postNeuron, aes(x=type, fill=type)) 
+    
+    parnerPlot = parnerPlot + geom_bar() + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
     print(parnerPlot)
+    
+    postNeuron = unique(postNeuron$type)
   }
   
   postIDs = getBodyIdsForList(postNeuron)
@@ -87,7 +98,6 @@ if (useCuratedListPost) {
 
 ***Selection of pre neurons***
 ```{r}
-
 if (useCuratedListPre) {
   # load list
   load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",ROI,"/",ROI,"_Types.RData"))
@@ -98,13 +108,13 @@ if (useCuratedListPre) {
   preIDs = getBodyIdsForList(preNeuron, field="type")
   preName = paste0(ROI, "neurons")
 
-
 } else{
   if(useCustomPreSelection){
-    preNeuron = c("PFNa")
-    preName = paste0("Collumnar in ", ROI)
+    preNeuron = c("ExR")#c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*", "TuBu.*")#"EPG","EL","EPGt","PEG","PEN_a","PEN_b")
+        #c("R6.*", "EL","EPG","EPGt","PEG","PEN_a","PEN_b")#c("PFN")
+    preName = paste0("ExR")#paste0("PFN in ", ROI)#
   }else{
-    preName = paste0("Inputs to ", ROI)
+    preName = paste0("Inputs to ExR in", ROI)
 
     synCutoff = 3
     relWeightCutoff = .01 # percent input or output in that region
@@ -120,8 +130,6 @@ if (useCuratedListPre) {
     theme(axis.text.x = element_text(angle = 90)) + guides(fill=FALSE)
     print(parnerPlot)
   }
-
-  
   preIDs = getBodyIdsForList(preNeuron)
 }
 ```
@@ -129,15 +137,18 @@ if (useCuratedListPre) {
 ### Get connectivity table
 ```{r, warning=FALSE}
 myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
+write.csv(myConnections, paste0("../neuprintR_analysis_plots/connectivityTable_",saveName,'_byid.csv'), row.names = FALSE)
 ```
 
 ```{r}
-synCutoff = 3
+#library(igraph)
+#edge_list <- myConnections[c("from","type.to","weightRelative")]
+#G <- graph.data.frame(edge_list,directed=TRUE);
+#A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative");
+```
 
+```{r}
 myConnections_simple = simplifyConnectionTable(myConnections)
-
-#Filter out based on minumum abs. number of synapses
-myConnections_simple = myConnections_simple %>% filter(ROIweight > synCutoff)
 
 typesTable <- getTypesTable(unique(myConnections_simple$databaseTypeTo))
 
@@ -166,6 +177,7 @@ ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.to))
 
 ```
 
+
 ### Connectivity matrix
 ```{r}
 plotW = 35 # 20
@@ -174,13 +186,12 @@ connectionMeasures = c("weightRelative")#,"weightROIRelativeTotal")
 
 for (connectionMeasure in connectionMeasures){
   
-  conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "type", connectionMeasure)
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   #conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
   ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
-  
   
   conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "name", connectionMeasure)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
@@ -190,19 +201,19 @@ for (connectionMeasure in connectionMeasures){
     plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
   
-  #conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "id", connectionMeasure)
-  #conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
-  #conMatPlot = structureMatrixPlotByType(conMatPlot)
-  #print(conMatPlot)
-  #ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
-  #  plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
-  #  scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+  conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "id", connectionMeasure)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
 ###  Draw graph
 
-```{r, warning=FALSE}
+```{r, warning=FALSE} 
 source("visualizeConnectivityTables.R")
 require(igraph)
 
@@ -210,28 +221,40 @@ connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
 cutoff = 0.01 # for weight 0.05, 0.01, 0
 
-
-# Graph parameter
-largeGraph = TRUE
-selfFeedbackScale = 5
-if(largeGraph){
-  vertexSize = 7 #+ 7 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 20
-}else{
-  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 15
-}
-selfFBscale = vertexSize
-arrowSize= 0
-
-edgeNorm = 0.07#0.07#0.05#
-
+showself = TRUE
 
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
-graphData = data.frame(from = myConnectionsT2T$type.from,
-                       to = myConnectionsT2T$type.to,
-                       relWeight = myConnectionsT2T$weightRelative)
+graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T$weightRelative)
+
+graphData_noSelf = getNoSelfGraphData(graphData)  
+graphData_self = getSelfFBGraphData(graphData)
+
+if (showself){
+  graphData = graphData
+  graphName = saveName
+} else {
+  graphData = left_join(graphData_noSelf, graphData_self)
+  graphName = paste(saveName, "_noSelf")
+}
+
+# Graph parameter
+largeGraph = TRUE
+selfFeedbackScale = 10
+edcurve = 0.2# 0.5
+if(largeGraph){
+  vertexSize = 7#+ 7 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 15
+}else{
+  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
+  
+  plotSize = 10
+}
+
+selfFBscale = vertexSize
+arrowSize= 0
+
+edgeNorm = 0.05##0.03#0.07#
 
 myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm)
 
@@ -240,12 +263,12 @@ myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale,
 Isolated = which(degree(myGraph) == 0)
 myGraph = delete.vertices(myGraph, Isolated)
 
-l = layout_with_dh(myGraph)#layout_with_fr(myGraph)
+l = layout_with_fr(myGraph)#layout_with_dh(myGraph)
 
 myGraph$main = paste0("Connectivity within the ",slctROI) 
-plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
                       "_",connectionMeasure, round(100*cutoff),"perc.pdf"), width=plotSize, height=plotSize)
 ```
 
@@ -294,103 +317,5 @@ plot(myGraph,edge.curved=0.5, layout=layout.norm(as.matrix(vertexProps[,c("xloc"
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
                       "_",connectionMeasure, cutoff,"_byCompartment.pdf"), width=plotSize, height=plotSize)
-```
-
-
-
-```{r}
-library(tidygraph)
-library(ggraph)
-
-myGraph_loops = constructConnectivityGraph(nodes, graphData, graphData_selfFB, cutoff, vertexSize, 0, arrowSize, edgeNorm, nodeCols)
-
-nodeCols = customizeGraphEdges(myGraph_loops)
-myTidyGraph =  as_tbl_graph(myGraph_loops)
-myTidyGraph
-
-ggraph(myTidyGraph) + 
-  geom_edge_link(aes(width=relWeight, color=nodeCols), 
-                end_cap = circle(1, 'mm'),
-                 arrow = arrow(angle=20, 
-                             length=unit(0.1,"inches"),
-                             type="closed")) + 
-  geom_edge_loop(aes(width=relWeight, color=nodeCols)) + 
-  geom_node_point(aes(color=color, size = (size-vertexSize))) + 
-  geom_node_text(aes(label = name), color = "black", size = 3) + 
-  theme_graph()
-```
-
-
-### Illustration of other graph analyses 
-```{r}
-hs <- hub_score(myGraph, weights=NA)$vector
-as <- authority_score(myGraph, weights=NA)$vector
-
-par(mfrow=c(1,2))
-plot(myGraph, vertex.size=hs*40, main="Hubs", layout = l)
-plot(myGraph, vertex.size=as*40, main="Authorities", layout = l)
-
-```
-```{r}
-cfg <- cluster_edge_betweenness(as.undirected(myGraph))
-#plot(cfg, as.undirected(connectGraph))
-
-V(myGraph)$community <- cfg$membership
-colrs <- adjustcolor( c("seagreen", "orange", "tomato",  "gold", "plum","yellowgreen","cyan"), alpha=.6)
-plot(myGraph, vertex.color=colrs[V(myGraph)$community])
-```
-
-```{r}
-deg <- degree(myGraph, mode="all")
-deg.dist <- degree_distribution(myGraph, cumulative=T, mode="all")
-plot( x=0:max(deg), y=1-deg.dist, pch=19, cex=1.2, col="orange",
-      xlab="Degree", ylab="Cumulative Frequency")
-```
-
-
-
-### Experimenting with new connectivity table query
-```{r}
-roiHierarchy = neuprint_ROI_hierarchy()
-myConnections2 = getConnectionTable(postIDs$bodyid, "PRE", by.roi = TRUE) %>% 
-  mutate(parentRoi = roi %in% roiHierarchy$parent)
-```
-
-Filter out connections with that are irrelavant
-```{r}
-synCutoff = 3
-relWeightCutoff = 0.1 # percent input or output in that region
-relWeightROICutoff = 0.01 # percent total input
-
-# find relevant partners
-myConnections3 <- myConnections2 %>% filter(parentRoi == FALSE)
-
-myConnections3 <-  myConnections3 %>% 
-  filter(ROIweight > synCutoff)  %>% # minimum number of synapses in ROI for a given connection
-  group_by(type) %>% 
-  filter( (weightRelative >= relWeightCutoff) & (weightROIRelativeTotal >=  relWeightROICutoff) )
-```
-
-```{r}
-countsPerRegion <- myConnections3 %>% group_by(type, roi) %>% 
-      summarise(meanTotalROIweight = mean(totalROIweight),
-                meanROIweight = mean(ROIweight),
-                nfrom.types = length(unique(from.type)),
-                npartners = length(unique(partner)),
-                partnersRatio = length(unique(partner))/length(unique(bodyid)))
-head(countsPerRegion)
-```
-```{r}
-ggplot(countsPerRegion, aes(x=roi, y=type, size=meanTotalROIweight, color=meanROIweight)) + 
-  geom_point() +
-  #facet_grid(name ~ prepost, space="free", scales="free", switch="y") +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90)) #+ guides(color=FALSE) +
-  #theme(axis.text.y = element_blank(),strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) 
-
-ggplot(countsPerRegion, aes(x=roi, y=type, size=partnersRatio, color=nfrom.types)) + 
-  geom_point() +
-  #facet_grid(name ~ prepost, space="free", scales="free", switch="y") +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90)) #+ guides(color=FALSE) +
-  #theme(axis.text.y = element_blank(),strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) 
 ```
 
