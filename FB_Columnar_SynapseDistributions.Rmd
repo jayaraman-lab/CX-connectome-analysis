@@ -490,6 +490,79 @@ ggplot() + geom_point(data=FX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range
 
 
 
+
+
+BisectShape <- function(Outline, Axis){
+  
+  
+  if (Axis=="X"){
+    colnames(Outline)[colnames(Outline)=="c1"] <- "X"
+    colnames(Outline)[colnames(Outline)=="c2"] <- "Y"
+  } 
+  
+  # Get furthest point out on layer outline 
+  Pos=subset(Outline, X>0)
+  Neg=subset(Outline, X<0)
+  Pos_Rad=( abs(Pos$X) + abs(Pos$Y) )
+  Neg_Rad=( abs(Neg$X) + abs(Neg$Y) )
+  #Neg_Rad=(Neg$X^2 + Neg$Y^2)^0.5
+  Pos_IND=which(Pos_Rad==max(Pos_Rad))
+  Neg_IND=which(Neg_Rad==max(Neg_Rad))
+  
+  XXX=seq( Neg$X[Neg_IND] , Pos$X[Pos_IND], by=100)
+  YYY_Max=numeric()
+  YYY_Min=numeric()
+  for (xxx in 1:(length(XXX)-1)){
+    TempLines=subset(Outline, X >= XXX[xxx] & X < XXX[xxx+1])
+    YYY_Max[xxx]=max(TempLines$Y)
+    YYY_Min[xxx]=min(TempLines$Y)
+   
+  }
+  Line_Max=data.frame(X=XXX[1:(length(XXX)-1)], Y=YYY_Max, Half="Upper")
+  Line_Min=data.frame(X=XXX[1:(length(XXX)-1)], Y=YYY_Min, Half="Lower")
+  Line=rbind(Line_Max, Line_Min)
+  
+  return(Line)
+}
+
+
+CutTips_FB <- function(Outline, PRC){
+  Distance=abs(Outline$c1) + Outline$c2
+  Distance_Thresh=quantile(Distance, probs = PRC) 
+  
+  Outline_Cut=subset(Outline, (abs(c1)+c2) < Distance_Thresh)
+  return(Outline_Cut)
+}
+
+
+UpperLower_FB <- function(Outline){
+  Distance= (diff(Outline$c1)^2 +  diff(Outline$c2)^2 )^0.5
+  Breaks=which(Distance>600)
+  Upper=Outline[seq( (Breaks[1]+1),Breaks[2]), ]
+  Upper=Upper[order(Upper$c1),]
+  Upper$UpLow="Upper"
+  Lower=Outline[c(seq(1,Breaks[1]-1), seq((Breaks[2]+1),length(Outline$c1))) , ]
+  Lower=Lower[order(Lower$c1),]
+  Lower$UpLow="Lower"
+  UpLow=rbind(Upper, Lower)
+  return(UpLow)
+}
+
+
+# Cut the tips off the layer
+Outline_L3_XZ_Cut=CutTips_FB(Outline_L3_XZ, 0.85)
+
+
+# Get upper and lower half of layer 
+Outline_L3_XZ_Cut_UpLow=UpperLower_FB(Outline_L3_XZ_Cut)
+
+
+
+ggplot() +  geom_path(data=Outline_L3_XZ, aes(x=c1, y=c2), size = 1, color="red") +
+  geom_path(data=Outline_L3_XZ_Cut, aes(x=c1, y=c2), size = 1, color="black") + 
+  geom_path(data=subset(Outline_L3_XZ_Cut_UpLow, UpLow=="Upper"), aes(x=c1, y=c2), size = 1, color="blue")  +
+  geom_path(data=subset(Outline_L3_XZ_Cut_UpLow, UpLow=="Lower"), aes(x=c1, y=c2), size = 1, color="green") 
+
   
 ```
 
@@ -529,7 +602,7 @@ PFX_Distribution$Layer=factor(PFX_Distribution$Layer, levels = sort(unique(PFX_D
 
 
 # Make plots
-ggplot() + geom_point(data=subset(PFX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=subset(PFX_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
 ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
 
 
@@ -539,6 +612,26 @@ ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Rang
 
 # Delta0 neuron plots/analysis
 ```{r}
+
+# Get PF neuron data
+All_D0=subset(FBC_SynsAll, startsWith(type,"Delta0") & !startsWith(bodyname,"Delta12"))
+
+
+# Get synapse distributions per layer
+D0_Distribution=Get_SynLayerDistribution(All_D0, 100)
+
+  
+
+# Set levels
+D0_Distribution$Layer=as.character(D0_Distribution$Layer)
+D0_Distribution$Layer=factor(D0_Distribution$Layer, levels = sort(unique(D0_Distribution$Layer)) )
+
+
+# Make plots
+ggplot() + geom_point(data=subset(D0_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=D0_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+
 
 ```
 
