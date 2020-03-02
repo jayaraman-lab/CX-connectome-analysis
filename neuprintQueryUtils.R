@@ -86,7 +86,13 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     if (nrow(myConnections)==0){
       inputsTable <- myConnections
     }else{
-      inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)
+      if (length(unique(myConnections$from))>1000){ ## Insane neurons need to be controlled to not timeout
+        uniqueInputs <- unique(myConnections$from)
+        uniqueInputs <- split(uniqueInputs, ceiling(seq_along(uniqueInputs)/500))
+        inputsTable <- bind_rows(lapply(uniqueInputs,neuprint_connection_table,
+                                         "POST",slctROI,by.roi=by.roi,...))
+      }else{
+      inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)}
       if (!by.roi & is.null(slctROI)){
         inputsTable <- inputsTable %>% mutate(from = bodyid)
       }else{
