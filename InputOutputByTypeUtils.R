@@ -240,7 +240,7 @@ haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=N
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") 
+    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile")
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
