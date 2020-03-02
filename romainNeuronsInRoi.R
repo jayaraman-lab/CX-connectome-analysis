@@ -3,6 +3,8 @@ library(parallel)
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
   #' @param slctROI : the ROI to look for
+  #' @param minTypePercentage : the minimum proportion of the instances of a type that should be innervating the ROI for 
+  #' it to be considered
   #' @return : a table of metadata for all neurons in the ROI, with extra columns \code{ROI_pre}
   #'  and \code{ROI_post}, the counts in the queried ROI.
   
@@ -29,16 +31,18 @@ getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
 }
 
 getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
+  #' Returns a neuronBag object of all the neurons in the ROI
+  #' @param ROI : the ROI to consider
+  #' @param lateralize : should the neuron types be divided in left/right (default FALSE)
+  #' @param big : if TRUE, run through a pblapply call
+  #' @param clN : if big is TRUE, this is the number of cores to use.
+  #' 
   neuronTable <- getNeuronsInRoiTable(ROI,minTypePercentage=ifelse(lateralize,0.25,0.5)) ## Remove types if less than 
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
   
-  if (big){
-    roiConnections <- pblapply(typesUnfiltered,buildInputsOutputsByType,fixed=TRUE,cl=clN)
-    roiConnections <- do.call(bind_InoutLists,roiConnections)
-  }else{
-    roiConnections <- buildInputsOutputsByType(typesUnfiltered,fixed=TRUE)
-  }
+  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,big=big,nc=clN)
+
   
   if (lateralize == TRUE){
     roiConnections <- lateralizeInputOutputList(roiConnections)
@@ -59,3 +63,57 @@ typesInROI <- function(roiConnections,ROI){
   
   return(roiTypes)
 }
+
+getRoiTree <- function(){
+  #' Build a more useful roi table, with things ordered in a semi useful way
+  roiH <- neuprint_ROI_hierarchy() %>% mutate_all(as.character)
+  roiT <- data.frame(level1 = roiH$roi[roiH$parent == "hemibrain"],stringsAsFactors = F) %>% filter(!(level1 %in% c("hemibrain","AOT(R)","GC","GF(R)","mALT(R)","POC")))
+  roiT <- left_join(roiT,roiH,by=c("level1"="parent")) %>% rename(level2 = roi) %>% mutate(level2 = ifelse(is.na(level2),level1,level2))
+  roiT <- left_join(roiT,roiH,by=c("level2"="parent")) %>% rename(level3 = roi) %>% mutate(level3 = ifelse(is.na(level3),level2,level3))
+  roiT <- left_join(roiT,roiH,by=c("level3"="parent")) %>% rename(level4 = roi) %>% mutate(level4 = ifelse(is.na(level4),level3,level4))
+  roiT <- roiT %>% mutate(side4 = "Central",
+                          side2 = "Central")
+  roiT$side4[grepl("(L",roiT$level4,fixed=T)] <- "Left"
+  roiT$side4[grepl("(R",roiT$level4,fixed=T)] <- "Right"
+  roiT$side2[grepl("(L",roiT$level2,fixed=T)] <- "Left"
+  roiT$side2[grepl("(R",roiT$level2,fixed=T)] <- "Right"
+  
+  roiT$side4 <- factor(roiT$side4,levels=(c("Right","Central","Left")))
+  roiT$side2 <- factor(roiT$side2,levels=(c("Right","Central","Left")))
+  roiT$level1 <- factor(roiT$level1,levels= c("OL(R)","AL(R)","MB(+ACA)(R)","LH(R)","PENP","GNG","VLNP(R)","SNP(R)","VMNP","INP","LX(R)","CX","LX(L)","SNP(L)","MB(L)","AL(L)"))
+  
+  roiT <- arrange(roiT,side2,level1)
+  #fineOrder <- c(which(roiT$side2!="Left"),rev(which(roiT$side2 == "Left")))
+  roiT <- roiT %>% mutate_at(c("level2","level3","level4"),function(a) factor(a,levels=unique(a)))
+  #roiT <- arrange(roiT,level4)
+  roiT
+}
+
+selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = 2){
+  if (!is.null(exceptions)){
+    levelEx <- paste0("level",exceptionLevelMatch) 
+    normalRois <- roiTree %>% filter(!((!!as.name(levelEx)) %in% names(exceptions))) %>%
+       mutate(customRois = (!!as.name(paste0("level",default_level))))
+    
+    exceptionsRois <- roiTree %>% filter(((!!as.name(levelEx)) %in% names(exceptions))) 
+    
+    roisEx <- as.character(exceptionsRois[[levelEx]])
+    customLev <- sapply(roisEx,function(r) paste0("level",exceptions[[r]]))
+    exceptionsRois$customRois <- sapply(1:length(customLev),function(i) as.character(exceptionsRois[[customLev[i]]][i]))
+    
+    #exceptionsRois$customRois <- unlist(sapply(names(exceptions),function(n){
+    #  exceptionsRois[[paste0("level",exceptions[[n]])]][exceptionsRois[[paste0("level",exceptionLevelMatch)]] == n] 
+    #}))
+    rois <- bind_rows(normalRois,exceptionsRois)
+  }else{
+    rois <- roiTree %>% mutate(customRois = (!!(paste0("level",default_level))))
+  }
+  
+  rois <- rois %>% arrange(side2,level1) %>% 
+    mutate(customRois = factor(customRois,levels=unique(customRois)))
+  
+  return(distinct(rois))
+}
+ 
+
+

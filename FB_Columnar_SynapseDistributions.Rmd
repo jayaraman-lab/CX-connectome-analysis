@@ -69,6 +69,8 @@ source("GetRoiMeshOutline.r")
 NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
 NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
+# Load known FB types
+load(paste(SaveDir,"FB_Types.RData",sep=""))
 
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","Delta","FR","FS","FC")
@@ -146,7 +148,6 @@ Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
 # Center synapses and mesh points at new origin
 ```{r}
 
-
 # define new origin from roi center of mass
 origin = getCOM(Mesh_FB_Points)
 
@@ -204,37 +205,55 @@ FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 ```
 
 
+# Get pre and post type names based on bodyids, and subset based on known types
+```{r}
+
+# Get pre and post body names (to get pb columns later)
+BodyId_And_Names=NamedBodies[c("bodyid","bodyname")]
+BodyId_And_PartnerNames=NamedBodies[c("bodyid","bodyname")]
+colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_Names, by="bodyid")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
+
+# subset based on known types
+FBC_SynsAll=subset(FBC_SynsAll, (type %in% FB_Type) & (partner_type %in% FB_Type) )
+
+
+```
+
+
+
 # Plot data in new and old reference frame
 ```{r message=FALSE}
 
 
 # Make scatter plot new projection
 ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "blueviolet",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
 
 
 
 # Make scatter plot of original space
 ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "cadetblue3",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "blueviolet",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
 
 
 # Scatter subset of synapses, colored by layer
@@ -242,6 +261,8 @@ data2=FBC_SynsAll[seq(from = 1, to = length(FBC_SynsAll$x), by = 500), ]
 ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  size=1, alpha = 0.01) +
            geom_point(data=data2, aes(x=X, y=-Y, colour= Layer),  size=1, alpha = 0.7) + coord_fixed(ratio = 1) 
 remove(data2)
+
+
 
 
 ```
@@ -287,6 +308,7 @@ FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
 ```{r}
 
 # Get XY outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XY=MeshOutline(Mesh_FB_Points, "XY")
 Outline_L1_XY=MeshOutline(Mesh_FB_L1_Points, "XY")
 Outline_L2_XY=MeshOutline(Mesh_FB_L2_Points, "XY")
 Outline_L3_XY=MeshOutline(Mesh_FB_L3_Points, "XY")
@@ -299,6 +321,7 @@ Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY")
 
 
 # Get XZ outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XZ=MeshOutline(Mesh_FB_Points, "XZ")
 Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ")
 Outline_L2_XZ=MeshOutline(Mesh_FB_L2_Points, "XZ")
 Outline_L3_XZ=MeshOutline(Mesh_FB_L3_Points, "XZ")
@@ -310,17 +333,242 @@ Outline_L8_XZ=MeshOutline(Mesh_FB_L8_Points, "XZ")
 Outline_L9_XZ=MeshOutline(Mesh_FB_L9_Points, "XZ")
 
 
-# Check layer 6 for alignment
-ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+# Check layer 4/7, which have holes
+ggplot() + geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
-  geom_path(data=Outline_L6_XY, aes(x=c1, y=c2), size = 1) 
+  geom_path(data=Outline_L4_XZ, aes(x=c1, y=c2), size = 1) 
 
-ggplot() + geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+ggplot() + geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
-  geom_path(data=Outline_L6_XZ, aes(x=c1, y=c2), size = 1) 
+  geom_path(data=Outline_L7_XZ, aes(x=c1, y=c2), size = 1) 
 
 
 ```
+
+# Post-process layers 4,6 to make smooth
+```{r}
+
+# Layer 4
+Bad_L4_Inds=which( abs(diff(Outline_L4_XZ$c2))>1000)
+Outline_L4_XZ = Outline_L4_XZ[ - seq((Bad_L4_Inds[1]+1),Bad_L4_Inds[length(Bad_L4_Inds)]), ]
+
+# Layer 7 XZ
+Bad_L7_Inds=which( abs(diff(Outline_L7_XZ$c2))>1000)
+Outline_L7_XZ = Outline_L7_XZ[ - seq((Bad_L7_Inds[1]+1),Bad_L7_Inds[length(Bad_L7_Inds)]), ] 
+
+# Check that holes have been removed
+ggplot() + geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L4_XZ, aes(x=c1, y=c2), size = 1) 
+
+ggplot() + geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L7_XZ, aes(x=c1, y=c2), size = 1) 
+
+```
+
+
+
+# Make plots of FB layers as a schematic
+```{r}
+
+
+# Make scatter plot new projection
+CCC=rainbow(9)
+AAA=0.025
+SSS=2
+P1<-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "azure4",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "azure2",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "azure4",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "azure2",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "azure4",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "azure2",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "azure4",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "azure2",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "azure4",  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "azure2",  size=SSS, alpha = AAA) + 
+          coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none")
+ggsave(paste(PlotDir, "FB_1.png",sep=""),
+       plot = P1, device='png', scale = 1, width = 6, height = 6, units ="in", dpi = 300, limitsize = TRUE)
+
+
+P1<-ggplot() + geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= CCC[1],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= CCC[2],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= CCC[3],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= CCC[4],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= CCC[5],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= CCC[6],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= CCC[7],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= CCC[8],  size=SSS, alpha = AAA) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= CCC[9],  size=SSS, alpha = AAA) + 
+           coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position="none")
+ggsave(paste(PlotDir, "FB_2.png",sep=""),
+       plot = P1, device='png', scale = 1, width = 6, height = 6, units ="in", dpi = 300, limitsize = TRUE)
+
+
+```
+
+
+
+
+# Get PB glomeruli or columns (Some columns are mixed and are named _L1/2 for example)
+```{r}
+
+
+# Assign side (pb or fb column half)
+FBC_SynsAll$Side=NA
+FBC_SynsAll$Side[grepl("_R",FBC_SynsAll$bodyname)]<-"R"
+FBC_SynsAll$Side[grepl("_L",FBC_SynsAll$bodyname)]<-"L"
+
+# Assign PB glom
+FBC_SynsAll$PBglom=NA
+RightColumns=str_extract(FBC_SynsAll$bodyname, "_R(\\d+)")
+LeftColumns=str_extract(FBC_SynsAll$bodyname, "_L(\\d+)")
+FBC_SynsAll$PBglom[which(!is.na(RightColumns))]=RightColumns[which(!is.na(RightColumns))]
+FBC_SynsAll$PBglom[which(!is.na(LeftColumns))]=LeftColumns[which(!is.na(LeftColumns))]
+FBC_SynsAll$PBglom=sapply(FBC_SynsAll$PBglom, substring, 2, 3)
+
+# Assign FB glom
+FBC_SynsAll$FBcol=NA
+FBC_SynsAll$FBcol=str_extract(FBC_SynsAll$bodyname, "_C(\\d+)")
+FBC_SynsAll$FBcol=sapply(FBC_SynsAll$FBcol, substring, 2, 3)
+
+# print list of PF body names to make sure parsing worked. 
+A=subset(FBC_SynsAll, startsWith(type, "PF"))
+unique(A$bodyname)
+
+```
+
+
+
+### Get general plotting and analysis functions
+```{r}
+
+source("FB_SynapseDistribution_Utils.R")
+
+```
+
+
+
+
+#Fx neuron plots/analysis
+```{r}
+
+# Get all FX neurons (FC, FS, FR)
+All_Fx=subset(FBC_SynsAll, !(is.na(FBcol)) & startsWith(type,"F"))
+All_Fx$FBcol=factor(All_Fx$FBcol, levels=sort(unique(All_Fx$FBcol)) )
+
+# Plot synapses distributions in entire FB and my layer for all neurons
+PlotSyns_byColumn(All_Fx, "FX All", "FX_All")
+PlotSyns_byLayer(All_Fx, "FX All", "FX_All_Layers", "FBcol")
+
+# Make the same plots but per type 
+FX_Types=unique(All_Fx$type)
+for (ttt in 1:length(FX_Types)){
+  SubData=subset(All_Fx, type == FX_Types[ttt])
+  PlotSyns_byColumn(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],sep=""))
+}
+for (ttt in 1:length(FX_Types)){
+  SubData=subset(All_Fx, type == FX_Types[ttt])
+  PlotSyns_byLayer(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],"_Layers",sep=""), "FBcol")
+}
+
+
+# Get synapse distributions per layer
+FX_Distribution=Get_SynLayerDistribution(All_Fx, 100)
+
+  
+
+# Set levels
+FX_Distribution$Layer=as.character(FX_Distribution$Layer)
+FX_Distribution$Layer=factor(FX_Distribution$Layer, levels = sort(unique(FX_Distribution$Layer)) )
+
+
+# Make plots
+ggplot() + geom_point(data=subset(FX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=FX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+
+
+  
+```
+
+
+# PB-FB-X neuron plots/analysis
+```{r}
+
+
+# Get PF neuron data
+All_PFX=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
+
+# Plot synapses distributions in entire FB and my layer for all neurons
+PlotSyns_byGlom(All_PFX, "PB-FB-XX ALL", "PB_FB_XX_ALL")
+PlotSyns_byLayer(All_PFX, "PB-FB-XX All", "PB_FB_XX_All_Layers", "PBglom")
+
+
+# Make the same plots but per type 
+PFX_Types=unique(All_PFX$type)
+for (ttt in 1:length(PFX_Types)){
+  SubData=subset(All_PFX, type == PFX_Types[ttt])
+  PlotSyns_byGlom(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],sep=""))
+}
+for (ttt in 1:length(PFX_Types)){
+  SubData=subset(All_PFX, type == PFX_Types[ttt])
+  PlotSyns_byLayer(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],"_Layers",sep=""), "PBglom")
+}
+
+
+# Get synapse distributions per layer
+PFX_Distribution=Get_SynLayerDistribution(All_PFX, 100)
+
+  
+
+# Set levels
+PFX_Distribution$Layer=as.character(PFX_Distribution$Layer)
+PFX_Distribution$Layer=factor(PFX_Distribution$Layer, levels = sort(unique(PFX_Distribution$Layer)) )
+
+
+# Make plots
+ggplot() + geom_point(data=subset(PFX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+
+```
+
+
+
+# Delta0 neuron plots/analysis
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
