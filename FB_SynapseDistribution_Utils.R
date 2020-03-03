@@ -3,7 +3,7 @@
 
 
 
-Get_SynLayerDistribution <- function(All_Neurons, Thresh){
+Get_SynLayerDistribution <- function(All_Neurons, Thresh, MID){
   
   
   Syn_Distribution <- data.frame(bodyid=as.numeric(), type=as.character(), Layer=as.character(), 
@@ -24,6 +24,8 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
     # Loop of layers
     for (lll in 1:9){
       LayerData=subset(SubData, Layer==Layers_All[lll])
+      eval(parse( text= paste("MID=Mid_L", as.character(lll),sep="") ))
+      eval(parse( text= paste("OUTLINE=Outline_L", as.character(lll),"_XZ",sep="") ))
       
       # Loop over individual neurons
       for (nnn in 1:length(NeuronIDs)){
@@ -32,21 +34,73 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh){
         
         if (length(NeuronData$X)>Thresh){
           
+        ############# Project data into new coordinate frame locally parallel to layer ############# 
+          
+          # Get X range
+          X_RangeMin = quantile(NeuronData$X, probs = 0.2)
+          X_RangeMax = quantile(NeuronData$X, probs = 0.8)
+          
+          # Get slope of mid range 
+          Mid_subset=subset(MID, X>X_RangeMin & X<X_RangeMax)
+          TempSlope=median( diff(Mid_subset$Y)/diff(Mid_subset$X) )
+          
+          # Define new axis (vectors should be length 1 and orthogonal to keep shape of point cloud)
+          Ax_1=c(1,TempSlope)
+          Ax_1=Ax_1/sum(Ax_1^2)^0.5
+          Ax_2=c(1, -Ax_1[1]/Ax_1[2])
+          Ax_2=Ax_2/sum(Ax_2^2)^0.5
+          
+          # Make sure vectors are orthogonal
+          if (Ax_1 %*% Ax_2 != 0){print("Vectors not orthogonal")}
+          
+          # Project onto new x and y axes
+          NeuronData$X_New= as.matrix(NeuronData[c("X","Y")]) %*% Ax_1
+          NeuronData$Y_New= as.matrix(NeuronData[c("X","Y")]) %*% Ax_2
+          
+
+          
+          
+        ############# Compute values we want to save for this neuron ############# 
+         
           # Mean 
-          TempMean=colMeans(NeuronData[c("X","Y","Z")])
+          TempMean=colMeans(NeuronData[c("X","Y")])
           
-          # Run PCA and get x/Y axis
-          covPCA <- function(pointsXYZ)
+          # STD along new axes
+          TempSTD=sapply(NeuronData[c("X_New","Y_New")], sd)
+          
+          # Ranges along new axes
+          TempRange=data.frame(X = abs(quantile(NeuronData$X_New, probs = 0.02) - quantile(NeuronData$X_New, probs = 0.98)),
+                               Y = abs(quantile(NeuronData$Y_New, probs = 0.02) - quantile(NeuronData$Y_New, probs = 0.98)))
+          
+          # line along axis 1 +/ STD
+          Temp_Intercept=TempMean[2] - TempSlope*TempMean[1] 
+          Ax1_Line=data.frame(X=)
           
           
           
           
+        ############# Plot if debugging ############# 
+          
+          # Debugging plot
+          PLOT=0
+          if (PLOT==1){
+            p1<-ggplot() +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1, color="red") +
+              geom_point(data=NeuronData, aes(x=X,y=Y)) + 
+              geom_path(data=Mid_L3, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) + 
+              geom_path(data=Mid_subset, aes(x=X, y=Y), size = 1, color="green") + 
+              geom_point(data=as.data.frame(t(TempMean)), aes(x=X,y=Y,size=50),color="blue")
+            
+            p2<-ggplot() + geom_point(data=NeuronData, aes(x=X_New,y=Y_New))
+            
+            ggarrange(p1,p2, nrow = 1, ncol = 2)
+          }
+          
+          
+        ############# Add data to dataframe ############# 
           
           
           
-          TempSTD=sapply(NeuronData[c("X","Y","Z")], sd)
-          
-          X_Range = abs(quantile(NeuronData$X, probs = 0.02) - quantile(NeuronData$X, probs = 0.98) )
+          X_Range = abs(quantile(NeuronData$X_New, probs = 0.02) - quantile(NeuronData$X_New, probs = 0.98) )
           Y_Range = abs(quantile(NeuronData$Y, probs = 0.02) - quantile(NeuronData$Y, probs = 0.98) )
           Z_Range = abs(quantile(NeuronData$Z, probs = 0.02) - quantile(NeuronData$Z, probs = 0.98) )
           
@@ -109,7 +163,7 @@ Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping){
 
 
 
-PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping){
+PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping, DIR){
   
   
   P1 = Plot_Layer(Plot_Syns, "L1", Outline_L1_XZ, paste("L1 ", Type,sep=""), Grouping )
@@ -123,7 +177,7 @@ PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping){
   P9 = Plot_Layer(Plot_Syns, "L9", Outline_L9_XZ, paste("L9 ", Type,sep=""), Grouping )
   
   P12<-ggarrange(plotlist=list(P1,P2,P3,P4,P5,P6,P7,P8,P9), ncol =3, nrow = 3)
-  ggsave(paste(PlotDir, PlotName,".png",sep=""),
+  ggsave(paste(DIR, PlotName,".png",sep=""),
          plot = P12, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
   
 }
@@ -147,7 +201,7 @@ SetColumnOrder <- function(TypeX_Syns){
 
 
 
-PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName){
+PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName, DIR){
   
   
   col_vector=brewer.pal(8, "Paired")
@@ -167,7 +221,7 @@ PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName){
   
   
   P12<-ggarrange(plotlist=list(P1,P2), ncol =2, nrow = 1)
-  ggsave(paste(PlotDir, PlotName,".png",sep=""),
+  ggsave(paste(DIR, PlotName,".png",sep=""),
          plot = P12, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
   
 }
@@ -178,7 +232,7 @@ PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName){
 
 
 
-PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName){
+PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName, DIR){
   
   # Get neurons that innervate the left or right pb
   Plot_Syns_Lpb=subset(Plot_Syns, startsWith(PBglom,"L") )
@@ -236,7 +290,7 @@ PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName){
   
   
   P12<-ggarrange(plotlist=list(P1,P2,P3,P4,P5,P6), ncol =2, nrow = 3)
-  ggsave(paste(PlotDir, PlotName,".png",sep=""),
+  ggsave(paste(DIR, PlotName,".png",sep=""),
          plot = P12, device='png', scale = 1, width = 8, height = 12, units ="in", dpi = 300, limitsize = TRUE)
   
 }
