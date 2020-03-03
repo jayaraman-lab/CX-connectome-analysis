@@ -2,6 +2,71 @@
 
 
 
+Get_Mid <- function(Outline){
+  
+  # Cut the tips off the layer
+  Outline_Cut=CutTips_FB(Outline, 0.85)
+  
+  
+  # Get upper and lower half of layer 
+  Outline_Cut_UpLow=UpperLower_FB(Outline_Cut)
+  
+  
+  # Get orthogonal mid points
+  Outline_MID=BisectShape_Ortho(Outline_Cut_UpLow)
+  
+  # Extend bisect line to edges of outline
+  Outline_MID=Extend_Mid(Outline_MID, Outline)
+  
+  p1<-ggplot() +  geom_path(data=Outline, aes(x=c1, y=c2), size = 1, color="red") +
+    geom_path(data=Outline_Cut, aes(x=c1, y=c2), size = 1, color="black") + 
+    geom_path(data=subset(Outline_Cut_UpLow, UpLow=="Upper"), aes(x=c1, y=c2), size = 1, color="blue")  +
+    geom_path(data=subset(Outline_Cut_UpLow, UpLow=="Lower"), aes(x=c1, y=c2), size = 1, color="green") +
+    geom_path(data=Outline_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1)
+    print(p1)
+  
+    return(Outline_MID)
+}
+
+
+Extend_Mid <- function(Outline_MID, Outline){
+  
+  # Fill in left side
+  Left_LocalSlope=median(diff(Outline_MID$Y[1:10])/diff(Outline_MID$X[1:10]))
+  Left_Intercept=Outline_MID$Y[1] -  Left_LocalSlope*Outline_MID$X[1]
+  Left_Outline=subset(Outline, c1<0)
+  Left_Outline=Left_Outline[order(Left_Outline$c1),]
+  Left_Line = data.frame(X= (Left_Outline$c1), Y= (Left_Outline$c1) *  Left_LocalSlope + Left_Intercept )
+  Left_Distance= ((Left_Line$X - Left_Outline$c1)^2 + (Left_Line$Y - Left_Outline$c2)^2)^0.5
+  Left_Ind=which(Left_Distance == min(Left_Distance))
+  Left_X=Left_Outline$c1[Left_Ind]
+  Left_Line=subset(Left_Line, X>=Left_X & X<Outline_MID$X[1]-10)
+  
+  Outline_MID=rbind(Left_Line,Outline_MID)
+
+  # Fill in Right side
+  Right_LocalSlope=median(diff(Outline_MID$Y[ seq( (length(Outline_MID$Y)-10),length(Outline_MID$Y)) ])/diff(Outline_MID$X[seq( (length(Outline_MID$Y)-10),length(Outline_MID$Y))]))
+  Right_Intercept=Outline_MID$Y[length(Outline_MID$Y)] -  Right_LocalSlope*Outline_MID$X[length(Outline_MID$Y)]
+  Right_Outline=subset(Outline, c1>4000)
+  Right_Outline=Right_Outline[order(Right_Outline$c1),]
+  Right_Line = data.frame(X= (Right_Outline$c1), Y= (Right_Outline$c1) *  Right_LocalSlope + Right_Intercept )
+  Right_Distance= ((Right_Line$X - Right_Outline$c1)^2 + (Right_Line$Y - Right_Outline$c2)^2)^0.5
+  Right_Ind=which(Right_Distance == min(Right_Distance))
+  Right_X=Right_Outline$c1[Right_Ind]
+  Right_Line=subset(Right_Line, X<Right_X & X>Outline_MID$X[length(Outline_MID$X)]+10)
+  
+  Outline_MID=rbind(Outline_MID,Right_Line)
+  
+  
+  #ggplot() +  geom_path(data=Outline, aes(x=c1, y=c2), size = 1, color="red") +
+    #geom_path(data=Outline_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) +
+    #geom_path(data=Right_Line, aes(x=X,y=Y),color="green")
+
+  
+  return(Outline_MID)
+}
+
+
 
 CutTips_FB <- function(Outline, PRC){
   Distance=abs(Outline$c1) + Outline$c2
@@ -10,8 +75,6 @@ CutTips_FB <- function(Outline, PRC){
   Outline_Cut=subset(Outline, (abs(c1)+c2) < Distance_Thresh)
   return(Outline_Cut)
 }
-
-
 
 
 
@@ -31,8 +94,6 @@ UpperLower_FB <- function(Outline){
 
 
 
-
-
 BisectShape_Ortho <- function(UpperLower){
   
   # Get upper and lower boundaries
@@ -40,8 +101,8 @@ BisectShape_Ortho <- function(UpperLower){
   Lower=subset(UpperLower, UpLow=="Lower")
   
   # Smooth upper and low lines
-  Upper=as.data.frame(rollapply(Upper[c("c1","c2")], 25, mean, partial = TRUE))
-  Lower=as.data.frame(rollapply(Lower[c("c1","c2")], 25, mean, partial = TRUE))
+  Upper=as.data.frame(rollapply(Upper[c("c1","c2")], 50, mean, partial = TRUE))
+  Lower=as.data.frame(rollapply(Lower[c("c1","c2")], 50, mean, partial = TRUE))
   
   Mid=data.frame(X=numeric(), Y=numeric())
   for (ppp in 3:(length(Upper$c1)-3) ){
