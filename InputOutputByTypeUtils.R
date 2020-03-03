@@ -154,6 +154,19 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   
 }
 
+cxRetyping <- function(neurons){
+  #' Convenience function to deal with the tricky left/right asymetries
+  print("Renaming PFL3")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+  print("Renaming PFL1/PFR_a")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_a","PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
+  print("Renaming PFR_b")
+  neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_b"),pattern = "(^.*_L(?!.*C9))|(^.*C1.*)",perl=TRUE,newPostFixes = c("_L*","_R*"))
+  print("All other L/R retyping")
+  neurons <- lateralizeInputOutputList(neurons)
+  return(neurons)
+}
+
 bind_InoutLists <- function(...){
   full <- list(...)
   out <- neuronBag(outputs = distinct(bind_rows(lapply(full,function(i) i$outputs))),
@@ -190,9 +203,9 @@ getROISummary <- function(InOutList,filter=TRUE){
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
            deltaWeight = (OutputWeight - InputWeight)/fullWeight,
-           supertype1 = supertype(type,level=1),
-           supertype2 = supertype(type,level=2),
-           supertype3 = supertype(type,level=3))
+           supertype1 = supertype(databaseType,level=1),
+           supertype2 = supertype(databaseType,level=2),
+           supertype3 = supertype(databaseType,level=3))
   
   return(roiSummary)
 }
@@ -210,8 +223,9 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               fullWeight = stat(fullWeight),
               deltaWeight = mean(deltaWeight),
               supertype2 = supertype2[1],
-              supertype3 = supertype3[1]
-              )
+              supertype3 = supertype3[1],
+              databaseType=databaseType[1]
+              ) %>% ungroup()
 }
 
 haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
@@ -226,7 +240,7 @@ haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=N
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") 
+    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile")
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 

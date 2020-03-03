@@ -445,6 +445,23 @@ unique(A$bodyname)
 ```{r}
 
 source("FB_SynapseDistribution_Utils.R")
+source("FB_LayerOutline_Utils.R")
+
+```
+
+
+# Bisect FB layer outlines
+```{r}
+
+Mid_L1=Get_Mid(Outline_L1_XZ)
+Mid_L2=Get_Mid(Outline_L2_XZ)
+Mid_L3=Get_Mid(Outline_L3_XZ)
+Mid_L4=Get_Mid(Outline_L4_XZ)
+Mid_L5=Get_Mid(Outline_L5_XZ)
+Mid_L6=Get_Mid(Outline_L6_XZ)
+Mid_L7=Get_Mid(Outline_L7_XZ)
+Mid_L8=Get_Mid(Outline_L8_XZ)
+
 
 ```
 
@@ -454,23 +471,27 @@ source("FB_SynapseDistribution_Utils.R")
 #Fx neuron plots/analysis
 ```{r}
 
+# Make plotting directory
+Fx_Dir=paste(PlotDir,"FX_Plots_All","/",sep="")
+if (!dir.exists(Fx_Dir)){dir.create(Fx_Dir)}
+
 # Get all FX neurons (FC, FS, FR)
 All_Fx=subset(FBC_SynsAll, !(is.na(FBcol)) & startsWith(type,"F"))
 All_Fx$FBcol=factor(All_Fx$FBcol, levels=sort(unique(All_Fx$FBcol)) )
 
 # Plot synapses distributions in entire FB and my layer for all neurons
-PlotSyns_byColumn(All_Fx, "FX All", "FX_All")
-PlotSyns_byLayer(All_Fx, "FX All", "FX_All_Layers", "FBcol")
+PlotSyns_byColumn(All_Fx, "FX All", "FX_All", Fx_Dir)
+PlotSyns_byLayer(All_Fx, "FX All", "FX_All_Layers", "FBcol", Fx_Dir)
 
 # Make the same plots but per type 
 FX_Types=unique(All_Fx$type)
 for (ttt in 1:length(FX_Types)){
   SubData=subset(All_Fx, type == FX_Types[ttt])
-  PlotSyns_byColumn(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],sep=""))
+  PlotSyns_byColumn(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],sep=""), Fx_Dir)
 }
 for (ttt in 1:length(FX_Types)){
   SubData=subset(All_Fx, type == FX_Types[ttt])
-  PlotSyns_byLayer(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],"_Layers",sep=""), "FBcol")
+  PlotSyns_byLayer(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],"_Layers",sep=""), "FBcol", Fx_Dir)
 }
 
 
@@ -478,6 +499,15 @@ for (ttt in 1:length(FX_Types)){
 FX_Distribution=Get_SynLayerDistribution(All_Fx, 100)
 
   
+
+
+
+
+  
+
+
+
+
 
 # Set levels
 FX_Distribution$Layer=as.character(FX_Distribution$Layer)
@@ -487,6 +517,16 @@ FX_Distribution$Layer=factor(FX_Distribution$Layer, levels = sort(unique(FX_Dist
 # Make plots
 ggplot() + geom_point(data=subset(FX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
 ggplot() + geom_point(data=FX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+
+
+
+
+ggplot() +  geom_path(data=Outline_L3_XZ, aes(x=c1, y=c2), size = 1, color="red") +
+  geom_point(data=NeuronData, aes(x=X,y=Y)) + 
+  geom_path(data=Mid_L3, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1)
+
+
 
 
 
@@ -529,7 +569,7 @@ PFX_Distribution$Layer=factor(PFX_Distribution$Layer, levels = sort(unique(PFX_D
 
 
 # Make plots
-ggplot() + geom_point(data=subset(PFX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=subset(PFX_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
 ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
 
 
@@ -539,6 +579,26 @@ ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Rang
 
 # Delta0 neuron plots/analysis
 ```{r}
+
+# Get PF neuron data
+All_D0=subset(FBC_SynsAll, startsWith(type,"Delta0") & !startsWith(bodyname,"Delta12"))
+
+
+# Get synapse distributions per layer
+D0_Distribution=Get_SynLayerDistribution(All_D0, 100)
+
+  
+
+# Set levels
+D0_Distribution$Layer=as.character(D0_Distribution$Layer)
+D0_Distribution$Layer=factor(D0_Distribution$Layer, levels = sort(unique(D0_Distribution$Layer)) )
+
+
+# Make plots
+ggplot() + geom_point(data=subset(D0_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+ggplot() + geom_point(data=D0_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+
 
 ```
 
