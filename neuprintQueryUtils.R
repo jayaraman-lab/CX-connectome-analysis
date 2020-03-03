@@ -374,6 +374,11 @@ getTypeToTypeTable <- function(connectionTable,
                                           group_by(type.from,type.to,roi) %>%
                                           mutate(outputContribution = mean(outputContribution))
   
+  if (!is.null(oldTable)){
+    connectionTableOld <- oldTable %>% filter(paste0(type.to,type.from) %in% paste0(connectionTable$type.to,connectionTable$type.from))
+    connectionTable <- connectionTable %>% filter((type.to != previous.type.to) | (type.from != previous.type.from))
+  }
+  
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
@@ -422,6 +427,7 @@ getTypeToTypeTable <- function(connectionTable,
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
     sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
                                 select(-pVal)
+    sTable <- bind_rows(sTable,connectionTableOld)
   }               
   
   
