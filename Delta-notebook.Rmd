@@ -9,6 +9,7 @@ library(nat)
 library(neuprintr)
 library(tidyverse)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
@@ -20,17 +21,146 @@ Connect to neuprint
 neuprint_login()
 ```
 
+Create x and y coordinates for a manual network layout of neurons - FB columnar types
+```{r}
+
+xyLookupTableCol <- function(){
+  superTypes <- c("PFN","Delta0","SAF","Delta6","PFR","PFG","FC","PFL","^FR","FS")
+  lyer <- c(1,2,2,2,2,2,2,3,3,3)
+  lout <- c("h","c","v","c","v","v","c","h","h","h")
+  
+  xyLookup <- data.frame(type = c(), x = c(), y = c())
+  for (st in 1:length(superTypes)){
+    types <- neuprint_search(paste0(superTypes[st],".*"))$type %>% unique() %>% sort()
+    xs <- numeric(length(types)) +
+      which(superTypes[which(lyer == lyer[st])] == superTypes[st]) - 0.5*length(which(lyer == lyer[st]))-0.5
+    ys <- numeric(length(types)) + lyer[st]
+    if (lout[st] == "h"){
+      xs <- xs + seq(-0.5,0.5,length.out=length(types))
+    } else if (lout[st] == "v") {
+      ys <- ys + seq(-0.25,0.25,length.out=length(types))
+    } else if (lout[st] == "c") {
+      angs <- seq(-pi,pi,length.out=length(types)+1)
+      angs <- angs[1:(length(angs)-1)]
+      xs <- xs + 0.5*sin(angs)
+      ys <- ys + 0.5*cos(angs)
+    }
+    if (lyer[st] == 1)
+      xs <- seq(-2,2,length.out=length(types))
+    if (lyer[st] == 3)
+      xs <- seq(-0.5,0.5,length.out=length(types)) +
+      2*which(superTypes[which(lyer == lyer[st])] == superTypes[st]) - length(which(lyer == lyer[st]))-1
+    typeLookup <- data.frame(type = types, x = xs, y = ys)
+    xyLookup <- rbind(xyLookup,typeLookup)
+  }
+  return(xyLookup)
+  #ggplot(xyLookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=type),hjust=1, vjust=1,size=3)
+}
+
+```
+
+Create x and y coordinates for a manual network layout of neurons - tangential cells
+```{r}
+
+xyLookupTableTan <- function(){
+  superTypes <- c("FB","PFN","Delta0","SAF","Delta6","PFR","PFG","PFL","FC","^FR","FS")
+  
+  xyLookup <- data.frame(type = c(), x = c(), y = c())
+  for (st in 1:length(superTypes)){
+    types <- neuprint_search(paste0(superTypes[st],".*"))$type %>% unique() %>% sort()
+    xs <- numeric(length(types))
+    ys <- numeric(length(types))
+    if (st == 1){
+      angs <- seq(-pi,pi,length.out=length(types)+1)
+      angs <- angs[1:(length(angs)-1)]
+      xs <- xs + 2*sin(angs)
+      ys <- ys + 2*cos(angs)
+    } else {
+      
+      ys <- ys + seq(-2,2,length.out=length(types))
+    }
+    typeLookup <- data.frame(type = types, x = xs, y = ys)
+    xyLookup <- rbind(xyLookup,typeLookup)
+  }
+  return(xyLookup)
+  ggplot(xyLookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=type),hjust=1, vjust=1,size=3) +
+  theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank()) + 
+  coord_fixed(ratio = 1) 
+}
+
+```
+
+Create x and y coordinates for a manual network layout of neurons - "inner" neurons
+```{r}
+
+xyLookupTableInner <- function(){
+  nronGps <- list(c("PFN"),
+                  c("Delta0","Delta6","PFR","PFG","FC"),
+                  c("PFL","^FR","FS"))
+  lout <- c("h","c","h")
+  
+  xyLookup <- data.frame(type = c(), x = c(), y = c())
+  for (st in 1:length(nronGps)){
+    types <-  c()
+    for (tp in 1:length(nronGps[[st]])){
+      typesNow <- neuprint_search(paste0(nronGps[[st]][tp],".*"))$type %>% unique() %>% sort()
+      types <- types %>% append(typesNow)
+    }
+
+    xs <- numeric(length(types))
+    ys <- numeric(length(types)) + st
+    
+    if (lout[st] == "h"){
+      xs <- xs + seq(-0.5,0.5,length.out=length(types))
+    } else if (lout[st] == "c") {
+      angs <- seq(-pi,pi,length.out=length(types)+1)
+      angs <- angs[1:(length(angs)-1)]
+      xs <- xs + 0.5*sin(angs)
+      ys <- ys + 0.5*cos(angs)
+    }
+    
+    typeLookup <- data.frame(type = types, x = xs, y = ys)
+    xyLookup <- rbind(xyLookup,typeLookup)
+  }
+  return(xyLookup)
+  #ggplot(xyLookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=type),hjust=1, vjust=1,size=3)
+}
+
+```
+
+Get a weight matrix that consists of all elements up to x synapses downstream of a given neuron type
+```{r}
+# Step through the layers, getting the node names and connection matrix as you go
+getConnectionTable_Downstream <- function(seedInput,stopLayer,ROI,synThresh){
+  layer = 1
+  nodes <- data.frame(name = seedInput)
+  while (layer < stopLayer) {
+    layer <- layer + 1
+    conTab <- getConnectionTable(getBodyIdsForList(nodes$name),"POST",ROI,synThresh = synThresh)
+    conTab <- conTab[which(!is.na(conTab$type.to) & !is.na(conTab$type.from)),]
+    newTypes <- unique(c(conTab$type.from,conTab$type.to))
+    newTypes <- newTypes[!(newTypes %in% nodes$name)]
+    newNodes <- data.frame(name = newTypes)
+    nodes <- rbind(nodes,newNodes)
+  }
+  return(conTab)
+}
+
+
+```
+
 "clean up" weight matrices
 ```{r}
 # For each presynaptic type, find the weight matrix with the corresponding postsynaptic type. If the number of connections is less than the number of neurons in the presynaptic type (i.e. one of those neurons doesn't have a partner) or vice versa, remove those entries from the weight matrix
 
-
 cleanUpConTab <- function(conTab){
   preTypes <- conTab$type.from %>% unique()
-  postTypes <- conTab$type.to %>% unique()
   
   for (pre in 1:length(preTypes)){
     numPres = nrow(neuprint_search(paste0(preTypes[pre],".*")))
+    postTypes <- conTab[which(conTab$type.from == preTypes[pre]),]$type.to %>% unique()
     for (post in 1:length(postTypes)){
       numPost = nrow(neuprint_search(paste0(postTypes[post],".*")))
       conSub <- conTab[which((grepl(preTypes[pre],conTab$type.from)) & 
@@ -45,29 +175,66 @@ cleanUpConTab <- function(conTab){
 }
 ```
 
-Assign super types to a node 
+Get edges and nodes and plot graph from a given connection matrix
 ```{r}
-nodeSuperTypes <- function(nodes){
-  nodes$superType <- c("other")
-  nodes$superType[which(grepl("FB",nodes$name))] <- "FB"
-  nodes$superType[which(grepl("Delta0",nodes$name))] <- "Delta0"
-  nodes$superType[which(grepl("Delta6",nodes$name))] <- "Delta6"
-  nodes$superType[which(grepl("PF",nodes$name))] <- "PF"
-  nodes$superType[which(grepl("PFN",nodes$name))] <- "PFN"
-  nodes$superType[which(grepl("PFL",nodes$name))] <- "PFL"
-  nodes$superType[which(grepl("FC",nodes$name))] <- "FC"
-  nodes$superType[which(grepl("FR",nodes$name))] <- "FR"
-  nodes$superType[which(grepl("FS",nodes$name))] <- "FS"
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+
+graphConTab <- function(conTab,xyLookup){
   
-  return(nodes)
+  # Get the table of nodes (types)
+  nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
+  nodes$superType <- nodes$name %>% as.character %>% supertype()
+  
+  # Position the nodes according to the lookup table
+  nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+  nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+  
+  # Assign colors to the supertypes
+  sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort() %>% as.factor()
+  sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+  sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs))
+  
+  # Get the edges from the connection table
+  edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
+    mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+           from = sapply(type.from, function(f) which(f == nodes$name)))
+  edges$superType <- edges$type.from %>% as.character %>% supertype()
+  
+  # Get the mean weights between types in the connection table
+  edges_Mean <- unique(edges[,c('from','to','superType')])
+  meanWs <- c()
+  for (i in 1:nrow(edges_Mean)){
+    meanWs <- append(meanWs,
+                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
+  }
+  edges_Mean$weightRelative <- meanWs
+  
+  # Plot the network
+  graph <- tbl_graph(nodes,edges_Mean)
+  
+  gg <-
+    ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
+        geom_edge_fan(aes(width=weightRelative,color=superType),alpha=0.5,
+                      strength=1,
+                      arrow = arrow(length = unit(1, "cm")),
+                      end_cap = circle(1, 'cm')) + 
+        geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
+        geom_node_point(aes(color=superType),size=15) + 
+        sTScale_edge +
+        sTScale +
+        geom_node_text(aes(label=name),angle=40,size=12) +
+        theme_classic() + theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
+          axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+    coord_fixed(ratio = 1,clip="off")
+  
+  return(gg)
 }
 
-```
-
-Create x and y coordinates for a manual network layout of neurons
-```{r}
-super
-
+  
 ```
 
 
@@ -80,111 +247,293 @@ library(gridExtra)
 
 # Get the PFN types (which will specify the inputs) and specify the end types (outputs)
 PFNTypes <- neuprint_search("PFN.*")$type %>% unique()
-endTypes <- c("PFL","PFR","PFG","FC","FR","FS")
+
+# Specify the output types
+outTypes <- c("PFL","^FR","FS","PFR_b","FC1_b")
 
 # Choose how many layers (between start and end) to step through in the network
 stopLayer = 3
+ROI = "FB"
+synThresh = 4
 
+xyLookup <- xyLookupTableCol()
+
+gg_list = list()
 # Generate a graph for each PFN type
 for (pf in 1:length(PFNTypes)){
   
   # Get the starting PFN type
   seedInput = PFNTypes[pf]
   
-  # Step through the layers, getting the node names and connection matrix as you go
-  layer = 1
-  nodes <- data.frame(name = seedInput,layer = c(layer))
-  while (layer < stopLayer) {
-    layer <- layer + 1
-    conTab <- getConnectionTable(getBodyIdsForList(nodes$name),"POST","FB",synThresh = 5)
-    conTab <- conTab[which(!is.na(conTab$type.to) & !is.na(conTab$type.from)),]
-    newTypes <- unique(c(conTab$type.from,conTab$type.to))
-    newTypes <- newTypes[!(newTypes %in% nodes$name)]
-    newNodes <- data.frame(name = newTypes, layer = layer)
-    nodes <- rbind(nodes,newNodes)
-  }
+  # Get the connection table
+  # Find the columnar downstream partners of the PFN class in the FB
+  conTab1 <- getConnectionTable(getBodyIdsForList(PFNTypes[pf])$bodyid,"POST",ROI,synThresh = synThresh)
+  conTab1 <- conTab1[which(!is.na(conTab1$type.to) & !is.na(conTab1$type.from)),]
+  conTab1 <- conTab1[which(!grepl("FB",conTab1$type.to)),]
+  conTab1 <- cleanUpConTab(conTab1)
   
-  # Clean up the columnar weight matrix
-  conTabCol <- conTab[which(!grepl("FB",conTab$type.from) & !grepl("FB",conTab$type.to)),]
-  conTabCol <- cleanUpConTab(conTabCol)
+  # Find the subset of the above connections which go to the FB outputs 
+  conTab1_Out <- conTab1 %>% filter(type.to %in% unique(getBodyIdsForList(outTypes)$type))
+  conTab1_Self <- conTab1 %>% filter(grepl(seedInput,type.to))
+  conTab1_Other <- conTab1 %>% filter(!grepl(seedInput,type.to))
+  conTab1_Other <- conTab1_Other %>% filter(!(type.to %in% unique(getBodyIdsForList(outTypes)$type)))
   
-  # Get the colmnar nodes only
-  nodes_Col <- nodes[which((nodes$name %in% conTabCol$type.to) | (nodes$name %in% conTabCol$type.from)),]
+  # Find the columnar downstream partners of the PFN columnar outputs
+  conTab2 <- getConnectionTable(getBodyIdsForList(unique(conTab1_Other$type.to))$bodyid,"POST",ROI,synThresh = synThresh)
+  conTab2 <- conTab2[which(!is.na(conTab2$type.to) & !is.na(conTab2$type.from)),]
+  conTab2 <- conTab2[which(!grepl("FB",conTab2$type.to)),]
+  conTab2 <- cleanUpConTab(conTab2)
   
-  # Specify superTypes for the different FB neurons
-  nodes_Col <- nodeSuperTypes(nodes_Col)
+  # Find the subset of the above connections which go to the FB outputs
+  conTab2_Out <- conTab2 %>% filter(type.to %in% unique(getBodyIdsForList(outTypes)$type))
+  conTab1_Inter <- conTab1_Other %>% filter(type.to %in% unique(conTab2_Out$type.from))
+  conTab1_Other <- conTab1_Other %>% filter(!(type.to %in% unique(conTab2_Out$type.from)))
   
-  # Discard nodes in the final layer that aren't outputs
-  nodes2keep <- which(nodes_Col$layer < stopLayer)
-  for (kp in 1:length(endTypes))
-    nodes2keep <- append(nodes2keep,
-                         which(grepl(endTypes[kp],nodes_Col$name)))
-  nodes2keep <- nodes2keep %>% unique() %>% sort()
-  nodes_Col <- nodes_Col[nodes2keep,]
+  # Find connections between interneurons
+  conTab2_Inter <- getConnectionTable_forSubset(getBodyIdsForList(unique(conTab2_Out$type.from))$bodyid,
+                                                getBodyIdsForList(unique(conTab2_Out$type.from))$bodyid,
+                                                ROI,synThresh = synThresh)
+  conTab2_Inter <- cleanUpConTab(conTab2_Inter)
   
-  # Link the x position of the node in the graph to its name
-  nodes_Col$name <- factor(nodes_Col$name, levels = sort(as.character(unique(nodes_Col$name))))
-  nodes_Col <- nodes_Col[order(nodes_Col$name),]
-  rownames(nodes_Col) <- NULL
-  nodes_Col$xpos <- 0.25*as.numeric(rownames(nodes_Col))
+  # Combine them all into one connectivity matrix
+  conTab <- rbind(conTab1_Out,conTab1_Self,conTab1_Inter,conTab2_Out,conTab2_Inter,conTab1_Other)
   
-  # Add small offsets to the layers in order to see layer specific connectivity
-  nodes_Col <- nodes_Col[order(nodes_Col$superType),]
-  nodes_Col <- nodes_Col[order(nodes_Col$layer),]
-  layerNums <- nodes_Col$layer %>% unique()
-  for (l in 1:length(layerNums))
-    nodes_Col$layer[which(nodes_Col$layer == layerNums[l])] <- layerNums[l] + 0.5*runif(length(which(nodes_Col$layer == layerNums[l])))-0.25
+  # Plot the network
+  gg <- graphConTab(conTab,xyLookup)
+  gg <- gg + xlim(-3.5,3.5) + ylim(0.5,3.5) + scale_y_reverse()
   
-  nodes_Col$xpos <- 0.25*as.numeric(rownames(nodes_Col))
+  # Generate a plot of the original connection table - columnar types only
+  conmatPlot <- plotConnectivityMatrix(conTab)
+  conmatPlot <- structureMatrixPlotByType(conmatPlot)
+  conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "FB")
+  conmatPlot <- conmatPlot + theme(strip.text.x = element_text(size = 36),strip.text.y = element_text(size = 36,angle = 270))
   
-  edges_Col <- conTabCol[which((conTabCol$type.from %in% nodes_Col$name) & (conTabCol$type.to %in% nodes_Col$name)),] %>%
-    mutate(to = sapply(type.to, function(f) which(f == nodes_Col$name)),
-           from = sapply(type.from, function(f) which(f == nodes_Col$name)))
+  # Generate an output pdf of the plots
+  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\DeltaNetworkLinear_",seedInput,".pdf"), width = 30, height = 30)
+  print(grid.arrange(gg,conmatPlot,nrow = 2))
+  dev.off()
+
+  # Add the network diagram to a list to plot at the end
+  gg_list[[pf]] <- gg
+}
+
+# Plot the overall network layout
+xyLookup$superType <- xyLookup$type %>% as.character() %>% supertype()
+sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort() %>% as.factor()
+sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+ggRef <- ggplot(xyLookup,aes(x=x,y=y)) + geom_point(aes(color=superType),size=15) + scale_y_reverse() + geom_text(aes(label=type),hjust=0, vjust=0,size=12,angle=40)+
+        theme_classic() +
+  theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank()) + 
+  coord_fixed(ratio = 1)
+  sTScale
+gg_list[[pf+1]] <- ggRef
+gg_list <- c(tail(gg_list,1),head(gg_list,pf))
+
+pltOrder <- c(1,1,3,9,2,4,5,6,7,8)
+gg_list_to_plot <- list()
+for (p in 1:length(pltOrder)){
+  gg_list_to_plot[[p]] <- gg_list[[pltOrder[p]]]
+}
   
-  edges_Col_Mean <- unique(edges_Col[,c('from','to')])
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\DeltaNetworkLinear_All.pdf", width = 40, height = 40)
+print(
+  do.call("grid.arrange",
+          c(gg_list_to_plot,
+          ncol=2)))
+dev.off()
+
+```
+
+Plot all FB columnar network connections - weight matrices
+```{r}
+nronTypes <- c("PFN","Delta0","Delta6","PFR","PFG","FC","PFL","^FR","FS")
+ROI = "FB"
+  
+# Get the connection table
+conTab <- getConnectionTable_forSubset(getBodyIdsForList(nronTypes)$bodyid,
+                                         getBodyIdsForList(nronTypes)$bodyid,
+                                         ROI)
+
+# Generate a plot of the original connection table - columnar types only
+conmatPlot <- plotConnectivityMatrix(conTab,byGroup="id")
+conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "FB")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_WM.pdf", width = 40, height = 40)
+print(conmatPlot)
+dev.off()
+
+
+conTab_Clean <- cleanUpConTab(conTab)
+
+# Generate a plot of the original connection table - columnar types only, cleaned up
+conmatPlot_Clean <- plotConnectivityMatrix(conTab_Clean,byGroup="id")
+conmatPlot_Clean <- addMatrixPlotLabs(conmatPlot_Clean, "pre-synaptic neurons", "post-synaptic neurons", "FB")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_WM_Clean.pdf", width = 40, height = 40)
+print(conmatPlot_Clean)
+dev.off()
+
+```
+
+Plot all FB columnar network connections - graphs [All connections]
+```{r}
+xyLookup <- xyLookupTableInner()
+gg_All <- graphConTab(conTab_Clean,xyLookup)
+gg_All <- gg_All+ xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections.pdf", width = 40, height = 40)
+print(gg_All)
+dev.off()
+
+```
+
+Plot all FB columnar network connections - graphs [Inputs]
+```{r}
+gg_Inputs <- list()
+gg_Inputs[[1]] <- graphConTab(conTab_Clean[which(grepl("PFN",conTab_Clean$type.from)),],
+                         xyLookup)
+gg_Inputs[[1]] <- gg_Inputs[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+PFNTypes = getBodyIdsForList(c("PFN"))$type %>% unique() %>% sort()
+for (pf in 1:length(PFNTypes)){
+  gg_Inputs[[pf+1]] <- graphConTab(conTab_Clean[which(conTab_Clean$type.from == PFNTypes[pf]),],
+                         xyLookup)
+  gg_Inputs[[pf+1]] <- gg_Inputs[[pf+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inputs.pdf", width = 40, height = 40)
+print(grid.arrange(grobs = gg_Inputs,layout_matrix = rbind(c(1,3,9),c(2,4,5),c(6,7,8))))
+dev.off()
+```
+
+Plot all FB columnar network connections - graphs [Outputs]
+```{r}
+gg_Outputs <- list()
+gg_Outputs[[1]] <- graphConTab(filter(conTab_Clean, type.to %in% getBodyIdsForList(tail(nronTypes,3))$type),
+                         xyLookup)
+gg_Outputs[[1]] <- gg_Outputs[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+OutTypes = getBodyIdsForList(tail(nronTypes,3))$type %>% unique() %>% sort()
+for (o in 1:length(OutTypes)){
+  gg_Outputs[[o+1]] <- graphConTab(conTab_Clean[which(conTab_Clean$type.to == OutTypes[o]),],
+                         xyLookup)
+  gg_Outputs[[o+1]] <- gg_Outputs[[o+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Outputs.pdf", width = 60, height = 30)
+print(grid.arrange(grobs = gg_Outputs,layout_matrix = rbind(c(1,13,14,15,2,3),c(4,5,6,7,8,NA),c(9,10,11,12,NA,NA))))
+dev.off()
+```
+
+Plot all FB columnar network connections - graphs [Inner]
+```{r}
+gg_Inner <- list()
+gg_Inner[[1]] <- graphConTab(filter(conTab_Clean, type.to %in% getBodyIdsForList(nronTypes[2:6])$type |
+                                 type.from %in% getBodyIdsForList(nronTypes[2:6])$type),
+                         xyLookup)
+gg_Inner[[1]] <- gg_Inner[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+innerSuperTypes = getBodyIdsForList(nronTypes[2:6])$type %>% unique() %>% sort() %>% supertype() %>% unique()
+for (i in 1:length(innerSuperTypes)){
+  gg_Inner[[2*i]] <- graphConTab(conTab_Clean[which(grepl(innerSuperTypes[i],conTab_Clean$type.from)),],
+                         xyLookup)
+  gg_Inner[[2*i]] <- gg_Inner[[2*i]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+  
+  gg_Inner[[2*i+1]] <- graphConTab(conTab_Clean[which(grepl(innerSuperTypes[i],conTab_Clean$type.to)),],
+                         xyLookup)
+  gg_Inner[[2*i+1]] <- gg_Inner[[2*i+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+}
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inner.pdf", width = 60, height = 60)
+print(grid.arrange(grobs = gg_Inner,layout_matrix = rbind(c(1,NA,2,3),c(4,5,6,7),c(8,9,10,11))))
+dev.off()
+```
+
+Plot the FB tangential connections
+```{r}
+# Load libraries for plotting
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+
+# Specify the types to compare
+preTypes <- c("FB")
+postTypes <- c("PFN","Delta0","SAF","Delta6","PFR","PFG","PFL","FC","^FR","FS")
+
+# Set the ROI and the synapse threshold
+ROI = "FB"
+synThresh = 4
+
+# Generate the graphs
+gg_list = list()
+# Generate a graph for each PFN type
+for (pt in 1:length(postTypes)){
+  
+  # Get the connection table
+  conTab <- getConnectionTable_forSubset(getBodyIdsForList(append(preTypes,postTypes[pt]))$bodyid,
+                                         getBodyIdsForList(append(preTypes,postTypes[pt]))$bodyid,
+                                         ROI)
+  conTab <- conTab[which(!is.na(conTab$type.from) & !is.na(conTab$type.to)), ]
+  conTab <- conTab[which(!grepl(preTypes[1],conTab$type.from) | !grepl(preTypes[1],conTab$type.to)), ]
+  conTab <- conTab[which(!grepl(postTypes[pt],conTab$type.from) | !grepl(postTypes[pt],conTab$type.to)), ]
+  
+  # Get the table of nodes (types)
+  nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
+  nodes$superType <- nodes$name %>% as.character %>% supertype()
+  
+  # Position the nodes according to the lookup table
+  xyLookup <- xyLookupTableTan()
+  nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+  nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+  
+  # Get the edges from the connection table
+  edges <- conTab %>%
+    mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+           from = sapply(type.from, function(f) which(f == nodes$name)))
+  
+  # Get the mean weights between types in the connection table
+  edges_Mean <- unique(edges[,c('from','to')])
   meanWs <- c()
-  for (i in 1:nrow(edges_Col_Mean)){
+  for (i in 1:nrow(edges_Mean)){
     meanWs <- append(meanWs,
-                     mean(edges_Col[which((edges_Col$from == edges_Col_Mean$from[i]) & (edges_Col$to == edges_Col_Mean$to[i])),]$weightRelative))
+                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
   }
-  edges_Col_Mean$weightRelative <- meanWs
+  edges_Mean$weightRelative <- meanWs
   
+  # Plot the network
+  graph <- tbl_graph(nodes,edges_Mean)
   
-  graph <- tbl_graph(nodes_Col,edges_Col_Mean)
-  
+  # Generate an output pdf of the plots
+  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\FBTangNetwork_",postTypes[pt],".pdf"), width = 50, height = 50)
   gg <-
-    ggraph(graph,layout="manual",x=nodes_Col$xpos,y=nodes_Col$layer) + 
+    ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
         geom_edge_fan(aes(width=weightRelative),colour="grey",alpha=0.5,
                       strength=1,
                       arrow = arrow(length = unit(2, "cm")),
                       end_cap = circle(2, 'cm')) + 
         geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
-        geom_node_point(aes(color=superType),size=50) + 
-        geom_node_text(aes(label=name),angle=40,size=24) +
-        scale_y_reverse() + theme_classic() + theme(legend.text=element_text(size=36)) + 
-    theme(legend.text=element_text(size=36),legend.title=element_text(size=36))
-  for (l in 1:(length(layerNums)-1))
-    gg <- gg + geom_hline(yintercept=l+0.5, linetype="dashed")
+        geom_node_point(aes(color=superType),size=5) + 
+        geom_node_text(aes(label=name),angle=40,size=6) +
+        scale_y_reverse() + theme_classic() + theme(legend.text=element_text(size=36)) +
+    theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
+          axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank()) + 
+    coord_fixed(ratio = 1) 
   
-  conmatPlot <- plotConnectivityMatrix(conTab[which((conTab$type.from %in% nodes_Col$name) & (conTab$type.to %in% nodes_Col$name)),])
-  conmatPlot <- structureMatrixPlotByType(conmatPlot)
-  conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "FB")
-  conmatPlot <- conmatPlot + theme(strip.text.x = element_text(size = 36),strip.text.y = element_text(size = 36,angle = 270))
   
-  conmatPlotClean <- plotConnectivityMatrix(conTabCol[which((conTabCol$type.from %in% nodes_Col$name) & (conTabCol$type.to %in% nodes_Col$name)),])
-  conmatPlotClean <- structureMatrixPlotByType(conmatPlotClean)
-  conmatPlotClean <- addMatrixPlotLabs(conmatPlotClean, "pre-synaptic neurons", "post-synaptic neurons", "FB")
-  conmatPlotClean <- conmatPlotClean + theme(strip.text.x = element_text(size = 36),strip.text.y = element_text(size = 36,angle = 270))
-
-  gCM <- grid.arrange(conmatPlot,conmatPlotClean,nrow = 2)
-  
-  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\DeltaNetworkLinear_",seedInput,".pdf"), width = 100, height = 50)
-
-  print(grid.arrange(gCM,gg,ncol = 2))
-
+  print(gg)
   dev.off()
 
+  gg_list[[pt]] <- gg
 }
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\FBTangNetwork_All.pdf", width = 50, height = 100)
+print(
+  do.call("grid.arrange",
+          c(gg_list,
+          ncol=2)))
+dev.off()
 
 ```
 
