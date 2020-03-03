@@ -68,7 +68,7 @@ colorValueLookup = data.frame(
            'ExR1','ExR2','ExR3','ExR4','ExR5','ExR6','ExR7','ExR8',
            'TuBu01', 'TuBu02', 'TuBu03', 'TuBu04', 'TuBu05', 'TuBu06', 'TuBu07', 'TuBu08', 'TuBu09', 'TuBu10',
            'PDM21a', 'MC',  'TuTu', 'LC',
-           'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EQ5',
+           'EPG', 'EPGt', 'PEN1', 'PEN2', 'PEG', 'EL',
            'PDM14j', 'ADM06d','ADM06p', 'ADM06b','PDL27e','ADM06s', 'PDM09','PDMother','PDM14other','ADM03',
            'AVL', 'AVM','ADL','ADM11', 'MBON', 'PVL', 'PDM', 'PDLother','PVM',
            'PFN', 'PFL', 'GLN', 'Delta7', 'FB', 'LN', 'LPsP', 'IbSpsP', 'OA', 'other', 'ADMother',
