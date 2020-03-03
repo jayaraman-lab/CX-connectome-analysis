@@ -1,14 +1,23 @@
 #############################################################
 
 nodesFromTypeTable <- function(type2typeTable){
-  nodes <- data.frame(name = unique(c(type2typeTable$type.from,type2typeTable$type.to)),
-                      stringsAsFactors = F) %>% mutate(supertype = supertype(name),
-                                                       community = as.factor(match(supertype,unique(supertype))))
+  
+  typesFrom <- type2typeTable %>% rename(type = type.from,databaseType = databaseTypeFrom) %>% select(type,databaseType)
+                                  
+  
+  typesTo <- type2typeTable %>% rename(type = type.to,databaseType = databaseTypeTo) %>% select(type,databaseType)
+    
+
+  typesTable <- distinct(bind_rows(typesFrom,typesTo))
+  
+  nodes <- typesTable %>% mutate(name = type) %>%
+    supertype() %>% mutate(community = as.factor(match(supertype2,unique(supertype2))))
+    
 }
 
 edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(type2typeTable)){
   type2typeTable %>% mutate(to = sapply(type.to, function(f) which(f == pathNodes$name)),
-                            from = sapply(type.from, function(f) which(f == pathNodes$name)))
+                            from = sapply(type.from, function(f) which(f == pathNodes$name))) %>% supertype()
 }
 
 graphFromInOut <- function(type2typeList,kind="intra"){
@@ -29,39 +38,40 @@ graphFromInOut <- function(type2typeList,kind="intra"){
   graph <- tbl_graph(nodes,edges)
 }
 
-makePyramidGraph <- function(type2typeList,ROIs=NULL,by.roi=FALSE,polarity="inputs",plot=FALSE){
-  type2typeTable <- type2typeList[[polarity]]
-  sourceTable <- type2typeList[["names"]]
+makeGraph <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){UseMethod("makePyramidGraph")}
+
+makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
   if (is.null(ROIs) & by.roi==FALSE){
-    type2typeTable <- type2typeTable %>% group_by(type.from,type.to) %>%
-                                     summarize_if(is.numeric,sum)
+    type2type <- type2type %>% group_by(type.from,type.to) %>%
+      summarize_if(is.numeric,sum) %>% ungroup()
   }else{
     if (!is.null(ROIs)){
-    type2typeTable <- type2typeTable %>% filter(roi %in% ROIs)
+      type2type <- type2type %>% filter(roi %in% ROIs)
     }
   }
-  nodes <- nodesFromTypeTable(type2typeTable)
+  nodes <- nodesFromTypeTable(type2type)
   if (polarity == "inputs"){
-    nodes <- nodes %>% mutate(layer=ifelse(name %in% sourceTable$type,2,1))
+    nodes <- nodes %>% mutate(layers=ifelse(name %in% unique(type2type$type.to),2,1))
   }else{
-      nodes <- nodes %>% mutate(layer=ifelse(name %in% sourceTable$type,1,2))
+    nodes <- nodes %>% mutate(layers=ifelse(name %in% unique(type2type$type.to),1,2))
   }
-  edges <- edgesFromTypeTable(type2typeTable)
+  edges <- edgesFromTypeTable(type2type)
   graph <- tbl_graph(nodes,edges)
-  if (!plot){
-      return(list(graph = graph,nodes = nodes,edges= edges))
-  }else{
-      return(pyramidGraph(graph,nodes,edges,by.roi=by.roi))
-  }
+ 
+  return(list(graph = graph,nodes = nodes,edges= edges))
 }
 
-pyramidGraph <- function(graphT,nodeT,edgeT,by.roi=T){
-    g <- ggraph(graphT,layout="sugiyama",layers=nodeT$layer) + 
+makeGraph.neuronBag <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
+  type2typeTable <- type2type[[polarity]]
+  makePyramidGraph(type2typeTable,ROIs=ROIs,by.roi=by.roi,polarity=polarity)
+}
+
+pyramidGraph <- function(graphT,nodeT,by.roi=T){
+    g <- ggraph(graphT,layout="sugiyama")+#,layers=nodeT$layer) + 
       geom_edge_fan(aes(width=weightRelative),colour="grey",alpha=0.5) + 
       geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
-      geom_node_point(aes(color=supertype),size=5) + 
-      geom_node_text(aes(label=name),angle=40,size=4) +
-      guides(color="none") 
+      geom_node_point(aes(color=supertype2),size=5) + 
+      geom_node_text(aes(label=name),angle=40,size=4)
     if (by.roi){
       g <- g+facet_edges(~roi)
     }
