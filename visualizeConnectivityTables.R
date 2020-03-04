@@ -24,8 +24,8 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
   
   conmatPlot = ggplot(myConTab) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))
-  
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))  
   if (byGroup == "name"){
     conmatPlot =  conmatPlot + geom_tile(aes(name.to,name.from,fill=plotWeight))
   } else if(byGroup == "id"){
