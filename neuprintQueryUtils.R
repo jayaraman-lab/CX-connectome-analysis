@@ -374,22 +374,29 @@ getTypeToTypeTable <- function(connectionTable,
                                           group_by(type.from,type.to,roi) %>%
                                           mutate(outputContribution = mean(outputContribution))
   
+  if (!is.null(oldTable)){
+    connectionTableOld <- oldTable %>% filter(paste0(type.to,type.from) %in% paste0(connectionTable$type.to,connectionTable$type.from))
+    connectionTable <- connectionTable %>% filter((type.to != previous.type.to) | (type.from != previous.type.from))
+  }
+  
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarize(weightRelative = sum(weightRelative),
+                                          weightRelativeTotal = weightRelativeTotal[1],
                                           weight = sum(ROIweight),
                                           absoluteWeight = sum(ROIweight),
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
                                           n_targets = n(),
                                           databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]) 
+                                          databaseTypeFrom = databaseTypeFrom[1]) %>% ungroup()
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
                                 group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarise(weightRelative = sum(weightRelative),
+                                          weightRelativeTotal = sum(weightRelativeTotal),
                                           weight = sum(ROIweight),
                                           n = n[1],
                                           outputContribution = outputContribution[1],
@@ -403,6 +410,7 @@ getTypeToTypeTable <- function(connectionTable,
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
                                           varWeight = var(c(weightRelative,rep(0,missingV))),
                                           weightRelative = mean(c(weightRelative,rep(0,missingV))),
+                                          weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
                                           absoluteWeight = sum(weight),
                                           weight = mean(c(weight,rep(0,missingV))),
                                           outputContribution = outputContribution[1],
@@ -410,7 +418,7 @@ getTypeToTypeTable <- function(connectionTable,
                                           n_type = n[1],
                                           databaseTypeTo = databaseTypeTo[1],
                                           databaseTypeFrom = databaseTypeFrom[1]
-                                ) %>% select(-missingV)
+                                ) %>% select(-missingV) %>% ungroup()
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
@@ -419,6 +427,7 @@ getTypeToTypeTable <- function(connectionTable,
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
     sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
                                 select(-pVal)
+    sTable <- bind_rows(sTable,connectionTableOld)
   }               
   
   
