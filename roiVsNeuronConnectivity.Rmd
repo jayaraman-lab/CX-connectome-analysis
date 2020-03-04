@@ -29,7 +29,7 @@ library(docstring)
 Here we select neurons that are part of what we think is a little "sub network" that can reasonably be looked at in isolation.
 
 ```{r}
-source = "PFNa"
+source = "R6"
 sourceIDs = getBodyIdsForList(source)
 slctROI = NULL
 
@@ -37,12 +37,12 @@ noPost = FALSE
 # get post connections
 #TODO: Handle this as try/except statement
 if(!noPost){
-  postConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "POST",slctROI)
+  postConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "POST",slctROI, by.roi = TRUE)
   postTypes = unique(postConnections$type.to)
 }
 
 # get pre connections
-preConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "PRE",slctROI, synThresh=3)
+preConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "PRE",slctROI, synThresh=3, by.roi = TRUE)
 preTypes = unique(preConnections$type.from)
 
 # all the types
@@ -120,11 +120,11 @@ cutoff = 0.05 # for weight 0.05, 0.01, 0
 largeGraph = FALSE
 selfFeedbackScale = 5
 if(largeGraph){
-  vertexSize = 8 #+ 8 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 20
+  vertexSize = 7 #+ 7 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 15
 }else{
   vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 15
+  plotSize = 10
 }
 selfFBscale = vertexSize
 arrowSize= 0
@@ -146,7 +146,7 @@ myGraph = delete.vertices(myGraph, Isolated)
 l = layout_with_dh(myGraph) #fr
 
 myGraph$main = paste0("Connectivity of ",source) 
-plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+plot(myGraph,edge.curved=0.2, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",circuitName,'_',
                       connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
