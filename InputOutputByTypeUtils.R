@@ -1,5 +1,5 @@
 source("neuprintQueryUtils.R")
-source("supertypeUtils.R")
+source("R/supertypeUtils.R")
 library(pbapply)
 library(parallel)
 
@@ -45,7 +45,8 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
   #'
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
-                          function(t) buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE),cl = nc)
+                          function(t) {
+                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc)
                           
     return(do.call(bind_InoutLists,inoutList))
   }

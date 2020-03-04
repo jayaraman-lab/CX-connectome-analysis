@@ -19,7 +19,6 @@ Connect to neuprint
 neuprint_login()
 ```
 
-
 Define the FB neuron types
 ```{r}
 # Find the name of all neurons that get input in the FB
@@ -99,7 +98,9 @@ FBpreNpost$group[which(grepl("SA3",FBpreNpost$group))] <- "tangential"
 FBpreNpost$group[which(grepl("PF",FBpreNpost$group))] <- "PB-FB columnar"
 FBpreNpost$group[which(grepl("Delta6",FBpreNpost$group))] <- "cross columnar within a layer"
 FBpreNpost$group[which(grepl("Delta0",FBpreNpost$group))] <- "cross layer within a column"
-FBpreNpost$group[which(grepl("FQ",FBpreNpost$group))] <- "columnar output"
+FBpreNpost$group[which(grepl("FC",FBpreNpost$group))] <- "columnar output"
+FBpreNpost$group[which(grepl("FR",FBpreNpost$group))] <- "columnar output"
+FBpreNpost$group[which(grepl("FS",FBpreNpost$group))] <- "columnar output"
 FBpreNpost$group[which(grepl("ExR",FBpreNpost$group))] <- "other"
 FBpreNpost$group[which(grepl("OA",FBpreNpost$group))] <- "other"
 FBpreNpost$group <- as.factor(FBpreNpost$group)
@@ -107,7 +108,7 @@ FBpreNpost$group <- as.factor(FBpreNpost$group)
 rbow = rainbow(7)
 cols <- c("input" = "red", "inner" = "blue", "output" = "darkgreen",
           "tangential" = rbow[7],"PB-FB columnar" = rbow[6],"cross columnar within a layer" = rbow[5],
-          "cross layer within a column" = rbow[4],"columnar output" = rbow[3],"other" = rbow[1])
+          "cross layer within a column" = rbow[4],"columnar output" = rbow[3],"SAF" = rbow[2],"other" = rbow[1])
 #plotOrd = as.factor(c("input","inner","outer",
 #            "tangential","PB-FB columnar","cross columnar within a layer",
 #            "cross layer within a column","columnar output","other"))
@@ -129,7 +130,7 @@ ggplot(FBpreNpost, aes(x=preRelativeMean, y=postRelativeMean)) +
   theme(panel.grid.major = element_line(colour = "gray",linetype="dashed"),text=element_text(size=18)) +
   scale_color_manual(values = cols,breaks=c("input","inner","output",
                                             "tangential","PB-FB columnar","cross columnar within a layer",
-                                            "cross layer within a column","columnar output","other"))
+                                            "cross layer within a column","columnar output","SAF","other"))
 
 ggsave("FBInputsAndOutputsMean2D.svg", plot = last_plot(), device='svg', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
@@ -826,11 +827,17 @@ FBhist.melt$numPts <- factor(FBhist.melt$numPts, levels = PBGloms)
 bodyIds = neuprint_search(paste0(type,".*"))$bodyid
 
 # Assign a color map given the number of synapsese
-cMap = c("#000000FF")
-cMap = append(cMap,rainbow(length(PBGloms)))
+cMap_R <- rainbow(0.5*length(PBGloms))
+cMap_L <- rev(rainbow(0.5*length(PBGloms)))
+cMap_Both <-  append(cMap_L,cMap_R)
+cMap_R <- append(c("#000000FF"),cMap_R)
+cMap_L <- append(c("#000000FF"),cMap_L)
+cMap_Both <- append(c("#000000FF"),cMap_Both)
 
 # Create a plot with the FB outline
 p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+p2 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
+p3 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
 
 for (bid in 1:length(bodyIds)){
   
@@ -874,18 +881,42 @@ for (bid in 1:length(bodyIds)){
   
   hist.melt$bodyid = bodyIds[bid]
 
-  p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
+  if (grepl("R",PBROI))
+    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
+  else
+    p2 <- p2 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
   
-}
-p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
-  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap,name = "PB Glom")
-if (grepl("PRE",prePost)) {
-  p1 <-  p1 + ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
-} else {
-  p1 <-  p1 + ggtitle(paste0(as.character(type),": inputs (n=",length(bodyIds),")")) 
+  p3 <- p3 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
 }
 
-ggsave(paste0("FBColumnsPFNs.pdf"), p1, device='pdf', 
+p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
+  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_R,name = "PB Glom") +
+  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
+
+ggsave(paste0("FBColumnsPFNs_R.pdf"), p1, device='pdf', 
    path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
    scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+p2 <- p2 + coord_fixed(ratio = 1) + theme_void() +
+  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_L,name = "PB Glom") +
+  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
+
+ggsave(paste0("FBColumnsPFNs_L.pdf"), p2, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+p3 <- p3 + coord_fixed(ratio = 1) + theme_void() +
+  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_Both,name = "PB Glom") +
+  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
+
+ggsave(paste0("FBColumnsPFNs_All.pdf"), p3, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+
+library(gridExtra)
+g <- grid.arrange(p1,p2,p3,nrow=1)
+ggsave(paste0("FBColumnsPFNs_Composite.pdf"), g, device='pdf', 
+   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
+   scale = 1.5, width = 20, height = 10, units ="cm", dpi = 72, limitsize = TRUE)
+
 ```
