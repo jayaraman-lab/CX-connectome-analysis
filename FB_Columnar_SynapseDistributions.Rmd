@@ -483,6 +483,7 @@ All_Fx$FBcol=factor(All_Fx$FBcol, levels=sort(unique(All_Fx$FBcol)) )
 PlotSyns_byColumn(All_Fx, "FX All", "FX_All", Fx_Dir)
 PlotSyns_byLayer(All_Fx, "FX All", "FX_All_Layers", "FBcol", Fx_Dir)
 
+
 # Make the same plots but per type 
 FX_Types=unique(All_Fx$type)
 for (ttt in 1:length(FX_Types)){
@@ -496,15 +497,7 @@ for (ttt in 1:length(FX_Types)){
 
 
 # Get synapse distributions per layer
-FX_Distribution=Get_SynLayerDistribution(All_Fx, 100)
-
-  
-
-
-
-
-  
-
+FX_Distribution=Get_SynLayerDistribution(All_Fx, 50, Fx_Dir)
 
 
 
@@ -513,20 +506,25 @@ FX_Distribution=Get_SynLayerDistribution(All_Fx, 100)
 FX_Distribution$Layer=as.character(FX_Distribution$Layer)
 FX_Distribution$Layer=factor(FX_Distribution$Layer, levels = sort(unique(FX_Distribution$Layer)) )
 
+# Set group
+FX_Distribution$Grouping=NA
+FX_Distribution$Grouping[startsWith(as.character(FX_Distribution$type),"FC")]<-"FC"
+FX_Distribution$Grouping[startsWith(as.character(FX_Distribution$type),"FR")]<-"FR"
+FX_Distribution$Grouping[startsWith(as.character(FX_Distribution$type),"FS")]<-"FS"
+FX_Distribution$Grouping=factor(FX_Distribution$Grouping, levels=c("FC","FR","FS"))
 
-# Make plots
-ggplot() + geom_point(data=subset(FX_Distribution, FBcol=="C5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
-ggplot() + geom_point(data=FX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+# compute mean and SEM 
+FX_TypeSummary=FX_Distribution %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), SEM= sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_SEM = sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
 
+# Make plot
+ggplot(FX_TypeSummary, aes(x=Layer, y=Width, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=Width-SEM, ymax=Width+SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,5000))
 
-
-
-
-ggplot() +  geom_path(data=Outline_L3_XZ, aes(x=c1, y=c2), size = 1, color="red") +
-  geom_point(data=NeuronData, aes(x=X,y=Y)) + 
-  geom_path(data=Mid_L3, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1)
-
-
+ggplot(FX_TypeSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=NormWidth-Norm_SEM, ymax=NormWidth+Norm_SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,0.25))
 
 
 
@@ -538,39 +536,62 @@ ggplot() +  geom_path(data=Outline_L3_XZ, aes(x=c1, y=c2), size = 1, color="red"
 ```{r}
 
 
+# Make plotting directory
+PFX_Dir=paste(PlotDir,"FPX_Plots_All","/",sep="")
+if (!dir.exists(PFX_Dir)){dir.create(PFX_Dir)}
+
 # Get PF neuron data
 All_PFX=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
 
 # Plot synapses distributions in entire FB and my layer for all neurons
-PlotSyns_byGlom(All_PFX, "PB-FB-XX ALL", "PB_FB_XX_ALL")
-PlotSyns_byLayer(All_PFX, "PB-FB-XX All", "PB_FB_XX_All_Layers", "PBglom")
+PlotSyns_byGlom(All_PFX, "PB-FB-XX ALL", "PB_FB_XX_ALL", PFX_Dir)
+PlotSyns_byLayer(All_PFX, "PB-FB-XX All", "PB_FB_XX_All_Layers", "PBglom", PFX_Dir)
 
 
 # Make the same plots but per type 
 PFX_Types=unique(All_PFX$type)
 for (ttt in 1:length(PFX_Types)){
   SubData=subset(All_PFX, type == PFX_Types[ttt])
-  PlotSyns_byGlom(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],sep=""))
+  PlotSyns_byGlom(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],sep=""), PFX_Dir)
 }
 for (ttt in 1:length(PFX_Types)){
   SubData=subset(All_PFX, type == PFX_Types[ttt])
-  PlotSyns_byLayer(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],"_Layers",sep=""), "PBglom")
+  PlotSyns_byLayer(SubData, PFX_Types[ttt], paste("PB_FB_XX_",PFX_Types[ttt],"_Layers",sep=""), "PBglom", PFX_Dir)
 }
 
 
 # Get synapse distributions per layer
-PFX_Distribution=Get_SynLayerDistribution(All_PFX, 100)
+PFX_Distribution=Get_SynLayerDistribution(All_PFX, 100, PFX_Dir)
 
-  
+
+
 
 # Set levels
 PFX_Distribution$Layer=as.character(PFX_Distribution$Layer)
 PFX_Distribution$Layer=factor(PFX_Distribution$Layer, levels = sort(unique(PFX_Distribution$Layer)) )
 
+# Set group
+PFX_Distribution$Grouping=NA
+PFX_Distribution$Grouping[startsWith(as.character(PFX_Distribution$type),"PFN")]<-"PFN"
+PFX_Distribution$Grouping[startsWith(as.character(PFX_Distribution$type),"PFR")]<-"PFR"
+PFX_Distribution$Grouping[startsWith(as.character(PFX_Distribution$type),"PFL")]<-"PFL"
+PFX_Distribution$Grouping[startsWith(as.character(PFX_Distribution$type),"PFG")]<-"PFG"
+PFX_Distribution$Grouping=factor(PFX_Distribution$Grouping, levels=c("PFN","PFR","PFL","PFG"))
 
-# Make plots
-ggplot() + geom_point(data=subset(PFX_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
-ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+
+# compute mean and SEM 
+PFX_TypeSummary=PFX_Distribution %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), SEM= sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_SEM = sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+
+# Make plot
+ggplot(PFX_TypeSummary, aes(x=Layer, y=Width, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=Width-SEM, ymax=Width+SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,5000))
+
+ggplot(PFX_TypeSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=NormWidth-Norm_SEM, ymax=NormWidth+Norm_SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,0.25))
+
 
 
 ```
@@ -580,12 +601,17 @@ ggplot() + geom_point(data=PFX_Distribution, aes(x=Layer, y=X_Range/X_Layer_Rang
 # Delta0 neuron plots/analysis
 ```{r}
 
-# Get PF neuron data
+# Make plotting directory
+D0_Dir=paste(PlotDir,"D0_Plots_All","/",sep="")
+if (!dir.exists(D0_Dir)){dir.create(D0_Dir)}
+
+
+# Get D0 neuron data, excluding D12 
 All_D0=subset(FBC_SynsAll, startsWith(type,"Delta0") & !startsWith(bodyname,"Delta12"))
 
 
 # Get synapse distributions per layer
-D0_Distribution=Get_SynLayerDistribution(All_D0, 100)
+D0_Distribution=Get_SynLayerDistribution(All_D0, 50, D0_Dir) # 50 is okay here
 
   
 
@@ -594,9 +620,156 @@ D0_Distribution$Layer=as.character(D0_Distribution$Layer)
 D0_Distribution$Layer=factor(D0_Distribution$Layer, levels = sort(unique(D0_Distribution$Layer)) )
 
 
-# Make plots
-ggplot() + geom_point(data=subset(D0_Distribution, PBglom=="R5"), aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
-ggplot() + geom_point(data=D0_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range, color=type))
+# Set group
+D0_Distribution$Grouping=NA
+D0_Distribution$Grouping[startsWith(as.character(D0_Distribution$type),"Delta0A") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0B") ]<-"A-B"
+D0_Distribution$Grouping[startsWith(as.character(D0_Distribution$type),"Delta0C") ]<-"C"
+D0_Distribution$Grouping[startsWith(as.character(D0_Distribution$type),"Delta0D") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0E") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0F") ]<-"D-F"
+D0_Distribution$Grouping[   startsWith(as.character(D0_Distribution$type),"Delta0G") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0H") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0I") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0J") ]<-"G-J"
+D0_Distribution$Grouping[   startsWith(as.character(D0_Distribution$type),"Delta0K") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0L") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0M") | 
+                         startsWith(as.character(D0_Distribution$type),"Delta0N") ]<-"K-N"
+D0_Distribution$Grouping=factor(D0_Distribution$Grouping, levels=c("A-B","C","D-F","G-J", "K-N"))
+
+
+
+
+
+# compute mean and SEM 
+D0_TypeSummary=D0_Distribution %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), SEM= sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_SEM = sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+D0_TypeSummary=subset(D0_TypeSummary, !is.na(D0_TypeSummary$SEM))
+
+# Make plot
+ggplot(D0_TypeSummary, aes(x=Layer, y=Width, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=Width-SEM, ymax=Width+SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,7000))
+
+ggplot(D0_TypeSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=NormWidth-Norm_SEM, ymax=NormWidth+Norm_SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,0.5))
+
+
+
+
+
+```
+
+
+
+
+# Plot width of all cell types
+```{r}
+
+
+
+# Get all synapse distribution data
+All_Distributions=rbind(FX_Distribution, PFX_Distribution, D0_Distribution)
+
+
+
+##################### Group by neuron type ###########################
+# Group my neuron type and average
+
+All_TypeSummary=All_Distributions %>% group_by(type, Layer) %>% summarise(Width = mean(X_HW_Orth*2), SEM= sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_SEM = sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_TypeSummary=subset(All_TypeSummary, !is.na(All_TypeSummary$SEM))
+
+# Make plot
+ggplot(All_TypeSummary, aes(x=Layer, y=Width, group=type, color=type)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=Width-SEM, ymax=Width+SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,6000))
+
+
+ggplot(All_TypeSummary, aes(x=Layer, y=NormWidth, group=type, color=type)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=NormWidth-Norm_SEM, ymax=NormWidth+Norm_SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,0.4))
+
+
+##################### Group by neuron class ###########################
+
+All_Distributions$Grouping=NA
+All_Distributions$type=as.character(All_Distributions$type)
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "Delta0") ]  ="Delta0"
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "FC") |
+                            startsWith(All_Distributions$type, "FR") |
+                            startsWith(All_Distributions$type, "FS") ]  ="FX"
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "PF") ]  ="PB-FB-XX"
+All_Distributions$Grouping=factor(All_Distributions$Grouping, levels = c("Delta0", "FX", "PB-FB-XX"))
+
+
+All_GroupSummary=All_Distributions %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), CON= 1.96*sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_CON = 1.96*sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_GroupSummary=subset(All_GroupSummary, !is.na(All_GroupSummary$CON))
+
+
+
+P1<-ggplot(All_GroupSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) +  geom_line(size=0.5) + 
+  geom_linerange(aes(ymin=NormWidth-Norm_CON, ymax=NormWidth+Norm_CON), size=1, fatten = 1) +
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.text.x = element_text(size=18),  
+    axis.text.y = element_text(size=18)) + 
+    scale_y_continuous( limits = c(0, 3/9), expand = c(0,0) , breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2), signif(3/9, digits=2))) +
+    ylab("Width (% of layer width)") +
+    geom_hline(yintercept=signif(1/9, digits=2), linetype="dashed", color = "black") + 
+    geom_hline(yintercept=signif(2/9, digits=2), linetype="dashed", color = "black") 
+
+ggsave(paste(PlotDir, "NeuronClass_NormWidth_ByLayer" , ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+
+
+##################### Group by neuron types ###########################
+
+
+All_Distributions_Fx_PFX=subset(All_Distributions, Grouping %in% c("FX","PB-FB-XX") )
+
+
+All_Distributions_Fx_PFX$Grouping=NA
+All_Distributions_Fx_PFX$type=as.character(All_Distributions_Fx_PFX$type)
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FC")] = "FC"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FR")] = "FR"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FS")] = "FS"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFN")] = "PFN"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFL")] = "PFL"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFG")] = "PFG"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFR")] = "PFR"
+All_Distributions_Fx_PFX$Grouping=factor(All_Distributions_Fx_PFX$Grouping, levels = c("FC", "FR", "FS", "PFN", "PFL", "PFG", "PFR"))
+
+
+
+All_GroupSummary_Fx_PFX=All_Distributions_Fx_PFX %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), CON= 1.96*sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_CON = 1.96*sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_GroupSummary_Fx_PFX=subset(All_GroupSummary_Fx_PFX, !is.na(All_GroupSummary_Fx_PFX$CON))
+
+
+
+P1<-ggplot(All_GroupSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) +  geom_line(size=0.5) + 
+  geom_linerange(aes(ymin=NormWidth-Norm_CON, ymax=NormWidth+Norm_CON), size=1, fatten = 1) +
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.text.x = element_text(size=18),  
+    axis.text.y = element_text(size=18)) + 
+    scale_y_continuous( limits = c(0, 3/9), expand = c(0,0) , breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2), signif(3/9, digits=2))) +
+    ylab("Width (% of layer width)") +
+    geom_hline(yintercept=signif(1/9, digits=2), linetype="dashed", color = "black") + 
+    geom_hline(yintercept=signif(2/9, digits=2), linetype="dashed", color = "black") 
+
+ggsave(paste(PlotDir, "NeuronClass_NormWidth_ByLayer" , ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
 
 
 
@@ -611,11 +784,57 @@ ggplot() + geom_point(data=D0_Distribution, aes(x=Layer, y=X_Range/X_Layer_Range
 
 
 
+# Delta 12 plots
+```{r}
 
 
+# Get D12 neuron data
+All_D12=subset(FBC_SynsAll, startsWith(type,"Delta0") & startsWith(bodyname,"Delta12"))
+Unique_type=unique(All_D12$type)
+
+for (nnn in 1:length(Unique_BodyId)){
+  
+  TempSyns=subset(All_D12, type==Unique_type[nnn])
+  
+  
+   # Make plot
+  P1<-ggplot() + geom_point(data=TempSyns, aes(x=X, y=-Y, color=bodyname) ,  size=2, alpha = 0.1, stroke = 0, shape=16) + 
+    xlim(c(-9000, 9000)) + coord_fixed(ratio = 1) +
+    theme_void() + guides(fill=FALSE) + theme(legend.position = "left") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) + ggtitle(paste("Type: ", TempSyns$type[1],sep=""))
+
+ 
+  ggsave(paste(DIR, "Two_Type_", TempSyns$type[1], ".png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+  
+  
+  
+  TempTempSyns=TempSyns
+  TempTempSyns$Class=NA
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "PF") ] = "PB-FB-XX"
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "FR") |
+                      startsWith(TempTempSyns$partner_type, "FS") |
+                      startsWith(TempTempSyns$partner_type, "FC") ] = "FX"
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "Delta0") ] = "Delta0"
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "Delta6") ] = "Delta6"
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "SAF") ] = "AB"
+  TempTempSyns$Class[ startsWith(TempTempSyns$partner_type, "FB") ] = "FB Tan"
+  TempTempSyns$Class=factor(TempTempSyns$Class, levels=c("Delta6", "AB", "PB-FB-XX", "FB Tan", "FX", "Delta0" ) )
+  
+  # Make plot
+  P1<-ggplot() + geom_point(data=TempTempSyns, aes(x=X, y=-Y, color=Class) ,  size=2, alpha = 0.1, stroke = 0, shape=16) +
+    xlim(c(-9000, 9000)) + coord_fixed(ratio = 1) +
+    theme_void() + guides(fill=FALSE) + theme(legend.position = "left") +
+    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) + ggtitle(paste("Type: ", TempSyns$type[1],sep="")) + facet_grid(cols = vars(prepost)) + 
+    guides(colour = guide_legend(override.aes = list(alpha = 1)))
+  
+  ggsave(paste(DIR, "Partners_", TempSyns$type[1], ".png",sep=""), plot = P1, device='png', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+    
+  
+  
+}
 
 
-
+```
 
 
 

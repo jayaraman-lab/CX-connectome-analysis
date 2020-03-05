@@ -34,7 +34,7 @@ Extend_Mid <- function(Outline_MID, Outline){
   # Fill in left side
   Left_LocalSlope=median(diff(Outline_MID$Y[1:10])/diff(Outline_MID$X[1:10]))
   Left_Intercept=Outline_MID$Y[1] -  Left_LocalSlope*Outline_MID$X[1]
-  Left_Outline=subset(Outline, c1<0)
+  Left_Outline=subset(Outline, c1< (-3500))
   Left_Outline=Left_Outline[order(Left_Outline$c1),]
   Left_Line = data.frame(X= (Left_Outline$c1), Y= (Left_Outline$c1) *  Left_LocalSlope + Left_Intercept )
   Left_Distance= ((Left_Line$X - Left_Outline$c1)^2 + (Left_Line$Y - Left_Outline$c2)^2)^0.5
@@ -58,9 +58,9 @@ Extend_Mid <- function(Outline_MID, Outline){
   Outline_MID=rbind(Outline_MID,Right_Line)
   
   
-  #ggplot() +  geom_path(data=Outline, aes(x=c1, y=c2), size = 1, color="red") +
-    #geom_path(data=Outline_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) +
-    #geom_path(data=Right_Line, aes(x=X,y=Y),color="green")
+  ggplot() +  geom_path(data=Outline, aes(x=c1, y=c2), size = 1, color="red") +
+    geom_path(data=Outline_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) +
+    geom_path(data=Left_Line, aes(x=X,y=Y),color="green")
 
   
   return(Outline_MID)
