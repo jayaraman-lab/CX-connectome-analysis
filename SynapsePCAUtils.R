@@ -132,12 +132,6 @@ GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
     Starts=seq(from = 1, to = floor(length(BodyIDs)/Chunks)*Chunks+1, by = Chunks)
     Stops=c(Starts[2:length(Starts)]-1, length(BodyIDs))
     
-    # Make sure last block is not length 1
-    if (tail(Starts,n=1)== tail(Stops,n=1)){
-      Starts=Starts[1:length(Starts)-1]
-      Stops=Stops[1:length(Stops)-1]
-      Stops[length(Stops)]<-length(BodyIDs)
-    }
     
     for (bbb in 1:length(Starts)){
       print(bbb)
