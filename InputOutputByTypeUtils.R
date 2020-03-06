@@ -215,6 +215,13 @@ getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
     filter(paste0(roi,type) %in% paste0(InOutList$inputs$roi,InOutList$inputs$type.to))
   }
   
+  if (!(is.null(rois))){
+    ROIOutputs <- ROIOutputs %>% 
+      filter(roi %in% rois$roi)
+    ROIInputs <- ROIInputs %>%
+      filter(roi %in% rois$roi)
+  }
+  
   roiSummary <- 
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
@@ -223,6 +230,7 @@ getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
            supertype2 = supertype(databaseType,level=2),
            supertype3 = supertype(databaseType,level=3))
   
+  if (!is.null(rois)){roiSummary <- left_join(roiSummary,rois,by=roi)}
   return(roiSummary)
 }
 
