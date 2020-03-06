@@ -180,12 +180,27 @@ bind_InoutLists <- function(...){
   return(out)
 }
 
+filter.neuronBag <- function(.nbag,...){
+  #` Meant to filter on $names
+  .nbag$names <- filter(.nbag$names,...)
+  
+    .nbag$outputs <- filter(.nbag$outputs,type.from %in% .nbag$names$type)
+    .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.from %in% .nbag$names$type)
+      
+    .nbag$inputs <- filter(.nbag$inputs,type.to %in% .nbag$names$type)
+    .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.to %in% .nbag$names$type)
+    
+    .nbag$outputsTableRef <- filter(.nbag$outputsTableRef,type %in% .nbag$outputs$type.to)
+    .nbag
+}
 
-getROISummary <- function(InOutList,filter=TRUE){
+
+getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' Build a pre roi summary of innervation for neurons in a neuronBag
   #' @param InOutList : a neuronBag object
   #' @param filter : if TRUE (the default), only return results in ROIs where significant type to 
   #' type connections are found. Otherwise consider all connections
+  #' @param rois : a roiset to consider (if NULL consider all rois)
   #' 
   ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
     summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
