@@ -14,6 +14,10 @@ source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visuali
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
 options(nat.plotengine = 'rgl')
+
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
 ```
 
 Connect to neuprint
@@ -97,8 +101,8 @@ Create x and y coordinates for a manual network layout of neurons - "inner" neur
 
 xyLookupTableInner <- function(){
   nronGps <- list(c("PFN"),
-                  c("Delta0","Delta6","PFR","PFG","FC"),
-                  c("PFL","^FR","FS"))
+                  c("Delta0","Delta6","PFR_a","PFG","FC"),
+                  c("PFL","^FR","FS","PFR_b"))
   lout <- c("h","c","h")
   
   xyLookup <- data.frame(type = c(), x = c(), y = c())
@@ -181,7 +185,7 @@ library(tidygraph)
 library(ggraph)
 library(gridExtra)
 
-graphConTab <- function(conTab,xyLookup){
+graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Get the table of nodes (types)
   nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
@@ -193,8 +197,13 @@ graphConTab <- function(conTab,xyLookup){
   
   # Assign colors to the supertypes
   sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort() %>% as.factor()
-  sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
-  sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs))
+  if (guideOnOff){
+    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+  } else {
+    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
+  }
+  
+  sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
   
   # Get the edges from the connection table
   edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
@@ -216,7 +225,7 @@ graphConTab <- function(conTab,xyLookup){
   
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-        geom_edge_fan(aes(width=weightRelative,color=superType),alpha=0.5,
+        geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
                       strength=1,
                       arrow = arrow(length = unit(1, "cm")),
                       end_cap = circle(1, 'cm')) + 
@@ -224,7 +233,7 @@ graphConTab <- function(conTab,xyLookup){
         geom_node_point(aes(color=superType),size=15) + 
         sTScale_edge +
         sTScale +
-        geom_node_text(aes(label=name),angle=40,size=12) +
+        geom_node_text(aes(label=name),angle=40,size=12,repel = textRepel) +
         theme_classic() + theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
           axis.line=element_blank(),axis.text.x=element_blank(),
           axis.text.y=element_blank(),axis.ticks=element_blank(),
@@ -348,7 +357,7 @@ dev.off()
 
 Plot all FB columnar network connections - weight matrices
 ```{r}
-nronTypes <- c("PFN","Delta0","Delta6","PFR","PFG","FC","PFL","^FR","FS")
+nronTypes <- c("PFN","Delta0","Delta6","PFR_a","PFG","FC","PFL","^FR","FS","PFR_b")
 ROI = "FB"
   
 # Get the connection table
@@ -377,8 +386,11 @@ dev.off()
 
 Plot all FB columnar network connections - graphs [All connections]
 ```{r}
+textRepel = FALSE
+guideOnOff = TRUE
+
 xyLookup <- xyLookupTableInner()
-gg_All <- graphConTab(conTab_Clean,xyLookup)
+gg_All <- graphConTab(conTab_Clean,xyLookup,textRepel,guideOnOff)
 gg_All <- gg_All+ xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 
 pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections.pdf", width = 40, height = 40)
@@ -391,17 +403,17 @@ Plot all FB columnar network connections - graphs [Inputs]
 ```{r}
 gg_Inputs <- list()
 gg_Inputs[[1]] <- graphConTab(conTab_Clean[which(grepl("PFN",conTab_Clean$type.from)),],
-                         xyLookup)
+                         xyLookup,FALSE,TRUE)
 gg_Inputs[[1]] <- gg_Inputs[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 
 PFNTypes = getBodyIdsForList(c("PFN"))$type %>% unique() %>% sort()
 for (pf in 1:length(PFNTypes)){
   gg_Inputs[[pf+1]] <- graphConTab(conTab_Clean[which(conTab_Clean$type.from == PFNTypes[pf]),],
-                         xyLookup)
+                         xyLookup,TRUE,FALSE)
   gg_Inputs[[pf+1]] <- gg_Inputs[[pf+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 }
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inputs.pdf", width = 40, height = 40)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inputs.pdf", width = 60, height = 60)
 print(grid.arrange(grobs = gg_Inputs,layout_matrix = rbind(c(1,3,9),c(2,4,5),c(6,7,8))))
 dev.off()
 ```
@@ -409,19 +421,18 @@ dev.off()
 Plot all FB columnar network connections - graphs [Outputs]
 ```{r}
 gg_Outputs <- list()
-gg_Outputs[[1]] <- graphConTab(filter(conTab_Clean, type.to %in% getBodyIdsForList(tail(nronTypes,3))$type),
-                         xyLookup)
+gg_Outputs[[1]] <- graphConTab(filter(conTab_Clean, type.to %in% getBodyIdsForList(tail(nronTypes,4))$type),
+                         xyLookup,FALSE,TRUE)
 gg_Outputs[[1]] <- gg_Outputs[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 
-OutTypes = getBodyIdsForList(tail(nronTypes,3))$type %>% unique() %>% sort()
+OutTypes = getBodyIdsForList(tail(nronTypes,4))$type %>% unique() %>% sort()
 for (o in 1:length(OutTypes)){
-  gg_Outputs[[o+1]] <- graphConTab(conTab_Clean[which(conTab_Clean$type.to == OutTypes[o]),],
-                         xyLookup)
+  gg_Outputs[[o+1]] <- graphConTab(conTab_Clean[which(conTab_Clean$type.to == OutTypes[o]),], xyLookup,TRUE,FALSE)
   gg_Outputs[[o+1]] <- gg_Outputs[[o+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 }
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Outputs.pdf", width = 60, height = 30)
-print(grid.arrange(grobs = gg_Outputs,layout_matrix = rbind(c(1,13,14,15,2,3),c(4,5,6,7,8,NA),c(9,10,11,12,NA,NA))))
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Outputs.pdf", width = 50, height = 60)
+print(grid.arrange(grobs = gg_Outputs,layout_matrix = rbind(c(1,13,14,15),c(NA,16,2,3),c(NA,4,5,6),c(7,8,9,10),c(11,12,NA,NA))))
 dev.off()
 ```
 
@@ -430,17 +441,17 @@ Plot all FB columnar network connections - graphs [Inner]
 gg_Inner <- list()
 gg_Inner[[1]] <- graphConTab(filter(conTab_Clean, type.to %in% getBodyIdsForList(nronTypes[2:6])$type |
                                  type.from %in% getBodyIdsForList(nronTypes[2:6])$type),
-                         xyLookup)
+                         xyLookup,FALSE,TRUE)
 gg_Inner[[1]] <- gg_Inner[[1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 
-innerSuperTypes = getBodyIdsForList(nronTypes[2:6])$type %>% unique() %>% sort() %>% supertype() %>% unique()
+innerSuperTypes = c("Delta0","Delta6","FC","PFG","PFR_a")
 for (i in 1:length(innerSuperTypes)){
   gg_Inner[[2*i]] <- graphConTab(conTab_Clean[which(grepl(innerSuperTypes[i],conTab_Clean$type.from)),],
-                         xyLookup)
+                         xyLookup,TRUE,FALSE)
   gg_Inner[[2*i]] <- gg_Inner[[2*i]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
   
   gg_Inner[[2*i+1]] <- graphConTab(conTab_Clean[which(grepl(innerSuperTypes[i],conTab_Clean$type.to)),],
-                         xyLookup)
+                         xyLookup,TRUE,FALSE)
   gg_Inner[[2*i+1]] <- gg_Inner[[2*i+1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
 }
 
@@ -449,6 +460,262 @@ pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\
 print(grid.arrange(grobs = gg_Inner,layout_matrix = rbind(c(1,NA,2,3),c(4,5,6,7),c(8,9,10,11))))
 dev.off()
 ```
+
+Plot connections between inner FB super types
+```{r}
+innerTypes <- c("Delta0","Delta6","FC")
+ROI = "FB"
+
+gg_Inner <- list()
+for (tp in 1:length(innerTypes)){
+  # Get the connection table
+  conTab <- getConnectionTable_forSubset(getBodyIdsForList(innerTypes[tp])$bodyid,
+                                         getBodyIdsForList(innerTypes[tp])$bodyid,
+                                         ROI)
+  conTab_Clean <- cleanUpConTab(conTab)
+
+  typesNow <- neuprint_search(paste0(innerTypes[tp],".*"))$type %>% unique() %>% sort()
+  angs <- seq(-pi,pi,length.out=length(typesNow)+1)
+  angs <- angs[1:(length(angs)-1)]
+  xs <- 0.5*sin(angs)
+  ys <- 0.5*cos(angs)
+  xyLookup <- data.frame(type = typesNow, x = xs, y = ys)
+
+  gg_Inner[[tp]] <- graphConTab(conTab_Clean,xyLookup,FALSE,FALSE)
+  gg_Inner[[tp]] <- gg_Inner[[tp]] + xlim(-0.75,0.75) + ylim(-0.75,0.75) + scale_y_reverse()
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inner_BySubGroup.pdf", width = 60, height = 60)
+print(grid.arrange(grobs = gg_Inner,nrow=1))
+dev.off()
+
+    
+
+```
+
+Plot the PFNa,FC1,Delta6B,PFL1 pathways
+```{r}
+pwayTypes <- c("PFNa","FC1","Delta6B","PFL1")
+ROI <- "FB"
+
+conTab <- getConnectionTable_forSubset(getBodyIdsForList(pwayTypes)$bodyid,
+                                       getBodyIdsForList(pwayTypes)$bodyid,
+                                       ROI)
+
+conTab_Clean <- cleanUpConTab(conTab)
+
+gg <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
+gg <- gg + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\PFNaToPFL1.pdf", width = 30, height = 30)
+print(gg)
+dev.off()
+
+```
+
+Plot the PFNd,v to Delta6B, Delta6B to others pathways
+```{r}
+tp1 = c("PFNd","PFNv")
+tp2 = c("Delta6B")
+
+ROI <- "FB"
+
+conTab1 <- getConnectionTable_forSubset(getBodyIdsForList(tp1)$bodyid,
+                                       getBodyIdsForList(tp2)$bodyid,
+                                       ROI)
+conTab1_Clean <- cleanUpConTab(conTab1)
+
+conTab2 <- getConnectionTable(getBodyIdsForList(tp2)$bodyid,"POST",ROI,synThresh = 3)
+conTab2 <- conTab2[which(!is.na(conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("FB",conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("EL",conTab2$type.to)),]
+conTab2_Clean <- cleanUpConTab(conTab2)
+
+conTab_Clean <- rbind(conTab1_Clean,conTab2_Clean)
+
+gg <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
+gg <- gg + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\PFNdvToDelta6B.pdf", width = 30, height = 30)
+print(gg)
+dev.off()
+```
+
+Look at the inputs to each columnar FB neuron supertype
+```{r}
+nronTypes <- c("PFN","Delta0","Delta6","PFR_a","PFG","FC","PFL","^FR","FS","PFR_b")
+ROI = "FB"
+
+# For each type, get all of the input and output partners
+connsPre <- getConnectionTable(getBodyIdsForList(nronTypes)$bodyid,"PRE",ROI,synThresh = 3)
+connsPre$superType.from <- connsPre$type.from %>% supertype()
+
+# Find the total % of synapses coming from a given supertype
+connsPre_Mean <- connsPre %>% group_by(type.to,superType.from) %>% summarize(weightByType = sum(ROIweight))
+
+# Find the total number of synapses coming to a given type and normalize the superType synapses by these counts
+totalWeight <- connsPre_Mean %>% group_by(type.to) %>% summarize(totalWeight = sum(weightByType))
+connsPre_Mean$relativeWeight <- 0
+for (tp in 1:nrow(totalWeight)){
+  relWeightCalc <- connsPre_Mean[which(connsPre_Mean$type.to == totalWeight$type.to[tp]),] %>% mutate(relativeWeight = weightByType/totalWeight$totalWeight[tp])
+  connsPre_Mean[which(connsPre_Mean$type.to == totalWeight$type.to[tp]),]$relativeWeight <- relWeightCalc$relativeWeight
+}
+g_Pre <- ggplot(connsPre_Mean) + geom_bar(aes(x=as.factor(type.to),weight=relativeWeight,fill=superType.from))
+
+#As above, not for post synaptic connections
+connsPost <- getConnectionTable(getBodyIdsForList(nronTypes)$bodyid,"POST",ROI,synThresh = 3)
+connsPost$superType.to <- connsPost$type.to %>% supertype()
+connsPost_Mean <- connsPost %>% group_by(type.from,superType.to) %>% summarize(weightByType = sum(ROIweight))
+totalWeight <- connsPost_Mean %>% group_by(type.from) %>% summarize(totalWeight = sum(weightByType))
+connsPost_Mean$relativeWeight <- 0
+for (tp in 1:nrow(totalWeight)){
+  relWeightCalc <- connsPost_Mean[which(connsPost_Mean$type.from == totalWeight$type.from[tp]),] %>% mutate(relativeWeight = weightByType/totalWeight$totalWeight[tp])
+  connsPost_Mean[which(connsPost_Mean$type.from == totalWeight$type.from[tp]),]$relativeWeight <- relWeightCalc$relativeWeight
+}
+g_Post <- ggplot(connsPost_Mean) + geom_bar(aes(x=as.factor(type.from),weight=relativeWeight,fill=superType.to))
+
+# Create bar plots for the percent of input and output coming from each supertype
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\RelativeInputsAndOutputs.pdf", width = 40, height = 10)
+print(grid.arrange(g_Pre,g_Post,nrow=2))
+dev.off()
+
+```
+
+Create a scatter plot for the percent input and output coming from each supertype
+```{r}
+# Merge pre and post into one data frame
+connsFBt <- data.frame(type = filter(connsPre_Mean,superType.from == "FBt")$type.to, relativeWeightPre = filter(connsPre_Mean,superType.from == "FBt")$relativeWeight)
+connsFBt <-  merge(connsFBt,
+                   data.frame(type = filter(connsPost_Mean,superType.to == "FBt")$type.from, relativeWeightPost = filter(connsPost_Mean,superType.to == "FBt")$relativeWeight),by="type",all.x=TRUE, all.y = TRUE)
+connsFBt[is.na(connsFBt)] <- 0
+connsFBt$superType <- connsFBt$type %>% as.character() %>% supertype() %>% as.factor()
+
+# Create data frame to plot lines between points
+connsFBt_lines <- data.frame(x = c(), y = c(),type = c())
+for (r in 1:nrow(connsFBt)){
+  connsFBt_lines <- rbind(connsFBt_lines,
+                          data.frame(x=as.factor("input"),
+                                     y = connsFBt$relativeWeightPre[r],
+                                     type = connsFBt$type[r]))
+  connsFBt_lines <- rbind(connsFBt_lines,
+                          data.frame(x=as.factor("output"),
+                                     y = connsFBt$relativeWeightPost[r],
+                                     type = connsFBt$type[r]))
+}
+
+g_FBt <- ggplot()
+g_FBt <- g_FBt + geom_line(data=connsFBt_lines, aes(x=x,y=y,group=type),color='lightgray')
+g_FBt <- g_FBt + geom_point(data=connsFBt,aes(x = as.factor("input"),y=relativeWeightPre,fill=superType),size=5,alpha=0.4,shape=25) +
+  geom_point(data=connsFBt,aes(x = as.factor("output"),y=relativeWeightPost,fill=superType),size=5,alpha=0.4,shape=24)
+g_FBt <- g_FBt + theme_classic() + scale_y_continuous(limits = c(0,1), expand = c(0, 0)) +
+  xlab("synapses on FB columnar neurons") + ylab("% of synapses from FB tangential cells") +
+  guides(color=guide_legend(ncol=1))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\RelativeInputsAndOutputs_Scatter.pdf", width = 8, height = 8)
+print(g_FBt)
+dev.off()
+```
+
+Create a scatter plot for the total number of FBt cells synapsing onto each columnar type
+```{r}
+# Find the total # of type to type connections (NOT weights) from one type to a superType
+connsPre_NronCounts <- connsPre %>% group_by(type.to,to,superType.from) %>% summarize(totalNrons = length(from)) %>%
+  group_by(type.to,superType.from) %>% summarize(meanCxns = mean(totalNrons))
+
+connsPost_NronCounts <- connsPost %>% group_by(type.from,from,superType.to) %>% summarize(totalNrons = length(to)) %>%
+  group_by(type.from,superType.to) %>% summarize(meanCxns = mean(totalNrons))
+
+
+# Create a bar plot for the total number of FB tangentials synapsing onto each type
+connsFBt <- data.frame(type = filter(connsPre_NronCounts,superType.from == "FBt")$type.to,
+                       meanCxnsPre = filter(connsPre_NronCounts,superType.from == "FBt")$meanCxns)
+connsFBt <-  merge(connsFBt,
+                   data.frame(type = filter(connsPost_NronCounts,superType.to == "FBt")$type.from,
+                       meanCxnsPost = filter(connsPost_NronCounts,superType.to == "FBt")$meanCxns),by="type",all.x=TRUE, all.y = TRUE)
+connsFBt[is.na(connsFBt)] <- 0
+connsFBt$superType <- connsFBt$type %>% as.character() %>% supertype() %>% as.factor()
+
+# Create data frame to plot lines between points
+connsFBt_lines <- data.frame(x = c(), y = c(),type = c())
+for (r in 1:nrow(connsFBt)){
+  connsFBt_lines <- rbind(connsFBt_lines,
+                          data.frame(x=as.factor("input"),
+                                     y = connsFBt$meanCxnsPre[r],
+                                     type = connsFBt$type[r]))
+  connsFBt_lines <- rbind(connsFBt_lines,
+                          data.frame(x=as.factor("output"),
+                                     y = connsFBt$meanCxnsPost[r],
+                                     type = connsFBt$type[r]))
+}
+
+g_FBt <- ggplot()
+g_FBt <- g_FBt + geom_line(data=connsFBt_lines, aes(x=x,y=y,group=type),color='lightgray')
+g_FBt <- g_FBt + geom_point(data=connsFBt,aes(x = as.factor("input"),y=meanCxnsPre,fill=superType),size=5,alpha=0.4,shape=25) +
+  geom_point(data=connsFBt,aes(x = as.factor("output"),y=meanCxnsPost,fill=superType),size=5,alpha=0.4,shape=24)
+g_FBt <- g_FBt + theme_classic() + scale_y_continuous(limits = c(0,150), expand = c(0, 0)) +
+  xlab("synapses on FB columnar neurons") + ylab("mean number of connected FB columnar neurons") +
+  guides(color=guide_legend(ncol=2))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\RelativeInputsAndOutputs_Scatter_Counts.pdf", width = 8, height = 8)
+print(g_FBt)
+dev.off()
+
+```
+
+
+
+Analyze Delta 12 inputs and outputs by FB layer and R vs. L
+```{r}
+xThresh = 26000
+zThresh = 22650
+
+D12ids <- neuprint_search("Delta12.*")
+D12types <- D12ids$type %>% unique()
+
+
+for (tp in 1:length(D12types)){
+  # Get the ROI specific info for the Delta 12
+  D12Dat <- neuprint_get_synapses(filter(D12ids,type==D12types[tp])$bodyid)
+  # Get type info
+  D12Dat <- D12Dat %>% mutate(type = neuprint_get_meta(bodyid)$type, partnerType = neuprint_get_meta(partner)$type) %>%
+    mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  
+  # Divide into quadrants
+  kmeanMat = D12Dat %>% select(x,z)
+  if (tp <= 11 | tp == 13){
+    synClusts = kmeans(kmeanMat,4, iter.max = 50, nstart = 10)
+    D12Dat$cluster <-  synClusts$cluster
+  } else if (tp == 12){
+    synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
+    D12Dat$cluster <-  synClusts$cluster
+  } else {
+    synClusts = kmeans(kmeanMat,2, iter.max = 50, nstart = 10)
+    D12Dat$cluster <-  synClusts$cluster
+    for (clust in 2:1){
+      kmeanMat = D12Dat %>% filter(cluster == clust) %>% select(x,y,z)
+      synClusts = kmeans(kmeanMat,3, iter.max = 250, nstart = 200)
+      clustIDs <- synClusts$cluster
+      lowClustInds <- which(clustIDs == as.numeric(which.max(synClusts$centers[,3])))
+      clustIDs <- vector(mode="numeric",length=length(clustIDs))+(2 + 2*clust - 2)
+      clustIDs[lowClustInds] <- (1 + 2*clust - 2)
+      D12Dat[which(D12Dat$cluster == clust),]$cluster <- clustIDs
+    }
+  }
+    
+  
+  g <- ggplot(D12Dat, aes(x,z, color = as.factor(cluster))) + geom_point() + scale_y_reverse() + ggtitle(D12types[tp])
+
+  print(g)
+}
+
+```
+
+
+
+
+
+
+
 
 Plot the FB tangential connections
 ```{r}

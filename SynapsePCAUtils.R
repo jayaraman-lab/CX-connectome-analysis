@@ -171,8 +171,8 @@ GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
     
   }
   
-  SynLocs$prepost[SynLocs$prepost==0]="Input"
-  SynLocs$prepost[SynLocs$prepost==1]="Output"
+  SynLocs$prepost[SynLocs$prepost==0]="Output"
+  SynLocs$prepost[SynLocs$prepost==1]="Input"
   
   return(SynLocs)
   
