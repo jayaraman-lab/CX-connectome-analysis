@@ -74,12 +74,12 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
-    myConnections <- myConnections %>% mutate(databaseTypeTo = refMetaOrig$type,
-                                              databaseTypeFrom = type.from)
+    myConnections <- myConnections %>% mutate(databaseType.to = refMetaOrig$type,
+                                              databaseType.from = type.from)
     } else {
     outMeta <- partnerMeta
-    myConnections <- myConnections %>% mutate(databaseTypeTo = type.to,
-                                              databaseTypeFrom = refMetaOrig$type)
+    myConnections <- myConnections %>% mutate(databaseType.to = type.to,
+                                              databaseType.from = refMetaOrig$type)
   }
   
   if (synapseType == "PRE"){
@@ -314,7 +314,7 @@ getTypeToTypeTable <- function(connectionTable,
   #'              accounts for
   #'              - n_links : how many individual neuron to neuron connections does this connection contain?
   #'              -n_type : number of instances of type.to 
-  #'              - databaseTypeTo/databaseTypeFrom : the neuprint defined types that contain the 
+  #'              - databaseType.to/databaseType.from : the neuprint defined types that contain the 
   #'              type.to/type.from used here
   #' @examples
   #' \dontrun{
@@ -349,13 +349,13 @@ getTypeToTypeTable <- function(connectionTable,
   #' 
   
   ## Counting instances for each post type 
-  if (is.null(typesTable) & any(connectionTable$type.to != connectionTable$databaseTypeTo,na.rm=T))
+  if (is.null(typesTable) & any(connectionTable$type.to != connectionTable$databaseType.to,na.rm=T))
     {
       stop("Some types are custom defined. You need to provide a `typesTable` argument.")
     }
   
   if (is.null(typesTable)){
-    typesTable <- getTypesTable(unique(connectionTable$databaseTypeTo))
+    typesTable <- getTypesTable(unique(connectionTable$databaseType.to))
   } 
   
   typesCount <- typesTable %>% group_by(type) %>%
@@ -389,8 +389,8 @@ getTypeToTypeTable <- function(connectionTable,
                                           outputContribution = outputContribution[1],
                                           n_type = 1,
                                           n_targets = n(),
-                                          databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]) %>% ungroup()
+                                          databaseType.to = databaseType.to[1],
+                                          databaseType.from = databaseType.from[1]) %>% ungroup()
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
@@ -400,8 +400,8 @@ getTypeToTypeTable <- function(connectionTable,
                                           weight = sum(ROIweight),
                                           n = n[1],
                                           outputContribution = outputContribution[1],
-                                          databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]) %>% ungroup() %>%
+                                          databaseType.to = databaseType.to[1],
+                                          databaseType.from = databaseType.from[1]) %>% ungroup() %>%
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
                                 summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
                                           pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
@@ -416,8 +416,8 @@ getTypeToTypeTable <- function(connectionTable,
                                           outputContribution = outputContribution[1],
                                           n_targets = n(),
                                           n_type = n[1],
-                                          databaseTypeTo = databaseTypeTo[1],
-                                          databaseTypeFrom = databaseTypeFrom[1]
+                                          databaseType.to = databaseType.to[1],
+                                          databaseType.from = databaseType.from[1]
                                 ) %>% select(-missingV) %>% ungroup()
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)

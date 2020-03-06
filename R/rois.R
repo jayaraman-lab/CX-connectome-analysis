@@ -93,24 +93,21 @@ selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelM
   if (!is.null(exceptions)){
     levelEx <- paste0("level",exceptionLevelMatch) 
     normalRois <- roiTree %>% filter(!((!!as.name(levelEx)) %in% names(exceptions))) %>%
-       mutate(customRois = (!!as.name(paste0("level",default_level))))
+       mutate(roi = (!!as.name(paste0("level",default_level))))
     
     exceptionsRois <- roiTree %>% filter(((!!as.name(levelEx)) %in% names(exceptions))) 
     
     roisEx <- as.character(exceptionsRois[[levelEx]])
     customLev <- sapply(roisEx,function(r) paste0("level",exceptions[[r]]))
-    exceptionsRois$customRois <- sapply(1:length(customLev),function(i) as.character(exceptionsRois[[customLev[i]]][i]))
+    exceptionsRois$roi <- sapply(1:length(customLev),function(i) as.character(exceptionsRois[[customLev[i]]][i]))
     
-    #exceptionsRois$customRois <- unlist(sapply(names(exceptions),function(n){
-    #  exceptionsRois[[paste0("level",exceptions[[n]])]][exceptionsRois[[paste0("level",exceptionLevelMatch)]] == n] 
-    #}))
     rois <- bind_rows(normalRois,exceptionsRois)
   }else{
-    rois <- roiTree %>% mutate(customRois = (!!(paste0("level",default_level))))
+    rois <- roiTree %>% mutate(roi = (!!(paste0("level",default_level))))
   }
   
   rois <- rois %>% arrange(side2,level1) %>% 
-    mutate(customRois = factor(customRois,levels=unique(customRois)))
+    mutate(roi = factor(roi,levels=unique(roi)))
   
   return(distinct(rois))
 }
