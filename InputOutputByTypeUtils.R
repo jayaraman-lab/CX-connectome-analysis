@@ -180,12 +180,27 @@ bind_InoutLists <- function(...){
   return(out)
 }
 
+filter.neuronBag <- function(.nbag,...){
+  #` Meant to filter on $names
+  .nbag$names <- filter(.nbag$names,...)
+  
+    .nbag$outputs <- filter(.nbag$outputs,type.from %in% .nbag$names$type)
+    .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.from %in% .nbag$names$type)
+      
+    .nbag$inputs <- filter(.nbag$inputs,type.to %in% .nbag$names$type)
+    .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.to %in% .nbag$names$type)
+    
+    .nbag$outputsTableRef <- filter(.nbag$outputsTableRef,type %in% .nbag$outputs$type.to)
+    .nbag
+}
 
-getROISummary <- function(InOutList,filter=TRUE){
+
+getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' Build a pre roi summary of innervation for neurons in a neuronBag
   #' @param InOutList : a neuronBag object
   #' @param filter : if TRUE (the default), only return results in ROIs where significant type to 
   #' type connections are found. Otherwise consider all connections
+  #' @param rois : a roiset to consider (if NULL consider all rois)
   #' 
   ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
     summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
@@ -200,6 +215,13 @@ getROISummary <- function(InOutList,filter=TRUE){
     filter(paste0(roi,type) %in% paste0(InOutList$inputs$roi,InOutList$inputs$type.to))
   }
   
+  if (!(is.null(rois))){
+    ROIOutputs <- ROIOutputs %>% 
+      filter(roi %in% rois$roi)
+    ROIInputs <- ROIInputs %>%
+      filter(roi %in% rois$roi)
+  }
+  
   roiSummary <- 
     full_join(ROIInputs,ROIOutputs,by=c("roi","type","databaseType")) %>% replace_na(list(InputWeight=0,OutputWeight=0)) %>%
     mutate(fullWeight = OutputWeight+InputWeight,
@@ -208,6 +230,7 @@ getROISummary <- function(InOutList,filter=TRUE){
            supertype2 = supertype(databaseType,level=2),
            supertype3 = supertype(databaseType,level=3))
   
+  if (!is.null(rois)){roiSummary <- left_join(roiSummary,rois,by=roi)}
   return(roiSummary)
 }
 
