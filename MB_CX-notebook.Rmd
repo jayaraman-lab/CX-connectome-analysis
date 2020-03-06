@@ -28,10 +28,10 @@ options(nat.plotengine = 'rgl')
 ### Configurable inputs: choose save/plot directories
 ```{r}
 # Directory to save data to.
-SaveDir = "/Users/danc/Documents/Data_Analysis/FIBSEM_Analysis"
+SaveDir = "/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
 
 # Directory to save plots to.
-PlotDir = "/Users/danc/Documents/Data_Analysis/FIBSEM_Analysis"
+PlotDir = "/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
 ```
 
 ### Create save/plot directory if they dont exists yet
@@ -55,7 +55,7 @@ allROIs = neuprint_ROIs()
 ### Get all CX neurons
 ```{r}
 # Get all CX neurons
-allCXneurons <- getNeuronsInRoi("CX")
+allCXneurons <- getNeuronsInRoiTable("CX")
 head(allCXneurons)
 ```
 
@@ -67,14 +67,20 @@ list2env(Output ,.GlobalEnv)
 remove(Output)
 
 # Filter data by synapse counts
-roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > 0 )
-roi_Connect_df = filter(roi_Connect_df, count > 0 )
+roi_Connect_bytype_df = filter(roi_Connect_bytype_df, count > 5 )
+roi_Connect_df = filter(roi_Connect_df, count > 5 )
 ```
 
 ### Find all CX neuron types with input/output in the MB
 ```{r}
 CXtypes_connect2MB <- roi_Connect_bytype_df  %>% filter(roi == "MB")
+head(CXtypes_connect2MB)
 ```
+
+### Good data etc up to here ###
+
+
+
 
 ### Make plot of all these neurons and histogram of synapse counts
 ```{r}
