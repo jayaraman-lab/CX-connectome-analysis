@@ -14,7 +14,10 @@ Get_SynapseCount_In_Rois <- function (ROI, Paired){
   ### Note, this averaging should not be done in cases where every instance of that neuron type is not thought to innervate the ROI.
   ### For example, if the ROI were glomerulus R4 in the PB, averaging across all PENs would dramatically underestimate the average synapse count in that ROI. 
   ### Similarly, care should be taken when averaging neurons that innervate the left or right portion of an ROI (like the PENs for the NO(R) and NO(L) )
-  NamedBodies_TypeAverage= aggregate(NamedBodies[, 6:length(colnames(NamedBodies))], list(NamedBodies$bodytype), mean) ### try mean and median here
+  
+  # Dropping upstream/downstream here for now but need to fix later
+  NamedBodies_TypeAverage= aggregate(NamedBodies[, c(6,7,8,9,12:length(colnames(NamedBodies)))], list(NamedBodies$bodytype), mean) ### try mean and median here
+  
   colnames(NamedBodies_TypeAverage)[1]="bodytype"
   
   
