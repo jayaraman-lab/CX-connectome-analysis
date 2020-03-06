@@ -81,7 +81,7 @@ supertype.neuronBag <- function(types){
 }
 
 supertype.data.frame <- function(types,level=1:3){
-  renamable <- names(types)[names(types) %in% c("databaseType","databaseTypeFrom","databaseTypeTo")]
+  renamable <- names(types)[names(types) %in% c("databaseType","databaseType.from","databaseType.to")]
   for (lev in level){
     for (ty in renamable){
         types[[paste0(sub("databaseType","supertype",ty),lev)]] <- supertype(types[[ty]],level=lev) 
