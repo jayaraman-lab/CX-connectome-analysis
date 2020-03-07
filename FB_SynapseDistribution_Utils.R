@@ -228,31 +228,156 @@ PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName, DIR){
 ### Function for assigning FB column to PB-FB-XX and D0 neurons based on closest FX neuron  ##################################
 
 
-Assign_FB_Columns <- function(N_Distribution, FX_Distribution){
+Assign_FB_Columns <- function(N_Distribution, FX_Distribution, DIR){
   
   N_Distribution$Distance2FxCol=NA
   N_Distribution$FBcol=as.character(N_Distribution$FBcol)
+  Column_Names=colnames(N_Distribution)
   
+  # Get unique body IDs
   Uni_BodyID=unique(N_Distribution$bodyid)
+  
+  # Data frame mapping bodyid to FBcol
+  Bodyid_To_FBcol=data.frame(bodyid=numeric(), FBcol=as.character(), Distance2FxCol=numeric())
+  
+  
   # Loop over each neuron
-  for (nnn in 1:length(N_Distribution$X_Mean)){
+  for (nnn in 1:length(Uni_BodyID)){
     
-    # Subset FX data based on layer
-    TempCol_Positions=subset(FX_Distribution, Layer==N_Distribution$Layer[nnn])
+    # Get all synapses from all layers for this neuron
+    Neuron_Data=subset(N_Distribution, bodyid==Uni_BodyID[nnn])
     
-    # Compute distance to each column center
-    Temp_Distances= ((TempCol_Positions$X_Mean - N_Distribution$X_Mean[nnn])^2 + (TempCol_Positions$Z_Mean - N_Distribution$Z_Mean[nnn])^2)^0.5 
+    # For this cell type, find the layer with the most synapses
+    MaxLayer=subset(N_Distribution, type == Neuron_Data$type[1]) %>% group_by(Layer) %>% summarise(Syn_Total=sum(NumberOfSyns))
+    MaxLayer=MaxLayer[which(MaxLayer$Syn_Total == max(MaxLayer$Syn_Total)) , ]
     
-    # Get index of min
-    Temp_Ind=which(Temp_Distances == min(Temp_Distances))
-    N_Distribution$Distance2FxCol[nnn]=min(Temp_Distances)
+    # If this neuron doesn't have synapses in chosen layer, use the layer with the most synapses
+    if ( sum(MaxLayer$Layer %in%  Neuron_Data$Layer) ==0){
+      MaxLayer$Layer=Neuron_Data$Layer[which(Neuron_Data$NumberOfSyns == max(Neuron_Data$NumberOfSyns))]
+    }
     
-    # Assign column
-    N_Distribution$FBcol[nnn]=as.character(TempCol_Positions$FBcol[Temp_Ind])
+    # Get the synapses for this neuron from the layer with the most synapses for this neuron type
+    Layer_Data=subset(Neuron_Data, Layer==MaxLayer$Layer)
+      
+    # Subset FX data based on this layer
+    TempCol_Positions=subset(FX_Distribution, Layer==Layer_Data$Layer)
+    
+    # Compute distance to every FXs neurons synapse mean in this layer, weighted by how many synapses the neurons have
+    Temp_Distances= data.frame(Col= TempCol_Positions$FBcol, Distance= ((TempCol_Positions$X_Mean - Layer_Data$X_Mean)^2 +
+                                                                        (TempCol_Positions$Z_Mean - Layer_Data$Z_Mean)^2 + 
+                                                                        (TempCol_Positions$Y_Mean - Layer_Data$Y_Mean)^2)^0.5 * TempCol_Positions$NumberOfSyns ) 
+    
+    # Compute average distance by column
+    Temp_Distances_Mean=Temp_Distances %>% group_by(Col) %>% summarise(Distance=quantile(Distance, 0.1))
+    
+    # Take min distance as closest column
+    Temp_df=data.frame(bodyid=Uni_BodyID[nnn], FBcol = Temp_Distances_Mean$Col[which(Temp_Distances_Mean$Distance == min(Temp_Distances_Mean$Distance))],
+                       Distance2FxCol= Temp_Distances_Mean$Distance[which(Temp_Distances_Mean$Distance == min(Temp_Distances_Mean$Distance))])
+    Bodyid_To_FBcol=rbind(Bodyid_To_FBcol, Temp_df)
+    
+    
+    if (Neuron_Data$type[1]=="PFGs"){
+      P1<-ggplot() + geom_point(data=Temp_Distances, aes(x=Col, y=Distance), position = position_jitter(width = 0.1), size=0.2) +
+        geom_point(data=Temp_Distances_Mean, aes(x=Col, y=Distance),color="red") +
+        ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom, " ", Neuron_Data$bodyid[1] )) + ylim(c(0, max(Temp_Distances_Mean$Distance)))
+      
+      ggsave(paste(DIR, Neuron_Data$type[1], "_", Neuron_Data$PBglom,".png",sep=""),
+             plot = P1, device='png', scale = 1, width = 5, height = 3, units ="in", dpi = 300, limitsize = TRUE)
+      
+    }
+    
   }
   
-  return(N_Distribution)
+  N_Distribution=N_Distribution[ , !colnames(N_Distribution) %in% c("FBcol","Distance2FxCol")]
+  N_Distribution_New=merge(N_Distribution, Bodyid_To_FBcol, by="bodyid")
+  N_Distribution_New=N_Distribution_New[Column_Names]
+ 
+  return(N_Distribution_New)
+}
+
+
+
+
+
+Assign_FB_Columns2 <- function(N_Distribution, FX_Distribution, DIR){
   
+  N_Distribution$Distance2FxCol=NA
+  N_Distribution$FBcol=as.character(N_Distribution$FBcol)
+  Column_Names=colnames(N_Distribution)
+  
+  # Get unique body IDs
+  Uni_BodyID=unique(N_Distribution$bodyid)
+  
+  # Data frame mapping bodyid to FBcol
+  Bodyid_To_FBcol=data.frame(bodyid=numeric(), FBcol=as.character(), Distance2FxCol=numeric())
+  
+  
+  # Loop over each neuron
+  for (nnn in 1:length(Uni_BodyID)){
+    
+    # Get all synapses from all layers for this neuron
+    Neuron_Data=subset(N_Distribution, bodyid==Uni_BodyID[nnn])
+    
+    # Loop over layers 
+    Temp_Distances_All=data.frame(Col = character(), Distance=numeric())
+    for (lll in 1:length(Neuron_Data$Layer)){
+    
+      # Get the synapses for this neuron from the layer with the most synapses for this neuron type
+      Layer_Data=subset(Neuron_Data, Layer==Neuron_Data$Layer[lll])
+      
+      # Subset FX data based on this layer
+      TempCol_Positions=subset(FX_Distribution, Layer==Layer_Data$Layer)
+      
+      # Compute distance to every FXs neurons synapse mean in this layer
+      Temp_Distances= data.frame(Col= TempCol_Positions$FBcol, Distance= ((TempCol_Positions$X_Mean - Layer_Data$X_Mean)^2 +
+                                                                            (TempCol_Positions$Z_Mean - Layer_Data$Z_Mean)^2 +
+                                                                            (TempCol_Positions$Y_Mean - Layer_Data$Y_Mean)^2)^0.5)  #  / TempCol_Positions$X_STD_Orth * TempCol_Positions$NumberOfSyns/Layer_Data$NumberOfSyns (TempCol_Positions$Y_Mean - Layer_Data$Y_Mean)^2
+      Temp_Distances_All=rbind(Temp_Distances_All, Temp_Distances)
+    }
+    
+    # Convert column number to numeric
+    Temp_Distances_All$Col=as.numeric(sapply(Temp_Distances_All$Col, substring, 2, 2))
+    
+    # Compute average distance by column
+    Temp_Distances_Mean=Temp_Distances_All %>% group_by(Col) %>% summarise(Distance=mean(Distance)) #quantile(Distance,0.1)
+    
+    # Interpolate data
+    #Temp_Distances_Mean_UP=as.data.frame(approx(Temp_Distances_Mean$Col, y = Temp_Distances_Mean$Distance, xout=seq(1,9,0.1), method="linear"))
+    Temp_Distances_Mean_UP=as.data.frame(spline(x = Temp_Distances_Mean$Col, y = Temp_Distances_Mean$Distance,  n = 91, method = "fmm", xmin = 0.6, xmax = 9.4))
+    colnames(Temp_Distances_Mean_UP)=c("Col","Distance")
+    
+    # Take min of function
+    Min_Distance=min(Temp_Distances_Mean_UP$Distance)
+    Min_IND= which(Temp_Distances_Mean_UP$Distance == Min_Distance)
+    Min_C=Temp_Distances_Mean_UP$Col[Min_IND]
+    Min_Col=round(Min_C)
+    
+    # Take min distance as closest column
+    Temp_df=data.frame(bodyid=Uni_BodyID[nnn], FBcol = paste("C",as.character(Min_Col),sep=""), Distance2FxCol= Min_Distance)
+    Bodyid_To_FBcol=rbind(Bodyid_To_FBcol, Temp_df)
+    
+    
+    if (Neuron_Data$type[1]=="PFGs"){
+      P1<-ggplot() + geom_point(data=Temp_Distances_All, aes(x=Col, y=Distance), position = position_jitter(width = 0.1), size=0.2) +
+        geom_point(data=Temp_Distances_Mean, aes(x=Col, y=Distance),color="red") +
+        ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom, " ", Neuron_Data$bodyid[1] )) +
+        geom_line(data=Temp_Distances_Mean_UP, aes(x=Col,y=Distance)) + scale_x_continuous(breaks=seq(1,9,1)) + 
+        geom_point(data=data.frame(XXX = Min_C, YYY = Min_Distance), aes(x=XXX,y=YYY), color="blue", size=2) + 
+        geom_point(data=data.frame(XXX = Min_Col, YYY = Min_Distance), aes(x=XXX,y=YYY), color="green", size=2)
+                   
+                   
+      ggsave(paste(DIR, Neuron_Data$type[1], "_", Neuron_Data$PBglom,".png",sep=""),
+             plot = P1, device='png', scale = 1, width = 5, height = 3, units ="in", dpi = 300, limitsize = TRUE)
+      
+    }
+    
+  }
+  
+  N_Distribution=N_Distribution[ , !colnames(N_Distribution) %in% c("FBcol","Distance2FxCol")]
+  N_Distribution_New=merge(N_Distribution, Bodyid_To_FBcol, by="bodyid")
+  N_Distribution_New=N_Distribution_New[Column_Names]
+  
+  return(N_Distribution_New)
 }
 
 
@@ -265,7 +390,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
   
   Syn_Distribution <- data.frame(bodyid=as.numeric(), type=as.character(), Layer=as.character(), 
                                  Side=as.character(), PBglom=as.character(), FBcol=as.character(),
-                                 X_Mean=as.numeric(), Z_Mean=as.numeric(), 
+                                 X_Mean=as.numeric(), Y_Mean=as.numeric(), Z_Mean=as.numeric(), 
                                  X_STD_Orth=as.numeric(), Z_STD_Orth=as.numeric(),
                                  X_HW_Orth=as.numeric(), Z_HW_Orth=as.numeric(),
                                  Cross_XL_X=as.numeric(),  Cross_XL_Z=as.numeric(),
@@ -300,6 +425,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         NeuronData=subset(LayerData, bodyid==NeuronIDs[nnn])
         
         # Rename Z as Y or it gets confusing when looking at plots
+        Mean_YY=mean(NeuronData$Y)
         NeuronData=NeuronData[colnames(NeuronData) != "Y"]
         colnames(NeuronData)[colnames(NeuronData) == "Z"] <-"Y"
         
@@ -343,7 +469,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         ############# Compute values we want to save for this neuron ############# 
           
           # Mean in original space 
-          TempMean=as.data.frame(t(colMeans(NeuronData[c("X","Y")]))) # This
+          TempMean=as.data.frame( t(colMeans( data.matrix(NeuronData[c("X","Y")])) )) # This
           
           # Mean and STD along new axes
           TempMean_New=as.data.frame(t(colMeans(NeuronData[c("X_New","Y_New")])))
@@ -412,7 +538,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           
           TempDF <- data.frame(bodyid=NeuronData$bodyid[1], type=NeuronData$type[1], Layer=NeuronData$Layer[1], 
                                Side=NeuronData$Side[1], PBglom=NeuronData$PBglom[1], FBcol=NeuronData$FBcol[1],
-                                         X_Mean=TempMean$X, Z_Mean=TempMean$Y, 
+                                         X_Mean=TempMean$X, Y_Mean=Mean_YY, Z_Mean=TempMean$Y, 
                                          X_STD_Orth=TempSTD_New$X_New, Z_STD_Orth=TempSTD_New$Y_New,
                                          X_HW_Orth=TempRange_New$X, Z_HW_Orth=TempRange_New$Y,
                                          Cross_XL_X=Cross_XL$X,    Cross_XL_Z=Cross_XL$Y,
