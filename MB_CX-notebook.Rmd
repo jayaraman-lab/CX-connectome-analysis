@@ -77,57 +77,62 @@ CXtypes_connect2MB <- roi_Connect_bytype_df  %>% filter(roi == "MB")
 head(CXtypes_connect2MB)
 ```
 
-### Good data etc up to here ###
-
-
-
-
-### Make plot of all these neurons and histogram of synapse counts
+### Make a plot of all these neuron types and synapse counts
 ```{r}
-# Plot all of the ROIs (and sub ROIs) that all MB-touching CX neurons innervate
-p0 <- ggplot(CXtypes_connect2MB, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
+# Plot the synapse counts of all MB-touching CX neuron types
+p0 <- ggplot(data=CXtypes_connect2MB, aes(x=roi_names, y=type_name, size=count)) + geom_point(aes(color=roi)) +
   facet_grid(cols=vars(prepost)) +  theme_bw() + theme(axis.text.x = element_text(angle = 90))  + guides(fill=FALSE) +
   ggtitle("All CX Neuron Types with Input/Output in MB")
-ggsave(paste(PlotDir, "All_CX_","inputOutputInMB_perType.png",sep=""), plot = p0, device='png', scale = 1, 
-       width = 30, height = 20, units ="in", dpi = 300, limitsize = TRUE)
 
+# Show the plot
+print(p0)
+
+# Save the plot
+ggsave("allCXtypes_inputOutputInMB.eps", plot=p0, device="eps", path=PlotDir, scale=1, 
+       width=30, height=20, units="in", dpi=300, limitsize=TRUE)
+```
+
+### Make a histogram of synapse counts
+```{r}
 # Plot histogram of synapse counts
 HistDat = data.frame(NumberOfSyns = CXtypes_connect2MB$count)
-p1 <- ggplot(HistDat, aes(x=NumberOfSyns)) + geom_histogram(binwidth=10) + xlim(0, 500) +
+p1 <- ggplot(data=HistDat, aes(x=NumberOfSyns)) + geom_histogram(binwidth=10) + xlim(0, 500) +
   ylim(0, length(HistDat$NumberOfSyns[HistDat$NumberOfSyns>2 & HistDat$NumberOfSyns<=11]) )
 print(p1)
 
 ```
 
-
-
-
 ### Get CX neurons separated by ROIs
 ```{r}
 # Get all CX neurons
-allEBneurons <- getNeuronsInRoi("EB")
-allFBneurons <- getNeuronsInRoi("FB")
-allPBneurons <- getNeuronsInRoi("PB")
-allNOneurons <- getNeuronsInRoi("NO")
+allEBneurons <- getNeuronsInRoiTable("EB")
+allFBneurons <- getNeuronsInRoiTable("FB")
+allPBneurons <- getNeuronsInRoiTable("PB")
+allNOneurons <- getNeuronsInRoiTable("NO")
 ```
 
 ### Get all LAL neurons
 ```{r}
-allLAL_Rneurons <- getNeuronsInRoi("LAL(R)")
-allLAL_Lneurons <- getNeuronsInRoi("LAL(L)")
-
+# Get all LAL neurons
+allLAL_Rneurons <- getNeuronsInRoiTable("LAL(R)")
+allLAL_Lneurons <- getNeuronsInRoiTable("LAL(L)")
 ```
 
-### Get CX neurons with inputs from MB directly
+### Get MB neurons innervating the CX directly, using Romain's functions
 ```{r}
-# Get all MB(+ACA)(R) neurons
-allMB_ACA_Rneurons <- getNeuronsInRoi("MB(+ACA)(R)")
+# Get all MB neurons
+allMB_L_neurons <- getNeuronsInRoiTable("MB(L)")
+allMB_R_neurons <- getNeuronsInRoiTable("MB(R)")
+allMB_neurons <- union(allMB_L_neurons,allMB_R_neurons)
 
 # Find those that innervate the CX
-FbBodiesROIinfo <- neuprint_get_roiInfo(allFBneurons$bodyid)
-FbBodiesInfoInMB <- FbBodiesROIinfo  %>% filter(MB.pre +MB.post > 30)
-FBneuronsInMB <- allFBneurons %>% filter(bodyid %in% FbBodiesInfoInMB$bodyid)
+MbBodiesROIinfo <- neuprint_get_roiInfo(allMB_neurons$bodyid)
+MbBodiesROIinfoInCX <- MbBodiesROIinfo  %>% filter(CX.pre + CX.post > 10)
+MBneuronsInCX <- allMB_neurons %>% filter(bodyid %in% MbBodiesROIinfoInCX$bodyid)
 ```
+
+### Good data etc up to here ###
+
 
 ### Get CX neurons with outputs in MB directly
 
@@ -142,32 +147,36 @@ head(MBON_Names)
 ### Find who the MBONs talk to
 ```{r}
 # Find the postsynaptic partners of all MBONs
-MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST",synThresh=3)
+MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST",synThresh=5)
 head(MBON_PostConnections)
 ```
 
 ### Among these, find who innervate the CX
 ```{r}
 # Find the MBON postsynaptic partners that innervate the FB
-outputROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
-FBOutputs <- outputROIinfo  %>% filter(FB.pre +FB.post > 30)
-MBONFbConnections <- MBON_PostConnections %>% filter(to %in% FBOutputs$bodyid)
+MBONtargetROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
+MBONtargetInCX_ROIinfo <- MBONtargetROIinfo  %>% filter(CX.pre + CX.post > 10)
+MBON_CX_Connections <- MBON_PostConnections %>% filter(to %in% MBONtargetInCX_ROIinfo$bodyid)
+head(MBON_CX_Connections)
 ```
 
 ### Plot the connectivity matrix
 ```{r}
-MBONFbConnections %>% plotConnectivityMatrix
+MBON_CX_Connections %>% plotConnectivityMatrix
 ```
 
 ### Make the TypeToType connection table from MBON to CX
 ```{r}
-MBONFbTypeToTypeConnections <- getTypeToTypeTable(MBONFbConnections)
-head(MBONFbTypeToTypeConnections)
+MBON_CX_TypeToTypeConnections <- getTypeToTypeTable(MBON_CX_Connections)
+head(MBON_CX_TypeToTypeConnections)
 ```
 
 ### Plot the TypeToType connetivity matrix
 ```{r}
-plotConnectivityMatrix(MBONFbTypeToTypeConnections,byGroup = "type")
+p3 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type")
+print(p3)
+ggsave("MBON_CX_ConnectionsByType.eps", plot=p3, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
 
