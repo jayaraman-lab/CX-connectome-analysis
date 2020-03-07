@@ -23,6 +23,7 @@ library(ggpubr)
 library(ks)
 library(RColorBrewer)
 library(ggraph)
+library(robustbase)
 require(alphahull)
 options(nat.plotengine = 'rgl')
 ```
@@ -565,38 +566,41 @@ D0_Distribution=Get_SynLayerDistribution(All_D0, 50, D0_Dir) # 50 is okay here
 ```
 
 
-# Assign the PB-FB-XX and Delta0 neurons to colmns define by the closet FX column for each layer.
+# Assign the PB-FB-XX and Delta0 neurons to columns define by the closet FX column for each layer.
 # Plot the PB-FB glomerulus->column pattern for each PB-FB-XX neuron
 ```{r}
+
+Temp = FX_Distribution %>% group_by(FBcol) %>% summarise(www=mean(X_HW_Orth))
 
 library(ggraph)
 library(igraph)
 library(tidygraph)
+source("FB_SynapseDistribution_Utils.R")
 
 # Assign column names based on closest neuron
-PFX_Distribution = Assign_FB_Columns(PFX_Distribution, FX_Distribution)
+PFX_Distribution = Assign_FB_Columns2(PFX_Distribution, FX_Distribution, PFX_Dir)
 PFX_Distribution$PBglom = factor(PFX_Distribution$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                                                     "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
 
 # Get number of neurons going from each glom to each column
-PFX_GlomToColumn_AllLayers=PFX_Distribution %>% group_by(type, Layer, PBglom, FBcol) %>% summarise(weight = n())
-PFX_GlomToColumn_NoLayers=PFX_Distribution %>% group_by(type, PBglom, FBcol) %>% summarise(weight = n())
+PFX_GlomToColumn_All=PFX_Distribution %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n())
+PFX_GlomToColumn_All=PFX_GlomToColumn_All %>% group_by(type, PBglom, FBcol) %>% summarise(weight = n())
 
+PB_FB_Types=unique(PFX_GlomToColumn_All$type)
 
-PB_FB_Types=unique(PFX_GlomToColumn_AllLayers$type)
 
 for (nnn in 1:length(PB_FB_Types)){
   
   
   # Data for mapping
-  PB_FB_Mapping=subset(PFX_GlomToColumn_NoLayers, type==PB_FB_Types[nnn] )
+  PB_FB_Mapping=subset(PFX_GlomToColumn_All, type==PB_FB_Types[nnn] )
   
   
   # Set up node names and positions
   nodes = data.frame(name = c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                               "R1","R2","R3","R4","R5","R6","R7","R8","R9",
                               "C1","C2","C3","C4","C5","C6","C7","C8","C9") )
-  nodes$x <- c( seq(from= -10 ,to = -2), seq(from= 2 ,to = 10),  seq(from= -4 ,to = 4))
+  nodes$x <- c( seq(from= -9 ,to = -1), seq(from= 1 ,to = 9),  seq(from= 4 ,to = -4))
   nodes$y <- c( rep(1, 18), rep(0, 9))
   
   
@@ -615,7 +619,7 @@ for (nnn in 1:length(PB_FB_Types)){
   
   
   P1<-ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) +
-    geom_edge_diagonal(aes(width=weight,color=FBcol),alpha=0.5,strength=1) +
+    geom_edge_diagonal(aes(width=weight,color=FBcol),alpha=0.5,strength=0.5) +
     geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector)  +
     geom_node_text(aes(label=name),angle=40,size=4, nudge_y = c(rep(0.06,18),rep(-0.06,9)) ) +
     theme_classic() + 
