@@ -48,13 +48,16 @@ getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=
 
 getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,...){
   refMeta <- bodyIDs
-  bodyIDs <- bodyIDs$bodyid
+  bodyIDs <- neuprint_ids(bodyIDs$bodyid)
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   if (by.roi | !is.null(slctROI)){
    myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   }else{
     myConnections <- myConnections %>% filter(weight>synThresh)
   }
+  
+  if (nrow(myConnections)==0){return(NULL)}
+  
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMetaOrig <- neuprint_get_meta(myConnections$bodyid)  ## To get the database type name
   
