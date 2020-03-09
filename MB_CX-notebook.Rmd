@@ -171,11 +171,19 @@ MBON_CX_TypeToTypeConnections <- getTypeToTypeTable(MBON_CX_Connections)
 head(MBON_CX_TypeToTypeConnections)
 ```
 
-### Plot the TypeToType connetivity matrix
+### Plot the TypeToType connetivity matrix based on the connectionMeasure of "weightRelative"
 ```{r}
-p3 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type")
+p3 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="weightRelative")
 print(p3)
-ggsave("MBON_CX_ConnectionsByType.eps", plot=p3, device="eps", path=PlotDir, scale=1, 
+ggsave("MBON_CX_ConnectionsByType_weightRelative.eps", plot=p3, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+
+### Plot the TypeToType connetivity matrix based on the connectionMeasure of "outputContribution"
+```{r}
+p4 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="outputContribution")
+print(p4)
+ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
