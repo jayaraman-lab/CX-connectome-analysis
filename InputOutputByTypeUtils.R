@@ -253,9 +253,9 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
 }
 
 haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
-  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$customRois))  %>% 
-                      mutate(roi = factor(roi,levels=levels(roiSelect$customRois)),
-                             superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$customRois)])
+  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
+                      mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
+                             superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$roi)])
   
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
     geom_line(aes(group=type),alpha=alphaG) +
