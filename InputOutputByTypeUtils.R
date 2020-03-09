@@ -202,11 +202,11 @@ getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' type connections are found. Otherwise consider all connections
   #' @param rois : a roiset to consider (if NULL consider all rois)
   #' 
-  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
+  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseType.from)   %>%
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseType.from) %>% ungroup()
   
-  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo) %>% ungroup()
+  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseType.to)   %>%
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseType.to) %>% ungroup()
   
   if (filter){
   ROIOutputs <- ROIOutputs %>% 
