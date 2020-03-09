@@ -212,7 +212,9 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
-                    databaseCol =paste0("databaseType",str_to_title(c(unlist(strsplit(typeCol,"\\.")),"")[2])),
+                    databaseCol =paste0("databaseType",ifelse(grepl("[.]",typeCol),
+                                                              paste0(".",c(unlist(strsplit(typeCol,"\\.")),"")[2]),
+                                                       "")),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
@@ -435,7 +437,7 @@ getTypeToTypeTable <- function(connectionTable,
 
 }
 
-getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
+getConnectionTable_forSubset <- function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
   #' Filter connection table to contain only connections from preBodyIDs to postBodyIDs
   #' @return Returns a connection table as data frame.
   #' @param preBodyIDs: The bodyids of presynaptic neurons who's connections should be queried
