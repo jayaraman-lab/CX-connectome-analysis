@@ -50,14 +50,16 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
                           function(t) {
                             buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc)
                           
+    problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
+    if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
     return(do.call(bind_InoutLists,inoutList))
   }
   
   outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
   inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
-  if (nrow(outputsR)==0){OUTByTypes <- NULL
-                         outputsTableRef <- NULL
-                         unknowns <- NULL
+  if (length(outputsR)==0){OUTByTypes <- NULL
+                           outputsTableRef <- NULL
+                           unknowns <- NULL
                          }else{
     OUTByTypes <- getTypeToTypeTable(outputsR)
     outputsR <- retype.na(outputsR)
