@@ -426,6 +426,8 @@ getConnectionTable_forSubset <- function(preBodyIDs,postBodyIDs, slctROI=NULL,..
 
 getRoiInfo <- function(bodyids,...){
   #' Formats the results of a roiInfo query in a nice table
+  #' 
+  if (length(bodyids)==0){return(data.frame(bodyid=character(),roi=character(),pre=integer(),post=integer(),downstream=integer(),stringsAsFactors = FALSE))}
   roiInfo <- neuprint_get_roiInfo(bodyids,...)
   roiInfo <-  pivot_longer(roiInfo,cols=-bodyid,names_to=c("roi","field"),names_sep="\\.",values_to="count")
   roiInfo <- pivot_wider(roiInfo,names_from = "field",values_from="count")
