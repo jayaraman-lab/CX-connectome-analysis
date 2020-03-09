@@ -23,6 +23,8 @@ neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRe
   return(res)
 }
 
+is.neuronBag <- function(x) inherits(x,"neuronBag")
+
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
   #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
