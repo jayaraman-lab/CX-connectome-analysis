@@ -74,63 +74,32 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
+    inMeta <- partnerMeta
     myConnections <- myConnections %>% mutate(databaseType.to = refMetaOrig$type,
                                               databaseType.from = type.from)
     } else {
+    inMeta <- partnerMeta
     outMeta <- partnerMeta
     myConnections <- myConnections %>% mutate(databaseType.to = type.to,
                                               databaseType.from = refMetaOrig$type)
   }
   
-  if (synapseType == "PRE"){
-    if (nrow(myConnections)==0){
-      inputsTable <- myConnections
-    }else{
-      if (length(unique(myConnections$from))>1000){ ## Insane neurons need to be controlled to not timeout
-        uniqueInputs <- unique(myConnections$from)
-        uniqueInputs <- split(uniqueInputs, ceiling(seq_along(uniqueInputs)/500))
-        inputsTable <- bind_rows(lapply(uniqueInputs,neuprint_connection_table,
-                                         "POST",slctROI,by.roi=by.roi,...))
-      }else{
-      inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)}
-      if (!by.roi & is.null(slctROI)){
-        inputsTable <- inputsTable %>% mutate(from = bodyid)
-      }else{
-        inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
-      }
-      }
-    inp <- "partner"
-  }else{
-    inputsTable <- myConnections
-    inp <- "bodyid"
-  }
-  
-  totalPre <- inputsTable %>% group_by(from) %>%
-    summarise(totalPreWeight = sum(weight))
-  
   myConnections <- myConnections %>% mutate(weightRelativeTotal = weight/outMeta[["post"]],
-                                            totalPreWeight = totalPre[["totalPreWeight"]][match(myConnections$from,totalPre$from)],
+                                            totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
                                             outputContributionTotal = weight/totalPreWeight
                                             )
   
   if (by.roi | !is.null(slctROI)){
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
-    outInfo <- neuprint_get_roiInfo(myConnections$to)
-    
-    totalPre <- inputsTable %>% group_by(from,roi) %>%
-                    summarise(totalPreROIweight = sum(ROIweight))
-    
-    myConnections <- myConnections %>% group_by(roi) %>%
-             mutate(totalPreROIweight = totalPre[["totalPreROIweight"]][totalPre$roi == roi[1]][match(from,totalPre$from[totalPre$roi == roi[1]])]) %>% ungroup()
-    if (length(myConnections[["roi"]]) == 0){
-      postVar <- character(0)}else{
-    postVar <- paste0(myConnections[["roi"]],".post")
-      }
-    
-    myConnections <- myConnections %>%
-          mutate(totalROIweight = as.integer(sapply(seq_len(length(postVar)),function(v) outInfo[[postVar[v]]][v])),
-                 weightRelative=ROIweight/totalROIweight,
-                 outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
+    outInfo <- getRoiInfo(unique(myConnections$to)) %>% select(bodyid,roi,post)
+    inInfo <- getRoiInfo(unique(myConnections$from)) %>% select(bodyid,roi,downstream)
+  
+    myConnections <- left_join(myConnections,inInfo,by=c("from" = "bodyid","roi"="roi")) %>% rename(totalPreROIweight = downstream)
+ 
+    myConnections <- left_join(myConnections,outInfo,by=c("to" = "bodyid","roi"="roi")) %>% rename(totalROIweight = post) %>%
+      mutate(weightRelative=ROIweight/totalROIweight,
+             outputContribution=ROIweight/totalPreROIweight)
+ ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
   }else{
