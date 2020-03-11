@@ -184,8 +184,11 @@ bind_InoutLists <- function(...){
   return(out)
 }
 
-filter.neuronBag <- function(.nbag,...){
+filter.neuronBag <- function(.nbag,filterPartners=FALSE,...){
   #` Meant to filter on $names
+  #' @param nbag a neuronBag object to filter
+  #' @param ... to be passed to a filtering function applied to the names field
+  #' @param filterPartners : Whether to apply the filter to input/output neurons to
   .nbag$names <- filter(.nbag$names,...)
   
     .nbag$outputs <- filter(.nbag$outputs,type.from %in% .nbag$names$type)
@@ -194,8 +197,21 @@ filter.neuronBag <- function(.nbag,...){
     .nbag$inputs <- filter(.nbag$inputs,type.to %in% .nbag$names$type)
     .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.to %in% .nbag$names$type)
     
+    if (filterPartners == TRUE){
+      .nbag$outputs <- filter(.nbag$outputs,type.to %in% .nbag$names$type)
+      .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.to %in% .nbag$names$type)
+      
+      .nbag$inputs <- filter(.nbag$inputs,type.from %in% .nbag$names$type)
+      .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.from %in% .nbag$names$type)
+    }
+    
     .nbag$outputsTableRef <- filter(.nbag$outputsTableRef,type %in% .nbag$outputs$type.to)
     .nbag
+}
+
+getIntraBag <- function(nBag){
+  #' Convenience to extract just connections between the central neurons of a bag
+  filter(nBag,filterPartners = TRUE,type %in% unique(nBag$names$type))
 }
 
 
