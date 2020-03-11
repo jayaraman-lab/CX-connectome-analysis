@@ -69,7 +69,7 @@ supertype.character <- function(types,level=2){
 
 supertype.neuronBag <- function(types){
   for (lev in 1:3){
-    for (ty in c("From","To")){
+    for (ty in c(".from",".to")){
       for (tab in c("inputs","outputs","inputs_raw","outputs_raw")){
         types[[tab]][[paste0("supertype",ty,lev)]] <- supertype(types[[tab]][[paste0("databaseType",ty)]],level=lev) 
       }
