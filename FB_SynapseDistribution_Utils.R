@@ -75,7 +75,7 @@ Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, 
 
 
 
-Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF){
+Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=1){
   
   # Get view
   if (VIEW=="XY"){
@@ -85,7 +85,7 @@ Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vec
   }
   
   # Plot just the data for now
-  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar) ,  size=1, alpha = 1, stroke = 0, shape=16) + 
+  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar) ,  size=Size, alpha = 1, stroke = 0, shape=16) + 
     geom_path(data=Outline, aes(x=c1, y=c2), size = 2) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
 
   # Save with scaled visible if TOPLOTLEGEND_TF us TRUE
@@ -143,7 +143,7 @@ GetColorMap <- function(Grouping){
 
 PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName, DIR, TOPLOT_TF, TOPLOTLEGEND_TF){
   
-  # Get column vector
+  # Get color vector
   col_vector=GetColorMap("FBcol")
   
   ### XY View
@@ -155,77 +155,95 @@ PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName, DIR, TOPLOT_TF, TOPLOT
 }
 
 
+###############################################################################################################################
+####### Functions for plotting column positions as defined by Fx neuron synapses locations ####################################
 
 
-
-
-
-PlotSyns_byGlom <- function(Plot_Syns, Title, PlotName, DIR){
-  
-  # Get neurons that innervate the left or right pb
-  Plot_Syns_Lpb=subset(Plot_Syns, startsWith(PBglom,"L") )
-  Plot_Syns_Lpb$PBglom=factor( Plot_Syns_Lpb$PBglom, levels= sort(unique(Plot_Syns_Lpb$PBglom)) )
-  
-  Plot_Syns_Rpb=subset(Plot_Syns, startsWith(PBglom,"R") )
-  Plot_Syns_Rpb$PBglom=factor( Plot_Syns_Rpb$PBglom, levels= sort(unique(Plot_Syns_Rpb$PBglom)) )
-  
-  
-  L_col_vector=brewer.pal(8, "Paired")
-  L_col_vector[9]=L_col_vector[1]
-  L_col_vector=L_col_vector[c(1,4,7,2,5,8,3,6,9)]
-  R_col_vector=rev(L_col_vector)
-  RL_col_Vector=c(L_col_vector, R_col_vector)
-  
-  
-  # Make color map for each that maps PB glomeruli to their appropriate columns
-  P1<-ggplot() + geom_point(data=Plot_Syns_Lpb, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=L_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("LEFT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200)) 
-  
-  
-  P2<-ggplot() + geom_point(data=Plot_Syns_Lpb, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=L_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("LEFT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200))
-  
-  
-  
-  P3<-ggplot() + geom_point(data=Plot_Syns_Rpb, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=R_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("RIGHT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200))
-  
-  
-  P4<-ggplot() + geom_point(data=Plot_Syns_Rpb, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=R_col_vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("RIGHT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200))
-  
-  
-  
-  P5<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=-Y, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XY, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=RL_col_Vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("RIGHT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200))
-  
-  
-  P6<-ggplot() + geom_point(data=Plot_Syns, aes(x=X, y=Z, color=PBglom) ,  size=2, alpha = 0.05, stroke = 0, shape=16) + 
-    coord_fixed(ratio = 1) +  theme_void() + guides(fill=FALSE) + theme(legend.position = "top") +
-    geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) +  scale_color_manual(values=RL_col_Vector) + guides(colour = guide_legend(override.aes = list(alpha = 1))) + 
-    ggtitle(paste("RIGHT ", Title)) + xlim(c( min(Outline_FB_XZ$c1)-200 , max(Outline_FB_XZ$c1)+200))
-  
-  
-  
-  P12<-ggarrange(plotlist=list(P1,P2,P3,P4,P5,P6), ncol =2, nrow = 3)
-  ggsave(paste(DIR, PlotName,".png",sep=""),
-         plot = P12, device='png', scale = 1, width = 8, height = 12, units ="in", dpi = 300, limitsize = TRUE)
-  
+PlotColumn_Types<- function(Plot_Syns, PlotName, DIR, PLOT){
+  Types=unique(Plot_Syns$type)
+  for (nnn in 1:length(Types)){
+    Temp_Type=subset(Plot_Syns, type == as.character(Types[nnn]))
+    PlotColumn_Aves(Temp_Type, paste(PlotName, "_", Types[nnn],sep="") , DIR, PLOT)
+  }
 }
 
 
+
+PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT){
+  
+  # get layers
+  Layers_All=sort(unique(as.character(Plot_Syns$Layer)))
+  
+  # Make plots
+  l1=Plot_Crosses(Plot_Syns, 1, DIR, PlotName, PLOT)
+  l2=Plot_Crosses(Plot_Syns, 2, DIR, PlotName, PLOT)
+  l3=Plot_Crosses(Plot_Syns, 3, DIR, PlotName, PLOT)
+  l4=Plot_Crosses(Plot_Syns, 4, DIR, PlotName, PLOT)
+  l5=Plot_Crosses(Plot_Syns, 5, DIR, PlotName, PLOT)
+  l6=Plot_Crosses(Plot_Syns, 6, DIR, PlotName, PLOT)
+  l7=Plot_Crosses(Plot_Syns, 7, DIR, PlotName, PLOT)
+  l8=Plot_Crosses(Plot_Syns, 8, DIR, PlotName, PLOT)
+  
+  
+  # Save plot
+  PP=ggarrange(l8,l7,l6, l5, l4, l3, l2, l1,  nrow = 3, ncol = 3)
+  ggsave(paste(DIR, PlotName, "_AllLayer" , ".png",sep=""), plot = PP, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent") 
+
+}
+
+
+Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT){
+  
+  # Get color vector
+  col_vector=GetColorMap("FBcol")
+  
+  # Get mean positions for this layer
+  Temp_Dist=subset(Plot_Syns, Layer == paste("L",as.character(LayerToPlot),sep="")) 
+  colnames(Temp_Dist)[which(colnames(Temp_Dist) %in% c("X_Mean","Z_Mean"))] = c("X","Z")
+  
+  # Get layer outline 
+  eval(parse( text= paste("Outline=Outline_L", as.character(LayerToPlot),"_XZ",sep="") ))
+  
+  # Plot data
+  p1 <- ggplot() + geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
+  
+  if (length(Temp_Dist$FBcol)>0){
+    P_All=list()
+    for (nnn in 1:length(Temp_Dist$FBcol) ){
+      Temp_Neuron_Dist=Temp_Dist[nnn,]
+      CCC= col_vector[which(levels(Temp_Neuron_Dist$FBcol) == Temp_Neuron_Dist$FBcol[1])]
+      
+      p1 = p1 +  
+        geom_line(data=data.frame(XXX = c(Temp_Neuron_Dist$Cross_XL_X, Temp_Neuron_Dist$Cross_XR_X),
+                                  YYY=c(Temp_Neuron_Dist$Cross_XL_Z, Temp_Neuron_Dist$Cross_XR_Z)), aes(x=XXX, y=YYY), size = 0.5, color= CCC ) +
+        geom_line(data=data.frame(XXX = c(Temp_Neuron_Dist$Cross_YU_X, Temp_Neuron_Dist$Cross_YD_X),
+                                  YYY=c(Temp_Neuron_Dist$Cross_YU_Z, Temp_Neuron_Dist$Cross_YD_Z) ), aes(x=XXX, y=YYY), size = 0.5 , color= CCC) + 
+        geom_point(data=Temp_Neuron_Dist, aes(x=X,y=Z),size=2, color= CCC)
+    }
+    
+  }
+  
+  
+  p1 = p1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
+    scale_color_manual(values=col_vector)  +  theme(
+      panel.background = element_rect(fill = "transparent"), # bg of the panel
+      plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+      panel.grid.major = element_blank(), # get rid of major grid
+      panel.grid.minor = element_blank(), # get rid of minor grid
+      legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+      legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
+    )
+  
+  if (PLOT==TRUE){
+  ggsave(paste(DIR, PlotName, "_L", as.character(LayerToPlot) , ".png",sep=""), plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+  }
+  return(p1)
+}
+
+
+
 ###############################################################################################################################
-### Function for assigning FB column to PB-FB-XX and D0 neurons based on closest FX neuron  ##################################
+### One of three functions for assigning FB columns to PB-FB-XX and D0 neurons, here based on the closest FX neuron  ##########
 
 
 Assign_FB_Columns <- function(N_Distribution, FX_Distribution, DIR){
@@ -296,7 +314,8 @@ Assign_FB_Columns <- function(N_Distribution, FX_Distribution, DIR){
 }
 
 
-
+#################################################################################################################################################
+### Second of three functions for assigning FB columns to PB-FB-XX and D0 neurons, here based average distance to FX neurons in a column  #######
 
 
 Assign_FB_Columns2 <- function(N_Distribution, FX_Distribution, DIR){
@@ -377,8 +396,114 @@ Assign_FB_Columns2 <- function(N_Distribution, FX_Distribution, DIR){
   N_Distribution_New=merge(N_Distribution, Bodyid_To_FBcol, by="bodyid")
   N_Distribution_New=N_Distribution_New[Column_Names]
   
+  N_Distribution_New$FBcol=factor(N_Distribution_New$FBcol, levels = c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  
   return(N_Distribution_New)
 }
+
+
+
+###############################################################################################################################
+### Third of three functions for assigning FB columns to PB-FB-XX and D0 neurons, here based on closest type average  #########
+
+
+Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
+  
+  N_Distribution$Distance2FxCol=NA
+  N_Distribution$FBcol=as.character(N_Distribution$FBcol)
+  Column_Names=colnames(N_Distribution)
+  
+  # Get unique body IDs
+  Uni_BodyID=unique(N_Distribution$bodyid)
+  
+  # Dataframe mapping bodyid to FBcol
+  Bodyid_To_FBcol=data.frame(bodyid=numeric(), FBcol=as.character(), Distance2FxCol=numeric())
+  
+  
+  # Loop over each neuron
+  for (nnn in 1:length(Uni_BodyID)){
+    
+    # Get all synapses from all layers for this neuron
+    Neuron_Data=subset(N_Distribution, bodyid==Uni_BodyID[nnn])
+    
+    # Get the synapses for this neuron from the layer with the most synapses for this neuron type
+    MaxLayer=Neuron_Data$Layer[which(Neuron_Data$NumberOfSyns == max(Neuron_Data$NumberOfSyns))]
+    Layer_Data=subset(Neuron_Data, Layer==MaxLayer)
+    
+    # Subset FX data based on this layer
+    TempCol_Positions=subset(FX_Column_Positions_Filt, Layer==Layer_Data$Layer)
+    
+    # Compute distance to every FXs neurons synapse mean in this layer
+    Temp_Distances_All= data.frame(Col= TempCol_Positions$FBcol, Distance= ((TempCol_Positions$X_Mean - Layer_Data$X_Mean)^2 +
+                                                                              (TempCol_Positions$Z_Mean - Layer_Data$Z_Mean)^2 +
+                                                                              (TempCol_Positions$Y_Mean - Layer_Data$Y_Mean)^2)^0.5)  # could do some normalization here
+    
+    # Convert column number to numeric
+    Temp_Distances_All$Col=as.numeric(sapply(Temp_Distances_All$Col, substring, 2, 2))
+    
+    # Compute average distance by column
+    Temp_Distances_Mean=Temp_Distances_All %>% group_by(Col) %>% summarise(Distance=mean(Distance)) #quantile(Distance,0.1)
+    
+    # Interpolate data
+    #Temp_Distances_Mean_UP=as.data.frame(approx(Temp_Distances_Mean$Col, y = Temp_Distances_Mean$Distance, xout=seq(1,9,0.1), method="linear"))
+    Temp_Distances_Mean_UP=as.data.frame(spline(x = Temp_Distances_Mean$Col, y = Temp_Distances_Mean$Distance,  n = 91, method = "fmm", xmin = 0.6, xmax = 9.4))
+    colnames(Temp_Distances_Mean_UP)=c("Col","Distance")
+    
+    # Take min of function
+    Min_Distance=min(Temp_Distances_Mean_UP$Distance)
+    Min_IND= which(Temp_Distances_Mean_UP$Distance == Min_Distance)
+    Min_C=Temp_Distances_Mean_UP$Col[Min_IND]
+    Min_Col=round(Min_C)
+    
+    # Take min distance as closest column
+    Temp_df=data.frame(bodyid=Uni_BodyID[nnn], FBcol = paste("C",as.character(Min_Col),sep=""), Distance2FxCol= Min_Distance)
+    Bodyid_To_FBcol=rbind(Bodyid_To_FBcol, Temp_df)
+    
+    
+    if (Neuron_Data$type[1] %in% c("PFGs","PFL1","PFL2","PFL3")){
+      P1<-ggplot() + geom_point(data=Temp_Distances_All, aes(x=Col, y=Distance), position = position_jitter(width = 0.1), size=0.2) +
+        geom_point(data=Temp_Distances_Mean, aes(x=Col, y=Distance),color="red") +
+        ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom, " ", Neuron_Data$bodyid[1] )) +
+        geom_line(data=Temp_Distances_Mean_UP, aes(x=Col,y=Distance)) + scale_x_continuous(breaks=seq(1,9,1)) + 
+        geom_point(data=data.frame(XXX = Min_C, YYY = Min_Distance), aes(x=XXX,y=YYY), color="blue", size=2) + 
+        geom_point(data=data.frame(XXX = Min_Col, YYY = Min_Distance), aes(x=XXX,y=YYY), color="green", size=2)
+      
+      
+      OUTLINE = eval(parse( text= paste("Outline=Outline_", as.character(MaxLayer),"_XZ",sep="") ))
+      col_vector=GetColorMap("FBcol")
+      
+      P2<-ggplot() + geom_point(data=Layer_Data, aes(x=X_Mean, y=Z_Mean),  size=5, alpha = 1, stroke = 0, shape=16) +
+        geom_point(data=TempCol_Positions, aes(x=X_Mean, y=Z_Mean, color=FBcol),  size=2, alpha = 1, stroke = 0, shape=16) + 
+        geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
+        scale_color_manual(values=col_vector)  +  theme(
+          panel.background = element_rect(fill = "transparent"), # bg of the panel
+          plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+          panel.grid.major = element_blank(), # get rid of major grid
+          panel.grid.minor = element_blank(), # get rid of minor grid
+          legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+          legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
+        )  +
+        ggtitle( paste("Layer ", as.character(MaxLayer),  "   PBglom ", as.character(Neuron_Data$PBglom[1]) ,
+                       "   FBcol ", as.character(Temp_df$FBcol[1]), "   ", as.character(Neuron_Data$type[1]), "   ",  as.character(Neuron_Data$bodyid[1]),sep="") )
+      
+      PP=ggarrange(P1, P2, ncol=2, nrow=1)
+      
+      ggsave(paste(DIR, Neuron_Data$type[1], "_", Neuron_Data$PBglom,".png",sep=""),
+             plot = PP, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 300, limitsize = TRUE)
+      
+    }
+    
+  }
+  
+  N_Distribution=N_Distribution[ , !colnames(N_Distribution) %in% c("FBcol","Distance2FxCol")]
+  N_Distribution_New=merge(N_Distribution, Bodyid_To_FBcol, by="bodyid")
+  N_Distribution_New=N_Distribution_New[Column_Names]
+  
+  N_Distribution_New$FBcol=factor(N_Distribution_New$FBcol, levels = c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  
+  return(N_Distribution_New)
+}
+
 
 
 ###############################################################################################################################
@@ -439,18 +564,28 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           
           # Get slope of mid range 
           Mid_subset=subset(MID, X>X_RangeMin & X<X_RangeMax)
+          
+          # If no values in range, use two closest values
+          if (length(Mid_subset$X)<2){
+            Center=mean(c(X_RangeMin,X_RangeMax))
+            INDS= order(abs(MID$X - Center))[c(1,2)]
+            Mid_subset=MID[INDS,]
+          }
+          
+          # Compute slope
           TempSlope=median( diff(Mid_subset$Y)/diff(Mid_subset$X) )
           
           # Define new axis (vectors should be length 1 and orthogonal to keep shape of point cloud)
+          # Also, keep Ax_1 pointing towards right and Ax_2 pointing up, so that axes are consistent across clouds
           Ax_1=c(1,TempSlope)
           Ax_1=Ax_1/sum(Ax_1^2)^0.5
+
           Ax_2=c(1, -Ax_1[1]/Ax_1[2])
           Ax_2=Ax_2/sum(Ax_2^2)^0.5
-          
-          # Keep axes orientation the same
-          if (mean(NeuronData$X)>0){
-            Ax_1=Ax_1*-1;
-          }
+          if (Ax_2[2]<0){
+            Ax_2[1]=-Ax_2[1]
+            Ax_2[2]=-Ax_2[2]} 
+
           
           # Make sure vectors are orthogonal
           if (Ax_1 %*% Ax_2 > 10^-15){print(paste("Vectors not orthogonal ttt=", as.character(ttt), "   lll = ", as.character(lll), "   nnn = ", as.character(nnn)))}
@@ -460,7 +595,6 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           NeuronData$Y_New= as.matrix(NeuronData[c("X","Y")]) %*% Ax_2  # This
           
 
-          
           # Define vectors to get from new space back to old space
           Ax1_NewToOld= t(Ax_1 * as.matrix(c(1,-1)))
           Ax2_NewToOld= t(Ax_2 * as.matrix(c(-1,1)))
@@ -506,7 +640,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           
           # Debugging plot
           PLOT=0
-          if ( mod(ttt*lll*nnn,50) ==0){
+          if ( mod(ttt*lll*nnn,50) ==0 | abs(TempMean$X)<150){
             p1<-ggplot() +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1, color="red") +
               geom_point(data=NeuronData, aes(x=X,y=Y)) + 
               geom_path(data=MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) + 
@@ -522,14 +656,16 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
               geom_point(data=Box_LR, aes(x=X,y=Y,size=50),color="darkslategray") + coord_fixed(ratio = 1) +
               ggtitle(paste(NeuronData$type[1],"_Layer_",as.character(lll),sep=""))
              
-            ggsave(paste(PlotDir, NeuronData$type[1],"_Layer_",as.character(lll),"_", as.character(ttt*lll*nnn),".png",sep=""),
+            ggsave(paste(PlotDir, "Cloud_", NeuronData$type[1],"_Layer_",as.character(lll),"_", as.character(ttt*lll*nnn),".png",sep=""),
                    plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
             
             #print(paste("Plotting ttt=", as.character(ttt), "   lll = ", as.character(lll), "   nnn = ", as.character(nnn)))
             
-            p2<-ggplot() + geom_point(data=NeuronData, aes(x=X_New,y=Y_New))
+            # p2<-ggplot() + geom_point(data=NeuronData, aes(x=X_New,y=Y_New))
             
-            ggarrange(p1,p2, nrow = 1, ncol = 2)
+            #ggarrange(p1,p2, nrow = 1, ncol = 2)
+            
+            rm(p1)
           
             }
           
