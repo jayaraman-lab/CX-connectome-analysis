@@ -2,6 +2,7 @@ source("neuprintQueryUtils.R")
 source("R/supertypeUtils.R")
 library(pbapply)
 library(parallel)
+library(ggnewscale)
 
 ## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
 neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRef){
@@ -320,7 +321,7 @@ haneschPlot <- function(roiTable,
                              mutate(roiX = match(roi,unique(roi)))
   
   roiPos <- roiTable %>% group_by(superroi,side) %>%
-                         summarize(xmin=min(roiX)-0.3,xmax=max(roiX)+0.3,ymin=-Inf,ymax=Inf) %>% 
+                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5,ymin=-Inf,ymax=Inf) %>% 
                          ungroup() %>%
                          filter(xmax-xmin>1)
   
@@ -333,8 +334,9 @@ haneschPlot <- function(roiTable,
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
   if (regionOutlines==TRUE){hanesch <- hanesch +
-    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,color=superroi),
-              inherit.aes = FALSE,fill=NA) + scale_color_discrete(name="Brain region")}
+    new_scale_fill()+
+    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=superroi),
+              inherit.aes = FALSE,alpha=0.3) + scale_fill_brewer(type = "div",palette = "Paired",name="Brain region")}
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
