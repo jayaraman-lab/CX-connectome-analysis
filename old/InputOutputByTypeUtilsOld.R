@@ -1,8 +1,8 @@
+## Kept in case upstream/downstream doesn't make it to the stable server.
 source("neuprintQueryUtils.R")
 source("R/supertypeUtils.R")
 library(pbapply)
 library(parallel)
-library(ggnewscale)
 
 ## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
 neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRef){
@@ -24,8 +24,6 @@ neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRe
   return(res)
 }
 
-is.neuronBag <- function(x) inherits(x,"neuronBag")
-
 buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
   #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
@@ -37,10 +35,10 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
 
 buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
-                  mutate(databaseType = type)
+    mutate(databaseType = type)
   buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,...)
 }
-  
+
 buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
   #'
   #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
@@ -50,23 +48,21 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) {
                             buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc)
-                          
-    problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
-    if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
+    
     return(do.call(bind_InoutLists,inoutList))
   }
   
   outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
   inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
-  if (length(outputsR)==0){OUTByTypes <- NULL
-                           outputsTableRef <- NULL
-                           unknowns <- NULL
-                         }else{
+  if (nrow(outputsR)==0){OUTByTypes <- NULL
+  outputsTableRef <- NULL
+  unknowns <- NULL
+  }else{
     OUTByTypes <- getTypeToTypeTable(outputsR)
     outputsR <- retype.na(outputsR)
     outputsTableRef <- getTypesTable(unique(outputsR$type.to))
     unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
-    }
+  }
   if (nrow(inputsR)==0){INByTypes <- NULL}else{
     if (selfRef){
       INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
@@ -75,13 +71,13 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     }
     inputsR <- retype.na(inputsR)}
   
-  return(supertype(neuronBag(outputs = OUTByTypes,
-              inputs = INByTypes,
-              names = typeQuery,
-              outputs_raw = outputsR,
-              inputs_raw = inputsR,
-              outputsTableRef = bind_rows(outputsTableRef,unknowns)
-              )))
+  return(neuronBag(outputs = OUTByTypes,
+                   inputs = INByTypes,
+                   names = typeQuery,
+                   outputs_raw = outputsR,
+                   inputs_raw = inputsR,
+                   outputsTableRef = bind_rows(outputsTableRef,unknowns)
+  ))
 }
 
 redefineTypeByNameInList <- function(IOList,
@@ -89,7 +85,7 @@ redefineTypeByNameInList <- function(IOList,
                                      pattern,
                                      newPostFixes,
                                      perl=FALSE){
-
+  
   oldOutputs <- IOList$outputs
   oldInputs <- IOList$inputs
   
@@ -97,13 +93,13 @@ redefineTypeByNameInList <- function(IOList,
     for (col in c("from","to")){
       for (df in c("inputs_raw","outputs_raw")){
         IOList[[df]] = redefineTypeByName(IOList[[df]],
-                                         type=t,
-                                         pattern=pattern,
-                                         newPostFixes=newPostFixes,
-                                         type_col=paste0("type.",col),
-                                         name_col=paste0("name.",col),
-                                         perl=perl)
-                  
+                                          type=t,
+                                          pattern=pattern,
+                                          newPostFixes=newPostFixes,
+                                          type_col=paste0("type.",col),
+                                          name_col=paste0("name.",col),
+                                          perl=perl)
+        
       }
     }
     IOList$names = redefineTypeByName(IOList$names,
@@ -123,7 +119,7 @@ redefineTypeByNameInList <- function(IOList,
                                                  perl=perl)
   }
   
- 
+  
   ## In case recursive modifs have been made
   
   IOList$outputs <- getTypeToTypeTable(IOList$outputs_raw,typesTable = IOList$outputsTableRef,oldTable = oldOutputs)
@@ -131,7 +127,7 @@ redefineTypeByNameInList <- function(IOList,
   
   ## Exception: we want to keep connections that were lost through division of input types.
   
-
+  
   return(IOList)
 }
 
@@ -142,11 +138,11 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   
   inputsLat <- lrSplit(inputOutputList$inputs_raw,nameCol = "name.from",typeCol = "type.from",typeList=typeList)
   inputsLat <- lrSplit(inputsLat,typeList=typeList,nameCol = "name.to",typeCol = "type.to")
- 
+  
   outputsRef <- lrSplit(inputOutputList$outputsTableRef,nameCol="name",typeCol="type",typeList=typeList)
   
   TypeNamesLat <- lrSplit(inputOutputList$names,nameCol = "name",typeCol="type",typeList=typeList)
- 
+  
   outByTypesLat <- getTypeToTypeTable(outputsLat,typesTable = outputsRef,oldTable = inputOutputList$outputs)
   inByTypesLat <- getTypeToTypeTable(inputsLat,typesTable = TypeNamesLat,oldTable = inputOutputList$inputs)
   
@@ -181,73 +177,24 @@ bind_InoutLists <- function(...){
                    outputs_raw = distinct(bind_rows(lapply(full,function(i) i$outputs_raw))),
                    inputs_raw = distinct(bind_rows(lapply(full,function(i) i$inputs_raw))),
                    outputsTableRef = distinct(bind_rows(lapply(full,function(i) i$outputsTableRef)))
-              )
+  )
   return(out)
 }
 
-filter.neuronBag <- function(.nbag,filterPartners=FALSE,...){
+filter.neuronBag <- function(.nbag,...){
   #` Meant to filter on $names
-  #' @param nbag a neuronBag object to filter
-  #' @param ... to be passed to a filtering function applied to the names field
-  #' @param filterPartners : Whether to apply the filter to input/output neurons to
   .nbag$names <- filter(.nbag$names,...)
   
-    .nbag$outputs <- filter(.nbag$outputs,type.from %in% .nbag$names$type)
-    .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.from %in% .nbag$names$type)
-      
-    .nbag$inputs <- filter(.nbag$inputs,type.to %in% .nbag$names$type)
-    .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.to %in% .nbag$names$type)
-    
-    if (filterPartners == TRUE){
-      .nbag$outputs <- filter(.nbag$outputs,type.to %in% .nbag$names$type)
-      .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.to %in% .nbag$names$type)
-      
-      .nbag$inputs <- filter(.nbag$inputs,type.from %in% .nbag$names$type)
-      .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.from %in% .nbag$names$type)
-    }
-    
-    .nbag$outputsTableRef <- filter(.nbag$outputsTableRef,type %in% .nbag$outputs$type.to)
-    .nbag
+  .nbag$outputs <- filter(.nbag$outputs,type.from %in% .nbag$names$type)
+  .nbag$outputs_raw <- filter(.nbag$outputs_raw,type.from %in% .nbag$names$type)
+  
+  .nbag$inputs <- filter(.nbag$inputs,type.to %in% .nbag$names$type)
+  .nbag$inputs_raw <- filter(.nbag$inputs_raw,type.to %in% .nbag$names$type)
+  
+  .nbag$outputsTableRef <- filter(.nbag$outputsTableRef,type %in% .nbag$outputs$type.to)
+  .nbag
 }
 
-getIntraBag <- function(nBag){
-  #' Convenience to extract just connections between the central neurons of a bag
-  filter(nBag,filterPartners = TRUE,type %in% unique(nBag$names$type))
-}
-
-summarizeConnectionTable <- function(connTable,groupFrom,groupTo,refOuts){
-  
-  groupType <- as.name(sub("\\.to","",groupTo))
-  typesCount <- refOuts %>% group_by(!!(groupType)) %>%
-    summarise(n=n())
-  
-  connTable <- connTable %>% 
-    mutate(n = typesCount[["n"]][match(!!as.name(groupTo),typesCount[[groupType]])])
-  
-  connTable <- connTable %>% group_by(!!(as.name(groupFrom)),
-                                      !!(as.name(groupTo)),
-                                      to,
-                                      roi) %>%
-                             summarize(weightRelative = sum(weightRelative),
-                                       weightRelativeTotal = sum(weightRelativeTotal),
-                                       weight = sum(ROIweight),
-                                       n=n[1],
-                                       outputContribution = mean(outputContribution)) %>% ungroup() %>%
-                             group_by(!!(as.name(groupFrom)),
-                                      !!(as.name(groupTo)),
-                                      roi) %>%
-                             summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
-                                       varWeight = var(c(weightRelative,rep(0,missingV))),
-                                       weightRelative = mean(c(weightRelative,rep(0,missingV))),
-                                       weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
-                                       absoluteWeight = sum(weight),
-                                       weight = mean(c(weight,rep(0,missingV))),
-                                       outputContribution = outputContribution[1],
-                                       n_targets = n(),
-                                       n_type = n[1]) %>% select(-missingV) %>% ungroup()
-  connTable
-  
-}
 
 getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' Build a pre roi summary of innervation for neurons in a neuronBag
@@ -256,17 +203,17 @@ getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' type connections are found. Otherwise consider all connections
   #' @param rois : a roiset to consider (if NULL consider all rois)
   #' 
-  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseType.from)   %>%
-    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseType.from) %>% ungroup()
+  ROIOutputs <- InOutList$outputs_raw %>% group_by(roi,type.from,databaseTypeFrom)   %>%
+    summarize(OutputWeight = sum(weight)) %>% rename(type = type.from,databaseType=databaseTypeFrom) %>% ungroup()
   
-  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseType.to)   %>%
-    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseType.to) %>% ungroup()
+  ROIInputs <- InOutList$inputs_raw %>% group_by(roi,type.to,databaseTypeTo)   %>%
+    summarize(InputWeight = sum(weight))  %>% rename(type = type.to,databaseType=databaseTypeTo) %>% ungroup()
   
   if (filter){
-  ROIOutputs <- ROIOutputs %>% 
-    filter(paste0(roi,type) %in% paste0(InOutList$outputs$roi,InOutList$outputs$type.from)) 
-  ROIInputs <- ROIInputs %>%
-    filter(paste0(roi,type) %in% paste0(InOutList$inputs$roi,InOutList$inputs$type.to))
+    ROIOutputs <- ROIOutputs %>% 
+      filter(paste0(roi,type) %in% paste0(InOutList$outputs$roi,InOutList$outputs$type.from)) 
+    ROIInputs <- ROIInputs %>%
+      filter(paste0(roi,type) %in% paste0(InOutList$inputs$roi,InOutList$inputs$type.to))
   }
   
   if (!(is.null(rois))){
@@ -303,27 +250,13 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               supertype2 = supertype2[1],
               supertype3 = supertype3[1],
               databaseType=databaseType[1]
-              ) %>% ungroup()
+    ) %>% ungroup()
 }
 
-haneschPlot <- function(roiTable,
-                        roiSelect=selectRoiSet(getRoiTree()),
-                        grouping=NULL,flip=FALSE,
-                        alphaG=1,
-                        roiLabel=roiSelect,
-                        regionOutlines=T){
-  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
-                      mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
-                             l4 = roiSelect$level4[match(roi,roiSelect$roi)],
-                             side = roiSelect$side4[match(roi,roiSelect$roi)],
-                             superroi = roiLabel$roi[match(l4,roiLabel$level4)]) %>%
-                             arrange(roi) %>%
-                             mutate(roiX = match(roi,unique(roi)))
-  
-  roiPos <- roiTable %>% group_by(superroi,side) %>%
-                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5,ymin=-Inf,ymax=Inf) %>% 
-                         ungroup() %>%
-                         filter(xmax-xmin>1)
+haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
+  roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$customRois))  %>% 
+    mutate(roi = factor(roi,levels=levels(roiSelect$customRois)),
+           superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$customRois)])
   
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
     geom_line(aes(group=type),alpha=alphaG) +
@@ -332,11 +265,7 @@ haneschPlot <- function(roiTable,
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
-  if (regionOutlines==TRUE){hanesch <- hanesch +
-    new_scale_fill()+
-    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=superroi),
-              inherit.aes = FALSE,alpha=0.3) + scale_fill_brewer(type = "div",palette = "Paired",name="Brain region")}
+    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile")
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
@@ -346,5 +275,4 @@ haneschPlot <- function(roiTable,
   hanesch + theme(axis.text.x = element_text(angle = 90))
   
 }
-  
-  
+
