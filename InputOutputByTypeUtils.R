@@ -26,7 +26,7 @@ neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRe
 
 is.neuronBag <- function(x) inherits(x,"neuronBag")
 
-buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
   #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
   #' metadata data.frame for a set of neurons
@@ -35,13 +35,13 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,by.roi=by.roi,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   #'
   #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
   #'neurons/types in that data frame)
@@ -49,15 +49,15 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) {
-                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc)
+                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc,by.roi=by.roi,...)
                           
     problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
     if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
     return(do.call(bind_InoutLists,inoutList))
   }
   
-  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
-  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
+  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,...)
+  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,...)
   if (length(outputsR)==0){OUTByTypes <- NULL
                            outputsTableRef <- NULL
                            unknowns <- NULL
