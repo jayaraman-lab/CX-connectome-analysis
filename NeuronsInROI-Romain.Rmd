@@ -10,9 +10,9 @@ library(neuprintr)
 library(tidyverse)
 
 source("neuprintQueryUtils.R")
-source("table2ggraphUtils.R")
+source("R/table2ggraphUtils.R")
 source("InputOutputByTypeUtils.R")
-source("romainNeuronsInRoi.R")
+source("R/rois.R")
 
 ```
 
@@ -35,6 +35,9 @@ EBTypesTable <- lateralizeInputOutputList(EBTypesTable)
 ```{r}
 EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4))
 ```
+```{r}
+labelRois <- selectRoiSet(roiH,default_level = 1,exceptions = list("CX"=2))
+```
 
 
 ```{r}
@@ -46,16 +49,16 @@ EBSummary <- getROISummary(EBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=F,roiSelect = EBRois)
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRois)
 ```
 
 ```{r}
-haneschEB_R
+haneschEB_R <- haneschEB_R + scale_color_brewer(type = "div",palette = "Paired",name="Brain region")
 ```
 
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 15,height=18)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 14,height=6)
 ```
 
 How do those compare to the Brad Types
@@ -76,8 +79,17 @@ EBTypes$databaseType[!(EBTypes$databaseType %in% EB_Type)]
 ```{r}
 NOTypesTable <- getTypesInRoiTable("NO(R)",lateralize=TRUE,big=TRUE,clN = 10)
 ```
+
+```{r}
+NOTypesTable <- lateralizeInputOutputList(NOTypesTable)
+```
+
 ```{r}
 NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
+```
+
+```{r}
+NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO(R)"=4,"LAL(R)"=4))
 ```
 
 ```{r}
@@ -85,7 +97,8 @@ NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="megatype+supertype",roiSelect = normalROIs)
+
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRois)
 ```
 
 ```{r}
@@ -94,7 +107,7 @@ haneschNOR
 
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.svg",haneschNOR,width = 15,height=16)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.svg",haneschNOR,width = 15,height=8)
 ```
 
 
@@ -105,10 +118,10 @@ load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/NO_Types.RData")
 ```
 
 ```{r}
-NO_Type[!(NO_Type %in% NOTypes$databaseType)]
+NO_Type[!(NO_Type %in% NORTypes$databaseType)]
 ```
 ```{r}
-NOTypes$databaseType[!(NOTypes$databaseType %in% NO_Type)]
+NORTypes$databaseType[!(NORTypes$databaseType %in% NO_Type)]
 ```
 
 # PB
