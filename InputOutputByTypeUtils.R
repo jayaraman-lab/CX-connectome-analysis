@@ -305,10 +305,24 @@ compressROISummary <- function(roiSummary,stat=median,level=1){
               ) %>% ungroup()
 }
 
-haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=NULL,flip=FALSE,alphaG=1,roiGroupLevel=1){
+haneschPlot <- function(roiTable,
+                        roiSelect=selectRoiSet(getRoiTree()),
+                        grouping=NULL,flip=FALSE,
+                        alphaG=1,
+                        roiLabel=roiSelect,
+                        regionOutlines=T){
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
                       mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
-                             superroi = roiSelect[[paste0("level",roiGroupLevel)]][match(roi,roiSelect$roi)])
+                             l4 = roiSelect$level4[match(roi,roiSelect$roi)],
+                             side = roiSelect$side4[match(roi,roiSelect$roi)],
+                             superroi = roiLabel$roi[match(l4,roiLabel$level4)]) %>%
+                             arrange(roi) %>%
+                             mutate(roiX = match(roi,unique(roi)))
+  
+  roiPos <- roiTable %>% group_by(superroi,side) %>%
+                         summarize(xmin=min(roiX)-0.3,xmax=max(roiX)+0.3,ymin=-Inf,ymax=Inf) %>% 
+                         ungroup() %>%
+                         filter(xmax-xmin>1)
   
   hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
     geom_line(aes(group=type),alpha=alphaG) +
@@ -317,7 +331,10 @@ haneschPlot <- function(roiTable,roiSelect=selectRoiSet(getRoiTree()),grouping=N
                         space = "Lab", na.value = "grey50", guide = "legend",
                         aesthetics = "fill") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile")
+    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
+  if (regionOutlines==TRUE){hanesch <- hanesch +
+    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,color=superroi),
+              inherit.aes = FALSE,fill=NA) + scale_color_discrete(name="Brain region")}
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
