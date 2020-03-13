@@ -323,22 +323,25 @@ haneschPlot <- function(roiTable,
                              mutate(roiX = match(roi,unique(roi)))
   
   roiPos <- roiTable %>% group_by(superroi,side) %>%
-                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5,ymin=-Inf,ymax=Inf) %>% 
+                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5) %>% 
                          ungroup() %>%
                          filter(xmax-xmin>1)
   
-  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
-    geom_line(aes(group=type),alpha=alphaG) +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21,alpha=alphaG)+
+  hanesch <- ggplot(data=roiTable,aes(x=roi,y=type))
+  
+  hanesch <- hanesch +
+    geom_line(aes(group=type),alpha=alphaG) 
+  if (regionOutlines==TRUE){hanesch <- hanesch +
+    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
+              scale_fill_discrete() + 
+              new_scale_fill()}
+  hanesch <- hanesch + 
+    geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
-                        space = "Lab", na.value = "grey50", guide = "legend",
-                        aesthetics = "fill") +
+                        space = "Lab") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
-  if (regionOutlines==TRUE){hanesch <- hanesch +
-    new_scale_fill()+
-    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=superroi),
-              inherit.aes = FALSE,alpha=alphaRois) + scale_fill_brewer(type = "div",palette = "Paired",name="Brain region")}
+  
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme 
