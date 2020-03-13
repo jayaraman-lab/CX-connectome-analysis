@@ -311,7 +311,8 @@ haneschPlot <- function(roiTable,
                         grouping=NULL,flip=FALSE,
                         alphaG=1,
                         roiLabel=roiSelect,
-                        regionOutlines=T){
+                        regionOutlines=T,
+                        theme=theme_minimal()){
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
                       mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
                              l4 = roiSelect$level4[match(roi,roiSelect$roi)],
@@ -339,7 +340,7 @@ haneschPlot <- function(roiTable,
               inherit.aes = FALSE,alpha=0.3) + scale_fill_brewer(type = "div",palette = "Paired",name="Brain region")}
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
-    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme_gray() 
+    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme 
   }
   
   if (flip==TRUE){hanesch <- hanesch + coord_flip()}
