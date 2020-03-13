@@ -26,7 +26,7 @@ neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRe
 
 is.neuronBag <- function(x) inherits(x,"neuronBag")
 
-buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
   #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
   #' metadata data.frame for a set of neurons
@@ -35,13 +35,13 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
   #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,by.roi=by.roi,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
   #'
   #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
   #'neurons/types in that data frame)
@@ -49,15 +49,15 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) {
-                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc)
+                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc,by.roi=by.roi,...)
                           
     problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
     if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
     return(do.call(bind_InoutLists,inoutList))
   }
   
-  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=TRUE,...)
-  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=TRUE,...)
+  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,...)
+  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,...)
   if (length(outputsR)==0){OUTByTypes <- NULL
                            outputsTableRef <- NULL
                            unknowns <- NULL
@@ -323,22 +323,25 @@ haneschPlot <- function(roiTable,
                              mutate(roiX = match(roi,unique(roi)))
   
   roiPos <- roiTable %>% group_by(superroi,side) %>%
-                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5,ymin=-Inf,ymax=Inf) %>% 
+                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5) %>% 
                          ungroup() %>%
                          filter(xmax-xmin>1)
   
-  hanesch <- ggplot(roiTable,aes(x=roi,y=type)) +
-    geom_line(aes(group=type),alpha=alphaG) +
-    geom_point(aes(size=fullWeight,fill=deltaWeight),shape=21,alpha=alphaG)+
+  hanesch <- ggplot(data=roiTable,aes(x=roi,y=type))
+  
+  hanesch <- hanesch +
+    geom_line(aes(group=type),alpha=alphaG) 
+  if (regionOutlines==TRUE){hanesch <- hanesch +
+    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
+              scale_fill_discrete() + 
+              new_scale_fill()}
+  hanesch <- hanesch + 
+    geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
-                        space = "Lab", na.value = "grey50", guide = "legend",
-                        aesthetics = "fill") +
+                        space = "Lab") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
     scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
-  if (regionOutlines==TRUE){hanesch <- hanesch +
-    new_scale_fill()+
-    geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax,fill=superroi),
-              inherit.aes = FALSE,alpha=alphaRois) + scale_fill_brewer(type = "div",palette = "Paired",name="Brain region")}
+  
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
     hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme 
