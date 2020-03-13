@@ -89,7 +89,7 @@ getRoiTree <- function(){
   roiT
 }
 
-selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = 2){
+selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = default_level){
   if (!is.null(exceptions)){
     levelEx <- paste0("level",exceptionLevelMatch) 
     normalRois <- roiTree %>% filter(!((!!as.name(levelEx)) %in% names(exceptions))) %>%

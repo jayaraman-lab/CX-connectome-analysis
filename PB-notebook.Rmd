@@ -154,17 +154,43 @@ EPG_2_Delta7 <- getConnectionTable_forSubset(
 
 #EPG_2_Delta7 <- Delta7Rename(EPG_2_Delta7,Delta7Lookup)
 
-EPG_2_Delta7$partnerName <- factor(EPG_2_Delta7$partnerName,
-        levels = glomSort(EPG_2_Delta7$partnerName))
+EPG_2_Delta7$name.to <- factor(EPG_2_Delta7$name.to,
+        levels = glomSort(EPG_2_Delta7$name.to))
 
-EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name), as.character(EPG_2_Delta7$bodyid), sep = "_")
-EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$partnerName), as.character(EPG_2_Delta7$partner), sep = "_")
+EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$to), sep = "_")
+EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$from), sep = "_")
 
 conmatPlot <- plotConnectivityMatrixPB(EPG_2_Delta7)
 conmatPlot <- structureMatrixPlotByType(conmatPlot)
 conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neuron", "post-synaptic neuron", "PB", connectionMeasure="ROIweights")
 
 ggsave("EPGToD7inPB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+print(conmatPlot)
+
+```
+
+Look at the Delta7 to E-PG connections
+```{r}
+# Get the connection matrix from the EPGs to the Delta7s
+Delta7_2_EPG<- getConnectionTable_forSubset(
+  unique(neuprint_search("Delta7.*")$bodyid),
+  unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
+  "PB")
+
+Delta7_2_EPG$name.to <- factor(Delta7_2_EPG$name.to,
+        levels = glomSort(Delta7_2_EPG$name.to))
+
+Delta7_2_EPG$nameid = paste(as.character(Delta7_2_EPG$name.from), as.character(Delta7_2_EPG$to), sep = "_")
+Delta7_2_EPG$partnerid = paste(as.character(Delta7_2_EPG$name.to), as.character(Delta7_2_EPG$from), sep = "_")
+
+conmatPlot <- plotConnectivityMatrixPB(Delta7_2_EPG)
+#conmatPlot <- structureMatrixPlotByType(conmatPlot)
+conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neuron", "post-synaptic neuron", "PB", connectionMeasure="ROIweights")
+
+ggsave("D7ToEPGinPB.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 

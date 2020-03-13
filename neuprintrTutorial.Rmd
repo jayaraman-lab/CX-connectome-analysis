@@ -46,7 +46,7 @@ neuprint_login()
 `neuprint` searches (similar to the search box in the web API) are run as:
 
 ```{r}
-PFLaNames <- neuprint_search("PB12a.*")
+PFLaNames <- neuprint_search("PFL1.*")
 head(PFLaNames)
 ```
 which returns a data.frame with basic information.
@@ -59,7 +59,7 @@ head(rois)
 One can then get a table of connections in a roi with a given polarity (for selected neurons):
 
 ```{r}
-lalPostConnections  <-  neuprint_connection_table(PFLaNames[["bodyid"]],"PRE","LAL")
+lalPostConnections  <-  neuprint_connection_table(PFLaNames[["bodyid"]],"POST","LAL(R)")
 head(lalPostConnections)
 ```
 
@@ -67,12 +67,8 @@ head(lalPostConnections)
 
 As this table only contains bodyIds, we'll use the `neuprint_get_meta` that collects extra metadata about a bodyid to populate a `partnerName` column. `within` allows to run operations inside an environment - here the environment is the data frame. 
 
-```{r}
-## Using the "within function"
-lalPostConnections <-  within(lalPostConnections,{partnerName <-neuprint_get_meta(partner)[["name"]]
-                                                name <-neuprint_get_meta(bodyid)[["name"]]})
-
 ## Doing the exact same thing using dplyr and piping
+```{r}
 lalPostConnections <- lalPostConnections %>%
                       mutate(partnerName = neuprint_get_meta(partner)[["name"]],
                              name =neuprint_get_meta(bodyid)[["name"]],
@@ -141,13 +137,13 @@ Some functions (`neuprint_simple_connectivity` or `neuprint_get_neuron_names`) s
 ### Adjacency matrix
 ```{r}
 Delta6aNames <-  neuprint_search("Delta6A.*")
-PFLbNames <-  neuprint_search("PB12b.*")
+PFLbNames <-  neuprint_search("PFL2.*")
 ```
 
 Getting the connection tables for the neurons we're interested in, in a given compartment then process to limit to connections within that set.
 
 ```{r}
-PFLDelta6Connections <-  neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"POST","FB")
+PFLDelta6Connections <-  neuprint_connection_table(c(PFLbNames[["bodyid"]],Delta6aNames[["bodyid"]]),"PRE","FB")
 ```
 
 ```{r}
@@ -185,8 +181,8 @@ heatmap(PFLDelta6Matrix)
 ### Neurons in a region
 
 ```{r}
-no1Connect <-  neuprint_find_neurons("NO1",all_segments = FALSE)
-no1Table <-  neuprint_connection_table(no1Connect$bodyid,"POST","NO1")   %>%
+no1Connect <-  neuprint_find_neurons("NO1(R)",all_segments = FALSE)
+no1Table <-  neuprint_connection_table(no1Connect$bodyid,"PRE","NO1(R)")   %>%
                        mutate(partnerName = neuprint_get_meta(partner)[["name"]],name =neuprint_get_meta(bodyid)[["name"]])   %>% 
                        group_by(name) %>% 
                        mutate(weightRelative = weight/sum(weight)) %>%
@@ -205,9 +201,11 @@ ggplot(no1Table) + geom_tile(aes(name,partnerName,fill=weightRelative)) + theme(
 PFLa <-  neuprint_read_neurons(PFLaNames$bodyid)
 ```
 
+
+
 We can use set operations on `neuronlist`
 ```{r message=FALSE, warning=FALSE}
-PFLaRNames <-  neuprint_search("PB12a.*_R.*")
+PFLaRNames <-  neuprint_search("PFL1.*_R.*")
 PFLaR <-  neuprint_read_neurons(PFLaRNames$bodyid)
 ```
 
@@ -233,8 +231,8 @@ plot3d(PFLa)
 
 Collecting left EPGs and R4dAs:
 ```{r}
-EPGLNames <-  neuprint_search("PB08.*_L.*")
-R4dNames <-  neuprint_search("R4dA.*_L.*")
+EPGLNames <-  neuprint_search("EPG.*_L.*")
+R4dNames <-  neuprint_search("R4d_a.*_L.*")
 ```
 
 One can get all synapses in a ROI (as a `data.frame`) using the `neuprint_get_synapes` function
@@ -278,6 +276,41 @@ R4dToEPG0synapes <-  R4d_L_synapses %>%
 ```{r}
 ggplot() + geom_point(data=EPG_L0_synapses,aes(x,z,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,z),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
 ggplot() + geom_point(data=EPG_L0_synapses,aes(x,y,color= prepost)) + geom_point(data=R4dToEPG0synapes,aes(x,y),color="red") +scale_color_brewer(palette="Greens")+coord_fixed(ratio = 1) + theme_void()
+```
+
+### Looking at pathways
+
+```{r}
+EPGtoPFLPath <- neuprint_get_shortest_paths(EPGLNames$bodyid[1],PFLaNames$bodyid[1],weightT=20)
+
+```
+
+If you look at this table it's already clear that to go from EPG_L1 to PFL_L1 (with at least 20 synapses on each step that is) you need to go through 2 Delta7s 
+
+```{r}
+head(EPGtoPFLPath,n = 16)
+```
+
+```{r}
+library(igraph)
+library(tidygraph)
+library(ggraph)
+```
+
+```{r}
+nodeNames <- unique(c(EPGtoPFLPath$from,EPGtoPFLPath$to))
+pathNodes <- neuprint_get_meta(nodeNames)
+EPGtoPFLPath <- EPGtoPFLPath %>% mutate(from = sapply(from, function(f) which(f == pathNodes$bodyid)),
+                        to = sapply(to, function(f) which(f == pathNodes$bodyid)))
+
+```
+
+```{r}
+test <- tbl_graph(pathNodes,EPGtoPFLPath)
+```
+
+```{r}
+ggraph(test,layout="sugiyama") + geom_edge_link(aes(colour=factor(depth),width=weight,start_cap = label_rect(name.from),end_cap = label_rect(name.to)),arrow=arrow(length = unit(4, 'mm'))) +geom_node_point(aes(color=type),size=5)+ geom_node_text(aes(label=name)) +theme_minimal()
 ```
 
 

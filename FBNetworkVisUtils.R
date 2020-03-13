@@ -1,3 +1,6 @@
+############################################################
+# Functions to generate FB network diagrams
+############################################################
 
 #Create x and y coordinates for a manual network layout of neurons - FB columnar types
 xyLookupTableCol <- function(){
@@ -149,183 +152,102 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   return(gg)
 }
 
-# Function to group Delta synapses into quadrants
-D12DatQuads <- function(D12BodyIds){
+############################################################
+# Functions for Delta 0/12 analyses
+############################################################
+
+# Cluster the synapse of an individual D12 or D0 neuron into up and down, right and left
+DeltaSynClust <- function(bodyids, numClusts){
   
-  # Get the synapse info for the Delta 12
-  D12Dat <- neuprint_get_synapses(D12BodyIds)
+  xCent <- 26000
+  zMax <- 24000
   
-  # Get type info
-  D12Dat <- D12Dat %>% mutate(type = neuprint_get_meta(bodyid)$type, partnerType = neuprint_get_meta(partner)$type) %>%
+  # Get the synapse data
+  synDat <- neuprint_get_synapses(bodyids)
+  synDat <- synDat %>% mutate(type = neuprint_get_meta(bodyid)$type, partnerType = neuprint_get_meta(partner)$type) %>%
     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-  D12Type <- unique(D12Dat$type)
+  synDat$quad <- ""
   
-  # Divide into quadrants
-  kmeanMat = D12Dat %>% select(x,z)
-  if (!(D12Type %in% c("Delta0M","Delta0N"))){
-    if (D12Type == "Delta0K"){
-      synClusts = kmeans(kmeanMat,3, iter.max = 50, nstart = 10)
-    } else {
-      synClusts = kmeans(kmeanMat,4, iter.max = 50, nstart = 10)
-    }
+  zRad <- zMax - mean(synDat$z)
+
+  for (bid in 1:length(bodyids)){
     
+    # Get the x and z positions of the synapses for a given bodyid
+    kmeanMat = synDat %>% filter(bodyid == bodyids[bid]) %>% select(x,z)
+    
+    # Cluster them
+    synClusts = kmeans(kmeanMat,numClusts, iter.max = 50, nstart = 10)
+    
+    # Find the center position and cluster into 
     cents = as.data.frame(synClusts$centers)
     cents$cluster <- rownames(cents)
+    
     cents$RL <- "L"
-    cents[which(cents$x >= sort(cents$x, decreasing=T)[2], arr.ind=TRUE),]$RL <- "R"
-    cents$UD <- "D"
-    cents[which(cents$z < sort(cents$z, decreasing=T)[2], arr.ind=TRUE),]$UD <- "U"
+    if (length(which(cents$x > xCent)) > 0)
+      cents[which(cents$x > xCent),]$RL <- "R"
+    cents$UD <- "U"
+    if (length(which(sqrt(0.8*(cents$x-xCent)^2+(zMax-cents$z)^2) < zRad)) > 0)
+      cents[which(sqrt(0.8*(cents$x-xCent)^2+(zMax-cents$z)^2) < zRad),]$UD <- "D"
+    
     cents <- cents %>% mutate(quad = paste0(UD,RL))
     
-    D12Dat$quad <- lapply(synClusts$cluster, function(x) cents$quad[match(x, cents$cluster)]) %>% unlist()
+    synDat[which(synDat$bodyid == bodyids[bid]),]$quad <- lapply(synClusts$cluster, function(x) cents$quad[match(x, cents$cluster)]) %>% unlist()
     
-    
-  } else {
-    synClustsRL = kmeans(kmeanMat,2, iter.max = 50, nstart = 10)
-    centsRL = as.data.frame(synClustsRL$centers)
-    centsRL$cluster <- rownames(centsRL)
-    centsRL$RL <- "L"
-    centsRL[which.max(centsRL$x),]$RL <- "R"
-    
-    D12Dat$RL <- lapply(synClustsRL$cluster, function(x) centsRL$RL[match(x, centsRL$cluster)])
-    D12Dat$UD <- ""
-    
-    for (clust in 1:2){
-      
-      kmeanMat = D12Dat %>% filter(synClustsRL$cluster == clust) %>% select(x,y,z)
-      synClustsUD = kmeans(kmeanMat,3, iter.max = 250, nstart = 200)
-      
-      clustIDs <- synClustsUD$cluster
-      downClustInds <- which(clustIDs == as.numeric(which.max(synClustsUD$centers[,3])))
-      
-      UD <- paste0(vector(mode = "character",length=length(clustIDs)),"U")
-      UD[downClustInds] <- "D" 
-      
-      D12Dat[which(synClustsRL$cluster == clust),]$UD <- UD
+  }
+  
+  return(synDat)
+}
+
+# Convert a connection table to a full matrix, generate a correlation matrix across inputs or outputs, and plot it
+corMatPlot <- function(connMat,preId,postId){
+  preIds <- connMat[preId] %>% unlist() %>% unique() %>% as.character() %>% sort()
+  postIds <- connMat[postId] %>% unlist() %>% unique() %>% as.character() %>% sort()
+  
+  justWeights = matrix(0L,nrow=length(preIds),ncol=length(postIds))
+  
+  for (i in 1:length(preIds)){
+    for (j in 1:length(postIds)){
+      w = connMat[which(connMat[preId] == preIds[i] & connMat[postId] == postIds[j]),]$weightMean
+      if (length(w) > 0)
+        justWeights[i,j] = w
     }
-    
-    D12Dat <- D12Dat %>% mutate(quad = paste0(UD,RL))
-    D12Dat <- D12Dat[ , !(names(D12Dat) %in% c("UD","RL"))]
   }
+  rownames(justWeights) <- preIds
+  colnames(justWeights) <- postIds
   
-  return(D12Dat)
+  library(reshape2)
+  #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
+  
+  corMat <- cor(justWeights) %>% melt()
+  
+  corMatPlot <- ggplot(corMat) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90))
+  corMatPlot <- corMatPlot + geom_tile(aes(Var1,Var2,fill=value)) + 
+    scale_fill_gradient(low="white", high="red") + coord_fixed(ratio=1)
+  
+  return(corMatPlot)
 }
 
-# Function to create bar plots of the D12 quadrants
-
-D12QuadBarPlot <- function(D12Dat){
-  quads <- c("UL","UR","DL","DR")
-  synThresh <- 3
+# Convert a connection table to a full matrix, generate a correlation matrix
+corMat <- function(connMat,preId,postId){
+  preIds <- connMat[preId] %>% unlist() %>% unique() %>% as.character() %>% sort()
+  postIds <- connMat[postId] %>% unlist() %>% unique() %>% as.character() %>% sort()
   
-  sTs = as.factor(c("FBt","D0","D6","PFL","PFN","PFR","FC","FR","FS"))
-  sTScale <- scale_fill_discrete(drop=TRUE,limits = levels(sTs))
+  justWeights = matrix(0L,nrow=length(preIds),ncol=length(postIds))
   
-  gList <- list()
-  for (q in 1:length(quads)){
-    D12QuadPost <- D12Dat %>% filter(quad == quads[q]) %>% filter(prepost == FALSE) %>% group_by(partnerType) %>% summarize(quadWeight = length(partner))
-    D12QuadPost <- D12QuadPost %>% filter(!is.na(partnerType)) %>% filter(quadWeight > synThresh)
-    D12QuadPost$supertype <- D12QuadPost$partnerType %>% supertype()
-    gPost <- ggplot(D12QuadPost) + geom_bar(aes(x = as.factor(partnerType),weight = quadWeight,fill=as.factor(supertype))) + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("output") + sTScale
-    gList[[2*q-1]] <- gPost
-    
-    D12QuadPre <- D12Dat %>% filter(quad == quads[q]) %>% filter(prepost == TRUE) %>% group_by(partnerType) %>% summarize(quadWeight = length(partner))
-    D12QuadPre <- D12QuadPre %>% filter(!is.na(partnerType)) %>% filter(quadWeight > synThresh)
-    D12QuadPre$supertype <- D12QuadPre$partnerType %>% supertype()
-    gPre <- ggplot(D12QuadPre) + geom_bar(aes(x = as.factor(partnerType),weight = quadWeight,fill=as.factor(supertype))) + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("input") + sTScale
-    gList[[2*q]] <- gPre
+  for (i in 1:length(preIds)){
+    for (j in 1:length(postIds)){
+      w = connMat[which(connMat[preId] == preIds[i] & connMat[postId] == postIds[j]),]$weightMean
+      if (length(w) > 0)
+        justWeights[i,j] = w
+    }
   }
+  rownames(justWeights) <- preIds
+  colnames(justWeights) <- postIds
   
-  return(gList)
-}
-
-# Create a network diagram for the D12s
-D12NetworkPlot <- function(D12Dat)
-{
-  quads <- c("UL","UR","DL","DR")
-  quadXs <- c(0.75,-0.75,0.25,-0.25)
-  quadYs <- c(-0.5,-0.5,0.5,0.5)
-  synThresh <- 3
+  library(reshape2)
   
-  sTs <- c("D0","D6","FBt","FS","FC","FR","SA") %>% as.factor()
-  sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+  corMat <- cor(justWeights) %>% melt()
   
-  
-  inputTypes <- D12Dat %>% filter(prepost == TRUE) %>%
-    group_by(partnerType,quad) %>%
-    summarize(quadWeight = length(partner)) %>%
-    filter(quadWeight > synThresh) %>%
-    select(partnerType) %>% unique() %>% unlist() %>% as.character()
-  inputTypes[which(grepl("FB",inputTypes))] <- "FBt"
-  inputTypes <-  unique(inputTypes)
-  
-  outputTypes <- D12Dat %>% filter(prepost == FALSE) %>%
-    group_by(partnerType,quad) %>%
-    summarize(quadWeight = length(partner)) %>%
-    filter(quadWeight > synThresh) %>%
-    select(partnerType) %>% unique() %>% unlist() %>% as.character()
-  outputTypes[which(grepl("FB",outputTypes))] <- "FBt"
-  outputTypes <- unique(outputTypes)
-  
-  nodes = data.frame(type = c(unique(D12Dat$quad),inputTypes,outputTypes),
-                     x = c(sapply(unique(D12Dat$quad), function(f) quadXs[which(f == quads)]),
-                           seq(-1,1,length.out=length(inputTypes)),
-                           seq(-1,1,length.out=length(outputTypes))),
-                     y = c(sapply(unique(D12Dat$quad), function(f) quadYs[which(f == quads)]),
-                           (vector(mode="numeric",length = length(inputTypes))),
-                           (vector(mode="numeric",length = length(outputTypes)) - 1)))
-  nodes$superType <- nodes$type %>% as.character() %>% supertype() %>% as.factor()
-  nodes$superType[1:4] <- NA
-  
-  edges <- data.frame(from=c(),to=c())
-  for (q in 1:length(quads)){
-    D12QuadInput <- D12Dat %>% filter(quad == quads[q]) %>%
-      filter(prepost == TRUE) %>%
-      group_by(partnerType) %>%
-      summarize(quadWeight = length(partner))
-    if (length(which(grepl("FB",D12QuadInput$partnerType)))>0)
-      D12QuadInput[which(grepl("FB",D12QuadInput$partnerType)),]$partnerType <- "FBt"
-    D12QuadInput <- D12QuadInput %>% group_by(partnerType) %>% summarize(quadWeight = sum(quadWeight)) %>%
-      filter(!is.na(partnerType)) %>% filter(quadWeight > synThresh)
-    D12QuadInput <- D12QuadInput %>%
-      mutate(from = sapply(partnerType, function(f) length(quads)+which(f == inputTypes)),
-             to = q)
-    
-    
-    D12QuadOutput <- D12Dat %>% filter(quad == quads[q]) %>%
-      filter(prepost == FALSE) %>% group_by(partnerType) %>% summarize(quadWeight = length(partner))
-    if (length(which(grepl("FB",D12QuadOutput$partnerType)))>0)
-      D12QuadOutput[which(grepl("FB",D12QuadOutput$partnerType)),]$partnerType <- "FBt"
-    D12QuadOutput <- D12QuadOutput %>% group_by(partnerType) %>% summarize(quadWeight = sum(quadWeight)) %>%
-      filter(!is.na(partnerType)) %>% filter(quadWeight > synThresh)
-    D12QuadOutput <- D12QuadOutput %>% 
-      mutate(to = sapply(partnerType, function(f) length(quads)+length(inputTypes) + which(f == outputTypes)),
-             from = q)
-    
-    edges <- rbind(edges,
-                   select(D12QuadInput,to,from,quadWeight),
-                   select(D12QuadOutput,to,from,quadWeight))
-  }
-  
-  
-  # Plot the network
-  graph <- tbl_graph(nodes,edges)
-  
-  # Generate an output pdf of the plots
-  gg <-
-    ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_fan(aes(width=quadWeight),colour="grey",alpha=0.5,
-                  strength=1,
-                  arrow = arrow(length = unit(0.5, "cm")),
-                  end_cap = circle(0.5, 'cm')) + 
-    geom_edge_loop(colour="grey",aes(direction=10,span=10,width=quadWeight),alpha=0.5) +
-    geom_node_point(aes(color=superType),size=5) + 
-    sTScale +
-    geom_node_text(aes(label=type),angle=40,size=6) +
-    scale_y_reverse() + theme_classic() + theme(legend.text=element_text(size=36)) +
-    theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
-          axis.line=element_blank(),axis.text.x=element_blank(),
-          axis.text.y=element_blank(),axis.ticks=element_blank()) + 
-    coord_fixed(ratio = 1) 
-  
-  return(gg)
+  return(corMat)
 }

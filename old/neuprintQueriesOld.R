@@ -1,3 +1,5 @@
+# Keep in case upstream/downstream doesn't make it to the stable server
+
 ########################################################################################################################
 # Convenience functions for query results processing
 ########################################################################################################################
@@ -48,16 +50,13 @@ getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=
 
 getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,...){
   refMeta <- bodyIDs
-  bodyIDs <- neuprint_ids(bodyIDs$bodyid)
+  bodyIDs <- bodyIDs$bodyid
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
   if (by.roi | !is.null(slctROI)){
-   myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
+    myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   }else{
     myConnections <- myConnections %>% filter(weight>synThresh)
   }
-  
-  if (nrow(myConnections)==0){return(NULL)}
-  
   partnerMeta <- neuprint_get_meta(myConnections$partner)
   refMetaOrig <- neuprint_get_meta(myConnections$bodyid)  ## To get the database type name
   
@@ -66,7 +65,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
   refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
-
+  
   myConnections <-myConnections %>%
     mutate(partnerName = partnerMeta[["name"]],
            name = refMeta[["name"]],
@@ -77,39 +76,70 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
-    inMeta <- partnerMeta
     myConnections <- myConnections %>% mutate(databaseType.to = refMetaOrig$type,
                                               databaseType.from = type.from)
-    } else {
-    inMeta <- partnerMeta
+  } else {
     outMeta <- partnerMeta
     myConnections <- myConnections %>% mutate(databaseType.to = type.to,
                                               databaseType.from = refMetaOrig$type)
   }
   
+  if (synapseType == "PRE"){
+    if (nrow(myConnections)==0){
+      inputsTable <- myConnections
+    }else{
+      if (length(unique(myConnections$from))>1000){ ## Insane neurons need to be controlled to not timeout
+        uniqueInputs <- unique(myConnections$from)
+        uniqueInputs <- split(uniqueInputs, ceiling(seq_along(uniqueInputs)/500))
+        inputsTable <- bind_rows(lapply(uniqueInputs,neuprint_connection_table,
+                                        "POST",slctROI,by.roi=by.roi,...))
+      }else{
+        inputsTable <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,...)}
+      if (!by.roi & is.null(slctROI)){
+        inputsTable <- inputsTable %>% mutate(from = bodyid)
+      }else{
+        inputsTable <- inputsTable %>% drop_na(ROIweight) %>% mutate(from = bodyid)
+      }
+    }
+    inp <- "partner"
+  }else{
+    inputsTable <- myConnections
+    inp <- "bodyid"
+  }
+  
+  totalPre <- inputsTable %>% group_by(from) %>%
+    summarise(totalPreWeight = sum(weight))
+  
   myConnections <- myConnections %>% mutate(weightRelativeTotal = weight/outMeta[["post"]],
-                                            totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
+                                            totalPreWeight = totalPre[["totalPreWeight"]][match(myConnections$from,totalPre$from)],
                                             outputContributionTotal = weight/totalPreWeight
-                                            )
+  )
   
   if (by.roi | !is.null(slctROI)){
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
-    outInfo <- getRoiInfo(unique(myConnections$to)) %>% select(bodyid,roi,post)
-    inInfo <- getRoiInfo(unique(myConnections$from)) %>% select(bodyid,roi,downstream)
-  
-    myConnections <- left_join(myConnections,inInfo,by=c("from" = "bodyid","roi"="roi")) %>% rename(totalPreROIweight = downstream)
- 
-    myConnections <- left_join(myConnections,outInfo,by=c("to" = "bodyid","roi"="roi")) %>% rename(totalROIweight = post) %>%
-      mutate(weightRelative=ROIweight/totalROIweight,
-             outputContribution=ROIweight/totalPreROIweight)
- ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
+    outInfo <- neuprint_get_roiInfo(myConnections$to)
+    
+    totalPre <- inputsTable %>% group_by(from,roi) %>%
+      summarise(totalPreROIweight = sum(ROIweight))
+    
+    myConnections <- myConnections %>% group_by(roi) %>%
+      mutate(totalPreROIweight = totalPre[["totalPreROIweight"]][totalPre$roi == roi[1]][match(from,totalPre$from[totalPre$roi == roi[1]])]) %>% ungroup()
+    if (length(myConnections[["roi"]]) == 0){
+      postVar <- character(0)}else{
+        postVar <- paste0(myConnections[["roi"]],".post")
+      }
+    
+    myConnections <- myConnections %>%
+      mutate(totalROIweight = as.integer(sapply(seq_len(length(postVar)),function(v) outInfo[[postVar[v]]][v])),
+             weightRelative=ROIweight/totalROIweight,
+             outputContribution=ROIweight/totalPreROIweight) ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
     return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
   }else{
-  return(myConnections %>% mutate(roi = "All brain", 
-                                  outputContribution = outputContributionTotal,
-                                  weightRelative = weightRelativeTotal,
-                                  ROIweight = weight)) 
+    return(myConnections %>% mutate(roi = "All brain", 
+                                    outputContribution = outputContributionTotal,
+                                    weightRelative = weightRelativeTotal,
+                                    ROIweight = weight)) 
   }
   
 }
@@ -121,15 +151,15 @@ simplifyConnectionTable <- function(connectionTable){
   #' 
   #' 
   if ("from" %in% names(connectionTable)){return(connectionTable)}else{
-  connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,!!as.name("bodyid"),!!as.name("partner")),
-                                                to = ifelse(prepost==1,!!as.name("partner"),!!as.name("bodyid")),
-                                                name.from = ifelse(prepost==1,!!as.name("name"),!!as.name("partnerName")),
-                                                name.to = ifelse(prepost==1,!!as.name("partnerName"),!!as.name("name")),
-                                                type.from = ifelse(prepost==1,!!as.name("type"),!!as.name("partnerType")),
-                                                type.to = ifelse(prepost==1,!!as.name("partnerType"),!!as.name("type"))
-                                                ) %>%
-                                         select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
-  return(connectionTable)
+    connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,!!as.name("bodyid"),!!as.name("partner")),
+                                                  to = ifelse(prepost==1,!!as.name("partner"),!!as.name("bodyid")),
+                                                  name.from = ifelse(prepost==1,!!as.name("name"),!!as.name("partnerName")),
+                                                  name.to = ifelse(prepost==1,!!as.name("partnerName"),!!as.name("name")),
+                                                  type.from = ifelse(prepost==1,!!as.name("type"),!!as.name("partnerType")),
+                                                  type.to = ifelse(prepost==1,!!as.name("partnerType"),!!as.name("type"))
+    ) %>%
+      select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
+    return(connectionTable)
   }
 }
 
@@ -143,7 +173,7 @@ getTypesTable <- function(types){
   typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE)))
   
   if (length(typesTable)>0){typesTable <- typesTable %>%
-                                            mutate(databaseType = type)}
+    mutate(databaseType = type)}
   return(typesTable)
 }
 
@@ -184,9 +214,7 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
 lrSplit <- function(connectionTable,
                     nameCol="name.to",
                     typeCol="type.to",
-                    databaseCol =paste0("databaseType",ifelse(grepl("[.]",typeCol),
-                                                              paste0(".",c(unlist(strsplit(typeCol,"\\.")),"")[2]),
-                                                       "")),
+                    databaseCol =paste0("databaseType",str_to_title(c(unlist(strsplit(typeCol,"\\.")),"")[2])),
                     typeList=NULL){
   #' Retype neurons in a table according to L/R
   #' @param connectionTable : connectivity table to modify
@@ -232,12 +260,12 @@ retype.na <- function(connectionTable){
   #' (removing the _L/_R) or the neuron id. By default expects a table in to/from format.
   #'
   connectionTable <- connectionTable %>% 
-                     mutate(name.from = ifelse(is.na(name.from),as.character(from),name.from),
-                            name.to = ifelse(is.na(name.to),as.character(to),name.to),
-                            type.from = ifelse(is.na(type.from),gsub("_L$|_R$","",name.from),type.from),
-                            type.to = ifelse(is.na(type.to),gsub("_L$|_R$","",name.to),type.to)
-                            )
-          
+    mutate(name.from = ifelse(is.na(name.from),as.character(from),name.from),
+           name.to = ifelse(is.na(name.to),as.character(to),name.to),
+           type.from = ifelse(is.na(type.from),gsub("_L$|_R$","",name.from),type.from),
+           type.to = ifelse(is.na(type.to),gsub("_L$|_R$","",name.to),type.to)
+    )
+  
   return(connectionTable)
 }
 
@@ -247,8 +275,8 @@ retype.na_meta <- function(metaTable){
   #'
   metaTable <- metaTable %>% 
     mutate(
-           name = ifelse(is.na(name),as.character(bodyid),name),
-           type = ifelse(is.na(type),gsub("_L$|_R$","",name),type)
+      name = ifelse(is.na(name),as.character(bodyid),name),
+      type = ifelse(is.na(type),gsub("_L$|_R$","",name),type)
     )
   
   return(metaTable)
@@ -324,29 +352,29 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## Counting instances for each post type 
   if (is.null(typesTable) & any(connectionTable$type.to != connectionTable$databaseType.to,na.rm=T))
-    {
-      stop("Some types are custom defined. You need to provide a `typesTable` argument.")
-    }
+  {
+    stop("Some types are custom defined. You need to provide a `typesTable` argument.")
+  }
   
   if (is.null(typesTable)){
     typesTable <- getTypesTable(unique(connectionTable$databaseType.to))
   } 
   
   typesCount <- typesTable %>% group_by(type) %>%
-                               summarise(n=n())
+    summarise(n=n())
   
   connectionTable <- connectionTable %>% 
-                      mutate(n = typesCount[["n"]][match(type.to,typesCount[["type"]])])
- 
+    mutate(n = typesCount[["n"]][match(type.to,typesCount[["type"]])])
+  
   ## Renaming the unnamed neurons and treating them as single examples
   connectionTable <- connectionTable %>% mutate(n = replace_na(n,1))
   connectionTable <- retype.na(connectionTable)
   
   ## Gather the outputContributions
   connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
-                                          mutate(outputContribution = sum(outputContribution)) %>%
-                                          group_by(type.from,type.to,roi) %>%
-                                          mutate(outputContribution = mean(outputContribution))
+    mutate(outputContribution = sum(outputContribution)) %>%
+    group_by(type.from,type.to,roi) %>%
+    mutate(outputContribution = mean(outputContribution))
   
   if (!is.null(oldTable)){
     connectionTableOld <- oldTable %>% filter(paste0(type.to,type.from) %in% paste0(connectionTable$type.to,connectionTable$type.from))
@@ -355,44 +383,44 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
-                                summarize(weightRelative = sum(weightRelative),
-                                          weightRelativeTotal = weightRelativeTotal[1],
-                                          weight = sum(ROIweight),
-                                          absoluteWeight = sum(ROIweight),
-                                          outputContribution = outputContribution[1],
-                                          n_type = 1,
-                                          n_targets = n(),
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]) %>% ungroup()
+    group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
+    summarize(weightRelative = sum(weightRelative),
+              weightRelativeTotal = weightRelativeTotal[1],
+              weight = sum(ROIweight),
+              absoluteWeight = sum(ROIweight),
+              outputContribution = outputContribution[1],
+              n_type = 1,
+              n_targets = n(),
+              databaseType.to = databaseType.to[1],
+              databaseType.from = databaseType.from[1]) %>% ungroup()
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
-                                group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
-                                summarise(weightRelative = sum(weightRelative),
-                                          weightRelativeTotal = sum(weightRelativeTotal),
-                                          weight = sum(ROIweight),
-                                          n = n[1],
-                                          outputContribution = outputContribution[1],
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]) %>% ungroup() %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
-                                summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
-                                          pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
-                                                                  0,
-                                                                  t.test(c(weightRelative,rep(0,missingV)),
-                                                                                    alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,rep(0,missingV))),
-                                          weightRelative = mean(c(weightRelative,rep(0,missingV))),
-                                          weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
-                                          absoluteWeight = sum(weight),
-                                          weight = mean(c(weight,rep(0,missingV))),
-                                          outputContribution = outputContribution[1],
-                                          n_targets = n(),
-                                          n_type = n[1],
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]
-                                ) %>% select(-missingV) %>% ungroup()
+    group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
+    summarise(weightRelative = sum(weightRelative),
+              weightRelativeTotal = sum(weightRelativeTotal),
+              weight = sum(ROIweight),
+              n = n[1],
+              outputContribution = outputContribution[1],
+              databaseType.to = databaseType.to[1],
+              databaseType.from = databaseType.from[1]) %>% ungroup() %>%
+    group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
+    summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
+              pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                            0,
+                            t.test(c(weightRelative,rep(0,missingV)),
+                                   alternative="greater",exact=FALSE)[["p.value"]]),
+              varWeight = var(c(weightRelative,rep(0,missingV))),
+              weightRelative = mean(c(weightRelative,rep(0,missingV))),
+              weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
+              absoluteWeight = sum(weight),
+              weight = mean(c(weight,rep(0,missingV))),
+              outputContribution = outputContribution[1],
+              n_targets = n(),
+              n_type = n[1],
+              databaseType.to = databaseType.to[1],
+              databaseType.from = databaseType.from[1]
+    ) %>% select(-missingV) %>% ungroup()
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
@@ -400,16 +428,16 @@ getTypeToTypeTable <- function(connectionTable,
   }else{
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
     sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
-                                select(-pVal)
+      select(-pVal)
     sTable <- bind_rows(sTable,connectionTableOld)
   }               
   
   
   return(bind_rows(sTable,loners))                  
-
+  
 }
 
-getConnectionTable_forSubset <- function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
+getConnectionTable_forSubset = function(preBodyIDs,postBodyIDs, slctROI=NULL,...){
   #' Filter connection table to contain only connections from preBodyIDs to postBodyIDs
   #' @return Returns a connection table as data frame.
   #' @param preBodyIDs: The bodyids of presynaptic neurons who's connections should be queried
@@ -422,14 +450,4 @@ getConnectionTable_forSubset <- function(preBodyIDs,postBodyIDs, slctROI=NULL,..
   myConnections = myConnections %>% filter(to %in% postBodyIDs) 
   
   return( myConnections )
-}
-
-getRoiInfo <- function(bodyids,...){
-  #' Formats the results of a roiInfo query in a nice table
-  #' 
-  if (length(bodyids)==0){return(data.frame(bodyid=character(),roi=character(),pre=integer(),post=integer(),downstream=integer(),stringsAsFactors = FALSE))}
-  roiInfo <- neuprint_get_roiInfo(bodyids,...)
-  roiInfo <-  pivot_longer(roiInfo,cols=-bodyid,names_to=c("roi","field"),names_sep="\\.",values_to="count")
-  roiInfo <- pivot_wider(roiInfo,names_from = "field",values_from="count")
-  roiInfo %>% select(-upstream) ## Post and upstream are redundant
 }
