@@ -89,3 +89,7 @@ supertype.data.frame <- function(types,level=1:3){
   }
   types
 }
+
+supertype.NULL <- function(types,level=NULL){
+  return(NULL)
+}
