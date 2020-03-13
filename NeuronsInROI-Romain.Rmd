@@ -35,8 +35,9 @@ EBTypesTable <- lateralizeInputOutputList(EBTypesTable)
 ```{r}
 EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4))
 ```
+
 ```{r}
-labelRois <- selectRoiSet(roiH,default_level = 1,exceptions = list("CX"=2))
+labelRoisEB <- selectRoiSet(roiH,default_level = 0,exceptions = list("EB"=2),exceptionLevelMatch = 2)
 ```
 
 
@@ -49,13 +50,9 @@ EBSummary <- getROISummary(EBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRois)
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB)
+haneschEB_R
 ```
-
-```{r}
-haneschEB_R <- haneschEB_R + scale_color_brewer(type = "div",palette = "Paired",name="Brain region")
-```
-
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 14,height=6)
@@ -91,7 +88,7 @@ NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
 ```{r}
 NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4))
 
-labelRoisNO <- selectRoiSet(roiH,default_level = 1,exceptions = list("NO"=2,"AB(R)"=2),exceptionLevelMatch = 2)
+labelRoisNO <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AB(R)"=2),exceptionLevelMatch = 2)
 ```
 
 
@@ -100,7 +97,7 @@ NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,theme=theme_bw(),alphaRois = 0.15)
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,theme=theme_bw())
 ```
 
 ```{r}
@@ -136,15 +133,22 @@ PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
 ```
 
 ```{r}
+PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4))
+
+labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2,"AB(R)"=2),exceptionLevelMatch = 2)
+```
+
+```{r}
 PBSummary <- getROISummary(PBTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
 ```
 
 ```{r}
-haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),by.supertype = T,roiSelect = normalROIs)
+haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB)
+haneschPB
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 15,height=16)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 16,height=8)
 ```
 
 ```{r}
@@ -169,18 +173,19 @@ FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
 
 ```{r}
 FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4))
+
+labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AB(R)"=2),exceptionLevelMatch = 2)
 ```
-
-
 
 ```{r}
 FBSummary <- getROISummary(FBTypesTable,filter=TRUE)
 ```
 
 ```{r}
-haneschFBOut <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype2 %in% c("PFR","PFL"))),grouping = "supertype1",roiSelect = normalROIs)
+haneschFB <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type)),grouping = "supertype2",roiSelect=FBRois,flip = T,roiLabel = labelRoisFB)
+haneschFB
 ```
-
+Needs to be subdivided
 
 ```{r}
 haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype2 %in% c("PFR","PFL"))),roiSelect = FBRois,grouping="supertype2")
@@ -190,6 +195,11 @@ haneschFBOutLay
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/FB_OutputTypes.svg",haneschFBOutLay,width=9,height=6)
 ```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypes.svg",haneschFB,width = 45,height=8)
+```
+
 
 
 
