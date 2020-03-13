@@ -3,6 +3,7 @@ source("R/supertypeUtils.R")
 library(pbapply)
 library(parallel)
 library(ggnewscale)
+library(paletteer)
 
 ## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
 neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRef){
@@ -317,7 +318,7 @@ haneschPlot <- function(roiTable,
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
                       mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
                              l4 = roiSelect$level4[match(roi,roiSelect$roi)],
-                             side = roiSelect$side4[match(roi,roiSelect$roi)],
+                             side = roiSelect$side2[match(roi,roiSelect$roi)],
                              superroi = roiLabel$roi[match(l4,roiLabel$level4)]) %>%
                              arrange(roi) %>%
                              mutate(roiX = match(roi,unique(roi)))
@@ -333,18 +334,18 @@ haneschPlot <- function(roiTable,
     geom_line(aes(group=type),alpha=alphaG) 
   if (regionOutlines==TRUE){hanesch <- hanesch +
     geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
-              scale_fill_discrete() + 
+              scale_fill_paletteer_d("Polychrome::alphabet") + 
               new_scale_fill()}
   hanesch <- hanesch + 
     geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
-    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") 
+    scale_size_continuous(name = "# Synapses") + labs(y="Neuron type",x="Neuropile") + theme 
   
   if (!(is.null(grouping))){
     if (flip==TRUE){fct <- paste(". ~",grouping)}else{fct <- paste(grouping,"~ .")}
-    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") + theme 
+    hanesch <- hanesch + facet_grid(as.formula(fct),scale="free",space="free") 
   }
   
   if (flip==TRUE){hanesch <- hanesch + coord_flip()}
