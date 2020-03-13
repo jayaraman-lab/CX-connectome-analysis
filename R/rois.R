@@ -67,7 +67,7 @@ typesInROI <- function(roiConnections,ROI){
 getRoiTree <- function(){
   #' Build a more useful roi table, with things ordered in a semi useful way
   roiH <- neuprint_ROI_hierarchy() %>% mutate_all(as.character)
-  roiT <- data.frame(level1 = roiH$roi[roiH$parent == "hemibrain"],stringsAsFactors = F) %>% filter(!(level1 %in% c("hemibrain","AOT(R)","GC","GF(R)","mALT(R)","POC")))
+  roiT <- data.frame(level1 = roiH$roi[roiH$parent == "hemibrain"],stringsAsFactors = F) %>% filter(!(level1 %in% c("hemibrain","AOT(R)","GC","GF(R)","mALT(R)","POC","mALT(L)")))
   roiT <- left_join(roiT,roiH,by=c("level1"="parent")) %>% rename(level2 = roi) %>% mutate(level2 = ifelse(is.na(level2),level1,level2))
   roiT <- left_join(roiT,roiH,by=c("level2"="parent")) %>% rename(level3 = roi) %>% mutate(level3 = ifelse(is.na(level3),level2,level3))
   roiT <- left_join(roiT,roiH,by=c("level3"="parent")) %>% rename(level4 = roi) %>% mutate(level4 = ifelse(is.na(level4),level3,level4))
@@ -83,13 +83,14 @@ getRoiTree <- function(){
   roiT$level1 <- factor(roiT$level1,levels= c("OL(R)","AL(R)","MB(+ACA)(R)","LH(R)","PENP","GNG","VLNP(R)","SNP(R)","VMNP","INP","LX(R)","CX","LX(L)","SNP(L)","MB(L)","AL(L)"))
   
   roiT <- arrange(roiT,side2,level1)
+  roiT$level0 <- gsub("(L)","",gsub("(R)","",roiT$level1,fixed=TRUE),fixed=TRUE)
   #fineOrder <- c(which(roiT$side2!="Left"),rev(which(roiT$side2 == "Left")))
   roiT <- roiT %>% mutate_at(c("level2","level3","level4"),function(a) factor(a,levels=unique(a)))
   #roiT <- arrange(roiT,level4)
   roiT
 }
 
-selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = 2){
+selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = default_level){
   if (!is.null(exceptions)){
     levelEx <- paste0("level",exceptionLevelMatch) 
     normalRois <- roiTree %>% filter(!((!!as.name(levelEx)) %in% names(exceptions))) %>%
