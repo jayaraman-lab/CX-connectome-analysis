@@ -417,7 +417,7 @@ Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
   Uni_BodyID=unique(N_Distribution$bodyid)
   
   # Dataframe mapping bodyid to FBcol
-  Bodyid_To_FBcol=data.frame(bodyid=numeric(), FBcol=as.character(), Distance2FxCol=numeric())
+  Bodyid_To_FBcol=data.frame(bodyid=numeric(), FBcol=as.character(), Distance2FxCol=numeric(), FBcol_Con=numeric())
   
   
   # Loop over each neuron
@@ -456,7 +456,7 @@ Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
     Min_Col=round(Min_C)
     
     # Take min distance as closest column
-    Temp_df=data.frame(bodyid=Uni_BodyID[nnn], FBcol = paste("C",as.character(Min_Col),sep=""), Distance2FxCol= Min_Distance)
+    Temp_df=data.frame(bodyid=Uni_BodyID[nnn], FBcol = paste("C",as.character(Min_Col),sep=""), Distance2FxCol= Min_Distance, FBcol_Con=Min_C)
     Bodyid_To_FBcol=rbind(Bodyid_To_FBcol, Temp_df)
     
     
@@ -488,7 +488,7 @@ Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
       
       PP=ggarrange(P1, P2, ncol=2, nrow=1)
       
-      ggsave(paste(DIR, Neuron_Data$type[1], "_", Neuron_Data$PBglom,".png",sep=""),
+      ggsave(paste(DIR, Neuron_Data$type[1], "_", Neuron_Data$PBglom[1], "_" ,Neuron_Data$bodyid[1] ,".png",sep=""),
              plot = PP, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 300, limitsize = TRUE)
       
     }
@@ -497,13 +497,91 @@ Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
   
   N_Distribution=N_Distribution[ , !colnames(N_Distribution) %in% c("FBcol","Distance2FxCol")]
   N_Distribution_New=merge(N_Distribution, Bodyid_To_FBcol, by="bodyid")
-  N_Distribution_New=N_Distribution_New[Column_Names]
+  N_Distribution_New=N_Distribution_New[c(Column_Names,"FBcol_Con")]
   
   N_Distribution_New$FBcol=factor(N_Distribution_New$FBcol, levels = c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
   
   return(N_Distribution_New)
 }
 
+###############################################################################################################################
+### Function for plotting mapping between PB glom and FB cols #################################################################
+
+
+
+Plot_PBglom_FBcol_Mapping <- function(PFX_GlomToColumn, DIR, NAME){
+  
+  
+  PB_FB_Types=unique(PFX_GlomToColumn$type)
+  for (nnn in 1:length(PB_FB_Types)){
+    
+    
+    # Data for mapping
+    PB_FB_Mapping=subset(PFX_GlomToColumn, type==PB_FB_Types[nnn] )
+    
+    
+    # Set up node names and positions
+    nodes = data.frame(name = c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                "R1","R2","R3","R4","R5","R6","R7","R8","R9",
+                                "C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+    nodes$x <- c( seq(from= 9 ,to = 1), seq(from= -1 ,to = -9),  seq(from= -4 ,to = 4))
+    nodes$y <- c( rep(1, 18), rep(0, 9))
+    
+    
+    # Assign node from/to pairs (numerical)
+    PB_FB_Mapping$from = match(PB_FB_Mapping$PBglom, nodes$name)  
+    PB_FB_Mapping$to   = match(PB_FB_Mapping$FBcol,  nodes$name)
+    
+    
+    # build graph object
+    graph = tbl_graph(nodes, PB_FB_Mapping)
+    
+    
+    # Get column vector
+    col_vector=GetColorMap("FBcol")
+    PB_FB_Mapping$Color = order(PB_FB_Mapping$FBcol)
+    
+    
+    P1<-ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) +
+      geom_edge_diagonal(aes(width=Num_Neurons,color=FBcol),alpha=0.5,strength=0.5) +
+      geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector)  +
+      geom_node_text(aes(label=name),angle=40,size=4, nudge_y = c(rep(0.06,18),rep(-0.06,9)) ) +
+      theme_classic() + 
+      theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+            axis.line=element_blank(),axis.text.x=element_blank(),
+            axis.text.y=element_blank(),axis.ticks=element_blank(),
+            axis.title.x=element_blank(),axis.title.y=element_blank()) + 
+      ggtitle(PB_FB_Mapping$type[1])
+    
+    ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 4.5, units ="in", dpi = 500, limitsize = TRUE) 
+    
+    
+    PB_FB_Mapping$COL=as.numeric(sapply(PB_FB_Mapping$FBcol, substring, 2, 2))
+
+    
+    R_PB=subset(PB_FB_Mapping, startsWith(as.character(PBglom), "R"))
+    L_PB=subset(PB_FB_Mapping, startsWith(as.character(PBglom), "L"))
+    L_PB$PBglom=factor(L_PB$PBglom, levels = sort(unique(L_PB$PBglom), decreasing = TRUE))
+    
+    P2 <- ggplot() + geom_point(data=R_PB, aes(x=FBcol_Con, y=PBglom, size=1)) + 
+      geom_point(data=R_PB, aes(x=COL, y=PBglom, size=1), color="blue") +
+      scale_x_continuous(breaks=seq(from=1,to=9), limits=c(0,10)) 
+    
+    P3 <- ggplot() + geom_point(data=L_PB, aes(x=FBcol_Con, y=PBglom, size=1)) + 
+      geom_point(data=L_PB, aes(x=COL, y=PBglom, size=1), color="blue") +
+      scale_x_reverse(breaks=seq(from=1,to=9), limits=c(10,0)) 
+      
+    
+    P12=ggarrange(P2,P3,ncol=1,nrow=2)
+    P123=ggarrange(P1, P12, ncol=2, nrow=1)
+    
+    
+    ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P123, device='png', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+    
+    
+    
+  }
+}
 
 
 ###############################################################################################################################
