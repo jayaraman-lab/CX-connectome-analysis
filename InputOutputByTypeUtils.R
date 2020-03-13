@@ -214,6 +214,39 @@ getIntraBag <- function(nBag){
   filter(nBag,filterPartners = TRUE,type %in% unique(nBag$names$type))
 }
 
+summarizeConnectionTable <- function(connTable,groupFrom,groupTo,refOuts){
+  
+  groupType <- as.name(sub("\\.to","",groupTo))
+  typesCount <- refOuts %>% group_by(!!(groupType)) %>%
+    summarise(n=n())
+  
+  connTable <- connTable %>% 
+    mutate(n = typesCount[["n"]][match(!!as.name(groupTo),typesCount[[groupType]])])
+  
+  connTable <- connTable %>% group_by(!!(as.name(groupFrom)),
+                                      !!(as.name(groupTo)),
+                                      to,
+                                      roi) %>%
+                             summarize(weightRelative = sum(weightRelative),
+                                       weightRelativeTotal = sum(weightRelativeTotal),
+                                       weight = sum(ROIweight),
+                                       n=n[1],
+                                       outputContribution = mean(outputContribution)) %>% ungroup() %>%
+                             group_by(!!(as.name(groupFrom)),
+                                      !!(as.name(groupTo)),
+                                      roi) %>%
+                             summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
+                                       varWeight = var(c(weightRelative,rep(0,missingV))),
+                                       weightRelative = mean(c(weightRelative,rep(0,missingV))),
+                                       weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
+                                       absoluteWeight = sum(weight),
+                                       weight = mean(c(weight,rep(0,missingV))),
+                                       outputContribution = outputContribution[1],
+                                       n_targets = n(),
+                                       n_type = n[1]) %>% select(-missingV) %>% ungroup()
+  connTable
+  
+}
 
 getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
   #' Build a pre roi summary of innervation for neurons in a neuronBag
