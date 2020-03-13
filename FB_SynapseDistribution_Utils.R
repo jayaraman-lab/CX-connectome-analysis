@@ -463,7 +463,7 @@ Assign_FB_Columns3 <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
     if (Neuron_Data$type[1] %in% c("PFGs","PFL1","PFL2","PFL3")){
       P1<-ggplot() + geom_point(data=Temp_Distances_All, aes(x=Col, y=Distance), position = position_jitter(width = 0.1), size=0.2) +
         geom_point(data=Temp_Distances_Mean, aes(x=Col, y=Distance),color="red") +
-        ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom, " ", Neuron_Data$bodyid[1] )) +
+        ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom[1], " ", Neuron_Data$bodyid[1] )) +
         geom_line(data=Temp_Distances_Mean_UP, aes(x=Col,y=Distance)) + scale_x_continuous(breaks=seq(1,9,1)) + 
         geom_point(data=data.frame(XXX = Min_C, YYY = Min_Distance), aes(x=XXX,y=YYY), color="blue", size=2) + 
         geom_point(data=data.frame(XXX = Min_Col, YYY = Min_Distance), aes(x=XXX,y=YYY), color="green", size=2)
