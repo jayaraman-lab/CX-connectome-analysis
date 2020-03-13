@@ -179,11 +179,36 @@ ggsave("MBON_CX_ConnectionsByType_weightRelative.eps", plot=p3, device="eps", pa
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
+### Pull significant MBON_CX_TypeToTypeConnections based on "weightRelative"
+```{r}
+# Find Strongly connected MBON to CX Neurons
+StrongMBON_CX_TypeToTypeConnections <- MBON_CX_TypeToTypeConnections  %>% filter(weightRelative > 0.05)
+StrongMBON2CX_TargetsType = unique(pull(StrongMBON_CX_TypeToTypeConnections, type.to))
+StrongMBON2CX_Targets <- neuprint_search(StrongMBON2CX_TargetsType, field='type')
+# head(StrongMBON2CX_Targets)
+
+# Find the postsynaptic partners of StrongMBON2CX_Targets
+StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_Targets,synapseType="POST",synThresh=5)
+# head(StrongMBON2CX_TargetsCnctTable)
+StrongMBON2CX_TargetsType2TypeTable <- getTypeToTypeTable(StrongMBON2CX_TargetsCnctTable)
+# head(StrongMBON2CX_TargetsType2TypeTable)
+
+# Plot and save the StrongMBON2CX_TargetsType2TypeTable based on the connectionMeasure of "weightRelative"
+p4 <- plotConnectivityMatrix(StrongMBON2CX_TargetsType2TypeTable,byGroup="type",connectionMeasure="weightRelative")
+print(p4)
+ggsave("StrongMBON2CXTargetsType2TypeCnctTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+
+```
+
+
+
 ### Plot the TypeToType connetivity matrix based on the connectionMeasure of "outputContribution"
 ```{r}
-p4 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="outputContribution")
-print(p4)
-ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
+p5 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="outputContribution")
+print(p5)
+ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p5, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
