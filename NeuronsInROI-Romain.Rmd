@@ -89,16 +89,18 @@ NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
 ```
 
 ```{r}
-NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO(R)"=4,"LAL(R)"=4))
+NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4))
+
+labelRoisNO <- selectRoiSet(roiH,default_level = 1,exceptions = list("NO"=2,"AB(R)"=2),exceptionLevelMatch = 2)
 ```
+
 
 ```{r}
 NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
 ```
 
 ```{r}
-
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRois)
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,theme=theme_bw(),alphaRois = 0.15)
 ```
 
 ```{r}
