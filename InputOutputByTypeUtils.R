@@ -325,8 +325,8 @@ haneschPlot <- function(roiTable,
   
   roiPos <- roiTable %>% group_by(superroi,side) %>%
                          summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5) %>% 
-                         ungroup() %>%
-                         filter(xmax-xmin>1)
+                         ungroup() #%>%
+                         #filter(xmax-xmin>1)
   
   hanesch <- ggplot(data=roiTable,aes(x=roi,y=type))
   
