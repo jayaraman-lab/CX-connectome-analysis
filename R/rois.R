@@ -83,6 +83,7 @@ getRoiTree <- function(){
   roiT$level1 <- factor(roiT$level1,levels= c("OL(R)","AL(R)","MB(+ACA)(R)","LH(R)","PENP","GNG","VLNP(R)","SNP(R)","VMNP","INP","LX(R)","CX","LX(L)","SNP(L)","MB(L)","AL(L)"))
   
   roiT <- arrange(roiT,side2,level1)
+  roiT$level0 <- gsub("(L)","",gsub("(R)","",roiT$level1,fixed=TRUE),fixed=TRUE)
   #fineOrder <- c(which(roiT$side2!="Left"),rev(which(roiT$side2 == "Left")))
   roiT <- roiT %>% mutate_at(c("level2","level3","level4"),function(a) factor(a,levels=unique(a)))
   #roiT <- arrange(roiT,level4)
