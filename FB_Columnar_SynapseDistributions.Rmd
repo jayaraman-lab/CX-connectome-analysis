@@ -708,7 +708,7 @@ source("neuprintQueryUtils.R")
 
 
 PFX_Types=unique(PFX_NeuronsPerType$type)
-PFX_Bag=buildInputsOutputsByType(PFX_Types, slctROI="FB")
+PFX_Bag=buildInputsOutputsByType(PFX_Types[2], slctROI="FB")
 PFX_FB_Outputs=PFX_Bag[["outputs_raw"]]
 PFX_FB_Inputs=PFX_Bag[["inputs_raw"]]
 
@@ -716,6 +716,8 @@ PFX_FB_Inputs=PFX_Bag[["inputs_raw"]]
 
 for (nnn in 1:length()){
   Temp_Type=PFX_Types[nnn]
+  Temp_OutputTable=subset(PFX_FB_Outputs, databaseType.from == Temp_Type=PFX_Types[nnn])
+  
   Temp_Bag <- buildInputsOutputsByType(Temp_Type, slctROI="FB")
   
   A=res[["outputs_raw"]]
