@@ -8,9 +8,15 @@ Load the libraries
 library(nat)
 library(neuprintr)
 library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
 options(nat.plotengine = 'rgl')
 ```
 
@@ -38,81 +44,32 @@ FBpreNpostRatios <- FBpreNpostRatios[which(FBpreNpostRatios$preRelative > 0.2 | 
 ggplot(FBpreNpostRatios, aes(x=preRelative, y=postRelative,color=type)) + geom_point() + theme(legend.position="none")
 ```
 
-Split the different types in inputs, inner neurons, and outputs
-```{r}
-FBpreNpostRatios <- FBpreNpostRatios[which(FBpreNpostRatios$regPr > 3 | FBpreNpostRatios$regPost > 3),]
-FBpreNpostRatios <- FBpreNpostRatios[order(FBpreNpostRatios$prePostDiff),]
-
-FBpreNpostRatios['classification'] = 'inner'
-FBpreNpostRatios[which(FBpreNpostRatios$prePostDiff > 0.15),]$classification = 'input'
-FBpreNpostRatios[which(FBpreNpostRatios$prePostDiff < -0.1),]$classification = 'output'
-FBpreNpostRatios$classification <- factor(FBpreNpostRatios$classification, levels = c('input','inner','output'))
-
-p <- ggplot(data = FBpreNpostRatios[which(!grepl("Delta",FBpreNpostRatios$type)),], aes()) + 
-  geom_hline(yintercept = 0) +
-  geom_point(aes(x= reorder(as.factor(type), -prePostRatio),
-                 y=prePostDiff,
-                 color=classification),
-                 size = 3,
-                 alpha = 0.2) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  scale_color_manual(values = c('green','blue','red')) +
-  xlab('neuron type') + ylab('pre ratio - post ratio')
-print(p)
-
-#ggsave("FBInputsAndOutputs.pdf", plot = last_plot(), device='pdf', 
-#       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-#       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-
-```
-
 Average the pre and post values within a given class and plot them in 2D
 ```{r}
-FBpreNpostDiffMean <- aggregate(prePostDiff~type,
-                     FBpreNpostRatios,
-                          mean)
-colnames(FBpreNpostDiffMean)[2] <- "prePostDiffMean"
-FBpreNpostDiffSEM <- aggregate(prePostDiff~type,
-                     FBpreNpostRatios,
-                          FUN = function(x) se = sd(x)/sqrt(length(x)))
-colnames(FBpreNpostDiffSEM)[2] <- "prePostDiffSEM"
-FBpreRelativeMean <- aggregate(preRelative~type,
-                     FBpreNpostRatios,
-                          mean)
-colnames(FBpreRelativeMean)[2] <- "preRelativeMean"
-FBpreRelativeSEM <- aggregate(preRelative~type,
-                     FBpreNpostRatios,
-                          FUN = function(x) se = sd(x)/sqrt(length(x)))
-colnames(FBpreRelativeSEM)[2] <- "preRelativeSEM"
-FBpostRelativeMean <- aggregate(postRelative~type,
-                     FBpreNpostRatios,
-                          mean)
-colnames(FBpostRelativeMean)[2] <- "postRelativeMean"
-FBpostRelativeSEM <- aggregate(postRelative~type,
-                     FBpreNpostRatios,
-                          FUN = function(x) se = sd(x)/sqrt(length(x)))
-colnames(FBpostRelativeSEM)[2] <- "postRelativeSEM"
+FBpreNpost <- FBpreNpostRatios %>% group_by(type) %>% 
+  summarize(diffMean = mean(prePostDiff),
+            diffSD = sd(prePostDiff),
+            relMeanPre = mean(preRelative),
+            relSEMPre = sd(preRelative)/sqrt(length(preRelative)),
+            relMeanPost = mean(postRelative),
+            relSEMPost = sd(postRelative)/sqrt(length(postRelative)))
 
-
-FBpreNpost <- Reduce(function(x, y) merge(x, y, all=TRUE), list(FBpreNpostDiffMean, FBpreNpostDiffSEM,FBpreRelativeMean,FBpreRelativeSEM,FBpostRelativeMean,FBpostRelativeSEM))
 FBpreNpost['classification'] = 'inner'
-FBpreNpost[which(FBpreNpost$prePostDiffMean > 0.05),]$classification = 'input'
-FBpreNpost[which(FBpreNpost$prePostDiffMean < -0.25),]$classification = 'output'
+FBpreNpost[which(FBpreNpost$diffMean > 0.05),]$classification = 'input'
+FBpreNpost[which(FBpreNpost$diffMean < -0.25),]$classification = 'output'
 FBpreNpost$classification <- factor(FBpreNpost$classification, levels = c('input','inner','output'))
-FBpreNpost <- FBpreNpost[order(FBpreNpost$prePostDiffMean),]
 
 FBpreNpost$superType = FBpreNpost$type %>% as.character() %>% supertype() %>% as.factor()
 
 FBpreNpost$label = FBpreNpost$type %>% as.character()
 FBpreNpost$label[which(grepl("FB",FBpreNpost$label))] <- ""
 
-ggplot(FBpreNpost, aes(x=preRelativeMean, y=postRelativeMean)) +
+ggplot(FBpreNpost, aes(x=relMeanPre, y=relMeanPost)) +
   geom_abline(intercept = 0, slope = 1, color="darkgray", linetype="dashed", size=1) +
-  geom_errorbar(aes(ymin=postRelativeMean-postRelativeSEM, ymax=postRelativeMean+postRelativeSEM,
+  geom_errorbar(aes(ymin=relMeanPost-relSEMPost, ymax=relMeanPost+relSEMPost,
                     color=superType),
                 width=.02, position=position_dodge(0.05),alpha=0.5) +
-  geom_errorbarh(aes(xmin=preRelativeMean-preRelativeSEM, xmax=preRelativeMean+preRelativeSEM,
+  geom_errorbarh(aes(xmin=relMeanPre-relSEMPre, xmax=relMeanPre+relSEMPre,
                      color=superType),
                 height=.02, position=position_dodge(0.05),alpha=0.5) +
   geom_point(size=8,aes(color=superType),alpha=0.5) +
@@ -156,10 +113,10 @@ for (tp in 1:4){
   }
   
   dodge <- position_dodge(width = 0.9)
-  limits <- aes(ymax = datNow$prePostDiffMean + datNow$prePostDiffSd,
-                ymin = datNow$prePostDiffMean - datNow$prePostDiffSd)
+  limits <- aes(ymax = datNow$diffMean + datNow$diffSD,
+                ymin = datNow$diffMean - datNow$diffSD)
 
-  p2 <- ggplot(data = datNow, aes(x = reorder(as.factor(type), -prePostDiffMean), y = prePostDiffMean, fill = classification))
+  p2 <- ggplot(data = datNow, aes(x = reorder(as.factor(type), -diffMean), y = diffMean, fill = classification))
   p2 <- p2 +
     geom_hline(yintercept = 0) +
     geom_bar(stat = "identity", position = dodge) +
@@ -176,6 +133,11 @@ for (tp in 1:4){
        scale = 1.5, width = w, height = h, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
+
+
+############################################################
+Old Plots
+############################################################
 
 Look at who FB-Q's output to
 ```{r}
@@ -335,8 +297,6 @@ corrplot(cor(corrDat))
 dev.off()
 
 ```
-
-
 
 Look at primary outputs of PFNs
 ```{r}
