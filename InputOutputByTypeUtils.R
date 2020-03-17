@@ -50,7 +50,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) {
-                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc,by.roi=by.roi,...)
+                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE,by.roi=by.roi)},cl = nc,...)
                           
     problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
     if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
