@@ -50,7 +50,7 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
   if (big == TRUE){
     inoutList <- pblapply(unique(typeQuery$type),
                           function(t) {
-                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE)},cl = nc,by.roi=by.roi,...)
+                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE,by.roi=by.roi)},cl = nc,...)
                           
     problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
     if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
@@ -311,7 +311,7 @@ haneschPlot <- function(roiTable,
                         roiSelect=selectRoiSet(getRoiTree()),
                         grouping=NULL,flip=FALSE,
                         alphaG=1,
-                        alphaRois=0.2,
+                        alphaRois=0.15,
                         roiLabel=roiSelect,
                         regionOutlines=T,
                         theme=theme_minimal()){
@@ -324,17 +324,18 @@ haneschPlot <- function(roiTable,
                              mutate(roiX = match(roi,unique(roi)))
   
   roiPos <- roiTable %>% group_by(superroi,side) %>%
-                         summarize(xmin=min(roiX)-0.5,xmax=max(roiX)+0.5) %>% 
+                         summarize(xmin=min(roiX)-0.45,xmax=max(roiX)+0.45) %>% 
                          ungroup() #%>%
                          #filter(xmax-xmin>1)
   
   hanesch <- ggplot(data=roiTable,aes(x=roi,y=type))
+  roiP <- roisPalette()
   
   hanesch <- hanesch +
     geom_line(aes(group=type),alpha=alphaG) 
   if (regionOutlines==TRUE){hanesch <- hanesch +
     geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
-              scale_fill_paletteer_d("Polychrome::alphabet",name="Brain region") + 
+              scale_fill_manual(name="Brain region",values=roiP) + 
               new_scale_fill()}
   hanesch <- hanesch + 
     geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+

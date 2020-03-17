@@ -1,4 +1,5 @@
 library(parallel)
+library(paletteer)
 
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
@@ -83,11 +84,15 @@ getRoiTree <- function(){
   roiT$level1 <- factor(roiT$level1,levels= c("OL(R)","AL(R)","MB(+ACA)(R)","LH(R)","PENP","GNG","VLNP(R)","SNP(R)","VMNP","INP","LX(R)","CX","LX(L)","SNP(L)","MB(L)","AL(L)"))
   
   roiT <- arrange(roiT,side2,level1)
-  roiT$level0 <- gsub("(L)","",gsub("(R)","",roiT$level1,fixed=TRUE),fixed=TRUE)
+  roiT$level0 <- delateralize(roiT$level1)
   #fineOrder <- c(which(roiT$side2!="Left"),rev(which(roiT$side2 == "Left")))
   roiT <- roiT %>% mutate_at(c("level2","level3","level4"),function(a) factor(a,levels=unique(a)))
   #roiT <- arrange(roiT,level4)
   roiT
+}
+
+delateralize <- function(roiName){
+  gsub("(L)","",gsub("(R)","",roiName,fixed=TRUE),fixed=TRUE)
 }
 
 selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelMatch = default_level){
@@ -113,5 +118,10 @@ selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelM
   return(distinct(rois))
 }
  
-
-
+roisPalette <- function(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::palette36")){
+  rois <- getRoiTree()
+  roiL <- unique(delateralize(c(as.character(rois$level1),as.character(roiH$level2[roiH$level1==favoriteRegion]))))
+  pal <- my_palette[1:length(roiL)]
+  names(pal) <- roiL
+  pal
+}
