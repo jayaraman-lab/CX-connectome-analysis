@@ -200,25 +200,9 @@ DeltaSynClust <- function(bodyids, numClusts){
 
 # Convert a connection table to a full matrix, generate a correlation matrix across inputs or outputs, and plot it
 corMatPlot <- function(connMat,preId,postId){
-  preIds <- connMat[preId] %>% unlist() %>% unique() %>% as.character() %>% sort()
-  postIds <- connMat[postId] %>% unlist() %>% unique() %>% as.character() %>% sort()
   
-  justWeights = matrix(0L,nrow=length(preIds),ncol=length(postIds))
   
-  for (i in 1:length(preIds)){
-    for (j in 1:length(postIds)){
-      w = connMat[which(connMat[preId] == preIds[i] & connMat[postId] == postIds[j]),]$weightMean
-      if (length(w) > 0)
-        justWeights[i,j] = w
-    }
-  }
-  rownames(justWeights) <- preIds
-  colnames(justWeights) <- postIds
-  
-  library(reshape2)
-  #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
-  
-  corMat <- cor(justWeights) %>% melt()
+  corMat <- corMat(connMat,preId,postId)
   
   corMatPlot <- ggplot(corMat) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90))
@@ -248,6 +232,7 @@ corMat <- function(connMat,preId,postId){
   library(reshape2)
   
   corMat <- cor(justWeights) %>% melt()
+  #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
   
   return(corMat)
 }
