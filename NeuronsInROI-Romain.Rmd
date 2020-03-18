@@ -15,17 +15,23 @@ source("InputOutputByTypeUtils.R")
 source("R/rois.R")
 
 ```
-
+  scale_fill_paletteer_d("Polychrome::palette36",name="Brain region",limits=roiForP,drop=TRUE) + 
 Picking the lowest level ROIs
 ```{r}
 roiH <- getRoiTree()
 ```
+
+```{r}
+haneschSaveFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FirstDraftFigs/HaneschPlots/"
+```
+
 
 # EB
 This might take a while
 ```{r}
 EBTypesTable <- getTypesInRoiTable("EB",big = TRUE,lateralize = FALSE,clN = 5)
 ```
+
 
 ```{r}
 EBTypesTable <- lateralizeInputOutputList(EBTypesTable)
@@ -35,8 +41,9 @@ EBTypesTable <- lateralizeInputOutputList(EBTypesTable)
 ```{r}
 EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4))
 ```
+
 ```{r}
-labelRois <- selectRoiSet(roiH,default_level = 1,exceptions = list("CX"=2))
+labelRoisEB <- selectRoiSet(roiH,default_level = 0,exceptions = list("EB"=2),exceptionLevelMatch = 2)
 ```
 
 
@@ -49,16 +56,13 @@ EBSummary <- getROISummary(EBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRois)
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB)
+haneschEB_R
 ```
-
-```{r}
-haneschEB_R <- haneschEB_R + scale_color_brewer(type = "div",palette = "Paired",name="Brain region")
-```
-
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 14,height=6)
+ggsave(paste0(haneschSaveFolder,"EB/EBTypesRight.svg"),haneschEB_R,width = 14,height=6)
 ```
 
 How do those compare to the Brad Types
@@ -81,24 +85,22 @@ NOTypesTable <- getTypesInRoiTable("NO(R)",lateralize=TRUE,big=TRUE,clN = 10)
 ```
 
 ```{r}
-NOTypesTable <- lateralizeInputOutputList(NOTypesTable)
-```
-
-```{r}
 NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
 ```
 
 ```{r}
-NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO(R)"=4,"LAL(R)"=4))
+NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4))
+
+labelRoisNO <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2),exceptionLevelMatch = 2)
 ```
+
 
 ```{r}
 NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
 ```
 
 ```{r}
-
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type & (!grepl("_L.*",type))),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRois)
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO)
 ```
 
 ```{r}
@@ -108,6 +110,7 @@ haneschNOR
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.svg",haneschNOR,width = 15,height=8)
+ggsave(paste0(haneschSaveFolder,"NO/NO_RTypes.svg"),haneschNOR,width = 15,height=8)
 ```
 
 
@@ -128,21 +131,33 @@ NORTypes$databaseType[!(NORTypes$databaseType %in% NO_Type)]
 ```{r}
 PBTypesTable <- getTypesInRoiTable("PB",big=TRUE,lateralize = FALSE)
 ```
+```{r}
+PBTypesTable <- cxRetyping(PBTypesTable)
+```
+
 
 ```{r}
 PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
 ```
 
 ```{r}
-PBSummary <- getROISummary(PBTypesTable,filter=FALSE) %>% mutate(supertype = supertype(type))
+PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4))
+
+labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2),exceptionLevelMatch = 2)
 ```
 
 ```{r}
-haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),by.supertype = T,roiSelect = normalROIs)
+PBSummary <- getROISummary(PBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 15,height=16)
+haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB)
+haneschPB
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 19,height=8)
+ggsave(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,width = 19,height=8)
 ```
 
 ```{r}
@@ -161,43 +176,61 @@ Tighten your seat belts, there are many neurons here.
 ```{r}
 FBTypesTable <- getTypesInRoiTable("FB",big = T,lateralize = F,clN = 10)
 ```
+
+```{r}
+FBTypesTable <- cxRetyping(FBTypesTable)
+```
+
+
 ```{r}
 FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
 ```
 
 ```{r}
 FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4))
+
+labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2),exceptionLevelMatch = 2)
 ```
-
-
 
 ```{r}
 FBSummary <- getROISummary(FBTypesTable,filter=TRUE)
 ```
 
 ```{r}
-haneschFBOut <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype2 %in% c("PFR","PFL"))),grouping = "supertype1",roiSelect = normalROIs)
+haneschFBtR <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & supertype2 == "FBt" & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1")
+haneschFBtR
 ```
 
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschTangentialRight.svg",haneschFBtR,width=25,height=8)
+ggsave(paste0(haneschSaveFolder,"FB/FBTangentialsRight.svg"),haneschFBtR,width = 25,height=8)
+```
 
 ```{r}
-haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype2 %in% c("PFR","PFL"))),roiSelect = FBRois,grouping="supertype2")
+haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2")
 haneschFBOutLay
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/FB_OutputTypes.svg",haneschFBOutLay,width=9,height=6)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFB-QsLeft.svg",haneschFBOutLay,width = 12,height=8)
+ggsave(paste0(haneschSaveFolder,"FB/FBQsLeft.svg"),haneschFBOutLay,width = 12,height=8)
 ```
 
-
-
 ```{r}
-haneschFBOut
+haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2")
+haneschFBColL
+```
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBColumnarLeft.svg",haneschFBColL,width = 12,height=8)
+ggsave(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,width = 12,height=8)
 ```
 
 ```{r}
 FBSuperSummary <- compressROISummary(FBSummary %>% filter(type %in% FBTypes$type),level = 1,stat = sum)
 ```
+
+
+## WIP add ons to hanesch plots
 
 ```{r}
 library(ggraph)
@@ -245,24 +278,9 @@ PFLSummary <- plot_grid(PFL1FBSummary,PFL2FBSummary,PFL3FBSummary,labels=c("PFL1
 save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/PFLsInFB.svg",PFLSummary,base_width = 28,base_height = 6)
 ```
 
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypesInFB.svg",haneschFBSummary,width = 18,height=10)
-```
-
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypesInFBWithEdges2.svg",haneschFBSummaryPlus,width = 30,height=20)
 ```
-
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBOutTypes.svg",haneschFBOut,width = 15,height=24)
-```
-
-```{r}
-FBlayers <- c("FB")
-```
-
 
 ```{r}
 load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/FB_Types.RData")

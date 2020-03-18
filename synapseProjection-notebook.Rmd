@@ -30,20 +30,35 @@ Choose ROI and get curated list of neurons
 myROI = "BU(R)"
 #load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("Ring_in_", myROI)
-my_types = c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
+saveName = paste0("ExR_and_PDM21a_in_", myROI)
+my_types =  c("ExR.*", "PDM21a.*") #c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
+
+cmapName = "colorMap_ExR_and_PDM21a"
+
 my_neurons = getBodyIdsForList(my_types)
 # Ring neurons c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
-# ExR: EB_Type[grep("ExR.*", EB_Type)]
+# ExR: #EB_Type[grep("ExR.*", EB_Type)]
+# ExR etc in BU: c("ExR.*", "PDM21a.*")
 # Columnar: c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")
 ```
+
+Load custom color palette
+```{r}
+myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/",cmapName,".csv"))
+
+#library("paletteer")
+```
+
+
 ...use this list to get synapse locations
 ```{r}
 my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types[1])$bodyid),myROI)
-for(nt in my_types[2:length(my_types)]){
-  print(nt)
-  tmp <- neuprint_get_synapses(as.numeric(getBodyIdsForList(nt)$bodyid),myROI)
-  my_synapses <- rbind(my_synapses, tmp)
+if (length(my_types) > 1){
+  for(nt in my_types[2:length(my_types)]){
+    print(nt)
+    tmp <- neuprint_get_synapses(as.numeric(getBodyIdsForList(nt)$bodyid),myROI)
+    my_synapses <- rbind(my_synapses, tmp)
+  }
 }
 ```
 
@@ -133,7 +148,7 @@ decorate3d(box=FALSE)
 ### (3) Plot
 ***Select either original or EV coordinates and rotate***
 ```{r}
-rot = c(45,180, 0)#BU (45,180, 0) #EB: (0,0,180)
+rot = c(45,180,0)#BU (45,180, 0) EB: (0,0,180) AOTU: (0,180,0)
 
 roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
                              y=roiMeshPtsRot$Y,
@@ -166,14 +181,19 @@ synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
 ***Get outline using alpha shape and plot***
 ```{r}
 plotW = 12
-plotH =  6#10
-Cmax = 20 #EB col 150
-nbins = 50#40
+plotH =  4# 6#10
+Cmax = 25#30 #EB col 150
+nbins = 50#40 #5
+nlevels = 5
 ```
 Frontal view
 ```{r}
 # get outline
-meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=100)
+if(myROI=="AOTU(R)"){
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=120)
+}else{
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=100)
+}
 outline = data.frame(meshOutline$arcs)
 #outline = bind_rows(outline, outline[1,]) # close the shape
 ```
@@ -181,6 +201,16 @@ outline = data.frame(meshOutline$arcs)
 ```{r}
 synCount = synPtsPlane %>% count(type)
 typeFilter = synCount$type[synCount$n > 10]
+
+# generate color map
+dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
+
+myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
+myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),]
+
+mySubtypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$type)) %>% filter(Simpletype == "no")
+mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),]
+
 ```
 
 ```{r}
@@ -192,42 +222,51 @@ synprojFront = ggplot() +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojFront)
 ggsave( paste("synapseDistributions_",saveName,'_front.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
-    scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+    scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 ```{r}
 synprojFront = ggplot() + 
-  stat_density_2d(data=synPtsPlane %>% filter(type %in% typeFilter), aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=3, geom = "polygon") +
-  facet_wrap(~simpleType, ncol=5) +
+  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
+  facet_wrap(~simpleType, ncol=ceiling(length(unique(dataFilt$type)))/2) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
 print(synprojFront)
-#ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
-#    scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf',
+        path = "../neuprintR_analysis_plots/", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 ```{r}
 synprojFront = ggplot() + 
-  #stat_density_2d(data=synPtsPlane %>% filter(type %in% typeFilter), aes(x=x, y=y, color=simpleType), bins=2, geom ="contour", show.legend=TRUE) + 
-  stat_density_2d(data=synPtsPlane %>% filter(type %in% typeFilter), 
-                  aes(x=x, y=y, fill=simpleType, alpha = stat(nlevel)), bins=4, geom = "polygon") +
-  coord_fixed(ratio = 1) + theme_void() +
+  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
 print(synprojFront)
 ggsave( paste("synapseDistributions_",saveName,'_front_level.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
-    scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+    scale = 1.5, width = 10, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
 
+synprojFront = ggplot() + 
+  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=simpleType, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
+  scale_fill_manual(values = as.character(myTypeCols$hex)) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+
+print(synprojFront)
+ggsave( paste("synapseDistributions_",saveName,'_front_level_simpletypes.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = 10, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
 ```
-
 
 Side view
 ```{r}
 plotW = 12
 plotH =  6#10
-Cmax = 15 #EB col 150
+Cmax = 20 #EB col 150
 nbins = 40
+nlevels = 5
 ```
 
 ```{r}
@@ -239,7 +278,7 @@ outline = bind_rows(outline, outline[1,]) # close the shape
 
 ```{r}
 synprojSide = ggplot() + 
-  geom_hex(data=synPtsPlane %>% filter(type %in% typeFilter), aes(x=z, y=y), bins=nbins) +   #fill=type, color=type
+  geom_hex(data=dataFilt, aes(x=z, y=y), bins=nbins) +   #fill=type, color=type
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
   facet_wrap(~type, ncol=8) +
   coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
@@ -254,17 +293,31 @@ ggsave( paste("synapseDistributions_",saveName,'_side.pdf', sep=''), plot = synp
 
 ```{r}
 synprojSide = ggplot() + 
-  stat_density_2d(data=synPtsPlane %>% filter(type %in% typeFilter), aes(x=z, y=y, fill=type, alpha = stat(nlevel)), bins=5, geom = "polygon") +
+  stat_density_2d(data=dataFilt, aes(x=z, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
   facet_wrap(~simpleType, ncol=6) +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
-ggsave( paste("synapseDistributions_",saveName,'_side_simpletype.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
+ggsave( paste("synapseDistributions_",saveName,'_side_type.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 
+
+```{r}
+synprojSide = ggplot() + 
+  stat_density_2d(data=dataFilt, aes(x=z, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojSide)
+
+ggsave( paste("synapseDistributions_",saveName,'_side_level.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+```
 
 ### Collapse along EB ring
 ***Compute angle of vectors to each point relative to x-axis***
@@ -312,8 +365,7 @@ outline = data.frame(meshOutline$arcs)
 
 ```{r}
 synprojSlice = ggplot() + 
-  #geom_point(data=synPtsPlane, aes(x=syn_dist, y=z, color=type), size=0.1, alpha=0.1) +
-  geom_hex(data=synPtsPlane, aes(x=z, y=syn_dist,fill=type), bins=50) +
+  geom_hex(data=dataFilt, aes(x=z, y=syn_dist,fill=type), bins=50) +
   facet_wrap(~type, ncol=8) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
@@ -325,7 +377,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice.pdf', sep=''), plot = syn
 
 ```{r}
 synprojSlice = ggplot() + 
-  geom_hex(data=synPtsPlane, aes(x=z, y=syn_dist), bins=30) +
+  geom_hex(data=dataFilt, aes(x=z, y=syn_dist), bins=30) +
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
   facet_wrap(~type, ncol=8) +
   coord_fixed(ratio = 1) + theme_void() +# guides(fill=FALSE) +
@@ -339,7 +391,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_singleCol.pdf', sep=''), 
 ```{r}
 nlevel = 3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   facet_wrap(~type, ncol=8) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
@@ -354,7 +406,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels_type.pdf', sep='')
 ```{r}
 nlevel = 3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   facet_wrap(~simpleType, ncol=6) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
@@ -367,7 +419,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels_subtype.pdf', sep=
 ```{r}
 nlevel = 3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSlice)
@@ -379,7 +431,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels.pdf', sep=''), plo
 ```{r}
 nlevel = 3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=synPtsPlane, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), bins=4, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSlice)

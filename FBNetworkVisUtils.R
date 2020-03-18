@@ -135,15 +135,15 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
     geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
-                       strength=1,
+                       strength=0.5,
                        arrow = arrow(length = unit(1, "cm")),
                        end_cap = circle(1, 'cm')) + 
     geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
-    geom_node_point(aes(color=superType),size=15) + 
+    geom_node_point(aes(color=superType),size=8) + 
     sTScale_edge +
     sTScale +
-    geom_node_text(aes(label=name),angle=40,size=12,repel = textRepel) +
-    theme_classic() + theme(legend.text=element_text(size=36),legend.title=element_text(size=36),
+    geom_node_text(aes(label=name),angle=40,size=6,repel = textRepel) +
+    theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
                             axis.line=element_blank(),axis.text.x=element_blank(),
                             axis.text.y=element_blank(),axis.ticks=element_blank(),
                             axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
@@ -200,25 +200,9 @@ DeltaSynClust <- function(bodyids, numClusts){
 
 # Convert a connection table to a full matrix, generate a correlation matrix across inputs or outputs, and plot it
 corMatPlot <- function(connMat,preId,postId){
-  preIds <- connMat[preId] %>% unlist() %>% unique() %>% as.character() %>% sort()
-  postIds <- connMat[postId] %>% unlist() %>% unique() %>% as.character() %>% sort()
   
-  justWeights = matrix(0L,nrow=length(preIds),ncol=length(postIds))
   
-  for (i in 1:length(preIds)){
-    for (j in 1:length(postIds)){
-      w = connMat[which(connMat[preId] == preIds[i] & connMat[postId] == postIds[j]),]$weightMean
-      if (length(w) > 0)
-        justWeights[i,j] = w
-    }
-  }
-  rownames(justWeights) <- preIds
-  colnames(justWeights) <- postIds
-  
-  library(reshape2)
-  #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
-  
-  corMat <- cor(justWeights) %>% melt()
+  corMat <- corMat(connMat,preId,postId)
   
   corMatPlot <- ggplot(corMat) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90))
@@ -248,6 +232,7 @@ corMat <- function(connMat,preId,postId){
   library(reshape2)
   
   corMat <- cor(justWeights) %>% melt()
+  #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
   
   return(corMat)
 }
