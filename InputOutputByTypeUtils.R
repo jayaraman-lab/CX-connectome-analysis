@@ -335,7 +335,7 @@ haneschPlot <- function(roiTable,
     geom_line(aes(group=type),alpha=alphaG) 
   if (regionOutlines==TRUE){hanesch <- hanesch +
     geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
-              scale_fill_manual(name="Brain region",values=roiP) + 
+              scale_fill_manual(name="Brain region",values=roiP,guide = guide_legend(reverse = TRUE)) +
               new_scale_fill()}
   hanesch <- hanesch + 
     geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+
