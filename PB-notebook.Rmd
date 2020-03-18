@@ -8,15 +8,77 @@ Load the libraries
 library(nat)
 library(neuprintr)
 library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
 options(nat.plotengine = 'rgl')
 ```
 
 Connect to neuprint
 ```{r}
 neuprint_login()
+```
+
+Sort names by the anatomical order of the glomeruli in the PB
+```{r}
+
+glomSort <- function(names){
+  sortedNames = unique(append(
+    sort(
+      as.character(names[which(grepl("_L",names))]),
+      decreasing = TRUE),
+    sort(
+      as.character(names[which(grepl("_R",names))]),
+      decreasing = FALSE))
+  )
+  return(sortedNames)
+}
+
+```
+
+Plot a PB specific connectivity matrix (allows sorting by PB glomeruli)
+```{r}
+plotConnectivityMatrixPB = function(myConTab) {
+
+  myConTab = myConTab %>% mutate(plotWeight = myConTab[["ROIweight"]])
+  myConTab <- myConTab[which(myConTab$plotWeight>2),]
+  
+  myConTab$nameid = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
+  myConTab$partnerid = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
+  
+  allNames = myConTab$nameid %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  newNames = c()
+  for (tp in 1:length(types)){
+    newNames = append(newNames,
+                      glomSort(allNames[which(grepl(types[tp],allNames))]))
+  }
+  myConTab$nameid <- factor(myConTab$nameid, levels = newNames)
+  
+  allNames = myConTab$partnerid %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  newNames = c()
+  for (tp in 1:length(types)){
+    newNames = append(newNames,
+                      glomSort(allNames[which(grepl(types[tp],allNames))]))
+  }
+  myConTab$partnerid <- factor(myConTab$partnerid, levels = newNames)
+  
+    
+  conmatPlot = ggplot(myConTab) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))
+  
+  conmatPlot =  conmatPlot + geom_tile(aes(partnerid,nameid,fill=plotWeight))
+}
 ```
 
 Identify types that arborize within the PB
@@ -57,48 +119,31 @@ p1 <- ggplot(data = PBpreNpostRatios, aes()) +
   scale_color_manual(values = c('green','blue','red')) +
   xlab('neuron type') + ylab('pre ratio - post ratio')
 print(p1)
-#ggsave("PBInputsAndOutputs.pdf", plot = last_plot(), device='pdf', 
-#       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-#       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
-# Average the pre and post values within a given class
-PBpreNpostDiffMean <- aggregate(prePostDiff~type,
-                     PBpreNpostRatios,
-                          mean)
-colnames(PBpreNpostDiffMean)[2] <- "prePostDiffMean"
-PBpreNpostDiffSd <- aggregate(prePostDiff~type,
-                     PBpreNpostRatios,
-                          sd)
-colnames(PBpreNpostDiffSd)[2] <- "prePostDiffSd"
-PBpreRelativeMean <- aggregate(preRelative~type,
-                     PBpreNpostRatios,
-                          mean)
-colnames(PBpreRelativeMean)[2] <- "preRelativeMean"
-PBpreRelativeSd <- aggregate(preRelative~type,
-                     PBpreNpostRatios,
-                          sd)
-colnames(PBpreRelativeSd)[2] <- "preRelativeSd"
-PBpostRelativeMean <- aggregate(postRelative~type,
-                     PBpreNpostRatios,
-                          mean)
-colnames(PBpostRelativeMean)[2] <- "postRelativeMean"
-PBpostRelativeSd <- aggregate(postRelative~type,
-                     PBpreNpostRatios,
-                          sd)
-colnames(PBpostRelativeSd)[2] <- "postRelativeSd"
-PBpreNpost <- Reduce(function(x, y) merge(x, y, all=TRUE), list(PBpreNpostDiffMean, PBpreNpostDiffSd,PBpreRelativeMean,PBpreRelativeSd,PBpostRelativeMean,PBpostRelativeSd))
+```
+
+Average the pre and post values within a given class
+```{r}
+PBpreNpost <- PBpreNpostRatios %>% group_by(type) %>% 
+  summarize(diffMean = mean(prePostDiff),
+            diffSD = sd(prePostDiff),
+            relMeanPre = mean(preRelative),
+            relSDPre = sd(preRelative),
+            relMeanPost = mean(postRelative),
+            relSDPost = sd(postRelative))
+
 PBpreNpost['classification'] = 'inner'
-PBpreNpost[which(PBpreNpost$prePostDiffMean > 0.15),]$classification = 'input'
-PBpreNpost[which(PBpreNpost$prePostDiffMean < -0.12),]$classification = 'output'
+PBpreNpost[which(PBpreNpost$diffMean > 0.15),]$classification = 'input'
+PBpreNpost[which(PBpreNpost$diffMean < -0.12),]$classification = 'output'
 PBpreNpost$classification <- factor(PBpreNpost$classification, levels = c('input','inner','output'))
-PBpreNpost <- PBpreNpost[order(PBpreNpost$prePostDiffMean),]
+PBpreNpost <- PBpreNpost[order(PBpreNpost$diffMean),]
 
-ggplot(PBpreNpost, aes(x=preRelativeMean, y=postRelativeMean,color=classification,label=type)) +
+ggplot(PBpreNpost, aes(x=relMeanPre, y=relMeanPost,color=classification,label=type)) +
   geom_point(size=6) +
   geom_text(aes(label=type),hjust=0, vjust=0,size = 6,show.legend = FALSE) +
-  geom_errorbar(aes(ymin=postRelativeMean-postRelativeSd, ymax=postRelativeMean+postRelativeSd),
+  geom_errorbar(aes(ymin=relMeanPost-relSDPost, ymax=relMeanPost+relSDPost),
                 width=.02, position=position_dodge(0.05)) +
-  geom_errorbarh(aes(xmin=preRelativeMean-preRelativeSd, xmax=preRelativeMean+preRelativeSd),
+  geom_errorbarh(aes(xmin=relMeanPre-relSDPre, xmax=relMeanPre+relSDPre),
                 height=.02, position=position_dodge(0.05)) +
   theme_classic() + xlab('pre ratio') + ylab('post ratio') + 
   coord_fixed(ratio =1 ,xlim=c(0, 1.1),ylim=c(0, 1.1),expand=FALSE)  + 
@@ -109,10 +154,10 @@ ggsave("PBInputsAndOutputsMean2D.svg", plot = last_plot(), device='svg',
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
 dodge <- position_dodge(width = 0.9)
-limits <- aes(ymax = PBpreNpost$prePostDiffMean + PBpreNpost$prePostDiffSd,
-              ymin = PBpreNpost$prePostDiffMean - PBpreNpost$prePostDiffSd)
+limits <- aes(ymax = PBpreNpost$diffMean + PBpreNpost$diffSD,
+              ymin = PBpreNpost$diffMean - PBpreNpost$diffSD)
 
-p2 <- ggplot(data = PBpreNpost, aes(x = reorder(as.factor(type), -prePostDiffMean), y = prePostDiffMean, fill = classification)) + 
+PBInNOutBarPlot <- ggplot(data = PBpreNpost, aes(x = reorder(as.factor(type), -diffMean), y = diffMean, fill = classification)) + 
   geom_hline(yintercept = 0) +
   geom_bar(stat = "identity", position = dodge) +
   geom_errorbar(limits, position = dodge, width = 0.25) +
@@ -120,29 +165,11 @@ p2 <- ggplot(data = PBpreNpost, aes(x = reorder(as.factor(type), -prePostDiffMea
   theme(axis.text.x = element_text(angle = 90, hjust = 1),text = element_text(size=18)) +
   scale_fill_manual(values = c('forestgreen','blue','red2')) +
   xlab('neuron type') + ylab('pre ratio - post ratio')
-print(p2)
+print(PBInNOutBarPlot)
 ggsave("PBInputsAndOutputsMean.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
-
-Sort names by the anatomical order of the glomeruli in the PB
-```{r}
-
-glomSort <- function(names){
-  sortedNames = unique(append(
-    sort(
-      as.character(names[which(grepl("_L",names))]),
-      decreasing = TRUE),
-    sort(
-      as.character(names[which(grepl("_R",names))]),
-      decreasing = FALSE))
-  )
-  return(sortedNames)
-}
-
-```
-
 
 Look at the E-PG to Delta7 connections
 ```{r}
@@ -152,19 +179,43 @@ EPG_2_Delta7 <- getConnectionTable_forSubset(
   unique(neuprint_search("Delta7.*")$bodyid),
   "PB")
 
-#EPG_2_Delta7 <- Delta7Rename(EPG_2_Delta7,Delta7Lookup)
+EPG_2_Delta7$name.to <- factor(EPG_2_Delta7$name.to,
+        levels = glomSort(EPG_2_Delta7$name.to))
 
-EPG_2_Delta7$partnerName <- factor(EPG_2_Delta7$partnerName,
-        levels = glomSort(EPG_2_Delta7$partnerName))
-
-EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name), as.character(EPG_2_Delta7$bodyid), sep = "_")
-EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$partnerName), as.character(EPG_2_Delta7$partner), sep = "_")
+EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
+EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
 
 conmatPlot <- plotConnectivityMatrixPB(EPG_2_Delta7)
 conmatPlot <- structureMatrixPlotByType(conmatPlot)
 conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neuron", "post-synaptic neuron", "PB", connectionMeasure="ROIweights")
 
 ggsave("EPGToD7inPB.pdf", plot = last_plot(), device='pdf', 
+       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
+       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+print(conmatPlot)
+
+```
+
+Look at the Delta7 to E-PG connections
+```{r}
+# Get the connection matrix from the EPGs to the Delta7s
+Delta7_2_EPG<- getConnectionTable_forSubset(
+  unique(neuprint_search("Delta7.*")$bodyid),
+  unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
+  "PB")
+
+Delta7_2_EPG$name.to <- factor(Delta7_2_EPG$name.to,
+        levels = glomSort(Delta7_2_EPG$name.to))
+
+Delta7_2_EPG$nameid = paste(as.character(Delta7_2_EPG$name.from), as.character(Delta7_2_EPG$from), sep = "_")
+Delta7_2_EPG$partnerid = paste(as.character(Delta7_2_EPG$name.to), as.character(Delta7_2_EPG$to), sep = "_")
+
+conmatPlot <- plotConnectivityMatrixPB(Delta7_2_EPG)
+#conmatPlot <- structureMatrixPlotByType(conmatPlot)
+conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neuron", "post-synaptic neuron", "PB", connectionMeasure="ROIweights")
+
+ggsave("D7ToEPGinPB.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
@@ -190,14 +241,15 @@ for (i in 1:length(allD7ids)){
 library(reshape2)
 ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
 
-p1 <- ggplot()
+PBRegInputsPlot <- ggplot()
 for (i in 1:length(allD7ids)){
   wNow = justWeights[i,]
-  shift = which.max(wNow)-10
-  if (shift == 0)
+  shift = which.max(wNow)-12
+  if (shift == 0){
     wNow
-  else
+  } else {
     wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  }
   
   pts = c(1:length(wNow)-1)
   
@@ -220,10 +272,10 @@ for (i in 1:length(allD7ids)){
     wNow <- c(tail(wNow, -shift), head(wNow, shift))
   justWeights[i,] <- wNow
   
-  p1 <- p1 + geom_line(data = data.frame(x = pts, y = wNow), aes(x=x,y=y))
+  PBRegInputsPlot <- PBRegInputsPlot + geom_line(data = data.frame(x = pts, y = wNow), aes(x=x,y=y))
   
 }
-p1 <- p1 +  geom_line(data = data.frame(x = pts, y = colMeans(justWeights)), aes(x=x,y=y,color="red"),size=2) +
+PBRegInputsPlot <- PBRegInputsPlot +  geom_line(data = data.frame(x = pts, y = colMeans(justWeights)), aes(x=x,y=y,color="red"),size=2) +
   scale_color_discrete(name="",labels = c("mean"))
 
 df = data.frame(pts = pts, wMean = colMeans(justWeights))
@@ -233,12 +285,12 @@ dffit <- data.frame(pts)
 dffit$wMean <- predict(fit, newdata=dffit)
 #p1 <- p1 + geom_line(data = dffit, aes(x=pts,y=wMean),color="green",size=2)
 
-p1 <- p1 + theme_classic() + xlab('EPG input position') + ylab('# of synapses') + 
+PBRegInputsPlot <- PBRegInputsPlot + theme_classic() + xlab('EPG input position') + ylab('# of synapses') + 
   scale_x_continuous(limits = c(pts[1], tail(pts,1)), expand = c(0, 0)) +
   scale_y_continuous(limits = c(0,50), expand = c(0, 0))
 print(p1)
 
-ggsave("EPGToD7Profile.pdf", plot = last_plot(), device='pdf', 
+ggsave("EPGToD7Profile.pdf", plot = PBRegInputsPlot, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
@@ -246,96 +298,113 @@ ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
 
 ```
 
+Generate a von Mises activity profile
+```{r}
+vonMisesProf <- function(){
+  # Make a bump with a von Mises profile
+  k = 2.5
+  m = pi
+  rng = c(1:16)*(2*pi/15) - 2*pi/15
+  actProf = exp(k*cos(rng-m))/(2*pi*besselI(k,0))
+  actProf = (actProf - min(actProf))/(max(actProf)-min(actProf))
+  rawProf = data.frame(nameid = rng,act = actProf)
+  
+  return(actProf)
+  
+#  ggplot(rawProf,aes(x = nameid,y=act)) + geom_line() + 
+#    theme_classic() + coord_cartesian(expand=FALSE) + scale_x_continuous(breaks = seq(0,2*pi, by=pi/2), labels = c("0","pi/2","pi","3pi/2","2pi"))
+#  ggsave("EPGActProfile.pdf", plot = last_plot(), device='pdf', 
+#         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
+ #        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+Convert a connection table into a weight matrix
+```{r}
+WMFromConTab <- function(conTab, preids, postids){
+
+  justWeights = matrix(0L,nrow=length(preids),ncol=length(postids),)
+  
+  for (i in 1:length(preids)){
+    for (j in 1:length(postids)){
+      w = conTab[which(conTab$nameid == preids[i] & conTab$partnerid == postids[j]),]$ROIweight
+      if (length(w) > 0)
+        justWeights[i,j] = w
+    }
+  }
+  return(justWeights)
+}
+```
+
 Propagate an E-PG bump through the Delta7s
 ```{r}
-# Make a bump with a von Mises profile
-k = 2.5
-m = pi
-rng = c(1:16)*(2*pi/15) - 2*pi/15
-actProf = exp(k*cos(rng-m))/(2*pi*besselI(k,0))
-actProf = (actProf - min(actProf))/(max(actProf)-min(actProf))
-rawProf = data.frame(nameid = rng,act = actProf)
-ggplot(rawProf,aes(x = nameid,y=act)) + geom_line() + 
-  theme_classic() + coord_cartesian(expand=FALSE) + scale_x_continuous(breaks = seq(0,2*pi, by=pi/2), labels = c("0","pi/2","pi","3pi/2","2pi"))
-ggsave("EPGActProfile.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+# Use a von Mises bump profile
+actrProf <- vonMisesProf()
 
+# Use activity only in one set of EPGs in a iven glom.
+actProf <- vector(mode="numeric",length = length(rng))
+actProf[8] <- 1
 
 # Get the EPG to D7 connections
 EPG_2_Delta7 <- getConnectionTable_forSubset(
   unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
   unique(neuprint_search("Delta7.*")$bodyid),
   "PB")
-EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name), as.character(EPG_2_Delta7$bodyid), sep = "_")
-EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$partnerName), as.character(EPG_2_Delta7$partner), sep = "_")
+EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
+EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
 
 # Get the EPG names and glomeruli
 allEPGids = EPG_2_Delta7$nameid %>% as.character() %>% unique() %>% glomSort()
 allEPGGloms = strsplit(allEPGids,"_") %>% lapply(function(x){x[2]}) %>% unlist()
 
-# Create a lookup table for the EPG activity to it's PB glomerulus
+# Create a lookup table for the EPG activity to its PB glomerulus
 rawProf = data.frame(nameid = c(1:16),act = actProf)
 glomOrder = c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1")
 
-# Get the EPG activity
+# Get the EPG activity given the assumed profile
 EPGact = numeric(length(allEPGids))
 for (EPG in 1:length(allEPGids)){
   EPGact[EPG] <- actProf[which(grepl(allEPGGloms[EPG],glomOrder))]
 }
 EPGProf = data.frame(nameid = allEPGids, act = EPGact)
-EPGProf$nameid = factor(EPGProfile$nameid, levels = allEPGids)
+EPGProf$nameid = factor(EPGProf$nameid, levels = allEPGids)
 
 # Create a weight matrix of EPG to Delta 7 connections
 allD7ids = EPG_2_Delta7$partnerid %>% as.character() %>% unique() %>% sort()
-justWeights1 = matrix(0L,nrow=length(allEPGids),ncol=length(allD7ids),)
-
-for (i in 1:length(allD7ids)){
-  for (j in 1:length(allEPGids)){
-    w = EPG_2_Delta7[which(EPG_2_Delta7$partnerid == allD7ids[i] & EPG_2_Delta7$nameid == allEPGids[j]),]$ROIweight
-    if (length(w) > 0)
-      justWeights1[j,i] = w
-  }
-}
+justWeights1 <-  WMFromConTab(EPG_2_Delta7,allEPGids,allD7ids)
 
 # Get the D7 to EPG connections weight matrix
 Delta7_2_EPG <- getConnectionTable_forSubset(
   unique(neuprint_search("Delta7.*")$bodyid),
   unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
   "PB")
-Delta7_2_EPG$nameid = paste(as.character(Delta7_2_EPG$name), as.character(Delta7_2_EPG$bodyid), sep = "_")
-Delta7_2_EPG$partnerid = paste(as.character(Delta7_2_EPG$partnerName), as.character(Delta7_2_EPG$partner), sep = "_")
+Delta7_2_EPG$nameid = paste(as.character(Delta7_2_EPG$name.from), as.character(Delta7_2_EPG$from), sep = "_")
+Delta7_2_EPG$partnerid = paste(as.character(Delta7_2_EPG$name.to), as.character(Delta7_2_EPG$to), sep = "_")
 
-justWeights2 = matrix(0L,nrow=length(allD7ids),ncol=length(allEPGids))
-for (i in 1:length(allD7ids)){
-  for (j in 1:length(allEPGids)){
-    w = Delta7_2_EPG[which(Delta7_2_EPG$nameid == allD7ids[i] & Delta7_2_EPG$partnerid == allEPGids[j]),]$ROIweight
-    if (length(w) > 0)
-      justWeights2[i,j] = w
-  }
-}
+justWeights2 <-  WMFromConTab(Delta7_2_EPG,allD7ids,allEPGids)
 
+# Calculate the Delta 7 output activity onto the EPGs for the given EPG activity profile
 D7outAct = as.vector((EPGProf$act %*% justWeights1) %*% justWeights2)
 D7outAct = (D7outAct - min(D7outAct))/(max(D7outAct)-min(D7outAct))
 EPGInputs = data.frame(nameid = allEPGids,act= D7outAct)
 
-p1 <- ggplot() + 
+PBEPGToD7Prof <- ggplot() + 
   geom_line(data = EPGProf, aes(x=nameid,y=act,group=1,color="green")) +
   geom_point(data = EPGProf,aes(x = nameid,y=act),color ='green')
-p1 <- p1  + geom_line(data = EPGInputs, aes(x=nameid,y=act,group=1,color="red")) +
+PBEPGToD7Prof <- PBEPGToD7Prof  + geom_line(data = EPGInputs, aes(x=nameid,y=act,group=1,color="red")) +
   geom_point(data = EPGInputs,aes(x = nameid,y=act),color ='red')
 
 df = data.frame(pts = c(1:length(allEPGids)), weight = D7outAct)
 fit <- nls(weight ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
   start=list(C1=0.5, C2=0.2, C3=0.5, theta=35), algorithm="port") 
-dffit <- data.frame(pts)
+dffit <- data.frame(pts = c(1:length(allEPGids)))
 dffit$wMean <- predict(fit, newdata=dffit)
-p1 <- p1 + geom_line(data = dffit, aes(x=pts,y=wMean,color="red"),linetype='dotted')
+PBEPGToD7Prof <- PBEPGToD7Prof + geom_line(data = dffit, aes(x=pts,y=wMean,color="red"),linetype='dotted')
 
-p1 <- p1 + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+PBEPGToD7Prof <- PBEPGToD7Prof + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   coord_cartesian(ylim=c(0,1.1),expand=FALSE) + scale_color_manual(values = c("green","red"),name = "", labels = c("EPG activity","EPG input from D7s"))
 
-print(p1)
+print(PBEPGToD7Prof)
 
 ggsave("EPGInputsFromD7s.svg", plot = last_plot(), device='svg', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
@@ -456,45 +525,6 @@ ggsave("P1-9Inputs.pdf", plot = last_plot(), device='pdf',
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-Plot a PB specific connectivity matrix (allows sorting by PB glomeruli)
-```{r}
-plotConnectivityMatrixPB = function(myConTab) {
-
-  myConTab = myConTab %>% mutate(plotWeight = myConTab[["ROIweight"]])
-  myConTab <- myConTab[which(myConTab$plotWeight>2),]
-  
-  myConTab$nameid = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
-  myConTab$partnerid = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
-  
-  allNames = myConTab$nameid %>% unique() %>% sort()
-  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
-  types = gsub("([\\(\\)])", "\\\\\\1",types)
-  newNames = c()
-  for (tp in 1:length(types)){
-    newNames = append(newNames,
-                      glomSort(allNames[which(grepl(types[tp],allNames))]))
-  }
-  myConTab$nameid <- factor(myConTab$nameid, levels = newNames)
-  
-  allNames = myConTab$partnerid %>% unique() %>% sort()
-  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
-  types = gsub("([\\(\\)])", "\\\\\\1",types)
-  newNames = c()
-  for (tp in 1:length(types)){
-    newNames = append(newNames,
-                      glomSort(allNames[which(grepl(types[tp],allNames))]))
-  }
-  myConTab$partnerid <- factor(myConTab$partnerid, levels = newNames)
-  
-    
-  conmatPlot = ggplot(myConTab) + 
-    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))
-  
-  conmatPlot =  conmatPlot + geom_tile(aes(partnerid,nameid,fill=plotWeight))
-}
-```
-
 Show EB<->PB and FB<->PB connections
 ```{r}
 nronTypes = c("EPG","IbSpsP","Delta7")
@@ -503,10 +533,10 @@ myConTab <- getConnectionTable_forSubset(
   getBodyIdsForList(nronTypes)$bodyid,
   getBodyIdsForList(nronTypes)$bodyid,"PB")
 
-conmatPlot <- plotConnectivityMatrixPB(myConTab)
-conmatPlot <- structureMatrixPlotByType(conmatPlot)
-conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "PB")
-print(conmatPlot)
+conmatPlotPBInner <- plotConnectivityMatrixPB(myConTab)
+conmatPlotPBInner <- structureMatrixPlotByType(conmatPlotPBInner)
+conmatPlotPBInner <- addMatrixPlotLabs(conmatPlotPBInner, "pre-synaptic neurons", "post-synaptic neurons", "PB")
+print(conmatPlotPBInner)
 
 ggsave("WithinPBConnections.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
@@ -519,10 +549,10 @@ EB_PB <- getConnectionTable_forSubset(
   getBodyIdsForList(nronTypesPre)$bodyid,
   getBodyIdsForList(nronTypesPost)$bodyid,"PB")
 
-conmatPlot <- plotConnectivityMatrixPB(EB_PB)
-conmatPlot <- structureMatrixPlotByType(conmatPlot)
-conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "PB")
-print(conmatPlot)
+conmatPlotPBToEB <- plotConnectivityMatrixPB(EB_PB)
+conmatPlotPBToEB <- structureMatrixPlotByType(conmatPlotPBToEB)
+conmatPlotPBToEB <- addMatrixPlotLabs(conmatPlotPBToEB, "pre-synaptic neurons", "post-synaptic neurons", "PB")
+print(conmatPlotPBToEB)
 
 ggsave("PBToEBConnections.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
@@ -534,10 +564,10 @@ FB_PB <- getConnectionTable_forSubset(
   getBodyIdsForList(nronTypesPre)$bodyid,
   getBodyIdsForList(nronTypesPost)$bodyid,"PB")
 
-conmatPlot <- plotConnectivityMatrixPB(FB_PB)
-conmatPlot <- structureMatrixPlotByType(conmatPlot)
-conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "PB")
-print(conmatPlot)
+conmatPlotPBToFB <- plotConnectivityMatrixPB(FB_PB)
+conmatPlotPBToFB <- structureMatrixPlotByType(conmatPlotPBToFB)
+conmatPlotPBToFB <- addMatrixPlotLabs(conmatPlotPBToFB, "pre-synaptic neurons", "post-synaptic neurons", "PB")
+print(conmatPlotPBToFB)
 
 ggsave("PBToFBConnections.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
@@ -557,4 +587,16 @@ conmatPlot <- plotConnectivityMatrixPB(P19Outputs)
 conmatPlot <- structureMatrixPlotByType(conmatPlot)
 conmatPlot <- addMatrixPlotLabs(conmatPlot, "pre-synaptic neurons", "post-synaptic neurons", "PB")
 print(conmatPlot)
+```
+
+Assemble the plots into a figure
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PB_Summary.pdf", width = 20, height = 20)
+print(grid.arrange(PBInNOutBarPlot,
+                   conmatPlotPBInner,
+                   PBEPGToD7Prof,
+                   conmatPlotPBToEB,
+                   conmatPlotPBToFB,
+                   layout_matrix = rbind(c(1,NA),c(2,3),c(4,5))))
+dev.off()
 ```
