@@ -134,6 +134,184 @@ for (tp in 1:4){
 }
 ```
 
+Create a lookup table for node locations vs. ROIs
+```{r}
+xyLookupFBROIs <- function(ROIs){
+  ROILookup <- data.frame(ROI = ROIs, 
+                          x = vector(mode = "numeric", length = length(ROIs)),
+                          y = vector(mode = "numeric", length = length(ROIs)))
+
+  
+  ROILookup[which(grepl("(L)",ROIs,fixed=TRUE)),]$x <- -1
+  ROILookup[which(grepl("(R)",ROIs,fixed=TRUE)),]$x <- 1
+  
+  regions <- ROIs %>% sapply(function(x){strsplit(x,"\\(")[[1]][1]}) %>% unique()
+
+  ROILookup[which(grepl("FB",ROIs)),]$y <- seq(-1,1,length.out = length(which(grepl("FB",ROIs))))
+  
+  ROILookup[which(!grepl("FB",ROIs) &
+             grepl("(",ROIs,fixed=TRUE)),]$y <-
+    0.4*(rep(1:(0.5*length(which(!grepl("FB",ROIs) &
+             grepl("(",ROIs,fixed=TRUE)))),each=2) - 
+    (0.25*length(which(!grepl("FB",ROIs) &
+             grepl("(",ROIs,fixed=TRUE)))))
+  
+  return(ROILookup)
+  #ggplot(ROILookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=ROI),hjust=1, vjust=1,size=3)
+  
+  }
+```
+
+Create a lookup table for node locations vs. ROIs
+```{r}
+xyLookupFBROIsIntra <- function(ROIs){
+  ROILookup <- data.frame(ROI = ROIs, 
+                          x = vector(mode = "numeric", length = length(ROIs)),
+                          y = vector(mode = "numeric", length = length(ROIs)))
+
+  angs <- seq(-pi,pi,length.out=length(which(grepl("FB",ROIs)))+1)
+  angs <- angs[1:(length(angs)-1)]
+  
+  ROILookup[which(!grepl("FB",ROIs)),]$x <- 1
+  ROILookup[which(grepl("FB",ROIs)),]$x <- 0.5*sin(angs)
+
+  regions <- ROIs %>% sapply(function(x){strsplit(x,"\\(")[[1]][1]}) %>% unique()
+
+  ROILookup[which(grepl("FB",ROIs)),]$y <- 0.5*cos(angs)
+  ROILookup[which(grepl("PB",ROIs)),]$y <- 0.5
+  ROILookup[which(grepl("EB",ROIs)),]$y <- 0
+  ROILookup[which(grepl("NO",ROIs)),]$y <- -0.5
+  
+  return(ROILookup)
+  #ggplot(ROILookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=ROI),hjust=1, vjust=1,size=3)
+  
+  }
+```
+
+Get edges from a given ROI pre and post dataframe
+```{r}
+getEdgesROIdf <- function(FBROIInfo,ROIs){
+  edges <- data.frame(to = c(),
+                      from = c(),
+                      weight = c(),
+                      bodyid = c(),
+                      type = c())
+  for (r in 1:nrow(FBROIInfo)){
+    rowInfo <- FBROIInfo[r,which(!is.na(FBROIInfo[r,]))]
+    ROIsNow <- colnames(rowInfo)
+    ROIsNow <- ROIsNow[which(!grepl("bodyid",ROIsNow) &
+                               !grepl("type",ROIsNow))]
+    ROIsNow_US <- ROIsNow[which(grepl("upstream",ROIsNow))]
+    ROIsNow_DS <- ROIsNow[which(grepl("downstream",ROIsNow))]
+    
+    for (us in 1:length(ROIsNow_US)){
+      ROIUS <- strsplit(ROIsNow_US[us],".",fixed=TRUE)[[1]][1]
+      if (!(ROIUS %in% ROIs))
+        next
+      for (ds in 1:length(ROIsNow_DS)){
+        if (rowInfo[ROIsNow_US[us]] > synThresh &
+            rowInfo[ROIsNow_DS[ds]] > synThresh){
+          ROIDS <- strsplit(ROIsNow_DS[ds],".",fixed=TRUE)[[1]][1]
+          if (!(ROIDS %in% ROIs))
+            next
+          edgeNow <- data.frame(to = which(ROIs == ROIUS),
+                                from = which(ROIs == ROIDS),
+                                weight = as.numeric(rowInfo[ROIsNow_DS[ds]]),
+                                bodyid = rowInfo$bodyid,
+                                type = rowInfo$type)
+          edges <- rbind(edges,edgeNow)
+        }
+      }
+    }
+  }
+  
+  return(edges)
+}
+```
+
+Plot the number of neurons that run between different ROIs
+```{r}
+synThresh <- 2
+
+# Get all FB types
+FBNronTypes <- FBpreNpostRatios$type %>% unique() %>% as.character() %>% sort()
+
+# Manually specify the ROIs to consider
+ROIs = c("CRE(R)","CRE(L)","GA(R)","GA(L)","LAL(R)","LAL(L)","SNP(L)","SNP(R)",
+               "FBl1","FBl2","FBl3","FBl4","FBl5","FBl6","FBl7","FBl8","FBl9",
+               "EB","PB","NO","AB(R)","AB(L)")
+
+# Get the ROI info for all FB types
+FBROIInfo <- neuprint_get_roiInfo(getBodyIdsForList(FBNronTypes))
+
+# Select only the relevant ROIs and only the upstream and downstream connections
+ROISelection <- colnames(FBROIInfo)
+ROINames <- sapply(ROIs,function(x){ROISelection[(grepl(paste0(x,"."),ROISelection,fixed=TRUE) &
+                                                    (grepl("upstream",ROISelection) | grepl("downstream",ROISelection)))]}) 
+ROINames <- ROINames %>% unlist() %>% as.character()
+FBROIInfo <- FBROIInfo %>% select(c("bodyid",ROINames)) %>% mutate(type = neuprint_get_meta(bodyid)$type)
+
+# Get the table of nodes (types)
+ROIs_InNOut <- ROIs[which(!(ROIs %in% c("EB","PB","NO")))]
+nodes_InNOut <- xyLookupFBROIs(ROIs_InNOut)
+edges_InNOut <- getEdgesROIdf(FBROIInfo,ROIs_InNOut)
+
+# Pull out the number of types between each ROI
+edges_InNOut_numTypes <- edges_InNOut %>% group_by(to,from) %>% summarize(numTypes = length(unique(type)))
+edges_InNOut_numTypes$ROI.from <- sapply(edges_InNOut_numTypes$from, function(x) nodes_InNOut$ROI[x])
+edges_InNOut_numTypes$ROI.to <- sapply(edges_InNOut_numTypes$to, function(x) nodes_InNOut$ROI[x])
+
+# Plot the network
+graph_InNOut <- tbl_graph(nodes_InNOut,
+                   filter(edges_InNOut_numTypes,(!(grepl("FB",ROI.from) & grepl("FB",ROI.to)))))
+
+gg_InNOut <-
+  ggraph(graph_InNOut,layout="manual",x=nodes_InNOut$x,y=nodes_InNOut$y) + 
+  geom_edge_diagonal(aes(width=numTypes,color=ROI.from),alpha=0.5,
+                     strength=0.5,
+                     arrow = arrow(length = unit(1, "cm")),
+                     end_cap = circle(1, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=numTypes,strength=0.1,color=ROI.from),alpha=0.5) +
+  geom_node_point(aes(color=ROI),size=8) + 
+  geom_node_text(aes(label=ROI),angle=40,size=6) +
+  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                          axis.line=element_blank(),axis.text.x=element_blank(),
+                          axis.text.y=element_blank(),axis.ticks=element_blank(),
+                          axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+  coord_fixed(ratio = 1,clip="off")
+
+# Get the table of nodes (types)
+ROIs_Intra <- ROIs[which(grepl("FB",ROIs) | (ROIs %in% c("PB","EB","NO")))]
+nodes_Intra <- xyLookupFBROIsIntra(ROIs_Intra)
+edges_Intra <- getEdgesROIdf(FBROIInfo,ROIs_Intra)
+
+# Pull out the number of types between each ROI
+edges_Intra_numTypes <- edges_Intra %>% group_by(to,from) %>% summarize(numTypes = length(unique(type)))
+edges_Intra_numTypes$ROI.from <- sapply(edges_Intra_numTypes$from, function(x) nodes_Intra$ROI[x])
+edges_Intra_numTypes$ROI.to <- sapply(edges_Intra_numTypes$to, function(x) nodes_Intra$ROI[x])
+
+graph_Intra <- tbl_graph(nodes_Intra,edges_Intra_numTypes)
+
+gg_Intra <-
+  ggraph(graph_Intra,layout="manual",x=nodes_Intra$x,y=nodes_Intra$y) + 
+  geom_edge_diagonal(aes(width=numTypes,color=ROI.from),alpha=0.5,
+                     strength=0.5,
+                     arrow = arrow(length = unit(1, "cm")),
+                     end_cap = circle(1, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=numTypes,strength=0.1,color=ROI.from),alpha=0.5) +
+  geom_node_point(aes(color=ROI),size=8) + 
+  geom_node_text(aes(label=ROI),angle=40,size=6) +
+  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                          axis.line=element_blank(),axis.text.x=element_blank(),
+                          axis.text.y=element_blank(),axis.ticks=element_blank(),
+                          axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+  coord_fixed(ratio = 1,clip="off")
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FBROIConnectivity.pdf", width = 30, height = 15)
+print(grid.arrange(gg_InNOut,gg_Intra,nrow=1))
+dev.off()
+
+```
 
 ############################################################
 Old Plots
