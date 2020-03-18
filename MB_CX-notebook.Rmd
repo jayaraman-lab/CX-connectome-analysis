@@ -11,6 +11,9 @@ library(tidyverse)
 library(plotly)
 library(dplyr)
 library(pbapply)
+library(tidygraph)
+#library(ggraph)
+library(gridExtra)
 
 # Go to the neurpintR-notebooks directory before loading these functions
 source("pathways.R")
@@ -20,7 +23,10 @@ source("inputOutputRegionsVis.R")
 source("R/table2ggraphUtils.R")
 source("InputOutputByTypeUtils.R")
 source("GetNeuronsInRoi.R")
+source("FBNetworkVisUtils.R")
 source("R/rois.R")
+source("R/supertypeUtils.R")
+source("colorCodeLookup.R")
 
 options(nat.plotengine = 'rgl')
 ```
@@ -211,6 +217,61 @@ print(p5)
 ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p5, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
+
+
+
+### Test DanTE's code ###
+
+Plot the PFNa,FC1,Delta6B,PFL1 pathways
+```{r}
+pwayTypes <- c("PFNa","FC1","Delta6B","PFL1")
+ROI <- "FB"
+
+conTab <- getConnectionTable_forSubset(getBodyIdsForList(pwayTypes)$bodyid,
+                                       getBodyIdsForList(pwayTypes)$bodyid,
+                                       ROI)
+
+conTab_Clean <- getTypeToTypeTable(conTab)
+
+gg_PFNaToPFL1 <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
+gg_PFNaToPFL1 <- gg_PFNaToPFL1 + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+print(gg_PFNaToPFL1)
+ggsave("PFNaToPFL1.eps", plot=gg_PFNaToPFL1, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+dev.off()
+
+```
+
+Plot the PFNd,v to Delta6B, Delta6B to others pathways
+```{r}
+tp1 = c("PFNd","PFNv")
+tp2 = c("Delta6B")
+
+ROI <- "FB"
+
+conTab1 <- getConnectionTable_forSubset(getBodyIdsForList(tp1)$bodyid,
+                                       getBodyIdsForList(tp2)$bodyid,
+                                       ROI)
+conTab1_Clean <- getTypeToTypeTable(conTab1)
+
+conTab2 <- getConnectionTable(getBodyIdsForList(tp2)$bodyid,"POST",ROI,synThresh = 3)
+conTab2 <- conTab2[which(!is.na(conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("FB",conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("EL",conTab2$type.to)),]
+conTab2_Clean <- getTypeToTypeTable(conTab2)
+
+conTab_Clean <- rbind(conTab1_Clean,conTab2_Clean)
+
+gg_PFNdToD6B <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
+gg_PFNdToD6B <- gg_PFNdToD6B + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\PFNdvToDelta6B.pdf", width = 10, height = 10)
+print(gg_PFNdToD6B)
+dev.off()
+```
+
+### End of DanTE's Code
+
 
 
 ### Make type-by-type synapse heat map in the CX
