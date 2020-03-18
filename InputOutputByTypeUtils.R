@@ -312,7 +312,7 @@ haneschPlot <- function(roiTable,
                         grouping=NULL,flip=FALSE,
                         alphaG=1,
                         alphaRois=0.15,
-                        roiLabel=roiSelect,
+                        roiLabel=selectRoiSet(getRoiTree(),default_level = 0),
                         regionOutlines=T,
                         theme=theme_minimal()){
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
