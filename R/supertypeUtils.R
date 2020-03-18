@@ -58,11 +58,10 @@ supertype.character <- function(types,level=2){
   if (level == 2){return(supertype)}
 
   supertype[grepl("^PF.*",types)] <- "FB Columnar"
-  supertype[grepl("EPG.*|PEG.*|PEN.*",types)] <- "EB Columnar"
+  supertype[grepl("EPG.*|PEG.*|PEN.*|^EL.*",types)] <- "EB Columnar"
   supertype[grepl("^FC.*|^FR.*|^FS.*",types)] <- "FB Output"
   supertype[grepl("FB[1-9].*",types)] <- "FB Tangential"
   supertype[grepl("Delta[0|6].*",types)] <- "FB Interneuron"
-  supertype[grepl("^EL.*",types)] <- "EB Output"
 
   supertype
 }

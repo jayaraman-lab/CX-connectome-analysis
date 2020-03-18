@@ -32,6 +32,10 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
     conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
   } else if(byGroup == "type"){
     conmatPlot =  conmatPlot + geom_tile(aes(type.to,type.from,fill=plotWeight))
+  } else if(byGroup == "Glom_to_Col"){
+    conmatPlot =  conmatPlot + geom_tile(aes(FBcol.to,PBglom.from,fill=plotWeight))
+  } else if(byGroup == "Col_to_Glom"){
+    conmatPlot =  conmatPlot + geom_tile(aes(PBglom.to,FBcol.from,fill=plotWeight))
   } else{
     conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
   }
