@@ -103,15 +103,15 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight)
  ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
-    return( myConnections %>% drop_na(weightRelative) ) ## NA values can occur in rare cases where
+    myConnections <- myConnections %>% drop_na(weightRelative)  ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
   }else{
-  return(myConnections %>% mutate(roi = "All brain", 
+  myConnections <- myConnections %>% mutate(roi = "All brain", 
                                   outputContribution = outputContributionTotal,
                                   weightRelative = weightRelativeTotal,
-                                  ROIweight = weight)) 
+                                  ROIweight = weight)
   }
-  
+  return(supertype(myConnections))
 }
 
 simplifyConnectionTable <- function(connectionTable){
@@ -355,28 +355,24 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","weightRelativeTotal","outputContribution",
+                                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarize(weightRelative = sum(weightRelative),
-                                          weightRelativeTotal = weightRelativeTotal[1],
                                           weight = sum(ROIweight),
                                           absoluteWeight = sum(ROIweight),
-                                          outputContribution = outputContribution[1],
                                           n_type = 1,
-                                          n_targets = n(),
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]) %>% ungroup()
+                                          n_targets = n()) %>% ungroup()
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
-                                group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to")) %>%
+                                group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution",
+                                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarise(weightRelative = sum(weightRelative),
                                           weightRelativeTotal = sum(weightRelativeTotal),
-                                          weight = sum(ROIweight),
-                                          n = n[1],
-                                          outputContribution = outputContribution[1],
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]) %>% ungroup() %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to")) %>%
+                                          weight = sum(ROIweight)
+                                          ) %>% ungroup() %>%
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
+                                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
                                           pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
@@ -387,11 +383,8 @@ getTypeToTypeTable <- function(connectionTable,
                                           weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
                                           absoluteWeight = sum(weight),
                                           weight = mean(c(weight,rep(0,missingV))),
-                                          outputContribution = outputContribution[1],
                                           n_targets = n(),
-                                          n_type = n[1],
-                                          databaseType.to = databaseType.to[1],
-                                          databaseType.from = databaseType.from[1]
+                                          n_type = n[1]
                                 ) %>% select(-missingV) %>% ungroup()
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
