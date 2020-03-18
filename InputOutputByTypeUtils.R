@@ -76,13 +76,13 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     }
     inputsR <- retype.na(inputsR)}
   
-  return(supertype(neuronBag(outputs = OUTByTypes,
+  return(neuronBag(outputs = OUTByTypes,
               inputs = INByTypes,
               names = typeQuery,
               outputs_raw = outputsR,
               inputs_raw = inputsR,
               outputsTableRef = bind_rows(outputsTableRef,unknowns)
-              )))
+              ))
 }
 
 redefineTypeByNameInList <- function(IOList,
