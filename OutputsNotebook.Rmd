@@ -30,6 +30,9 @@ outputBag <- buildInputsOutputsByType("FC[1|2].*|FS.*|^FR.*|ExR7.*|ExR8.*|PFL.*|
 ```{r}
 outputBag <- cxRetyping(outputBag)
 ```
+```{r}
+reducedBag <- filter(outputBag,filterPartners = FALSE,grepl("_L.*",type) | startsWith(type,"ExR8"))
+```
 
 ## What do their respective innervation patterns look like ?
 ```{r}
@@ -39,12 +42,12 @@ roisOut <- roisOut %>% filter(!(level2 %in% c("ATL(L)","ICL(L)")))
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 ```
 ```{r}
-outputsByRoi <- getROISummary(outputBag,filter=FALSE)
+outputsByRoi <- getROISummary(reducedBag,filter=FALSE)
 ```
 
 
 ```{r}
-outputsInnervation_L <- haneschPlot(outputsByRoi %>% filter(grepl("_L.*",type) | startsWith(type,"ExR8")),roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE)
+outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE)
 ```
 
 ```{r}
@@ -59,8 +62,8 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHa
 We'll select all their partners in "output" regions
 
 ```{r}
-allOutsTable <- (outputBag$outputs %>% filter(roi %in% c("WED(R)","SLP(R)","SIP(R)","SMP(R)","SPS","IPS","CRE(R)","RUB(R)","ROB(R)","BU(R)","LAL(R)","AB(R)","GNG") & !(databaseType.to %in% outputBag$names$databaseType)))
-allOuts <- outputBag$outputsTableRef %>% filter(type %in% allOutsTable$type.to)
+allOutsTable <- (reducedBag$outputs %>% filter(roi %in% c("WED(R)","SLP(R)","SIP(R)","SMP(R)","SPS","IPS","CRE(R)","RUB(R)","ROB(R)","BU(R)","LAL(R)","AB(R)","GNG") & !(databaseType.to %in% reducedBag$names$databaseType)))
+allOuts <- reducedBag$outputsTableRef %>% filter(type %in% allOutsTable$type.to)
 ```
 
 
@@ -77,9 +80,14 @@ CXtypes <- read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3")
 CXRois <- unique(unlist(roiH %>% filter(level1=="CX")))
 ```
 ```{r}
-feedbackNeurons <- unique((outputsInOutBag$outputs %>% filter(databaseType.to %in% CXtypes$n.type & (roi %in% CXRois)))$type.from)
+feedbackNeurons <- unique((outputsInOutBag$outputs %>% filter((databaseType.to %in% CXtypes$n.type) & (roi %in% CXRois)))$type.from)
 feedbackBag <- filter(outputsInOutBag,filterPartners=FALSE,type %in% feedbackNeurons)
 ```
+
+```{r}
+roisFeedback <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4,"EB"=4,"FB"=4))
+```
+
 
 ```{r}
 feedbackRoiSummary <- getROISummary(feedbackBag,filter=FALSE)
@@ -91,21 +99,26 @@ feedbackHanesch
 ```
 
 ```{r}
+feedbackHaneschUnpacked <- haneschPlot(feedbackRoiSummary,grouping="supertype2",flip=TRUE,roiSelect=roisFeedback,roiLabel=roiOutLabels)
+feedbackHaneschUnpacked
+```
+
+```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHanesch.svg",feedbackHanesch,width=12,height=7)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHaneschLayers.svg",feedbackHaneschUnpacked,width=13,height=7)
 ```
 
 ```{r}
-feedbackG <- makeGraph(feedbackBag,polarity="inputs",ROIs = (roisOut %>% filter(level1 != "CX"))$roi)
+feedbackPathwaysG <- makeGraph(feedbackBag$inputs %>% filter(type.from %in% outputBag$names$type),ROIs = (roisOut %>% filter(level1 != "CX"))$roi)
 ```
 
 ```{r}
-feedbackGraphPlot <- ggraph(feedbackG$graph,layout="stress") + 
-      geom_edge_fan(aes(width=weightRelative,color=supertype.from2),alpha=0.5) + 
+feedbackGraphPlot <- ggraph(feedbackPathwaysG$graph,layout="stress") + 
+      geom_edge_fan(aes(width=weightRelative,color=roi),alpha=0.5) + 
       geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
-      geom_node_point(aes(color=supertype2,shape=as.factor(layer)),size=8) + 
+      geom_node_point(aes(color=as.factor(layers),size=8)) + 
       geom_node_text(aes(label=name),angle=40,size=4)+
-      scale_fill_discrete()+
-      scale_shape_discrete(name="Neuron kind",labels=c("Outputs","Feedback"))
+      scale_fill_discrete()
 feedbackGraphPlot
 ```
 
