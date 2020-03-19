@@ -27,38 +27,35 @@ neuronBag <- function(outputs,inputs,names,outputs_raw,inputs_raw,outputsTableRe
 
 is.neuronBag <- function(x) inherits(x,"neuronBag")
 
-buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
+buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,by.roi=TRUE,...){
   #' Builds a neuronBag object either from a vector of query strings or a metadata data.frame.
   #' @param typeQuery : either a vector of queries (similar to neuprint_search queries) or a 
   #' metadata data.frame for a set of neurons
   #' @param fixed : if typeQuery is a query string, is it fixed?
-  #' @param big : is the query large/timing out. If TRUE runs through pblapply
-  #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
+  #' @param by.roi : return results by ROI or just global weights?
+  #' @param verbose : Inform about progress if TRUE
+  #' @param ... : to be passed to getConnectionTable
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,by.roi=TRUE,verbose=FALSE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,by.roi=by.roi,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,by.roi=by.roi,verbose=verbose,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,by.roi=TRUE,verbose=FALSE,...){
   #'
   #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
   #'neurons/types in that data frame)
   #'
-  if (big == TRUE){
-    inoutList <- pblapply(unique(typeQuery$type),
-                          function(t) {
-                            buildInputsOutputsByType(typeQuery %>% filter(type == t),selfRef=selfRef,big=FALSE,by.roi=by.roi)},cl = nc,...)
-                          
-    problems <- which(sapply(inoutList,function(x) !(is.neuronBag(x))))
-    if (length(problems>0)){print(paste("Problems with:",paste(unique(typeQuery$type)[problems],collapse=",")))}
-    return(do.call(bind_InoutLists,inoutList))
-  }
   
-  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,...)
-  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,...)
+  if (verbose) message("Calculate raw outputs")
+  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,verbose=verbose,...)
+  
+  if (verbose) message("Calculate raw inputs")
+  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,verbose=verbose,...)
+  
+  if (verbose) message("Calculate type to type outputs")
   if (length(outputsR)==0){OUTByTypes <- NULL
                            outputsTableRef <- NULL
                            unknowns <- NULL
@@ -67,7 +64,9 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     outputsR <- retype.na(outputsR)
     outputsTableRef <- getTypesTable(unique(outputsR$type.to))
     unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
-    }
+                         }
+  
+  if (verbose) message("Calculate type to type inputs")
   if (nrow(inputsR)==0){INByTypes <- NULL}else{
     if (selfRef){
       INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
@@ -161,15 +160,15 @@ lateralizeInputOutputList <- function(inputOutputList,typeList=NULL){
   
 }
 
-cxRetyping <- function(neurons){
+cxRetyping <- function(neurons,verbose=TRUE){
   #' Convenience function to deal with the tricky left/right asymetries
-  print("Renaming PFL3")
+  if (verbose) message("Renaming PFL3")
   neurons <- redefineTypeByNameInList(neurons,typeList = c("PFL3"),pattern = "(^.*_L(?!.*irreg))|(^.*_R.*irreg)",perl=TRUE,newPostFixes = c("_L*","_R*"))
-  print("Renaming PFL1/PFR_a")
+  if (verbose) message("Renaming PFL1/PFR_a")
   neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_a","PFL1"),pattern = "_L[2-7]|_R1",newPostFixes = c("_L*","_R*"))
-  print("Renaming PFR_b")
+  if (verbose) message("Renaming PFR_b")
   neurons <- redefineTypeByNameInList(neurons,typeList = c("PFR_b"),pattern = "(^.*_L(?!.*C9))|(^.*C1.*)",perl=TRUE,newPostFixes = c("_L*","_R*"))
-  print("All other L/R retyping")
+  if (verbose) message("All other L/R retyping")
   neurons <- lateralizeInputOutputList(neurons)
   return(neurons)
 }
@@ -312,7 +311,7 @@ haneschPlot <- function(roiTable,
                         grouping=NULL,flip=FALSE,
                         alphaG=1,
                         alphaRois=0.15,
-                        roiLabel=roiSelect,
+                        roiLabel=selectRoiSet(getRoiTree(),default_level = 0),
                         regionOutlines=T,
                         theme=theme_minimal()){
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
