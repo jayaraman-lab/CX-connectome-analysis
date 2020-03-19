@@ -1,3 +1,7 @@
+if (!require("dtplyr")) install.packages("dtplyr")
+library(dtplyr)
+source("R/supertypeUtils.R")
+
 ########################################################################################################################
 # Convenience functions for query results processing
 ########################################################################################################################
@@ -55,6 +59,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
 
   if (verbose) message("Pull connections")
   myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,chunk=chunk_connections,...)
+  
   if (by.roi | !is.null(slctROI)){
    myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   }else{
@@ -67,7 +72,7 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   partnerMeta <- neuprint_get_meta(myConnections$partner,chunk=chunk_meta,...)
   refMetaOrig <- neuprint_get_meta(myConnections$bodyid,chunk=chunk_meta,...)  ## To get the database type name
   
-  myConnections <- filter(myConnections,partnerMeta$status == "Traced")
+  myConnections <- filter(myConnections,partnerMeta$status =="Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
   
   refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
@@ -128,12 +133,12 @@ simplifyConnectionTable <- function(connectionTable){
   #' 
   #' 
   if ("from" %in% names(connectionTable)){return(connectionTable)}else{
-  connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,!!as.name("bodyid"),!!as.name("partner")),
-                                                to = ifelse(prepost==1,!!as.name("partner"),!!as.name("bodyid")),
-                                                name.from = ifelse(prepost==1,!!as.name("name"),!!as.name("partnerName")),
-                                                name.to = ifelse(prepost==1,!!as.name("partnerName"),!!as.name("name")),
-                                                type.from = ifelse(prepost==1,!!as.name("type"),!!as.name("partnerType")),
-                                                type.to = ifelse(prepost==1,!!as.name("partnerType"),!!as.name("type"))
+  connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                to = ifelse(prepost==1,partner,bodyid),
+                                                name.from = ifelse(prepost==1,name,partnerName),
+                                                name.to = ifelse(prepost==1,partnerName,name),
+                                                type.from = ifelse(prepost==1,type,partnerType),
+                                                type.to = ifelse(prepost==1,partnerType,type)
                                                 ) %>%
                                          select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
   return(connectionTable)
@@ -372,29 +377,34 @@ getTypeToTypeTable <- function(connectionTable,
                                           n_targets = n()) %>% ungroup() %>%
                                 ungroup()
   
+  group_In <- names(connectionTable)[names(connectionTable) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution",
+                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
+  
+  group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
+                 "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
+  
+  sTable <- lazy_dt(connectionTable)
   ## Main filter
-  sTable <- connectionTable %>% filter(n>1) %>%
-                                group_by_if(names(.) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution",
-                                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
-                                summarise(weightRelative = sum(weightRelative),
+  sTable <- sTable %>% filter(n>1) %>%
+                                group_by_at(group_In) %>%
+                                      summarise(weightRelative = sum(weightRelative),
                                           weightRelativeTotal = sum(weightRelativeTotal),
                                           weight = sum(ROIweight)
                                           ) %>% 
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
-                                                            "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
-                                summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
-                                          pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                                group_by_at(group_Out) %>%
+                                        mutate(missingV = ifelse(is.null(n),0,n[1]-n())) %>%
+                                        summarise(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
-                                                                  t.test(c(weightRelative,rep(0,missingV)),
+                                                                  t.test(c(weightRelative,rep(0,missingV[1])),
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,rep(0,missingV))),
-                                          weightRelative = mean(c(weightRelative,rep(0,missingV))),
-                                          weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV))),
+                                          varWeight = var(c(weightRelative,rep(0,missingV[1]))),
+                                          weightRelative = mean(c(weightRelative,rep(0,missingV[1]))),
+                                          weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV[1]))),
                                           absoluteWeight = sum(weight),
-                                          weight = mean(c(weight,rep(0,missingV))),
+                                          weight = mean(c(weight,rep(0,missingV[1]))),
                                           n_targets = n(),
                                           n_type = n[1]
-                                ) %>% select(-missingV) %>% ungroup()
+                                ) %>% ungroup() %>% as.data.frame()
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
@@ -429,7 +439,7 @@ getConnectionTable_forSubset <- function(preBodyIDs,postBodyIDs, slctROI=NULL,..
 getRoiInfo <- function(bodyids,...){
   #' Formats the results of a roiInfo query in a nice table
   #' 
-  if (length(bodyids)==0){return(data.frame(bodyid=character(),roi=character(),pre=integer(),post=integer(),downstream=integer(),stringsAsFactors = FALSE))}
+  if (length(bodyids)==0){return(data.frame(bodyid=double(),roi=character(),pre=integer(),post=integer(),downstream=integer(),stringsAsFactors = FALSE))}
   roiInfo <- neuprint_get_roiInfo(bodyids,...)
   roiInfo <-  pivot_longer(roiInfo,cols=-bodyid,names_to=c("roi","field"),names_sep="\\.",values_to="count")
   roiInfo <- pivot_wider(roiInfo,names_from = "field",values_from="count")
