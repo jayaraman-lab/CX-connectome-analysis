@@ -368,9 +368,10 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","weightRelativeTotal","outputContribution",
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
                                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarize(weightRelative = sum(weightRelative),
+                                          weightRelativeTotal = sum(weightRelativeTotal),
                                           weight = sum(ROIweight),
                                           absoluteWeight = sum(ROIweight),
                                           n_type = 1,
@@ -388,8 +389,8 @@ getTypeToTypeTable <- function(connectionTable,
   sTable <- sTable %>% filter(n>1) %>%
                                 group_by_at(group_In) %>%
                                       summarise(weightRelative = sum(weightRelative),
-                                          weightRelativeTotal = sum(weightRelativeTotal),
-                                          weight = sum(ROIweight)
+                                                weightRelativeTotal = sum(weightRelativeTotal),
+                                                weight = sum(ROIweight)
                                           ) %>% 
                                 group_by_at(group_Out) %>%
                                         mutate(missingV = ifelse(is.null(n),0,n[1]-n())) %>%
