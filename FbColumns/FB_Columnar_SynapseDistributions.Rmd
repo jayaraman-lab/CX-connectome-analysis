@@ -706,13 +706,13 @@ save.image(file=paste(SaveDir,'All_Data.Rdata',sep=""))
 source("InputOutputByTypeUtils.R")
 source("neuprintQueryUtils.R")
 source("visualizeConnectivityTables.R")
-
+library("xlsx")
 
 # Get input and output tables
 PFX_Types=unique(PFX_NeuronsPerType$type)
 PFX_Bag=buildInputsOutputsByType(PFX_Types, slctROI="FB")
-PFX_FB_Outputs=PFX_Bag[["outputs_raw"]]
-PFX_FB_Inputs=PFX_Bag[["inputs_raw"]]
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+PFX_FB_Inputs_All=PFX_Bag[["inputs_raw"]]
 
 
 # Get FB columns and PB glomeruli 
@@ -725,10 +725,19 @@ Glom_And_Col_To=Glom_And_Col
 colnames(Glom_And_Col_To)= c("to","Side.to","PBglom.to","FBcol.to")
 
 
+## Get mapping in compact form and save as file to share (this needs to go somewhere else)
+PB_To_FB_Map=distinct(All_FX_PFX[c("bodyid","type","bodyname","Side","PBglom","FBcol")])
+save(PB_To_FB_Map, file = paste(SaveDir,"PB_To_FB_Map.Rdata",sep=""))
+PB_To_FB_Map_PbFbXx=distinct(All_PFX[c("bodyid","type","bodyname","Side","PBglom","FBcol")])
+PB_To_FB_Map_PbFbXx=PB_To_FB_Map_PbFbXx[order(PB_To_FB_Map_PbFbXx$type),]
+PB_To_FB_Map_PbFbXx$bodyname_new=paste(PB_To_FB_Map_PbFbXx$bodyname, "_", PB_To_FB_Map_PbFbXx$FBcol, sep="")
+write.xlsx(PB_To_FB_Map_PbFbXx,  paste(SaveDir,"PB_To_FB_Map.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
+
+
 # Add column, glomerlus, and side information to inputs/output tables
-PFX_FB_Outputs=merge(PFX_FB_Outputs, Glom_And_Col_From, by="from", all.x=TRUE)
+PFX_FB_Outputs=merge(PFX_FB_Outputs_All, Glom_And_Col_From, by="from", all.x=TRUE)
 PFX_FB_Outputs=merge(PFX_FB_Outputs, Glom_And_Col_To, by="to", all.x=TRUE)
-PFX_FB_Inputs=merge(PFX_FB_Inputs, Glom_And_Col_From, by="from", all.x=TRUE)
+PFX_FB_Inputs=merge(PFX_FB_Inputs_All, Glom_And_Col_From, by="from", all.x=TRUE)
 PFX_FB_Inputs=merge(PFX_FB_Inputs, Glom_And_Col_To, by="to", all.x=TRUE)
 
 
@@ -829,6 +838,8 @@ for (nnn in 1:length(PFX_Types)){
 }
 
 
+  
+  
 
 
 
@@ -837,7 +848,81 @@ for (nnn in 1:length(PFX_Types)){
 
 
 
+# Look for lateralized output patterns, where PB-FB-XX neurons from right bridge target neurons that neurons from left bridge do not
+```{r}
 
+
+# Make directory
+PFX_Dir_Lat=paste(PFX_Dir,"PFX_Left_VS_Right","/",sep="")
+if (!dir.exists(PFX_Dir_Lat)){dir.create(PFX_Dir_Lat)}
+
+
+# Plot all outputs and look for lateralization
+PFX_FB_Outputs_Lat=subset(PFX_FB_Outputs, startsWith(type.to, "Delta" ) & !type.to=="Delta?" & !is.na(PBglom.from))
+PFX_FB_Outputs_Lat$to=as.character(PFX_FB_Outputs_Lat$to)
+PFX_FB_Outputs_Lat$from=as.character(PFX_FB_Outputs_Lat$from)
+
+# Get upstream and downstream types
+UpTypes   = unique(PFX_FB_Outputs_Lat$type.from)
+DownTypes = unique(PFX_FB_Outputs_Lat$type.to)
+
+# Get the total number of cells for all upstream and downstream types
+Number_of_Ups= subset(NamedBodies, bodytype %in% UpTypes) %>% group_by(bodytype) %>% summarize(N=n())
+Number_of_Downs= subset(NamedBodies, bodytype %in% DownTypes) %>% group_by(bodytype) %>% summarize(N=n())
+
+
+# Loop over all upstream/downstream pairs and plot matricies
+for (upup in 1:length(UpTypes)){
+  for (downdown in 1:length(DownTypes)){
+    
+    # Get connectivity matrix from upstream type to downstream type
+    Temp_Lat=subset(PFX_FB_Outputs_Lat, type.from == UpTypes[upup] & type.to == DownTypes[downdown] & weight>3) 
+    
+    if (length(Temp_Lat$to>0)){
+      # Get number of upstream/downstream neurons as a percent of the total
+      Temp_TotalUps=Number_of_Ups[Number_of_Ups$bodytype == UpTypes[upup],]$N
+      Temp_TotalDowns=Number_of_Downs[Number_of_Downs$bodytype == DownTypes[downdown],]$N
+      Temp_NowUps=length(unique(subset(Temp_Lat, type.from == UpTypes[upup] )$from))
+      Temp_NowDowns=length(unique(subset(Temp_Lat, type.to == DownTypes[downdown] )$to))
+      
+      # Average by PB glom
+      Temp_Lat_Sum=Temp_Lat %>% group_by(PBglom.from, Side.from, to, name.to) %>% summarize(weight = mean(weight))
+      
+      
+      
+      if (Temp_NowUps/Temp_TotalUps>0.35 & Temp_NowDowns/Temp_TotalDowns >0.35){
+        
+        PP <- ggplot(Temp_Lat_Sum) + 
+          theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+          scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                               midpoint =0.5*max(Temp_Lat_Sum$weight), limits=c(0,max(Temp_Lat_Sum$weight))) +
+          geom_tile(aes(to,PBglom.from,fill=weight)) +
+          facet_grid(rows = vars(Side.from), scales="free_y") +
+          ggtitle(paste(Temp_Lat$type.from[1]," to ",Temp_Lat$type.to[1],sep=""))
+        
+        ggsave(paste(PFX_Dir_Lat, Temp_Lat$type.from[1],"_to_",Temp_Lat$type.to[1], "_inFB.png",sep=""),
+               plot = PP, device='png', scale = 1, width = 7.5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
 
 
 
