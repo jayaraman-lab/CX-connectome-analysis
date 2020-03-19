@@ -393,16 +393,16 @@ getTypeToTypeTable <- function(connectionTable,
                                                 weight = sum(ROIweight)
                                           ) %>% 
                                 group_by_at(group_Out) %>%
-                                        mutate(missingV = ifelse(is.null(n),0,n[1]-n())) %>%
-                                        summarise(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==n[1]),   ## t.test doesn't run if values are constant. Keep those.
+                                        mutate(missingV = ifelse(is.null(n),NULL,list(rep(0,length.out=n[1])))) %>% 
+                                        summarise(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==first(n)),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
-                                                                  t.test(c(weightRelative,rep(0,missingV[1])),
+                                                                  t.test(c(weightRelative,unlist(missingV)),
                                                                                     alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,rep(0,missingV[1]))),
-                                          weightRelative = mean(c(weightRelative,rep(0,missingV[1]))),
-                                          weightRelativeTotal = mean(c(weightRelativeTotal,rep(0,missingV[1]))),
+                                          varWeight = var(c(weightRelative,unlist(missingV))),
+                                          weightRelative = mean(c(weightRelative,unlist(missingV))),
+                                          weightRelativeTotal = mean(c(weightRelativeTotal,unlist(missingV))),
                                           absoluteWeight = sum(weight),
-                                          weight = mean(c(weight,rep(0,missingV[1]))),
+                                          weight = mean(c(weight,unlist(missingV))),
                                           n_targets = n(),
                                           n_type = n[1]
                                 ) %>% ungroup() %>% as.data.frame()
