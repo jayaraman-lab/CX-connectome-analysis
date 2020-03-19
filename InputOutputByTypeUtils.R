@@ -36,13 +36,13 @@ buildInputsOutputsByType <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi
   #' @param nc : if big is TRUE, the number of cores to use (likely to be ignored on Windows)
   UseMethod("buildInputsOutputsByType")}
 
-buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
+buildInputsOutputsByType.character <- function(typeQuery,fixed=FALSE,big=FALSE,nc=5,by.roi=TRUE,verbose=FALSE,...){
   TypeNames <- distinct(bind_rows(lapply(typeQuery,neuprint_search,field="type",fixed=fixed))) %>%
                   mutate(databaseType = type)
-  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,by.roi=by.roi,...)
+  buildInputsOutputsByType(TypeNames,fixed=FALSE,big=big,nc=nc,by.roi=by.roi,verbose=verbose,...)
 }
   
-buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,by.roi=TRUE,...){
+buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FALSE,big=FALSE,nc=5,by.roi=TRUE,verbose=FALSE,...){
   #'
   #'@param selfRef : Should the input data.frame be used as the type reference (use if you already renamed
   #'neurons/types in that data frame)
@@ -57,8 +57,13 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     return(do.call(bind_InoutLists,inoutList))
   }
   
-  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,...)
-  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,...)
+  if (verbose) message("Calculate raw outputs")
+  outputsR <- getConnectionTable(typeQuery,synapseType = "POST",by.roi=by.roi,verbose=verbose,...)
+  
+  if (verbose) message("Calculate raw inputs")
+  inputsR <- getConnectionTable(typeQuery,synapseType = "PRE",by.roi=by.roi,verbose=verbose,...)
+  
+  if (verbose) message("Calculate type to type outputs")
   if (length(outputsR)==0){OUTByTypes <- NULL
                            outputsTableRef <- NULL
                            unknowns <- NULL
@@ -67,7 +72,9 @@ buildInputsOutputsByType.data.frame <- function(typeQuery,fixed=FALSE,selfRef=FA
     outputsR <- retype.na(outputsR)
     outputsTableRef <- getTypesTable(unique(outputsR$type.to))
     unknowns <- retype.na_meta(neuprint_get_meta(outputsR$to[!(outputsR$to %in% outputsTableRef$bodyid)]))
-    }
+                         }
+  
+  if (verbose) message("Calculate type to type inputs")
   if (nrow(inputsR)==0){INByTypes <- NULL}else{
     if (selfRef){
       INByTypes <- getTypeToTypeTable(inputsR,typesTable = typeQuery)
