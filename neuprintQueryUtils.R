@@ -23,7 +23,7 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 }
 
 ### Connection table
-getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 3,...){
+getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
   #' Get connection table of inputs and add meta
   #' @return Returns a connection table as data frame. Added columns are \code{weightRelativeTotal} which is 
   #' the relative weight considering all the synapses (irrespective of the ROI), and if ROI are used (either if
@@ -36,20 +36,25 @@ getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 
   #' @param slctROI: String specifying the ROI where connections should be queried. By default all the ROIs.
   #' @param by.roi: Passed to neuprint_connection_table. If returning all ROIs, should results be broken down by ROI?
   #' @param synThresh: Minimum number of synapses to consider a connection (default 3)
-  #' @param ...: Other arguments to be passed to neuprint_connection_table
+  #' @param chunk_meta : to be passed to metadata and roiInfo queries (default TRUE)
+  #' @param chunk_connection : to be passed to neuprint_connection_table (default TRUE)
+  #' @param verbose : should the function report on its progress?
+  #' @param ...: Other arguments to be passed to neuprint queries (neuprint_connection_table, getRoiInfo and neuprint_get_meta)
   
   UseMethod("getConnectionTable")}
 
 
-getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE, synThresh=3,...){
-  refMeta <- neuprint_get_meta(bodyIDs)
-  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,synThresh,...))
+getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE, synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
+  refMeta <- neuprint_get_meta(bodyIDs,chunk=chunk_meta,...)
+  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,synThresh,chunk_connections=chunk_connections,chunk_meta=chunk_meta,...))
 }
 
-getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,...){
+getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
   refMeta <- bodyIDs
   bodyIDs <- neuprint_ids(bodyIDs$bodyid)
-  myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,...)
+
+  if (verbose) message("Pull connections")
+  myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,chunk=chunk_connections,...)
   if (by.roi | !is.null(slctROI)){
    myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
   }else{
@@ -58,8 +63,9 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   if (nrow(myConnections)==0){return(NULL)}
   
-  partnerMeta <- neuprint_get_meta(myConnections$partner)
-  refMetaOrig <- neuprint_get_meta(myConnections$bodyid)  ## To get the database type name
+  if (verbose) message("Pull metadata")
+  partnerMeta <- neuprint_get_meta(myConnections$partner,chunk=chunk_meta,...)
+  refMetaOrig <- neuprint_get_meta(myConnections$bodyid,chunk=chunk_meta,...)  ## To get the database type name
   
   myConnections <- filter(myConnections,partnerMeta$status == "Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
@@ -67,35 +73,36 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
   refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
 
-  myConnections <-myConnections %>%
-    mutate(partnerName = partnerMeta[["name"]],
-           name = refMeta[["name"]],
-           partnerType = partnerMeta[["type"]],
-           type = refMeta[["type"]])
+  myConnections <-mutate(myConnections,
+                         partnerName = partnerMeta[["name"]],
+                         name = refMeta[["name"]],
+                         partnerType = partnerMeta[["type"]],
+                         type = refMeta[["type"]])
   
   myConnections <- simplifyConnectionTable(myConnections)
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
     outMeta <- refMeta
     inMeta <- partnerMeta
-    myConnections <- myConnections %>% mutate(databaseType.to = refMetaOrig$type,
-                                              databaseType.from = type.from)
+    myConnections <- mutate(myConnections,databaseType.to = refMetaOrig$type,
+                                            databaseType.from = type.from)
     } else {
     inMeta <- partnerMeta
     outMeta <- partnerMeta
-    myConnections <- myConnections %>% mutate(databaseType.to = type.to,
+    myConnections <- mutate(myConnections,databaseType.to = type.to,
                                               databaseType.from = refMetaOrig$type)
   }
   
-  myConnections <- myConnections %>% mutate(weightRelativeTotal = weight/outMeta[["post"]],
-                                            totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
-                                            outputContributionTotal = weight/totalPreWeight
+  myConnections <-mutate(myConnections,weightRelativeTotal = weight/outMeta[["post"]],
+                                       totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
+                                       outputContributionTotal = weight/totalPreWeight
                                             )
   
   if (by.roi | !is.null(slctROI)){
+    if (verbose) message("Pull roiInfo")
     myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
-    outInfo <- getRoiInfo(unique(myConnections$to)) %>% select(bodyid,roi,post)
-    inInfo <- getRoiInfo(unique(myConnections$from)) %>% select(bodyid,roi,downstream)
+    outInfo <- getRoiInfo(unique(myConnections$to),chunk=chunk_meta,...) %>% select(bodyid,roi,post)
+    inInfo <- getRoiInfo(unique(myConnections$from),chunk=chunk_meta,...) %>% select(bodyid,roi,downstream)
   
     myConnections <- left_join(myConnections,inInfo,by=c("from" = "bodyid","roi"="roi")) %>% rename(totalPreROIweight = downstream)
  
@@ -106,10 +113,10 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     myConnections <- myConnections %>% drop_na(weightRelative)  ## NA values can occur in rare cases where
     ## synapse (pre/post) is split between ROIs
   }else{
-  myConnections <- myConnections %>% mutate(roi = "All brain", 
-                                  outputContribution = outputContributionTotal,
-                                  weightRelative = weightRelativeTotal,
-                                  ROIweight = weight)
+  myConnections <- mutate(myConnections,roi = "All brain", 
+                                        outputContribution = outputContributionTotal,
+                                        weightRelative = weightRelativeTotal,
+                                        ROIweight = weight)
   }
   return(supertype(myConnections))
 }
@@ -346,7 +353,8 @@ getTypeToTypeTable <- function(connectionTable,
   connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
                                           mutate(outputContribution = sum(outputContribution)) %>%
                                           group_by(type.from,type.to,roi) %>%
-                                          mutate(outputContribution = mean(outputContribution))
+                                          mutate(outputContribution = mean(outputContribution)) %>%
+                                          ungroup()
   
   if (!is.null(oldTable)){
     connectionTableOld <- oldTable %>% filter(paste0(type.to,type.from) %in% paste0(connectionTable$type.to,connectionTable$type.from))
@@ -361,7 +369,8 @@ getTypeToTypeTable <- function(connectionTable,
                                           weight = sum(ROIweight),
                                           absoluteWeight = sum(ROIweight),
                                           n_type = 1,
-                                          n_targets = n()) %>% ungroup()
+                                          n_targets = n()) %>% ungroup() %>%
+                                ungroup()
   
   ## Main filter
   sTable <- connectionTable %>% filter(n>1) %>%
@@ -370,7 +379,7 @@ getTypeToTypeTable <- function(connectionTable,
                                 summarise(weightRelative = sum(weightRelative),
                                           weightRelativeTotal = sum(weightRelativeTotal),
                                           weight = sum(ROIweight)
-                                          ) %>% ungroup() %>%
+                                          ) %>% 
                                 group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
                                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarize(missingV = ifelse(is.null(n),0,n[1]-n()),
