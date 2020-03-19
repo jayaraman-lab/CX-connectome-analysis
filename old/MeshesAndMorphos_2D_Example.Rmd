@@ -1,0 +1,329 @@
+---
+title: "Example for getting meshes and morphos in 2D"
+output: html_notebook
+---
+
+
+# Command to clear environment is: rm(list = ls(all.names = TRUE))
+# Load libraries
+```{r message=FALSE, warning=FALSE}
+
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(reshape2)
+library(plotly)
+options(nat.plotengine = 'rgl')
+
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# The region of interest.
+ROI="EB"  
+
+# Directory to save data to.
+SaveDir="Z:/Cx_Connectome/BradData/EB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="Z:/Cx_Connectome/BradData/EB_Analysis/RingNeuronSynapseLocs/"
+
+```
+
+### Create save/plot directory if they dont exists yet
+```{r}
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+source("inputOutputRegionsVis.r")
+source("GetNeuronsInRoi.r")
+```
+
+
+### Get neurons in the ROI
+```{r}
+
+NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies =  mutate(NamedBodies, cropped = neuprint_get_meta(bodyid)$cropped)
+
+```
+
+
+### Get synapses and morphologies for a few example ring neurons (R5)
+```{r}
+
+# Get body IDs for R5
+UniqueNamedBodies=as.character(unique(NamedBodies$bodytype))
+RingNeuronTypes=UniqueNamedBodies[startsWith(unlist(UniqueNamedBodies), "R5")]
+RingNeuronBodies=filter(NamedBodies, startsWith(as.character(unlist(NamedBodies$bodytype)), "R5") )
+
+# Get all synapses for the ring neurons
+for (typeNow in 1:length(RingNeuronTypes)){
+  # Get BU synapses
+  RingNeuronSyns = NamedBodies[ which(unlist(NamedBodies$bodytype) == RingNeuronTypes[typeNow]),]$bodyid %>% neuprint_get_synapses()
+  RingNeuronSyns <-  RingNeuronSyns %>% mutate(name=as.character(RingNeuronTypes[typeNow]))%>%     mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
+  if (typeNow==1){
+    RingNeuronSynsAll= RingNeuronSyns
+  }else{
+    RingNeuronSynsAll <- rbind(RingNeuronSynsAll,RingNeuronSyns)
+  }
+  
+}
+remove(RingNeuronSyns)
+
+# Get neuron morphologies
+MorphFile=paste(SaveDir,"R5_RingNeuronMorpho.rds",sep="")
+if (file.exists(MorphFile)){
+  RingNeuronMorpho=readRDS(MorphFile)
+} else {
+  RingNeuronMorpho = neuprint_read_neurons(RingNeuronBodies$bodyid)
+  saveRDS(RingNeuronMorpho, file = MorphFile)
+}
+
+
+```
+
+
+
+### Example of how to get the outlines of the EB and BU meshes in synapse coordinates, plotted in 2D  
+```{r}
+
+# Load libraries. Might have to install.packages("car") or install.packages("imager")
+library(car)
+library(imager)
+
+# Load function
+source("GetRoiMeshOutline.r")
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+
+# Get EB Mesh
+Spacing=40 # 40 is good
+Smooth=3   #  3 is good
+OUTPUT=Get_MeshRoiOutline(ebMesh, Spacing, Smooth,"EB")
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+EB_Ring1=EdgesOrdered1 %>% mutate(name="EB1")
+EB_Ring2=EdgesOrdered2 %>% mutate(name="EB2")
+remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
+
+# Get BU Mesh
+Spacing=40 # 40 is good
+Smooth=3   #  3 is good
+OUTPUT=Get_MeshRoiOutline(RbuMesh, Spacing, Smooth,"Bu")
+list2env(OUTPUT ,.GlobalEnv)
+remove(OUTPUT)
+BU_Outline=EdgesOrdered %>% mutate(name="BU(R)")
+remove(list=c("EdgesOrdered","EdgesOrdered1","EdgesOrdered2"))
+
+# Plot the synapses and the ROI outlines in same plot
+SynapseData=RingNeuronSynsAll[,c(3,4,5,10)]
+ggplot()  + geom_point(data=RingNeuronSynsAll, aes(x = x, y = -z, color=name)) + geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA)  +  geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA)
+
+
+
+ggplot() + stat_density_2d(data=RingNeuronSynsAll, aes(x=x, y=-z, fill = ..level..), geom = "polygon") +
+  geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )  +  
+      geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
+
+ggplot()  + geom_hex(data=RingNeuronSynsAll, aes(x = x, y = -z), bins=100)+
+  geom_polygon(data=EB_Ring1, aes(x = x, y = -z), colour='black', fill=NA, size = 1 ) +
+    geom_polygon(data=EB_Ring2, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )  +  
+      geom_polygon(data=BU_Outline, aes(x = x, y = -z), colour='black', fill=NA, size = 1 )
+
+
+
+```
+
+
+
+# See if we can get the outline of a synapse point cloud?
+```{r}
+
+```
+
+
+
+# See if we can get neuron morphology or outline of synapses in 2D
+# Yes, but its going to a pain to get it work with ggplot I think
+```{r}
+
+# Here's how to plot just the neuron morphology in 2D but it doesnt seem easy to get this to work with ggplot
+A=plot(RingNeuronMorpho, col="black",WithNodes = FALSE,PlotAxes = c("XZ"),AxisDirections = c(1, 1, -1))
+     
+```
+
+
+
+
+
+
+
+
+
+
+
+### Previous code used to make the function GetROiMeshOutline.R
+```{r}
+
+
+# Load new library. Might have to install.packages("car")
+library(car)
+library(imager)
+
+# Get meshes for ROIs
+ebMesh = neuprint_ROI_mesh("EB")
+RbuMesh = neuprint_ROI_mesh("BU(R)")
+
+
+# Get X,Y,Z coordinates from meshes
+EBData=data.frame(x=ebMesh$vb[1,], y=ebMesh$vb[2,],z=ebMesh$vb[3,],name="EB")
+BUData=data.frame(x=RbuMesh$vb[1,], y=RbuMesh$vb[2,],z=RbuMesh$vb[3,],name="BU(R)")
+
+
+# Put all data into a single data frame
+AllData=data.frame
+AllData=rbind(EBData, BUData)
+AllData=rbind(AllData, RingNeuronSynsAll[,c(3,4,5,10)])
+
+
+# Plot data in 3D to make sure it overlaps. 
+nclear3d()
+plot3d(EBData[c('x','y','z')], col='black', alpha=0.05 ,	forceClipregion = FALSE)
+plot3d(BUData[c('x','y','z')], col='black', alpha=0.05 ,	add=TRUE,forceClipregion = FALSE)
+plot3d(RingNeuronSynsAll[c('x','y','z')], col='violet', alpha=0.4, add=TRUE,	forceClipregion = FALSE)
+
+
+# plot data in 2D to make sure it overlaps. Doesn't the EB look too tall?
+ggplot(AllData, aes(x=x, y=-z, color=name)) + geom_point()
+ggplot(AllData, aes(x=x, y=y, color=name)) + geom_point()
+
+
+# Get matrix limits with some resolution (Spacing)
+DataToUse=EBData
+Spacing=40 # 40 is good
+XLIM=c( floor(min(AllData$x/Spacing))*Spacing-Spacing*10 , ceiling(max(AllData$x/Spacing))*Spacing+Spacing*10  )
+YLIM=c( floor(min(AllData$z)/Spacing)*Spacing-Spacing*10  , ceiling(max(AllData$z)/Spacing)*Spacing+Spacing*10  ) 
+
+
+# Initialize matrix
+XSpacing = seq(from = XLIM[1], to = XLIM[2], by = Spacing)
+YSpacing = seq(from = YLIM[1], to = YLIM[2], by = Spacing)
+ImageMat = matrix(0, nrow = length(YSpacing) , ncol = length(XSpacing))
+rownames(ImageMat) = as.character(YSpacing)
+colnames(ImageMat) = as.character(XSpacing)
+  
+
+# Populate matrix
+DataToUse$x=round(DataToUse$x/Spacing)*Spacing
+DataToUse$y=round(DataToUse$y/Spacing)*Spacing
+DataToUse$z=round(DataToUse$z/Spacing)*Spacing
+for (val in 1:length(DataToUse$x)){ImageMat[ as.character(DataToUse$z[val]),
+                        as.character(DataToUse$x[val]) ] = 1}
+
+# Plot matrix 
+longData<-melt(ImageMat)
+ggplot(longData, aes(x = Var2, y = Var1)) +  geom_raster(aes(fill=value))
+
+
+# blur image and detect edges
+Cimage=as.cimg(t(ImageMat))
+plot(Cimage )
+Cimage_blurr=isoblur(Cimage,3) #3 is good
+plot(Cimage_blurr)
+Cimage_Edges=cannyEdges(Cimage_blurr, alpha = 1)
+plot(Cimage_Edges)
+
+# Convert back to dataframe and get coordinates
+Cimage_Edges_df <- as.data.frame(Cimage_Edges)
+Edges=data.frame(x=XSpacing[Cimage_Edges_df$x], y=0,z=YSpacing[Cimage_Edges_df$y], name="Edge")
+
+# Loop over data and get ordered points by finding nearest neighbor 
+EdgesTemp=Edges
+for (val in 1:length(EdgesTemp$x)){
+  if (val==1){
+    EdgesOrdered=data.frame(x=EdgesTemp$x[val], y=EdgesTemp$y[val], z=EdgesTemp$z[val], name='ROI')
+    EdgesTemp[val,]=NA
+  } else {
+    Distances = ((EdgesTemp$x-EdgesOrdered$x[val-1])^2 + (EdgesTemp$z-EdgesOrdered$z[val-1])^2)^0.5
+    Ind=which.min(Distances)
+    EdgesOrdered=rbind(EdgesOrdered, data.frame(x=EdgesTemp$x[Ind], y=EdgesTemp$y[Ind], z=EdgesTemp$z[Ind], name='ROI') )
+    EdgesTemp[Ind,]=NA
+  }
+}
+EdgesOrdered[(length(EdgesTemp$x)+1),]=EdgesOrdered[1,]
+
+# Get distances to see if there are two edges or one
+DistanceAll= ((diff(EdgesOrdered$x))^2 + (diff(EdgesOrdered$z))^2)^0.5
+DistanceAll[length(DistanceAll)]=0
+
+# If there are two edges, divide into two. Either way, plot the data. 
+DistanceThresh=200
+if (sum(DistanceAll>DistanceThresh)==0){
+  # Plot data again
+  p1<-ggplot()  + geom_point(data=AllData, aes(x = x, y = -z, color=name)) + geom_polygon(data=EdgesOrdered, aes(x = x, y = -z), colour='black', fill=NA)
+  print(p1)
+  EdgesOrdered1=NA
+  EdgesOrdered2=NA
+} else {
+  # Divide data into two edges
+  IND=which(DistanceAll>DistanceThresh)
+  EdgesOrdered1=EdgesOrdered[1:IND ,]
+  EdgesOrdered2=EdgesOrdered[((IND+1):(length(EdgesOrdered$x)-1)) ,]
+  p1<-ggplot()  + geom_point(data=AllData, aes(x = x, y = -z, color=name)) + geom_polygon(data=EdgesOrdered2, aes(x = x, y = -z), colour='black', fill=NA) +
+    geom_polygon(data=EdgesOrdered1, aes(x = x, y = -z), colour='black', fill=NA) 
+  print(p1)
+    
+}
+
+Output= list("EdgesOrdered"=EdgesOrdered,"EdgesOrdered1"=EdgesOrdered1,"EdgesOrdered2"=EdgesOrdered2)
+#return(Output)
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
