@@ -31,7 +31,7 @@ outputBag <- buildInputsOutputsByType("FC[1|2].*|FS.*|^FR.*|ExR7.*|ExR8.*|PFL.*|
 outputBag <- cxRetyping(outputBag)
 ```
 ```{r}
-reducedBag <- filter(outputBag,filterPartners = FALSE,grepl("_L.*",type) | startsWith(type,"ExR8"))
+reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R")
 ```
 
 ## What do their respective innervation patterns look like ?
@@ -55,7 +55,7 @@ outputsInnervation_L
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,width=6,height=8)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,width=12,height=8)
 ```
 
 ## Who are those neurons they talk to?
