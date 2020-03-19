@@ -1,0 +1,383 @@
+---
+title: "Notebook getting FB synapses, performing PCA, and saving the data"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Command to update is remotes::update_packages('neuprintr')
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+#library(plotly)
+library(dplyr)
+library(matlib)
+#library(car)
+#library(imager)
+#library(reshape2)
+#library(zoo)
+#library(ggpubr)
+#library(ks)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+options(nat.plotengine = 'rgl')
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# The region of interest.
+ROI="FB"  
+
+# Directory to save data to.
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/ColumnarSynapseLocs/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+```
+
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("../SynapsePCAUtils.r")
+source("FB_SynapseDistribution_Utils.r")
+
+```
+
+
+### Get neurons in the ROI and
+### Exclude neurons not in known FB columnar types
+```{r}
+
+# get all FB bodies
+NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
+NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
+
+# Load known FB types
+load(paste(SaveDir,"FB_Types.RData",sep=""))
+
+# Exclude bodies that are not columnar
+FB_Columnar_Type=c("PF","Delta","FR","FS","FC")
+ExcludedTypes=unique(NamedBodies$bodytype[!( startsWith(NamedBodies$bodytype, FB_Columnar_Type))])
+IncludedTypes=unique(NamedBodies$bodytype[( startsWith(NamedBodies$bodytype, FB_Columnar_Type))])
+ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
+
+
+```
+
+
+### Get synapse distributions for all columnar neurons (or load previous data) and subset by layer
+```{r}
+# load(paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
+
+
+# Get synapses in layers 1-9
+SynLocs_L1=Get_FBlayer_ColumnarSyns("FBl1","L1",IncludedTypes)
+SynLocs_L2=Get_FBlayer_ColumnarSyns("FBl2","L2",IncludedTypes)
+SynLocs_L3=Get_FBlayer_ColumnarSyns("FBl3","L3",IncludedTypes)
+SynLocs_L4=Get_FBlayer_ColumnarSyns("FBl4","L4",IncludedTypes)
+SynLocs_L5=Get_FBlayer_ColumnarSyns("FBl5","L5",IncludedTypes)
+SynLocs_L6=Get_FBlayer_ColumnarSyns("FBl6","L6",IncludedTypes)
+SynLocs_L7=Get_FBlayer_ColumnarSyns("FBl7","L7",IncludedTypes)
+SynLocs_L8=Get_FBlayer_ColumnarSyns("FBl8","L8",IncludedTypes)
+SynLocs_L9=Get_FBlayer_ColumnarSyns("FBl9","L9",IncludedTypes)
+
+
+# Bind layer data into single data frame
+FBC_SynsAll = do.call("rbind", list(SynLocs_L1, SynLocs_L2, SynLocs_L3, SynLocs_L4, SynLocs_L5, 
+                                    SynLocs_L6, SynLocs_L7, SynLocs_L8, SynLocs_L9))
+FBC_SynsAll$Layer=as.factor(FBC_SynsAll$Layer)
+
+
+# Get meshes
+Mesh_FB= neuprint_ROI_mesh("FB")
+Mesh_FB_L1= neuprint_ROI_mesh("FBl1")
+Mesh_FB_L2= neuprint_ROI_mesh("FBl2")
+Mesh_FB_L3= neuprint_ROI_mesh("FBl3")
+Mesh_FB_L4= neuprint_ROI_mesh("FBl4")
+Mesh_FB_L5= neuprint_ROI_mesh("FBl5")
+Mesh_FB_L6= neuprint_ROI_mesh("FBl6")
+Mesh_FB_L7= neuprint_ROI_mesh("FBl7")
+Mesh_FB_L8= neuprint_ROI_mesh("FBl8")
+Mesh_FB_L9= neuprint_ROI_mesh("FBl9")
+
+
+# Save synapse locations for later loading
+save(FBC_SynsAll, Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_FB_L5,
+     Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
+
+
+# Remove SynLocs of layers
+rm(list = c('SynLocs_L1','SynLocs_L2','SynLocs_L3','SynLocs_L4','SynLocs_L5','SynLocs_L6','SynLocs_L7','SynLocs_L8','SynLocs_L9'))
+
+
+```
+
+
+# Get mesh points
+```{r}
+
+Mesh_FB_Points=MeshPoints(Mesh_FB)
+Mesh_FB_L1_Points=MeshPoints(Mesh_FB_L1)
+Mesh_FB_L2_Points=MeshPoints(Mesh_FB_L2)
+Mesh_FB_L3_Points=MeshPoints(Mesh_FB_L3)
+Mesh_FB_L4_Points=MeshPoints(Mesh_FB_L4)
+Mesh_FB_L5_Points=MeshPoints(Mesh_FB_L5)
+Mesh_FB_L6_Points=MeshPoints(Mesh_FB_L6)
+Mesh_FB_L7_Points=MeshPoints(Mesh_FB_L7)
+Mesh_FB_L8_Points=MeshPoints(Mesh_FB_L8)
+Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
+
+```
+
+
+# Center synapses and mesh points at new origin
+```{r}
+
+# define new origin from roi center of mass
+origin = getCOM(Mesh_FB_Points)
+
+
+#reset orgin of all layers
+Mesh_FB_Points = resetOrigin(Mesh_FB_Points, origin)
+Mesh_FB_L1_Points = resetOrigin(Mesh_FB_L1_Points, origin)
+Mesh_FB_L2_Points = resetOrigin(Mesh_FB_L2_Points, origin)
+Mesh_FB_L3_Points = resetOrigin(Mesh_FB_L3_Points, origin)
+Mesh_FB_L4_Points = resetOrigin(Mesh_FB_L4_Points, origin)
+Mesh_FB_L5_Points = resetOrigin(Mesh_FB_L5_Points, origin)
+Mesh_FB_L6_Points = resetOrigin(Mesh_FB_L6_Points, origin)
+Mesh_FB_L7_Points = resetOrigin(Mesh_FB_L7_Points, origin)
+Mesh_FB_L8_Points = resetOrigin(Mesh_FB_L8_Points, origin)
+Mesh_FB_L9_Points = resetOrigin(Mesh_FB_L9_Points, origin)
+
+
+# Reset origin of all synapses 
+FBC_SynsAll = resetOrigin(FBC_SynsAll, origin)
+
+
+```
+
+
+# Perform PCA and rotation to get axes
+```{r}
+
+#get eigenvectors
+roiEigen = covPCA(Mesh_FB_Points)
+
+# Rotate PCs some
+RotMat=makeRotMatYZ(-33) # 33
+roiEigen$vectors= roiEigen$vectors %*% RotMat
+RotMat=makeRotMatXY(-3) # -3
+roiEigen$vectors= roiEigen$vectors %*% RotMat
+
+# Project meshes into PCA space
+Mesh_FB_Points = changeBasis(Mesh_FB_Points, roiEigen)
+Mesh_FB_L1_Points = changeBasis(Mesh_FB_L1_Points, roiEigen)
+Mesh_FB_L2_Points = changeBasis(Mesh_FB_L2_Points, roiEigen)
+Mesh_FB_L3_Points = changeBasis(Mesh_FB_L3_Points, roiEigen)
+Mesh_FB_L4_Points = changeBasis(Mesh_FB_L4_Points, roiEigen)
+Mesh_FB_L5_Points = changeBasis(Mesh_FB_L5_Points, roiEigen)
+Mesh_FB_L6_Points = changeBasis(Mesh_FB_L6_Points, roiEigen)
+Mesh_FB_L7_Points = changeBasis(Mesh_FB_L7_Points, roiEigen)
+Mesh_FB_L8_Points = changeBasis(Mesh_FB_L8_Points, roiEigen)
+Mesh_FB_L9_Points = changeBasis(Mesh_FB_L9_Points, roiEigen)
+
+
+# Project synapses into PCA space
+FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
+
+
+
+```
+
+
+# Get pre and post neuron names based on bodyids
+```{r}
+
+# Get pre and post body names (to get PB columns later)
+BodyId_And_Names=NamedBodies[c("bodyid","bodyname")]
+BodyId_And_PartnerNames=NamedBodies[c("bodyid","bodyname")]
+colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_Names, by="bodyid")
+FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
+
+
+```
+
+
+
+# Plot data in new and old reference frame
+```{r message=FALSE}
+
+
+# Make scatter plot new projection
+ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
+
+
+
+# Make scatter plot of original space
+ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
+
+
+# Scatter subset of synapses, colored by layer
+data2=FBC_SynsAll[seq(from = 1, to = length(FBC_SynsAll$x), by = 500), ]
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  size=1, alpha = 0.01) +
+           geom_point(data=data2, aes(x=X, y=-Y, colour= Layer),  size=1, alpha = 0.7) + coord_fixed(ratio = 1) 
+remove(data2)
+
+
+
+
+```
+
+
+
+
+# Get rid of original frame (the lowercase x,y,z data)
+```{r}
+
+# Meshes
+Mesh_FB_Points=Mesh_FB_Points[ , !(names(Mesh_FB_Points) %in% c("x","y","z"))]
+Mesh_FB_L1_Points=Mesh_FB_L1_Points[ , !(names(Mesh_FB_L1_Points) %in% c("x","y","z"))]
+Mesh_FB_L2_Points=Mesh_FB_L2_Points[ , !(names(Mesh_FB_L2_Points) %in% c("x","y","z"))]
+Mesh_FB_L3_Points=Mesh_FB_L3_Points[ , !(names(Mesh_FB_L3_Points) %in% c("x","y","z"))]
+Mesh_FB_L4_Points=Mesh_FB_L4_Points[ , !(names(Mesh_FB_L4_Points) %in% c("x","y","z"))]
+Mesh_FB_L5_Points=Mesh_FB_L5_Points[ , !(names(Mesh_FB_L5_Points) %in% c("x","y","z"))]
+Mesh_FB_L6_Points=Mesh_FB_L6_Points[ , !(names(Mesh_FB_L6_Points) %in% c("x","y","z"))]
+Mesh_FB_L7_Points=Mesh_FB_L7_Points[ , !(names(Mesh_FB_L7_Points) %in% c("x","y","z"))]
+Mesh_FB_L8_Points=Mesh_FB_L8_Points[ , !(names(Mesh_FB_L8_Points) %in% c("x","y","z"))]
+Mesh_FB_L9_Points=Mesh_FB_L9_Points[ , !(names(Mesh_FB_L9_Points) %in% c("x","y","z"))]
+
+
+#Synapses
+FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
+
+
+```
+
+
+
+
+# Get outlines of each layer
+```{r}
+
+# Get XY outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XY=MeshOutline(Mesh_FB_Points, "XY")
+Outline_L1_XY=MeshOutline(Mesh_FB_L1_Points, "XY")
+Outline_L2_XY=MeshOutline(Mesh_FB_L2_Points, "XY")
+Outline_L3_XY=MeshOutline(Mesh_FB_L3_Points, "XY")
+Outline_L4_XY=MeshOutline(Mesh_FB_L4_Points, "XY")
+Outline_L5_XY=MeshOutline(Mesh_FB_L5_Points, "XY")
+Outline_L6_XY=MeshOutline(Mesh_FB_L6_Points, "XY")
+Outline_L7_XY=MeshOutline(Mesh_FB_L7_Points, "XY")
+Outline_L8_XY=MeshOutline(Mesh_FB_L8_Points, "XY")
+Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY")
+
+
+# Get XZ outlines of each layer, with Y direction reverse so dorsal is up
+Outline_FB_XZ=MeshOutline(Mesh_FB_Points, "XZ")
+Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ")
+Outline_L2_XZ=MeshOutline(Mesh_FB_L2_Points, "XZ")
+Outline_L3_XZ=MeshOutline(Mesh_FB_L3_Points, "XZ")
+Outline_L4_XZ=MeshOutline(Mesh_FB_L4_Points, "XZ")
+Outline_L5_XZ=MeshOutline(Mesh_FB_L5_Points, "XZ")
+Outline_L6_XZ=MeshOutline(Mesh_FB_L6_Points, "XZ")
+Outline_L7_XZ=MeshOutline(Mesh_FB_L7_Points, "XZ")
+Outline_L8_XZ=MeshOutline(Mesh_FB_L8_Points, "XZ")
+Outline_L9_XZ=MeshOutline(Mesh_FB_L9_Points, "XZ")
+
+
+# Check layer 4/7, which have holes
+ggplot() + geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L4_XZ, aes(x=c1, y=c2), size = 1) 
+
+ggplot() + geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L7_XZ, aes(x=c1, y=c2), size = 1) 
+
+
+```
+
+# Post-process layers 4,6 to make smooth
+```{r}
+
+# Layer 4
+Bad_L4_Inds=which( abs(diff(Outline_L4_XZ$c2))>1000)
+Outline_L4_XZ = Outline_L4_XZ[ - seq((Bad_L4_Inds[1]+1),Bad_L4_Inds[length(Bad_L4_Inds)]), ]
+
+# Layer 7 XZ
+Bad_L7_Inds=which( abs(diff(Outline_L7_XZ$c2))>1000)
+Outline_L7_XZ = Outline_L7_XZ[ - seq((Bad_L7_Inds[1]+1),Bad_L7_Inds[length(Bad_L7_Inds)]), ] 
+
+# Check that holes have been removed
+ggplot() + geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L4_XZ, aes(x=c1, y=c2), size = 1) 
+
+ggplot() + geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=Outline_L7_XZ, aes(x=c1, y=c2), size = 1) 
+
+```
+
+
+# Save data for later loading in other notebooks
+```{r}
+
+# Save synapse locations for later loading
+save(NamedBodies, FB_Columnar_Type, ColumnarBodies, FBC_SynsAll, Mesh_FB_Points, Mesh_FB_L1_Points, Mesh_FB_L2_Points, Mesh_FB_L3_Points, Mesh_FB_L4_Points,
+     Mesh_FB_L5_Points, Mesh_FB_L6_Points, Mesh_FB_L7_Points, Mesh_FB_L8_Points, Mesh_FB_L9_Points,
+     roiEigen, origin, Outline_FB_XY,  Outline_L1_XY,  Outline_L2_XY,  Outline_L3_XY,  Outline_L4_XY,  Outline_L5_XY,  
+     Outline_L6_XY,    Outline_L7_XY,  Outline_L8_XY,  Outline_L9_XY,  Outline_FB_XZ,  Outline_L1_XZ,  Outline_L2_XZ,
+     Outline_L3_XZ,    Outline_L4_XZ,  Outline_L5_XZ,  Outline_L6_XZ,  Outline_L7_XZ,  Outline_L8_XZ,  Outline_L9_XZ,
+     file = paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+     
+```
+
+
+
+
+
+
+
+
+
+
+
