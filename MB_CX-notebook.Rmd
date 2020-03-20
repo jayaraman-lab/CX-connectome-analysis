@@ -89,7 +89,7 @@ ggsave("MBON_CX_ConnectionsByType_weightRelative.eps", plot=p3, device="eps", pa
 
 ### Pull significant MBON_CX_TypeToTypeConnections based on "weightRelative"
 # Find Strongly connected MBON to CX Neurons
-StrongMBON_CX_TypeToTypeConnections <- MBON_CX_TypeToTypeConnections  %>% filter(weightRelative > 0.05)
+StrongMBON_CX_TypeToTypeConnections <- MBON_CX_TypeToTypeConnections  %>% filter(weightRelative > 0.01)
 StrongMBON2CX_TargetsType = unique(pull(StrongMBON_CX_TypeToTypeConnections, type.to))
 StrongMBON2CX_TargetIds <- neuprint_search(StrongMBON2CX_TargetsType, field='type')
 # head(StrongMBON2CX_TargetIds)
