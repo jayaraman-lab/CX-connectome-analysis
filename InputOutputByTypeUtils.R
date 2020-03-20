@@ -276,7 +276,7 @@ combineRois.neuronBag <- function(connections,rois,newRoi){
   new_inputsR <- combineRois(connections$inputs_raw,rois,newRoi)
   new_outputsR <- combineRois(connections$outputs_raw,rois,newRoi)
   new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = connections$names)
-  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$names)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$outputsTableRef)
   neuronBag(outputs = new_outputs,
             inputs = new_inputs,
             names = connections$names,
