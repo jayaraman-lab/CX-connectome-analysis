@@ -269,7 +269,21 @@ combineRois.data.frame <- function(connections,rois,newRoi){
                                     mutate(weightRelative=ROIweight/totalROIweight,
                                            outputContribution=ROIweight/totalPreROIweight)
   
-  bind_rows(connections,newRegionTable)
+  newRegionTable
+}
+
+combineRois.neuronBag <- function(connections,rois,newRoi){
+  new_inputsR <- combineRois(connections$inputs_raw,rois,newRoi)
+  new_outputsR <- combineRois(connections$outputs_raw,rois,newRoi)
+  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = connections$names)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$names)
+  neuronBag(outputs = new_outputs,
+            inputs = new_inputs,
+            names = connections$names,
+            inputs_raw = new_inputsR,
+            outputs_raw = new_outputsR,
+            outputsTableRef = connections$outputsTableRef) 
+            
 }
 
 getROISummary <- function(InOutList,filter=TRUE,rois = NULL){
