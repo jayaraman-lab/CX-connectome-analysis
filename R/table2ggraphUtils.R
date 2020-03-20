@@ -2,10 +2,10 @@
 
 nodesFromTypeTable <- function(type2typeTable){
   
-  typesFrom <- type2typeTable %>% rename(type = type.from,databaseType = databaseTypeFrom) %>% select(type,databaseType)
+  typesFrom <- type2typeTable %>% rename(type = type.from,databaseType = databaseType.from) %>% select(type,databaseType)
                                   
   
-  typesTo <- type2typeTable %>% rename(type = type.to,databaseType = databaseTypeTo) %>% select(type,databaseType)
+  typesTo <- type2typeTable %>% rename(type = type.to,databaseType = databaseType.to) %>% select(type,databaseType)
     
 
   typesTable <- distinct(bind_rows(typesFrom,typesTo))
@@ -16,29 +16,11 @@ nodesFromTypeTable <- function(type2typeTable){
 }
 
 edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(type2typeTable)){
-  type2typeTable %>% mutate(to = sapply(type.to, function(f) which(f == pathNodes$name)),
-                            from = sapply(type.from, function(f) which(f == pathNodes$name))) %>% supertype()
+  distinct(type2typeTable %>% mutate(to = sapply(type.to, function(f) which(f == pathNodes$name)),
+                            from = sapply(type.from, function(f) which(f == pathNodes$name))) %>% supertype())
 }
 
-graphFromInOut <- function(type2typeList,kind="intra"){
-  nodesIn <- nodesFromTypeTable(type2typeList$inputs) 
-  nodesOut <- nodesFromTypeTable(type2typeList$outputs)
-  nodes <- distinct(bind_rows(nodesIn,nodesOut))
-  
-  inp <- type2typeList$inputs
-  outp <- type2typeList$outputs
-  if (kind=="intra"){
-    nodes <- nodes %>% filter(name %in% type2typeList$names$type)
-    inp <- type2typeList$inputs %>% filter(type.from %in% type2typeList$names$type)
-    outp <- type2typeList$outputs %>% filter(type.to %in% type2typeList$names$type)
-  }
-  
-  edges <- edgesFromTypeTable(distinct(bind_rows(inp,outp)),nodes)
-  
-  graph <- tbl_graph(nodes,edges)
-}
-
-makeGraph <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){UseMethod("makePyramidGraph")}
+makeGraph <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){UseMethod("makeGraph")}
 
 makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
   if (is.null(ROIs) & by.roi==FALSE){
@@ -55,7 +37,7 @@ makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inpu
   }else{
     nodes <- nodes %>% mutate(layers=ifelse(name %in% unique(type2type$type.to),1,2))
   }
-  edges <- edgesFromTypeTable(type2type)
+  edges <- edgesFromTypeTable(type2type,nodes)
   graph <- tbl_graph(nodes,edges)
  
   return(list(graph = graph,nodes = nodes,edges= edges))
@@ -63,7 +45,7 @@ makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inpu
 
 makeGraph.neuronBag <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
   type2typeTable <- type2type[[polarity]]
-  makePyramidGraph(type2typeTable,ROIs=ROIs,by.roi=by.roi,polarity=polarity)
+  makeGraph(type2typeTable,ROIs=ROIs,by.roi=by.roi,polarity=polarity)
 }
 
 pyramidGraph <- function(graphT,nodeT,by.roi=T){
