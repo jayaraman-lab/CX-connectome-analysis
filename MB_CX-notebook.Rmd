@@ -52,6 +52,126 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 ```
 
+### Trace MBON to CX Connections and Graph Pathways ###
+```{r}
+
+### Get CX neurons with outputs in MB directly
+
+### Get the MBONs
+# Find all MBONs
+MBON_Names <- neuprint_search("MBON.*")
+# head(MBON_Names)
+
+### Find who the MBONs talk to
+# Find the postsynaptic partners of all MBONs
+MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST",synThresh=5)
+# head(MBON_PostConnections)
+
+### Among these, find who innervate the CX
+# Find the MBON postsynaptic partners that innervate the FB
+MBONtargetROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
+MBONtargetInCX_ROIinfo <- MBONtargetROIinfo  %>% filter(CX.pre + CX.post > 10)
+MBON_CX_Connections <- MBON_PostConnections %>% filter(to %in% MBONtargetInCX_ROIinfo$bodyid)
+# head(MBON_CX_Connections)
+
+### Plot the connectivity matrix
+MBON_CX_Connections %>% plotConnectivityMatrix
+
+### Make the TypeToType connection table from MBON to CX
+MBON_CX_TypeToTypeConnections <- getTypeToTypeTable(MBON_CX_Connections)
+# head(MBON_CX_TypeToTypeConnections)
+
+### Plot the TypeToType connetivity matrix based on the connectionMeasure of "weightRelative"
+p3 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="weightRelative")
+print(p3)
+ggsave("MBON_CX_ConnectionsByType_weightRelative.eps", plot=p3, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+### Pull significant MBON_CX_TypeToTypeConnections based on "weightRelative"
+# Find Strongly connected MBON to CX Neurons
+StrongMBON_CX_TypeToTypeConnections <- MBON_CX_TypeToTypeConnections  %>% filter(weightRelative > 0.05)
+StrongMBON2CX_TargetsType = unique(pull(StrongMBON_CX_TypeToTypeConnections, type.to))
+StrongMBON2CX_TargetIds <- neuprint_search(StrongMBON2CX_TargetsType, field='type')
+# head(StrongMBON2CX_TargetIds)
+
+# Find the postsynaptic partners of StrongMBON2CX_TargetIds
+StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetIds,synapseType="POST",synThresh=5)
+# head(StrongMBON2CX_TargetsCnctTable)
+StrongMBON2CX_TargetsType2TypeTable <- getTypeToTypeTable(StrongMBON2CX_TargetsCnctTable)
+# head(StrongMBON2CX_TargetsType2TypeTable)
+
+# Plot and save the StrongMBON2CX_TargetsType2TypeTable based on the connectionMeasure of "weightRelative"
+p4 <- plotConnectivityMatrix(StrongMBON2CX_TargetsType2TypeTable,byGroup="type",connectionMeasure="weightRelative")
+print(p4)
+ggsave("StrongMBON2CXTargetsType2TypeCnctTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+### Plot the pathways from MBONs to CX
+# Get the connection table from StrongMBON2CX_Target to downstream subset in the FB
+ROI <- "FB"
+conTab <- getConnectionTable_forSubset(StrongMBON2CX_TargetIds$bodyid,
+                                       StrongMBON2CX_TargetsCnctTable$to,
+                                       ROI)
+
+conTab_Clean <- getTypeToTypeTable(conTab)
+xyLookup = rbind(xyLookupTableInner(),xyLookupTableCol())
+
+# Graph the TypeToType ConnTable using the combined lookupTable
+gg_MBONtargetTab <- graphConTab(conTab_Clean,xyLookup,FALSE,TRUE)
+gg_MBONtargetTab <- gg_MBONtargetTab + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+print(gg_MBONtargetTab)
+ggsave("gg_MBONtargetTab.pdf", plot=gg_MBONtargetTab, device="pdf", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+```
+
+
+
+
+
+### Plot the TypeToType connetivity matrix based on the connectionMeasure of "outputContribution"
+```{r}
+p5 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="outputContribution")
+print(p5)
+ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p5, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+
+
+### Test DanTE's code: Plot the PFNd,v to Delta6B, Delta6B to others pathways
+```{r}
+tp1 = c("PFNd","PFNv")
+tp2 = c("Delta6B")
+
+ROI <- "FB"
+
+conTab1 <- getConnectionTable_forSubset(getBodyIdsForList(tp1)$bodyid,
+                                       getBodyIdsForList(tp2)$bodyid,
+                                       ROI)
+conTab1_Clean <- getTypeToTypeTable(conTab1)
+
+conTab2 <- getConnectionTable(getBodyIdsForList(tp2)$bodyid,"POST",ROI,synThresh = 3)
+conTab2 <- conTab2[which(!is.na(conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("FB",conTab2$type.to)),]
+conTab2 <- conTab2[which(!grepl("EL",conTab2$type.to)),]
+conTab2_Clean <- getTypeToTypeTable(conTab2)
+
+conTab_Clean <- rbind(conTab1_Clean,conTab2_Clean)
+
+gg_PFNdToD6B <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
+gg_PFNdToD6B <- gg_PFNdToD6B + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+print(gg_PFNdToD6B)
+ggsave("PFNdvToDelta6B.pdf", plot=gg_PFNdToD6B, device="pdf", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+```
+
+### End of DanTE's Code
+
+
+
+
+
 ### Get a list of all ROIs
 ```{r}
 # Get all ROIs
@@ -136,135 +256,6 @@ MbBodiesROIinfo <- neuprint_get_roiInfo(allMB_neurons$bodyid)
 MbBodiesROIinfoInCX <- MbBodiesROIinfo  %>% filter(CX.pre + CX.post > 10)
 MBneuronsInCX <- allMB_neurons %>% filter(bodyid %in% MbBodiesROIinfoInCX$bodyid)
 ```
-
-### Get CX neurons with outputs in MB directly
-
-
-### Get the MBONs
-```{r}
-# Find all MBONs
-MBON_Names <- neuprint_search("MBON.*")
-head(MBON_Names)
-```
-
-### Find who the MBONs talk to
-```{r}
-# Find the postsynaptic partners of all MBONs
-MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST",synThresh=5)
-head(MBON_PostConnections)
-```
-
-### Among these, find who innervate the CX
-```{r}
-# Find the MBON postsynaptic partners that innervate the FB
-MBONtargetROIinfo <- neuprint_get_roiInfo(MBON_PostConnections$to)
-MBONtargetInCX_ROIinfo <- MBONtargetROIinfo  %>% filter(CX.pre + CX.post > 10)
-MBON_CX_Connections <- MBON_PostConnections %>% filter(to %in% MBONtargetInCX_ROIinfo$bodyid)
-head(MBON_CX_Connections)
-```
-
-### Plot the connectivity matrix
-```{r}
-MBON_CX_Connections %>% plotConnectivityMatrix
-```
-
-### Make the TypeToType connection table from MBON to CX
-```{r}
-MBON_CX_TypeToTypeConnections <- getTypeToTypeTable(MBON_CX_Connections)
-head(MBON_CX_TypeToTypeConnections)
-```
-
-### Plot the TypeToType connetivity matrix based on the connectionMeasure of "weightRelative"
-```{r}
-p3 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="weightRelative")
-print(p3)
-ggsave("MBON_CX_ConnectionsByType_weightRelative.eps", plot=p3, device="eps", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-```
-
-### Pull significant MBON_CX_TypeToTypeConnections based on "weightRelative"
-```{r}
-# Find Strongly connected MBON to CX Neurons
-StrongMBON_CX_TypeToTypeConnections <- MBON_CX_TypeToTypeConnections  %>% filter(weightRelative > 0.05)
-StrongMBON2CX_TargetsType = unique(pull(StrongMBON_CX_TypeToTypeConnections, type.to))
-StrongMBON2CX_TargetIds <- neuprint_search(StrongMBON2CX_TargetsType, field='type')
-# head(StrongMBON2CX_TargetIds)
-
-# Find the postsynaptic partners of StrongMBON2CX_TargetIds
-StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetIds,synapseType="POST",synThresh=5)
-# head(StrongMBON2CX_TargetsCnctTable)
-StrongMBON2CX_TargetsType2TypeTable <- getTypeToTypeTable(StrongMBON2CX_TargetsCnctTable)
-# head(StrongMBON2CX_TargetsType2TypeTable)
-
-# Plot and save the StrongMBON2CX_TargetsType2TypeTable based on the connectionMeasure of "weightRelative"
-p4 <- plotConnectivityMatrix(StrongMBON2CX_TargetsType2TypeTable,byGroup="type",connectionMeasure="weightRelative")
-print(p4)
-ggsave("StrongMBON2CXTargetsType2TypeCnctTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-
-```
-
-### Plot the pathways from MBONs to CX
-```{r}
-
-# Get the connection table from StrongMBON2CX_Target to downstream subset in the FB
-ROI <- "FB"
-conTab <- getConnectionTable_forSubset(StrongMBON2CX_TargetIds$bodyid,
-                                       StrongMBON2CX_TargetsCnctTable$to,
-                                       ROI)
-
-conTab_Clean <- getTypeToTypeTable(conTab)
-xyLookup = rbind(xyLookupTableInner(),xyLookupTableCol())
-
-# Graph the TypeToType ConnTable using the combined lookupTable
-gg_MBONtargetTab <- graphConTab(conTab_Clean,xyLookup,FALSE,TRUE)
-gg_MBONtargetTab <- gg_MBONtargetTab + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
-print(gg_MBONtargetTab)
-ggsave("gg_MBONtargetTab.pdf", plot=gg_MBONtargetTab, device="pdf", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-
-```
-
-### Plot the TypeToType connetivity matrix based on the connectionMeasure of "outputContribution"
-```{r}
-p5 <- plotConnectivityMatrix(MBON_CX_TypeToTypeConnections,byGroup = "type",connectionMeasure="outputContribution")
-print(p5)
-ggsave("MBON_CX_ConnectionsByType_outputContribution.eps", plot=p5, device="eps", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-```
-
-
-### DanTE: Plot the PFNd,v to Delta6B, Delta6B to others pathways
-```{r}
-tp1 = c("PFNd","PFNv")
-tp2 = c("Delta6B")
-
-ROI <- "FB"
-
-conTab1 <- getConnectionTable_forSubset(getBodyIdsForList(tp1)$bodyid,
-                                       getBodyIdsForList(tp2)$bodyid,
-                                       ROI)
-conTab1_Clean <- getTypeToTypeTable(conTab1)
-
-conTab2 <- getConnectionTable(getBodyIdsForList(tp2)$bodyid,"POST",ROI,synThresh = 3)
-conTab2 <- conTab2[which(!is.na(conTab2$type.to)),]
-conTab2 <- conTab2[which(!grepl("FB",conTab2$type.to)),]
-conTab2 <- conTab2[which(!grepl("EL",conTab2$type.to)),]
-conTab2_Clean <- getTypeToTypeTable(conTab2)
-
-conTab_Clean <- rbind(conTab1_Clean,conTab2_Clean)
-
-gg_PFNdToD6B <- graphConTab(conTab_Clean,xyLookupTableInner(),FALSE,TRUE)
-gg_PFNdToD6B <- gg_PFNdToD6B + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
-print(gg_PFNdToD6B)
-ggsave("PFNdvToDelta6B.pdf", plot=gg_PFNdToD6B, device="pdf", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-
-```
-
-### End of DanTE's Code
-
-
 
 ### Make type-by-type synapse heat map in the CX
 
