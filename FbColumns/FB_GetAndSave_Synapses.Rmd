@@ -12,15 +12,8 @@ output:
 library(nat)
 library(neuprintr)
 library(tidyverse)
-#library(plotly)
 library(dplyr)
 library(matlib)
-#library(car)
-#library(imager)
-#library(reshape2)
-#library(zoo)
-#library(ggpubr)
-#library(ks)
 library(RColorBrewer)
 library(ggraph)
 library(robustbase)
@@ -55,6 +48,8 @@ neuprint_login()
 ### Get general functions
 ```{r}
 
+source("../inputOutputRegionsVis.r")
+source("../GetNeuronsInRoi.r")
 source("../SynapsePCAUtils.r")
 source("FB_SynapseDistribution_Utils.r")
 
@@ -69,9 +64,6 @@ source("FB_SynapseDistribution_Utils.r")
 NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
 NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
-# Load known FB types
-load(paste(SaveDir,"FB_Types.RData",sep=""))
-
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","Delta","FR","FS","FC")
 ExcludedTypes=unique(NamedBodies$bodytype[!( startsWith(NamedBodies$bodytype, FB_Columnar_Type))])
@@ -82,9 +74,8 @@ ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
 ```
 
 
-### Get synapse distributions for all columnar neurons (or load previous data) and subset by layer
+### Get synapse distributions for all columnar neurons (or load previous data) and all layers
 ```{r}
-# load(paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
 
 
 # Get synapses in layers 1-9
@@ -120,7 +111,7 @@ Mesh_FB_L9= neuprint_ROI_mesh("FBl9")
 
 # Save synapse locations for later loading
 save(FBC_SynsAll, Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_FB_L5,
-     Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses.RData",sep=""))
+     Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses_Raw.RData",sep=""))
 
 
 # Remove SynLocs of layers
