@@ -393,7 +393,7 @@ getTypeToTypeTable <- function(connectionTable,
                                                 weight = sum(ROIweight)
                                           ) %>% 
                                 group_by_at(group_Out) %>%
-                                        mutate(missingV = ifelse(is.null(n),NULL,list(rep(0,length.out=n[1])))) %>% 
+                                        mutate(missingV = ifelse(is.null(n),NULL,list(rep(0,length.out=n[1]-n())))) %>% 
                                         summarise(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==first(n)),   ## t.test doesn't run if values are constant. Keep those.
                                                                   0,
                                                                   t.test(c(weightRelative,unlist(missingV)),

@@ -17,18 +17,22 @@ nodesFromTypeTable <- function(type2typeTable){
 
 edgesFromTypeTable <- function(type2typeTable,pathNodes = nodesFromTypeTable(type2typeTable)){
   distinct(type2typeTable %>% mutate(to = sapply(type.to, function(f) which(f == pathNodes$name)),
-                            from = sapply(type.from, function(f) which(f == pathNodes$name))) %>% supertype())
+                            from = sapply(type.from, function(f) which(f == pathNodes$name))))
 }
 
-makeGraph <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){UseMethod("makeGraph")}
+makeGraph <- function(type2type,roiSelect=NULL,roiLabel=roiSelect,by.roi=FALSE,polarity="inputs"){UseMethod("makeGraph")}
 
-makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
-  if (is.null(ROIs) & by.roi==FALSE){
+makeGraph.data.frame <- function(type2type,roiSelect=NULL,roiLabel=roiSelect,by.roi=FALSE,polarity="inputs"){
+  if (is.null(roiSelect) & by.roi==FALSE){
     type2type <- type2type %>% group_by(type.from,type.to) %>%
       summarize_if(is.numeric,sum) %>% ungroup()
   }else{
-    if (!is.null(ROIs)){
-      type2type <- type2type %>% filter(roi %in% ROIs)
+    if (!is.null(roiSelect)){
+      type2type <- type2type %>% filter(roi %in% roiSelect$roi) %>% 
+                    mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
+                    l4 = roiSelect$level4[match(roi,roiSelect$roi)],
+                    side = roiSelect$side2[match(roi,roiSelect$roi)],
+                    region = roiLabel$roi[match(l4,roiLabel$level4)])
     }
   }
   nodes <- nodesFromTypeTable(type2type)
@@ -43,9 +47,9 @@ makeGraph.data.frame <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inpu
   return(list(graph = graph,nodes = nodes,edges= edges))
 }
 
-makeGraph.neuronBag <- function(type2type,ROIs=NULL,by.roi=FALSE,polarity="inputs"){
+makeGraph.neuronBag <- function(type2type,roiSelect=NULL,roiLabel=roiSelect,by.roi=FALSE,polarity="inputs"){
   type2typeTable <- type2type[[polarity]]
-  makeGraph(type2typeTable,ROIs=ROIs,by.roi=by.roi,polarity=polarity)
+  makeGraph(type2typeTable,roiSelect=roiSelect,roiLabel=roiLabel,by.roi=by.roi,polarity=polarity)
 }
 
 pyramidGraph <- function(graphT,nodeT,by.roi=T){

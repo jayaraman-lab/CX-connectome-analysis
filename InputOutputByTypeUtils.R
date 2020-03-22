@@ -1,7 +1,7 @@
 source("neuprintQueryUtils.R")
 source("R/supertypeUtils.R")
+source("R/rois.R")
 library(pbapply)
-library(parallel)
 library(ggnewscale)
 library(paletteer)
 
