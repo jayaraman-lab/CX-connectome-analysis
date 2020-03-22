@@ -94,11 +94,6 @@ StrongMBON2CX_TargetsType = unique(pull(StrongMBON_CX_TypeToTypeConnections, typ
 StrongMBON2CX_TargetIds <- neuprint_search(StrongMBON2CX_TargetsType, field='type')
 # head(StrongMBON2CX_TargetIds)
 
-```
-
-
-```{r}
-
 # Find the postsynaptic partners of StrongMBON2CX_TargetIds
 StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetIds,synapseType="POST",synThresh=5)
 # head(StrongMBON2CX_TargetsCnctTable)
@@ -124,13 +119,7 @@ StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_Tar
                                        StrongMBON2CX_TargetsCnctTable$to,
                                        ROI)
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
-head(StrongMBON2CXTargetsToPostInFB_Type2TypeTab)
-
-```
-
-#### put a break here
-
-```{r}
+# head(StrongMBON2CXTargetsToPostInFB_Type2TypeTab)
 
 # Set up the layout for the pathway plot
 types <- unique(c(unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from),unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))
@@ -138,27 +127,70 @@ xyLookup = data.frame(type = types,
                       x = c(-1,vector(mode = "numeric",length = (length(types)-1))),
                       y = c(0,seq(-1,1,length.out = (length(types)-1))))
 
-```
-
-#### put a break here
-
-```{r}
-
 # Graph the TypeToType ConnTable using the combined lookupTable
 gg_MBONtargetTab <- graphConTab(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
 gg_MBONtargetTab <- gg_MBONtargetTab + scale_y_reverse()
 print(gg_MBONtargetTab)
-
+ggsave("gg_MBONtargetTab.svg", plot=gg_MBONtargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
 #### put a break here
 
 ```{r}
 
-ggsave("gg_MBONtargetTab.pdf", plot=gg_MBONtargetTab, device="pdf", path=PlotDir, scale=1, 
+# Find the most strongly connected targets of StrongMBON2CXTargets based on "outputContribution"
+StrongMBON2CX2FBtargets_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(outputContribution > 0.05)
+StrongMBON2CX2FBtargetsTypes = unique(pull(StrongMBON2CX2FBtargets_Type2TypeTab, type.to))
+StrongMBON2CX2FBtargetsIds <- neuprint_search(StrongMBON2CX2FBtargetsTypes, field='type')
+# head(StrongMBON2CX2FBtargetsIds)
+
+# Find the postsynaptic partners of StrongMBON2CX2FBtargetsIds
+StrongMBON2CX2FBtargetsConnTab <- getConnectionTable(StrongMBON2CX2FBtargetsIds,synapseType="POST",synThresh=5)
+# head(StrongMBON2CX2FBtargetsConnTab)
+StrongMBON2CX2FBtargets_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX2FBtargetsConnTab)
+# head(StrongMBON2CX2FBtargets_Type2TypeTab)
+
+# Plot and save the StrongMBON2CX2FBtargets_Type2TypeTab based on the connectionMeasure of "weightRelative"
+connPlot <- plotConnectivityMatrix(StrongMBON2CX2FBtargets_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
+print(connPlot)
+ggsave("StrongMBON2CX2FBtargets_Type2TypeTab_weightRelative.eps", plot=connPlot, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 
 ```
+
+```{r}
+
+### Plot the pathways from StrongMBON2CX2FBtargets to their strongest FB targets
+# Get the subset of strong connections in the FB
+ROI <- "FB"
+StrongMBON2CX2SecondaryFBtargetsConnTab <- getConnectionTable_forSubset(StrongMBON2CX2FBtargetsIds$bodyid,
+                                       StrongMBON2CX2FBtargetsConnTab$to,
+                                       ROI)
+StrongMBON2CX2SecondaryFBtargets_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX2SecondaryFBtargetsConnTab)
+# head(StrongMBON2CX2SecondaryFBtargets_Type2TypeTab)
+
+# Set up the layout for the pathway plot
+types <- unique(c(unique(StrongMBON2CX2SecondaryFBtargets_Type2TypeTab$type.from),unique(StrongMBON2CX2SecondaryFBtargets_Type2TypeTab$type.to)))
+xyLookup = data.frame(type = types,
+                      x = c(-1,vector(mode = "numeric",length = (length(types)-1))),
+                      y = c(0,seq(-1,1,length.out = (length(types)-1))))
+
+# Graph the TypeToType ConnTable using the combined lookupTable
+gg_MBONtargetTab <- graphConTab(StrongMBON2CX2SecondaryFBtargets_Type2TypeTab,xyLookup,FALSE,TRUE)
+gg_MBONtargetTab <- gg_MBONtargetTab + scale_y_reverse()
+print(gg_MBONtargetTab)
+ggsave("StrongMBON2CX2SecondaryFBtargets_Type2TypeTab.svg", plot=gg_MBONtargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+
+
+
+
+
+
+
+
 
 ### Plot the TypeToType connetivity matrix based on the connectionMeasure of "outputContribution"
 ```{r}
