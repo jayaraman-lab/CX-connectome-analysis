@@ -1,5 +1,5 @@
 ---
-title: "Notebook assigning columns to PB-FB-XX (ie PFX) and Delta0/6 neurons"
+title: "Notebook assigning columns to PB-FB-XX (ie PFX) and Delta0 neurons"
 output:
   html_document:
     df_print: paged
@@ -20,6 +20,9 @@ library(robustbase)
 require(alphahull)
 library(zoo)
 library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -226,7 +229,7 @@ if (!dir.exists(D0_Dir)){dir.create(D0_Dir)}
 if (!dir.exists(D0_Dir_Dist)){dir.create(D0_Dir_Dist)}
 
 # Get Delta0 neuron synapse locations per layer
-D0_SynsAll=subset(FBC_SynsAll, startsWith(type,"Delta0") & !startsWith(bodyname,"Delta12"))
+D0_SynsAll=subset(FBC_SynsAll, startsWith(type,"Delta0")) # Delta12s are included here and need to be identified
 D0_Distribution=Get_SynLayerDistribution(D0_SynsAll, 25, D0_Dir_Dist) # 25 is good here, as some types have low synapse counts
 
 
@@ -249,21 +252,22 @@ PFX_Distribution_Filt=inner_join(PFX_Distribution, PFX_NeuronsOfTypePerLayer, by
 remove(PFX_Distribution)
 
 # Subaet D0 data to include only layers innervated by all neurons of a type
-
+D0_NamedBodies=subset(NamedBodies, startsWith(bodytype,"Delta0")) 
+D0_NeuronsPerType = D0_NamedBodies %>% group_by(bodytype) %>% summarise(NeuronsPerType=n())
+colnames(D0_NeuronsPerType)[1]="type"
+D0_NeuronsOfTypePerLayer= D0_Distribution %>% group_by(type, Layer) %>% summarise(NeuronsPerLayer=n())
+D0_NeuronsOfTypePerLayer=merge(D0_NeuronsOfTypePerLayer, D0_NeuronsPerType)
+D0_NeuronsOfTypePerLayer$PercentInLayer=D0_NeuronsOfTypePerLayer$NeuronsPerLayer/D0_NeuronsOfTypePerLayer$NeuronsPerType*100 
+D0_NeuronsOfTypePerLayer = subset(D0_NeuronsOfTypePerLayer, PercentInLayer==100) #Delta0L is missing synapses at the moment
+D0_Distribution_Filt=inner_join(D0_Distribution, D0_NeuronsOfTypePerLayer, by = c("type","Layer"))
 
 ```
 
 
 
-# Assign the PB-FB-XX and Delta0 neurons to columns defined by the closet FX column for each layer.
+# Assign the PB-FB-XX neurons to columns defined by the closet FX column for each layer.
 # Plot the PB-FB glomerulus->column pattern for each PB-FB-XX neuron
 ```{r}
-
-
-library(ggraph)
-library(igraph)
-library(tidygraph)
-source("FB_SynapseDistribution_Utils.R")
 
 
 # Assign column names based on closest neuron
@@ -326,7 +330,7 @@ PFX_NeuonrsPerTypeWithMappings=PFX_GlomToColumn_All %>% group_by(type) %>% summa
 
 
 
-# Now that we have the columns (in PFX_Distribution_Columns), assign them to PFX_SynsAll and plot the crosses
+# Now that we have the columns for PFX neurons (in PFX_Distribution_Columns), assign them to PFX_SynsAll and plot the crosses
 ```{r}
 
 
@@ -354,12 +358,71 @@ PFX_Column_Positions = as.data.frame(PFX_Distribution_Columns %>% group_by(FBcol
 PlotColumn_Aves(PFX_Column_Positions, "PFX_Columns_All", PFX_Dir_Crosses, FALSE)
 PlotColumn_Types(PFX_Column_Positions, "PFX_Columns", PFX_Dir_Crosses, FALSE) 
 
-# Save entire workspace to file
-save.image(file=paste(SaveDir,'All_Data.Rdata',sep=""))
+
 
 
 
 ```
+
+
+# Assign columns to Delta0s and plot crosses
+```{r}
+
+
+# First need to detect which neurons are delta12s
+
+
+# Assign column names based on closest neuron
+D0_Distribution_Columns = Assign_FB_Columns(D0_Distribution_Filt, FX_Distribution_Filt, D0_Dir_Mapping)
+D0_Distribution_Columns$PBglom = factor(D0_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                                                    "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
+#remove(D0_Distribution_Filt)
+
+
+```
+
+
+
+# Save the entire workspace to a file for later script to use.
+```{r}
+# Save entire workspace to file
+save.image(file=paste(SaveDir,'All_Data.Rdata',sep=""))
+```
+
+
+
+#Delta0L
+```{r}
+
+D0L_NamedBodies=subset(NamedBodies, startsWith(bodytype,"Delta0L"))
+D0L_Syns=neuprint_get_synapses(D0L_NamedBodies$bodyid, roi = "FBl1")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -3,7 +3,6 @@
 # 1) Performing PCA on meshes or synapse locations to get primary axes
 # 2) Projecting a set of synapses or mesh points onto new axes
 # 3) Plotting the distribution of synapses over ROI outlins
-# 4) Getting synapse locations in a loop so the query doesnt time out
 
 
 MeshOutline <- function(Mesh, Plane){
@@ -94,7 +93,6 @@ changeBasis <- function(pointsXYZ, covEigen){
 }
 
 
-
 changeBasis_df <- function(Input_DF, NewAxes) {
   
   
@@ -116,57 +114,6 @@ changeBasis_df <- function(Input_DF, NewAxes) {
   
 }
 
-
-# Loop over bodyids and get synapse locations to avoid queries that time out
-GetSynapseLocs <- function(BodyIDs, ROI, GROUP) {
-  
-  
-  if (GROUP==TRUE){
-    
-    if (length(BodyIDs)>=25){Chunks=25}else{Chunks=1} # chunk of 25 works for FB
-    
-    Starts=seq(from = 1, to = floor(length(BodyIDs)/Chunks)*Chunks+1, by = Chunks)
-    Stops=c(Starts[2:length(Starts)]-1, length(BodyIDs))
-    
-    
-    for (bbb in 1:length(Starts)){
-      print(bbb)
-      if (bbb==1){
-        
-        if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
-        } else {SynLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)}
-        
-        SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                          x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-      } else {
-        
-        if (ROI=="all"){TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ])
-        } else {TempLocs =  neuprint_get_synapses(BodyIDs[ Starts[bbb]:Stops[bbb] ], roi = ROI)} 
-        
-        TempLocs =  mutate(TempLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                           x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-        SynLocs=rbind(SynLocs,TempLocs)
-        remove(TempLocs)
-      }
-      
-    }
-    
-  } else {
-    
-    if (ROI=="all"){SynLocs =  neuprint_get_synapses(BodyIDs)
-    } else {SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)}
-    
-    SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
-                      x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
-    
-  }
-  
-  SynLocs$prepost[SynLocs$prepost==0]="Output"
-  SynLocs$prepost[SynLocs$prepost==1]="Input"
-  
-  return(SynLocs)
-  
-}
 
 
 

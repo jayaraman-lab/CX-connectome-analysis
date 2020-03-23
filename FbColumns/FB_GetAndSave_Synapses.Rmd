@@ -39,7 +39,6 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
-
 ### Connect to neuprint server.
 ```{r}
 neuprint_login()
@@ -66,8 +65,11 @@ NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
 
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","Delta","FR","FS","FC")
-ExcludedTypes=unique(NamedBodies$bodytype[!( startsWith(NamedBodies$bodytype, FB_Columnar_Type))])
-IncludedTypes=unique(NamedBodies$bodytype[( startsWith(NamedBodies$bodytype, FB_Columnar_Type))])
+Logica=startsWith(NamedBodies$bodytype, FB_Columnar_Type[1]) | startsWith(NamedBodies$bodytype, FB_Columnar_Type[2]) |
+       startsWith(NamedBodies$bodytype, FB_Columnar_Type[3]) | startsWith(NamedBodies$bodytype, FB_Columnar_Type[4]) |
+       startsWith(NamedBodies$bodytype, FB_Columnar_Type[5])
+ExcludedTypes=unique(NamedBodies$bodytype[!Logica])
+IncludedTypes=unique(NamedBodies$bodytype[Logica])
 ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
 
 
@@ -79,15 +81,15 @@ ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
 
 
 # Get synapses in layers 1-9
-SynLocs_L1=Get_FBlayer_ColumnarSyns("FBl1","L1",IncludedTypes)
-SynLocs_L2=Get_FBlayer_ColumnarSyns("FBl2","L2",IncludedTypes)
-SynLocs_L3=Get_FBlayer_ColumnarSyns("FBl3","L3",IncludedTypes)
-SynLocs_L4=Get_FBlayer_ColumnarSyns("FBl4","L4",IncludedTypes)
-SynLocs_L5=Get_FBlayer_ColumnarSyns("FBl5","L5",IncludedTypes)
-SynLocs_L6=Get_FBlayer_ColumnarSyns("FBl6","L6",IncludedTypes)
-SynLocs_L7=Get_FBlayer_ColumnarSyns("FBl7","L7",IncludedTypes)
-SynLocs_L8=Get_FBlayer_ColumnarSyns("FBl8","L8",IncludedTypes)
-SynLocs_L9=Get_FBlayer_ColumnarSyns("FBl9","L9",IncludedTypes)
+SynLocs_L1=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl1","L1") 
+SynLocs_L2=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl2","L2") 
+SynLocs_L3=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl3","L3") 
+SynLocs_L4=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl4","L4") 
+SynLocs_L5=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl5","L5") 
+SynLocs_L6=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl6","L6") 
+SynLocs_L7=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl7","L7") 
+SynLocs_L8=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl8","L8") 
+SynLocs_L9=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl9","L9") 
 
 
 # Bind layer data into single data frame

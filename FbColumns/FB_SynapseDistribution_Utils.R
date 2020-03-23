@@ -7,10 +7,17 @@
 
 
 
-Get_FBlayer_ColumnarSyns <- function(ROI, Layer, IncludedTypes) {
-  NamedBodies_LX=Get_AllNeurons_InRoi(ROI, FALSE)
-  NamedBodies_LX=subset(NamedBodies_LX, NamedBodies_LX$bodytype %in% IncludedTypes)
-  SynLocs=GetSynapseLocs(NamedBodies_LX$bodyid, ROI,TRUE)
+Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
+  
+  
+  SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)
+  
+  SynLocs =  mutate(SynLocs, type=neuprint_get_meta(bodyid)$type, partner_type=neuprint_get_meta(partner)$type,
+                    x=as.numeric(x),y=as.numeric(y),z=as.numeric(z))
+  
+  SynLocs$prepost[SynLocs$prepost==0]="Output"
+  SynLocs$prepost[SynLocs$prepost==1]="Input"
+  
   SynLocs$Layer=Layer
   return(SynLocs)
 }
