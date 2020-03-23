@@ -3,7 +3,6 @@
 # 1) Performing PCA on meshes or synapse locations to get primary axes
 # 2) Projecting a set of synapses or mesh points onto new axes
 # 3) Plotting the distribution of synapses over ROI outlins
-# 4) Getting synapse locations in a loop so the query doesnt time out
 
 
 MeshOutline <- function(Mesh, Plane){
@@ -92,7 +91,6 @@ changeBasis <- function(pointsXYZ, covEigen){
   
   return(pointsNewBase)
 }
-
 
 
 changeBasis_df <- function(Input_DF, NewAxes) {
