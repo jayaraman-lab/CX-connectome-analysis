@@ -306,7 +306,7 @@ Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
     Bodyid_To_FBcol=rbind(Bodyid_To_FBcol, Temp_df)
     
     
-    if (Neuron_Data$type[1] %in% c("PFGs","PFL1","PFL2","PFL3")){
+    if (Neuron_Data$type[1] %in% c("PFGs","PFL1","PFL2","PFL3") | startsWith(as.character(Neuron_Data$type[1]),"Delta0")){
       P1<-ggplot() + geom_point(data=Temp_Distances_All, aes(x=Col, y=Distance), position = position_jitter(width = 0.1), size=0.2) +
         geom_point(data=Temp_Distances_Mean, aes(x=Col, y=Distance),color="red") +
         ggtitle(paste(Neuron_Data$type[1], " ", Neuron_Data$PBglom[1], " ", Neuron_Data$bodyid[1] )) +
@@ -478,13 +478,15 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         NeuronData=NeuronData[colnames(NeuronData) != "Y"]
         colnames(NeuronData)[colnames(NeuronData) == "Z"] <-"Y"
         
-        if (length(NeuronData$X)>Thresh){
+        # Get X range
+        X_RangeMin = quantile(NeuronData$X, probs = 0.1) 
+        X_RangeMax = quantile(NeuronData$X, probs = 0.9) 
+        
+        if (length(NeuronData$X)>Thresh ){
           
         ############# Project data into new coordinate frame whose main axis is locally parallel to FB layer ############# 
           
-          # Get X range
-          X_RangeMin = quantile(NeuronData$X, probs = 0.1) 
-          X_RangeMax = quantile(NeuronData$X, probs = 0.9) 
+ 
           
           # Get slope of mid range 
           Mid_subset=subset(MID, X>X_RangeMin & X<X_RangeMax)
@@ -527,7 +529,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         ############# Compute values we want to save for this neuron ############# 
           
           # Mean in original space 
-          TempMean=as.data.frame( t(colMeans( data.matrix(NeuronData[c("X","Y")])) )) # This
+          TempMean=as.data.frame( t(colMedians( data.matrix(NeuronData[c("X","Y")])) )) # This
           
           # Mean and STD along new axes
           TempMean_New=as.data.frame(t(colMeans(NeuronData[c("X_New","Y_New")])))
