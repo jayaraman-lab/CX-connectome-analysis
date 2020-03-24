@@ -8,6 +8,7 @@ supertype.character <- function(types,level=2){
   #' @details For example, at level 1 delta0 neurons are just divided in DeltaA to K, at level 2 they are
   #' D0, and at level 3 they are FB Interneurons
   supertype <- types
+  supertype[is.na(types)] <- "Other"
   
   supertype[grepl("FB.*",types)] <- str_extract(types,"FB[1-9]")[grepl("FB.*",types)]
   supertype[grepl("Delta0.*",types)] <- str_extract(types,"Delta0[A-N]")[grepl("Delta0.*",types)]
@@ -34,6 +35,7 @@ supertype.character <- function(types,level=2){
   supertype[types %in% c("SpVeL-(?)(c)","SpVeL-LSpIp(c)1","SpVeL-LSpIp(c)2")] <- "SpVeL-X(c)"
   supertype[types %in% c("VeLC-CLVe(c)","VeLC-LVe(c)")] <- "VeL-LVe"
   supertype[types %in% c("WL-(X)(c)","VeWL-VeX(c)","LW-X(c)")] <- "WL-X(c)"
+  
   if (level == 1){return(supertype)}
   
   supertype[grepl("FB.*",types)] <- "FBt"
