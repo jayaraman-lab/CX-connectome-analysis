@@ -8,10 +8,11 @@ supertype.character <- function(types,level=2){
   #' @details For example, at level 1 delta0 neurons are just divided in DeltaA to K, at level 2 they are
   #' D0, and at level 3 they are FB Interneurons
   supertype <- types
+  supertype[is.na(types)] <- "Other"
   
   supertype[grepl("FB.*",types)] <- str_extract(types,"FB[1-9]")[grepl("FB.*",types)]
   supertype[grepl("Delta0.*",types)] <- str_extract(types,"Delta0[A-N]")[grepl("Delta0.*",types)]
-  supertype[grepl("Delta6.*",types)] <- str_extract(types,"Delta6[A-K]")[grepl("Delta6.*",types)]
+  supertype[grepl("Delta6.*",types)] <- str_extract(types,"Delta6[A-L]")[grepl("Delta6.*",types)]
   supertype[grepl("FC.*",types)] <- str_extract(types,"FC[1-9]")[grepl("FC.*",types)]
   supertype[grepl("FS.*",types)] <- str_extract(types,"FS[1-9]")[grepl("FS.*",types)]
   supertype[grepl("^FR.*",types)] <- "FR"
@@ -34,6 +35,7 @@ supertype.character <- function(types,level=2){
   supertype[types %in% c("SpVeL-(?)(c)","SpVeL-LSpIp(c)1","SpVeL-LSpIp(c)2")] <- "SpVeL-X(c)"
   supertype[types %in% c("VeLC-CLVe(c)","VeLC-LVe(c)")] <- "VeL-LVe"
   supertype[types %in% c("WL-(X)(c)","VeWL-VeX(c)","LW-X(c)")] <- "WL-X(c)"
+  
   if (level == 1){return(supertype)}
   
   supertype[grepl("FB.*",types)] <- "FBt"
@@ -54,15 +56,18 @@ supertype.character <- function(types,level=2){
   supertype[grepl("SA.*",types)] <- "SA"
   supertype[grepl("SpsP.*",types)] <- "SPS-PB"
   supertype[grepl("OA_V.*",types)] <- "OA"
+  supertype[grepl("P[1|6].*",types)] <- "P"
   
   if (level == 2){return(supertype)}
 
+  supertype[grepl("Delta7|P[1|6].*",types)] <- "PB Interneurons"
   supertype[grepl("^PF.*",types)] <- "FB Columnar"
   supertype[grepl("EPG.*|PEG.*|PEN.*|^EL.*",types)] <- "EB Columnar"
   supertype[grepl("^FC.*|^FR.*|^FS.*",types)] <- "FB Output"
   supertype[grepl("FB[1-9].*",types)] <- "FB Tangential"
   supertype[grepl("Delta[0|6].*",types)] <- "FB Interneuron"
-
+  
+  supertype[types == supertype] <- "Other"
   supertype
 }
 
@@ -91,4 +96,38 @@ supertype.data.frame <- function(types,level=1:3){
 
 supertype.NULL <- function(types,level=NULL){
   return(NULL)
+}
+
+selectSupertypeSet <- function(supertypeTable,default_level=2,exceptions=NULL,exceptionLevelMatch = default_level){
+  supertypeTable$supertype0 <- supertypeTable$databaseType
+  if (!is.null(exceptions)){
+    levelEx <- paste0("supertype",exceptionLevelMatch) 
+    normalTypes <- supertypeTable %>% filter(!((!!as.name(levelEx)) %in% names(exceptions))) %>%
+      mutate(type = (!!as.name(paste0("supertype",default_level))))
+    
+    exceptionsTypes <- supertypeTable %>% filter(((!!as.name(levelEx)) %in% names(exceptions))) 
+    
+    typesEx <- as.character(exceptionsTypes[[levelEx]])
+    customLev <- sapply(typesEx,function(r) paste0("supertype",exceptions[[r]]))
+    exceptionsTypes$type <- sapply(1:length(customLev),function(i) as.character(exceptionsTypes[[customLev[i]]][i]))
+    
+    types <- bind_rows(normalTypes,exceptionsTypes)
+  }else{
+    types <- supertypeTable %>% mutate(type = (!!(as.name(paste0("supertype",default_level)))))
+  }
+  
+  types <- types %>% arrange(supertype3) %>% 
+    mutate(type = factor(type,levels=c("Other",unique(type))))
+  
+  return(distinct(types))
+}
+
+typesPalette <- function(typeSelection,my_palette=paletteer_d("Polychrome::palette36")){
+  typeSelection <- unique(c(as.character(typeSelection),"Other"))
+  if (length(typeSelection)>36) warning(paste0(length(typeSelection)," levels in your palette, this is likely too many."))
+  pal <- my_palette[1:length(typeSelection)]
+  oPos <- which(typeSelection=="Other")
+  typeSelection[c(2,oPos)] <- typeSelection[c(oPos,2)]  ## Exchange to get "other" at a neutral color
+  names(pal) <- typeSelection
+  pal
 }

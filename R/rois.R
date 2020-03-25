@@ -31,7 +31,7 @@ getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   return(roi_Innervate)
 }
 
-getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
+getTypesInRoiTable <- function(ROI,lateralize=FALSE,...){
   #' Returns a neuronBag object of all the neurons in the ROI
   #' @param ROI : the ROI to consider
   #' @param lateralize : should the neuron types be divided in left/right (default FALSE)
@@ -42,7 +42,7 @@ getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
   
-  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,big=big,nc=clN)
+  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,...)
 
   
   if (lateralize == TRUE){
