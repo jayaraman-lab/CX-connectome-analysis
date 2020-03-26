@@ -248,22 +248,84 @@ summarizeConnectionTable <- function(connTable,groupFrom,groupTo,refOuts){
   connTable
   
 }
+substractRois <- function(connections,largeRoi,smallRoi,newRoi,...){UseMethod("substractRois")}
 
-combineRois <- function(connections,rois,newRoi){UseMethod("combineRois")}
+substractRois.data.frame <- function(connections,largeRoi,smallRoi,newRoi,...){
+  ## CHECK IT'S A RAW CONNECTION TABLE
+  newRegionTable <- connections %>% 
+    filter(roi %in% c(largeRoi,smallRoi)) %>% 
+    group_by(to) %>%
+    mutate(totalROIweight=totalROIweight[match(largeRoi,roi)] - ifelse(!(smallRoi %in% roi),0,totalROIweight[match(smallRoi,roi)])) %>%
+    group_by(from) %>%
+    mutate(totalPreROIweight=totalPreROIweight[match(largeRoi,roi)] - ifelse(!(smallRoi %in% roi),0,totalPreROIweight[match(smallRoi,roi)])) %>%
+    group_by_if(names(.) %in% c(paste0(c("","name.","type.","databaseType.","previous.type."),"to"),paste0(c("","name.","type.","databaseType.","previous.type."),"from"),paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
+    summarize(weight=weight[1],
+              totalPreWeight=totalPreWeight[1],
+              weightRelativeTotal=weightRelativeTotal[1],
+              outputContributionTotal=outputContributionTotal[1],
+              totalROIweight = totalROIweight[1],
+              totalPreROIweight=totalPreROIweight[1],
+              ROIweight=ROIweight[match(largeRoi,roi)] - ifelse(!(smallRoi %in% roi),0,ROIweight[match(smallRoi,roi)]),
+              weightROIRelativeTotal=weightROIRelativeTotal[match(largeRoi,roi)] - ifelse(!(smallRoi %in% roi),0,weightROIRelativeTotal[match(smallRoi,roi)]),
+              roi=newRoi
+    ) %>%
+    ungroup() %>%
+    mutate(weightRelative=ROIweight/totalROIweight,
+           outputContribution=ROIweight/totalPreROIweight)
+  
+  newRegionTable
+}
+
+substractRois.neuronBag <- function(connections,largeRoi,smallRoi,newRoi,...){
+  new_inputsR <- substractRois(connections$inputs_raw,largeRoi,smallRoi,newRoi)
+  new_outputsR <- substractRois(connections$outputs_raw,largeRoi,smallRoi,newRoi)
+  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = connections$names,...)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$outputsTableRef,...)
+  neuronBag(outputs = new_outputs,
+            inputs = new_inputs,
+            names = connections$names,
+            inputs_raw = new_inputsR,
+            outputs_raw = new_outputsR,
+            outputsTableRef = connections$outputsTableRef) 
+  
+}
+
+localized <- function(nBag,rois,...){
+  ## Take the perspective of the region as containing "all" the neurons of the considered types. Useful for some comparisons.
+  new_inputsR <- nBag$inputs_raw %>% filter(roi %in% rois)
+  new_outputsR <- nBag$outputs_raw %>% filter(roi %in% rois)
+  new_names <- nBag$names %>% filter(bodyid %in% unique(c(new_inputsR$to)))
+  new_refs <- nBag$outputsTableRef %>% filter(bodyid %in% unique(new_outputsR$to))
+  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = new_names,...)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = new_refs,...)
+  neuronBag(outputs = new_outputs,
+            inputs = new_inputs,
+            names = new_names,
+            inputs_raw = new_inputsR,
+            outputs_raw = new_outputsR,
+            outputsTableRef = new_refs) 
+  
+}
+
+combineRois <- function(connections,rois,newRoi,...){UseMethod("combineRois")}
 
 combineRois.data.frame <- function(connections,rois,newRoi){
   ## CHECK IT'S A RAW CONNECTION TABLE
   newRegionTable <- connections %>% 
           filter(roi %in% rois) %>% 
+          group_by(to) %>%
+          mutate(totalROIweight=sum(totalROIweight[match(rois,roi)],na.rm=TRUE)) %>%
+          group_by(from) %>%
+          mutate(totalPreROIweight=sum(totalPreROIweight[match(rois,roi)],na.rm=TRUE)) %>%
           group_by_if(names(.) %in% c(paste0(c("","name.","type.","databaseType.","previous.type."),"to"),paste0(c("","name.","type.","databaseType.","previous.type."),"from"),paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                     summarize(roi=newRoi,
                                               weight=weight[1],
                                               totalPreWeight=totalPreWeight[1],
                                               weightRelativeTotal=weightRelativeTotal[1],
                                               outputContributionTotal=outputContributionTotal[1],
+                                              totalROIweight = totalROIweight[1],
+                                              totalPreROIweight=totalPreROIweight[1],
                                               ROIweight=sum(ROIweight),
-                                              totalROIweight=sum(totalROIweight),
-                                              totalPreROIweight=sum(totalPreROIweight),
                                               weightROIRelativeTotal=sum(weightROIRelativeTotal)) %>%
                                     ungroup() %>%
                                     mutate(weightRelative=ROIweight/totalROIweight,
@@ -272,11 +334,11 @@ combineRois.data.frame <- function(connections,rois,newRoi){
   newRegionTable
 }
 
-combineRois.neuronBag <- function(connections,rois,newRoi){
+combineRois.neuronBag <- function(connections,rois,newRoi,...){
   new_inputsR <- combineRois(connections$inputs_raw,rois,newRoi)
   new_outputsR <- combineRois(connections$outputs_raw,rois,newRoi)
-  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = connections$names)
-  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$outputsTableRef)
+  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = connections$names,...)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = connections$outputsTableRef,...)
   neuronBag(outputs = new_outputs,
             inputs = new_inputs,
             names = connections$names,

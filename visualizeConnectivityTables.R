@@ -5,7 +5,7 @@
 
 ### Connectivity matrix
 
-plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure="weightRelative") {
+plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure="weightRelative", cmax=NULL) {
   #' Generate plot of connectivity matrix using ggplot
   #' @param myConTab Neuprint connection table
   #' @param synapseCutOff Minimum number of synapses between two partners to be considered a connection
@@ -21,11 +21,14 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
     myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
     myConTab$nameid.to = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
   }
+  if (is.null(cmax)){
+    cmax = max(myConTab$plotWeight)
+  }
   
   conmatPlot = ggplot(myConTab) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
     scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5*max(myConTab$plotWeight), limits=c(0,max(myConTab$plotWeight)))  
+                         midpoint =0.5*cmax, limits=c(0,cmax))  
   if (byGroup == "name"){
     conmatPlot =  conmatPlot + geom_tile(aes(name.to,name.from,fill=plotWeight))
   } else if(byGroup == "id"){
@@ -112,7 +115,7 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
   
   connectGraph = graph_from_data_frame(graphData)
   
-  nodeCols = colors()[80+seq(1, length(V(connectGraph)$name))]
+  nodeCols = colors()[60+seq(1, length(V(connectGraph)$name))]
   for (i in seq(1, length(V(connectGraph)$name))) {
     ncol = colors()[colorValueLookup$col[colorValueLookup$type ==  getSimpleTypeNames(V(connectGraph)$name[i])]]
     if (length(ncol) > 0) {nodeCols[i] = ncol}
