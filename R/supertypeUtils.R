@@ -11,8 +11,8 @@ supertype.character <- function(types,level=2){
   supertype[is.na(types)] <- "Other"
   
   supertype[grepl("FB.*",types)] <- str_extract(types,"FB[1-9]")[grepl("FB.*",types)]
-  supertype[grepl("Delta0.*",types)] <- str_extract(types,"Delta0[A-N]")[grepl("Delta0.*",types)]
-  supertype[grepl("Delta6.*",types)] <- str_extract(types,"Delta6[A-L]")[grepl("Delta6.*",types)]
+  supertype[grepl("Delta0.*",types)] <- str_extract(types,"Delta0[A-O]")[grepl("Delta0.*",types)]
+  supertype[grepl("Delta6.*",types)] <- str_extract(types,"Delta6[A-M]")[grepl("Delta6.*",types)]
   supertype[grepl("FC.*",types)] <- str_extract(types,"FC[1-9]")[grepl("FC.*",types)]
   supertype[grepl("FS.*",types)] <- str_extract(types,"FS[1-9]")[grepl("FS.*",types)]
   supertype[grepl("^FR.*",types)] <- "FR"
