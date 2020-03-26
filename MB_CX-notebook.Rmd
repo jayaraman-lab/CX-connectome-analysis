@@ -121,6 +121,9 @@ StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_Tar
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
 # head(StrongMBON2CXTargetsToPostInFB_Type2TypeTab)
 
+# Filter the table by weightRelative
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.05)
+
 # Set up the layout for the pathway plot
 types <- unique(c(unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from),unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))
 xyLookup = data.frame(type = types,
@@ -209,6 +212,14 @@ ggsave("StrongMBON2CX2Secondary_TertiaryFBtargets_Type2TypeTab.svg", plot=gg_MBO
 
 ```
 
+### Find the connection table among Delta6B targets
+```{r}
+# Find the postsynaptic partners of StrongMBON2CX2FBtargetsIds
+StrongMBON2CX2FBtargetsConnTab <- getConnectionTable(StrongMBON2CX2FBtargetsIds,synapseType="POST",synThresh=5)
+# head(StrongMBON2CX2FBtargetsConnTab)
+StrongMBON2CX2FBtargets_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX2FBtargetsConnTab)
+# head(StrongMBON2CX2FBtargets_Type2TypeTab)
+```
 
 
 
