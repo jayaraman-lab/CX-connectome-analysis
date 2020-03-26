@@ -102,7 +102,7 @@ Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vec
   
   # Format the rest of the plot, get rid of axes
   P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-      scale_color_manual(values=col_vector)  +  theme(
+      scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
@@ -179,6 +179,7 @@ PlotColumn_Types<- function(Plot_Syns, PlotName, DIR, PLOT, ID){
 
 PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT, T_ID){
   
+  
   # get layers
   Layers_All=sort(unique(as.character(Plot_Syns$Layer)))
   
@@ -226,7 +227,7 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT, ID){
     geom_line(data=Vertical, aes(x=X, y=Y, group=ID, color=COLOR)) +
     geom_point(data=Temp_Dist, aes(x=X,y=Z, color= FBcol),size=2 ) +
     theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-    scale_color_manual(values=col_vector)  +  theme(
+    scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
@@ -324,7 +325,7 @@ Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
       P2<-ggplot() + geom_point(data=Layer_Data, aes(x=X_Mean, y=Z_Mean),  size=5, alpha = 1, stroke = 0, shape=16) +
         geom_point(data=TempCol_Positions, aes(x=X_Mean, y=Z_Mean, color=FBcol),  size=2, alpha = 1, stroke = 0, shape=16) + 
         geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-        scale_color_manual(values=col_vector)  +  theme(
+        scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
           panel.background = element_rect(fill = "transparent"), # bg of the panel
           plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
           panel.grid.major = element_blank(), # get rid of major grid
