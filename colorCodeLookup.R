@@ -29,7 +29,7 @@ getSimpleTypeNames <- function(mydata){
   simpleTypes = gsub("PEN_a\\(PEN1\\)", "PEN1", simpleTypes)
   simpleTypes = gsub("PEN_b\\(PEN2\\)", "PEN2", simpleTypes)
   simpleTypes = gsub("MC[[:alnum:]]*", "MC", simpleTypes)
-  simpleTypes = gsub("TuTu[[:alnum:]]*", "TuTu", simpleTypes)
+  simpleTypes = gsub("TuTu.*", "TuTu", simpleTypes)
   simpleTypes = gsub("ADM06b_[[:alnum:]]*_[[:alnum:]]*", "ADM06b", simpleTypes)
   simpleTypes = gsub("MBON[[:alnum:]]*", "MBON", simpleTypes)
   simpleTypes = gsub("AVL[[:alnum:]]*_[[:alnum:]]*_pct", "AVL", simpleTypes)

@@ -15,7 +15,7 @@ source("InputOutputByTypeUtils.R")
 source("R/rois.R")
 
 ```
-  scale_fill_paletteer_d("Polychrome::palette36",name="Brain region",limits=roiForP,drop=TRUE) + 
+  
 Picking the lowest level ROIs
 ```{r}
 roiH <- getRoiTree()
@@ -29,7 +29,7 @@ haneschSaveFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FirstDra
 # EB
 This might take a while
 ```{r}
-EBTypesTable <- getTypesInRoiTable("EB",big = TRUE,lateralize = FALSE,clN = 5)
+EBTypesTable <- getTypesInRoiTable("EB",lateralize = FALSE)
 ```
 
 
@@ -81,7 +81,7 @@ EBTypes$databaseType[!(EBTypes$databaseType %in% EB_Type)]
 # NO
 
 ```{r}
-NOTypesTable <- getTypesInRoiTable("NO(R)",lateralize=TRUE,big=TRUE,clN = 10)
+NOTypesTable <- getTypesInRoiTable("NO(R)",lateralize=TRUE)
 ```
 
 ```{r}

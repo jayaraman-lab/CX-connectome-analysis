@@ -23,13 +23,14 @@ options(nat.plotengine = 'rgl')
 ## Building the outputs neuron bag
 Building connection table in steps to avoid timeouts.
 ```{r}
-outputBag <- buildInputsOutputsByType("FC[1|2].*|FS.*|^FR.*|ExR7.*|ExR8.*|PFL.*|PFR_b.*")
+outputBag <- buildInputsOutputsByType("FC[1|2].*|FS.*|^FR.*|ExR7.*|ExR8.*|PFL.*|PFR_b.*",verbose=TRUE)
 ```
 
 ### Renaming (convenience function does that dealing with tricky PF types)
 ```{r}
 outputBag <- cxRetyping(outputBag)
 ```
+Consider only "right side" neurons
 ```{r}
 reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R")
 ```
@@ -74,9 +75,63 @@ outputsInOutBag <- buildInputsOutputsByType(allOuts,selfRef = TRUE,verbose=TRUE,
 ```{r}
 outputsInOutBag <- cxRetyping(outputsInOutBag)
 ```
+
+Look at those targets at a "global" output region level
+```{r}
+outputsOverview <- supertype(combineRois(outputsInOutBag,c("VLNP(R)","SNP(R)","VMNP(R)","INP","LX(R)","LX(L)"),"Output regions",singleNeuronThreshold=0.001))
+## One cleans up anything not getting significant CX input
+signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
+outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
+```
+
+```{r}
+CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3") %>% rename(databaseType=n.type))
+```
+
+```{r}
+outputTypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL1"=1,"PFL2"=1,"PFL3"=1,"FS1"=1,"FS4"=1,"ExR7"=1,"ExR8"=1),exceptionLevelMatch = 1)
+```
+
+
+```{r}
+inp <- outputsOverview$inputs %>% mutate(customSupertype = outputTypes$type[match(supertype.from1,outputTypes$supertype1)])
+inp <- replace_na(inp,list("customSupertype" = "Other"))
+```
+
+```{r}
+source("R/inProgress.R")
+```
+
+```{r}
+test <- connectivityMatrix(inp,slctROI="Output regions",allToAll = FALSE,from = "type.from","type.to")
+```
+
+
+```{r}
+#Clustering on 
+testM <- t(test[rownames(test) %in% outputBag$names$type,])
+d <- dist(testM/colSums(test),method="canberra")
+hc <- hclust(d)
+```
+
+```{r}
+inp$typeF <- factor(inp$type.to,levels=row.names(testM)[hc$order])
+```
+
+
+```{r}
+inputProportions <- ggplot(inp,aes(x=typeF)) + geom_col(aes(y=weightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(outputTypes$type),name="Input types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight",x="Output type")
+inputProportions
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsInputProportions.svg",inputProportions,width=35,height=8)
+```
+
+
 ## Find feedback pathways in there.
 ```{r}
-CXtypes <- read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3")
+
 CXRois <- unique(unlist(roiH %>% filter(level1=="CX")))
 ```
 ```{r}
@@ -105,21 +160,23 @@ feedbackHaneschUnpacked
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHanesch.svg",feedbackHanesch,width=12,height=7)
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHaneschLayers.svg",feedbackHaneschUnpacked,width=13,height=7)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHaneschLayers.svg",feedbackHaneschUnpacked,width=14,height=7)
 ```
 
 ```{r}
-feedbackPathwaysG <- makeGraph(feedbackBag$inputs %>% filter(type.from %in% outputBag$names$type),ROIs = (roisOut %>% filter(level1 != "CX"))$roi)
+feedbackPathwaysG <- makeGraph(feedbackBag$inputs %>% filter(type.from %in% outputBag$names$type),roiSelect = (roisOut %>% filter(level1 != "CX")),roiLabel = roiOutLabels)
 ```
 
 ```{r}
 feedbackGraphPlot <- ggraph(feedbackPathwaysG$graph,layout="stress") + 
-      geom_edge_fan(aes(width=weightRelative,color=roi),alpha=0.5) + 
-      geom_edge_loop(colour="grey",aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
-      geom_node_point(aes(color=as.factor(layers),size=8)) + 
-      geom_node_text(aes(label=name),angle=40,size=4)+
-      scale_fill_discrete()
-feedbackGraphPlot
+      geom_edge_fan(aes(width=weightRelative,color=roi),alpha=0.5,color="grey") + 
+      geom_edge_loop(aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
+      geom_node_point(aes(color=supertype2,shape=as.factor(layers)),size=8,alpha=0.5) +
+      scale_color_paletteer_d("Polychrome::palette36") +
+      geom_node_text(aes(label=name),size=4) +
+      scale_edge_width(name="Relative weight") +
+      scale_edge_color_discrete() + theme_void()
+feedbackGraphPlot + facet_edges(region~.)
 ```
 
 ```{r}

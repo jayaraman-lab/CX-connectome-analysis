@@ -1,5 +1,5 @@
-library(parallel)
 library(paletteer)
+library(alphahull)
 
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
@@ -31,7 +31,7 @@ getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   return(roi_Innervate)
 }
 
-getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
+getTypesInRoiTable <- function(ROI,lateralize=FALSE,...){
   #' Returns a neuronBag object of all the neurons in the ROI
   #' @param ROI : the ROI to consider
   #' @param lateralize : should the neuron types be divided in left/right (default FALSE)
@@ -42,7 +42,7 @@ getTypesInRoiTable <- function(ROI,lateralize=FALSE,big=TRUE,clN=5){
   ## 25% of the instances touch (l/R)
   typesUnfiltered <- unique(neuronTable$type)
   
-  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,big=big,nc=clN)
+  roiConnections <- buildInputsOutputsByType(neuronTable,fixed=TRUE,...)
 
   
   if (lateralize == TRUE){
@@ -124,4 +124,13 @@ roisPalette <- function(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::
   pal <- my_palette[1:length(roiL)]
   names(pal) <- roiL
   pal
+}
+
+roiOutline <- function(roi,axis=c("x","y"),alpha=100){
+  roiMesh <- neuprint_ROI_mesh(roi)
+  roiPts <-  data.frame(dotprops(roiMesh)$points)
+  names(roiPts) <- c("x","y","z")
+  roiHull <- ahull(x=roiPts[[axis[1]]],y=roiPts[[axis[2]]],alpha=alpha)
+  roiOut <- data.frame(roiHull$arcs) %>% mutate(x=c1,y=c2) %>% select(x,y)
+  bind_rows(roiOut,roiOut[1,])
 }
