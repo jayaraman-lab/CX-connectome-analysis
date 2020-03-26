@@ -229,7 +229,7 @@ if (!dir.exists(PFX_Dir_MapGraph)){dir.create(PFX_Dir_MapGraph)}
 if (!dir.exists(PFX_Dir_Crosses)){dir.create(PFX_Dir_Crosses)}
 
 
-# Get PB-FB-X neuron synapse locations per layer
+# Get PB-FB-XX neuron synapse locations per layer
 PFX_SynsAll=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
 PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir_Dist) # 25 is good here, as some types have low synapse counts
 
@@ -317,7 +317,7 @@ PFX_Distribution_Columns$FBcol[Row_Ind]="C5"
 PFX_GlomToColumn_Sym=Plot_PBglom_FBcol_Mapping(PFX_Distribution_Columns, PFX_Dir_MapGraph, "SYM")
 
 
-# Get number of neurons mapped from glom to cols
+# Get number of neurons mapped from gloms to cols
 PFX_NeuonrsPerTypeWithMappings=PFX_GlomToColumn_Sym %>% group_by(type) %>% summarize(Num = sum(Num_Neurons))
 
 
@@ -520,7 +520,7 @@ D0_NoNames=subset(D0_NoNames, !(bodyid %in% D12s$bodyid))
 #Check how many columns each Delta0 type innervates
 D0_NeuronsOfTypePerColumn= D0_Distribution_Columns %>% group_by(type, FBcol) %>% summarise(NumofClouds=n()) %>% group_by(type) %>% summarize(NumofCols=length(unique(FBcol)))
 
-#rm(list=c("D0_Distribution_Filt","D0_Distribution")
+rm(list=c("D0_Distribution_Filt","D0_Distribution"))
 ```
 
 
@@ -538,11 +538,9 @@ save.image(file=paste(SaveDir,'ColAssignment_Data.Rdata',sep=""))
 
 
 # ##################################################################################################################
-# ######## Step 5: Make some plots to confirm column mappings are good #############################################
+# ######## Step 5: Make some plots to confirm column mappings are okay #############################################
 
 
-
-# How many columns do delta0s have?
 # Make plots of mean synapse locations to see if columns pop out
 ```{r}
 
@@ -555,7 +553,7 @@ Plot_NeuronSynMeanPos<- function(Plot_Syns, LayerToPlot){
   p_1=ggplot() + geom_point(data=subset(Plot_Syns, Layer==LayerToPlot), aes(x=X_Mean, y=Z_Mean, color=FBcol), shape=16, alpha=1) + 
     geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) +
     theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-    scale_color_manual(values=col_vector)  +  theme(
+    scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
