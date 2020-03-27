@@ -108,8 +108,6 @@ ggsave("StrongMBON2CXTargetsType2TypeCnctTable_weightRelative.eps", plot=p4, dev
 
 ```
 
-#### put a break here
-
 ```{r}
 
 ### Plot the pathways from MBONs to CX
@@ -137,8 +135,6 @@ print(gg_MBONtargetTab)
 ggsave("gg_MBONtargetTab.svg", plot=gg_MBONtargetTab, device="svg", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
-
-#### put a break here
 
 ```{r}
 
@@ -214,11 +210,41 @@ ggsave("StrongMBON2CX2Secondary_TertiaryFBtargets_Type2TypeTab.svg", plot=gg_MBO
 
 ### Find the connection table among Delta6B targets
 ```{r}
-# Find the postsynaptic partners of StrongMBON2CX2FBtargetsIds
-StrongMBON2CX2FBtargetsConnTab <- getConnectionTable(StrongMBON2CX2FBtargetsIds,synapseType="POST",synThresh=5)
-# head(StrongMBON2CX2FBtargetsConnTab)
-StrongMBON2CX2FBtargets_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX2FBtargetsConnTab)
-# head(StrongMBON2CX2FBtargets_Type2TypeTab)
+# Find the postsynaptic partners of StrongMBON2CX2Secondary_TertiaryFBtargetsIds
+StrongMBON2CX2TertiaryTargetsConnTab <- getConnectionTable(StrongMBON2CX2FBtargetsConnTab$to,synapseType="POST",synThresh=5)
+#head(StrongMBON2CX2TertiaryTargetsConnTab)
+
+# Find the subset of connections in the FB
+StrongMBON2CX2TertiaryFbTargetsConnTab <- getConnectionTable_forSubset(StrongMBON2CX2FBtargetsConnTab$to,
+                                       StrongMBON2CX2TertiaryTargetsConnTab$to,ROI)
+
+StrongMBON2CX2TertiaryFbTargets_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX2TertiaryFbTargetsConnTab)
+#hist(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab$weightRelative,breaks=10)
+
+# Pick strong tertiary to fourth order MBON targets connections based on weightRelative
+StrongMBON2CX2TertiaryFbTargets_Type2TypeTab <- StrongMBON2CX2TertiaryFbTargets_Type2TypeTab  %>% filter(weightRelative > 0.05)
+#head(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab)
+
+```
+
+```{r}
+# Set up the layout for the pathway plot
+types <- unique(c(unique(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab$type.from),unique(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab$type.to)))
+xyLookup = data.frame(type = types,
+                      x = c(-1,vector(mode = "numeric",length = (length(types)-1))),
+                      y = c(0,seq(-1,1,length.out = (length(types)-1))))
+
+# Graph the TypeToType ConnTable using the combined lookupTable
+#gg_MBONtargetTab <- graphConTab(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab,xyLookup,FALSE,TRUE)
+
+# Use DanTE's xyLookupTableInner(), not working yet
+gg_MBONtargetTab <- graphConTab(StrongMBON2CX2TertiaryFbTargets_Type2TypeTab,xyLookupTableInner(),FALSE,TRUE)
+
+gg_MBONtargetTab <- gg_MBONtargetTab + scale_y_reverse()
+print(gg_MBONtargetTab)
+ggsave("StrongMBON2CX2TertiaryFbTargets_Type2TypeTab.svg", plot=gg_MBONtargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
 ```
 
 
