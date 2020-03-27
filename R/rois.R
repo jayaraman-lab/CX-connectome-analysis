@@ -126,11 +126,24 @@ roisPalette <- function(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::
   pal
 }
 
-roiOutline <- function(roi,axis=c("x","y"),alpha=100){
-  roiMesh <- neuprint_ROI_mesh(roi)
+roiOutline <- function(roiMesh,axis=c("x","y"),alpha=100,roiName){UseMethod("roiOutline")}
+
+roiOutline.mesh3d <- function(roiMesh,alpha=100,roiName =deparse(substitute(roiMesh))){
   roiPts <-  data.frame(dotprops(roiMesh)$points)
   names(roiPts) <- c("x","y","z")
-  roiHull <- ahull(x=roiPts[[axis[1]]],y=roiPts[[axis[2]]],alpha=alpha)
-  roiOut <- data.frame(roiHull$arcs) %>% mutate(x=c1,y=c2) %>% select(x,y)
-  bind_rows(roiOut,roiOut[1,])
+  roiHullxy <- ahull(x=roiPts$x,y=roiPts$y,alpha=alpha)
+  roiHullxz <- ahull(x=roiPts$x,y=roiPts$z,alpha=alpha)
+  
+  roiOutxy <- data.frame(roiHullxy$arcs) %>% mutate(x=c1,y=c2,proj="xy",roi=roiName) %>% select(x,y,proj,roi)
+  roiOutxy <-  bind_rows(roiOutxy,roiOutxy[1,])
+  
+  roiOutxz <- data.frame(roiHullxz$arcs) %>% mutate(x=c1,y=c2,proj="xz",roi=roiName) %>% select(x,y,proj,roi)
+  roiOutxz <-  bind_rows(roiOutxz,roiOutxz[1,])
+  
+  bind_rows(roiOutxy,roiOutxz)
+}
+
+roiOutline.character <- function(roi,alpha=100){
+  roiMesh <- neuprint_ROI_mesh(roi)
+  roiOutline(roiMesh,alpha=alpha,roiName=roi)
 }

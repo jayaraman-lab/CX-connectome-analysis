@@ -290,14 +290,14 @@ substractRois.neuronBag <- function(connections,largeRoi,smallRoi,newRoi,...){
   
 }
 
-localized <- function(nBag,rois,...){
+localized <- function(nBag,rois,localRef,...){
   ## Take the perspective of the region as containing "all" the neurons of the considered types. Useful for some comparisons.
-  new_inputsR <- nBag$inputs_raw %>% filter(roi %in% rois)
-  new_outputsR <- nBag$outputs_raw %>% filter(roi %in% rois)
-  new_names <- nBag$names %>% filter(bodyid %in% unique(c(new_inputsR$to)))
-  new_refs <- nBag$outputsTableRef %>% filter(bodyid %in% unique(new_outputsR$to))
-  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = new_names,...)
-  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = new_refs,...)
+  new_inputsR <- nBag$inputs_raw %>% filter(roi %in% rois & to %in% localRef$bodyid)
+  new_outputsR <- nBag$outputs_raw %>% filter(roi %in% rois & to %in% localRef$bodyid)
+  new_names <- nBag$names %>% filter(bodyid %in% localRef$bodyid)
+  new_refs <- nBag$outputsTableRef %>% filter(bodyid %in% localRef$bodyid)
+  new_inputs <- getTypeToTypeTable(new_inputsR,typesTable = localRef,...)
+  new_outputs <- getTypeToTypeTable(new_outputsR,typesTable = localRef,...)
   neuronBag(outputs = new_outputs,
             inputs = new_inputs,
             names = new_names,
