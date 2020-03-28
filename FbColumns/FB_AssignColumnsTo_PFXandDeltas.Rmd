@@ -39,7 +39,9 @@ SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 # Directory to save plots to.
 PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/ColumnarSynapseLocs/"
 
-
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 ```
 
 
@@ -53,6 +55,9 @@ neuprint_login()
 
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
+source("../InputOutputByTypeUtils.r", chdir = TRUE)
+source("../neuprintQueryUtils.r", chdir = TRUE)
+source("../visualizeConnectivityTables.r", chdir = TRUE)
 
 ```
 
@@ -392,10 +397,12 @@ D0_Dir=paste(PlotDir,"D0_Plots_All","/",sep="")
 D0_Dir_Dist=paste(D0_Dir,"D0_MeasureWidth","/",sep="")
 D0_Dir_Mapping=paste(D0_Dir,"D0_Mapping","/",sep="")
 D0_Dir_Crosses=paste(D0_Dir,"D0_Crosses","/",sep="")
+D0_Dir_Connect=paste(D0_Dir,"D0_Connect","/",sep="")
 if (!dir.exists(D0_Dir)){dir.create(D0_Dir)}
 if (!dir.exists(D0_Dir_Dist)){dir.create(D0_Dir_Dist)}
 if (!dir.exists(D0_Dir_Mapping)){dir.create(D0_Dir_Mapping)}
 if (!dir.exists(D0_Dir_Crosses)){dir.create(D0_Dir_Crosses)}
+if (!dir.exists(D0_Dir_Connect)){dir.create(D0_Dir_Connect)}
 
 
 # Get Delta0 neuron synapse locations per layer
@@ -468,6 +475,7 @@ rm(list=c("nnn", "Temp_Syns","P1","P2","P12"))
 
 # Assign columns to Delta0s, plot crosses, and save names for Shin-ya
 ```{r}
+
 
 
 # Assign column names based on closest FX and PFX neurons
