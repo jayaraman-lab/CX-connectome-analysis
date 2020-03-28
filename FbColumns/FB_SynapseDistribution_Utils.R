@@ -246,6 +246,137 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT, ID){
 
 
 ###############################################################################################################################
+### Function for assigning FB columns to D0 neurons, here based on input column ###############################################
+
+D0_OutputPlot_Connectivity <- function(D0_FB_Outputs){
+  
+  OutputsPlot_Sub <- ggplot(D0_FB_Outputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Outputs$weightRelative),
+                         limits=c(0,max(D0_FB_Outputs$weightRelative))) + 
+    geom_tile(aes(FBcol.to, InputName,  fill=weightRelative)) + 
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+    theme(axis.text.y = element_blank()) + xlab("FB Columnar Type (POST)") + ylab("Delta0 Type (PRE)")
+  
+  return(OutputsPlot_Sub)
+}
+
+
+D0_InputPlot_Connectivity <- function(D0_FB_Inputs){
+  
+  InputsPlot_Sub <- ggplot(D0_FB_Inputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Inputs$weightRelative),
+                         limits=c(0,max(D0_FB_Inputs$weightRelative))) + 
+    geom_tile(aes(OutputName, FBcol.from, fill=weightRelative)) + 
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+    theme(axis.text.x = element_blank()) + ylab("FB Columnar Type (PRE)") + xlab("Delta0 Type (POST)")
+  
+  return(InputsPlot_Sub)
+}
+
+
+Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
+  
+  
+  # Get input and output tables for D0 neurons in FB
+  Columnar_Types=unique(NamedBodies$bodytype[(startsWith(NamedBodies$bodytype, "PF")   | 
+                                              startsWith(NamedBodies$bodytype, "F")  ) &
+                                             !startsWith(NamedBodies$bodytype, "FB") ])
+  D0_Types=as.character(unique(D0_Distribution_Filt$type))
+  D0_Bag=buildInputsOutputsByType(D0_Types, slctROI="FB")
+  D0_FB_Outputs_All=D0_Bag[["outputs_raw"]]
+  D0_FB_Inputs_All=D0_Bag[["inputs_raw"]]
+  
+  
+  
+  # Subset data on columnar types and remove Delta12s 
+  D0_FB_Outputs_Col=subset(D0_FB_Outputs_All, databaseType.to %in% Columnar_Types & !from %in% D12s$bodyid )
+  D0_FB_Inputs_Col=subset(D0_FB_Inputs_All, databaseType.from %in% Columnar_Types & !to   %in% D12s$bodyid )
+  
+  
+  
+  # Get FB column names
+  D0_FB_Outputs_Col$FBcol.to=NA
+  D0_FB_Outputs_Col$FBcol.to=str_extract(D0_FB_Outputs_Col$name.to, "_C(\\d+)")
+  D0_FB_Outputs_Col$FBcol.to=sapply(D0_FB_Outputs_Col$FBcol.to, substring, 2, 3)
+  D0_FB_Outputs_Col$FBcol.to=factor(D0_FB_Outputs_Col$FBcol.to, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+  D0_FB_Inputs_Col$FBcol.from=NA
+  D0_FB_Inputs_Col$FBcol.from=str_extract(D0_FB_Inputs_Col$name.from, "_C(\\d+)")
+  D0_FB_Inputs_Col$FBcol.from=sapply(D0_FB_Inputs_Col$FBcol.from, substring, 2, 3)   
+  D0_FB_Inputs_Col$FBcol.from=factor(D0_FB_Inputs_Col$FBcol.from, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+     
+  
+  
+  # Make plots of all inputs/outputs
+  Output_Plot_1 = plotConnectivityMatrix(D0_FB_Outputs_Col, byGroup = "id", connectionMeasure="weightRelative") 
+  Output_Plot_1 = structureMatrixPlotByType(Output_Plot_1)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_All.png",sep=""),
+         plot = Output_Plot_1, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  Input_Plot_1 = plotConnectivityMatrix(D0_FB_Inputs_Col, byGroup = "id", connectionMeasure="weightRelative") 
+  Input_Plot_1 = structureMatrixPlotByType(Input_Plot_1)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_All.png",sep=""),
+         plot = Input_Plot_1, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  
+  # Average by type and column
+  D0_FB_Outputs_Mean=D0_FB_Outputs_Col %>% group_by(type.to, FBcol.to, from, type.from, name.from) %>% summarise(weightRelative=mean(weightRelative))
+  D0_FB_Outputs_Mean$InputName=paste(as.character(D0_FB_Outputs_Mean$name.from), "_", as.character(D0_FB_Outputs_Mean$from),sep="")
+  D0_FB_Outputs_Mean$OutputName=paste( as.character(D0_FB_Outputs_Mean$type.to), "_", as.character(D0_FB_Outputs_Mean$FBcol.to),sep="")
+  D0_FB_Outputs_Mean$from=factor(D0_FB_Outputs_Mean$from, levels= unique(D0_FB_Outputs_Col$from) )
+  D0_FB_Outputs_Mean$type.from =  substr(D0_FB_Outputs_Mean$type.from, 6, 100)
+  
+  
+  D0_FB_Inputs_Mean=D0_FB_Inputs_Col %>% group_by(type.from, FBcol.from, to, type.to, name.to) %>% summarise(weightRelative=mean(weightRelative))
+  D0_FB_Inputs_Mean$InputName=paste(as.character(D0_FB_Inputs_Mean$type.from), "_", as.character(D0_FB_Inputs_Mean$FBcol.from),sep="")
+  D0_FB_Inputs_Mean$OutputName=paste( as.character(D0_FB_Inputs_Mean$name.to), "_", as.character(D0_FB_Inputs_Mean$to),sep="")
+  D0_FB_Inputs_Mean$to=factor(D0_FB_Inputs_Mean$to, levels= unique(D0_FB_Inputs_Col$to) )
+  D0_FB_Inputs_Mean$type.to =  substr(D0_FB_Inputs_Mean$type.to, 6, 100)
+  
+  
+  
+  # Plot Delta0 connectivity matrices to see if typing is decent
+  OutputsPlot_Sub=D0_OutputPlot_Connectivity(D0_FB_Outputs_Mean)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColAve.png",sep=""),
+         plot = OutputsPlot_Sub, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  InputsPlot_Sub=D0_InputPlot_Connectivity(D0_FB_Inputs_Mean)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_ColAve.png",sep=""),
+         plot = InputsPlot_Sub, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+ 
+  # remove cell types that don't innervate all columns
+  OutputColumnsNum = D0_FB_Outputs_Mean %>% group_by(type.to, type.from) %>% summarize(NumOfCols=length(unique(FBcol.to)))
+  OutputColumnsNum = subset(OutputColumnsNum, NumOfCols>=7)
+  D0_FB_Outputs_MeanSub=subset(D0_FB_Outputs_Mean, type.to %in% OutputColumnsNum$type.to & type.from %in% OutputColumnsNum$type.from)
+  
+  InputColumnsNum  = D0_FB_Inputs_Mean %>% group_by(type.to, type.from) %>% summarize(NumOfCols=length(unique(FBcol.from)))
+  InputColumnsNum  = subset(InputColumnsNum, NumOfCols>=7)
+  D0_FB_Inputs_MeanSub=subset(D0_FB_Inputs_Mean, type.from %in% InputColumnsNum$type.from & type.to %in% InputColumnsNum$type.to)
+  
+  
+  
+  # Replot the data
+  OutputsPlot_Sub2=D0_OutputPlot_Connectivity(D0_FB_Outputs_MeanSub)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColAve_Sub.png",sep=""),
+         plot = OutputsPlot_Sub2, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  InputsPlot_Sub2=D0_InputPlot_Connectivity(D0_FB_Inputs_MeanSub)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_ColAve_Sub.png",sep=""),
+         plot = InputsPlot_Sub2, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  
+  
+  
+  
+  
+}
+
+###############################################################################################################################
 ### Function for assigning FB columns to PB-FB-XX and D0 neurons, here based on closest type average  #########################
 
 
