@@ -289,11 +289,9 @@ Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
   D0_FB_Inputs_All=D0_Bag[["inputs_raw"]]
   
   
-  
   # Subset data on columnar types and remove Delta12s 
   D0_FB_Outputs_Col=subset(D0_FB_Outputs_All, databaseType.to %in% Columnar_Types & !from %in% D12s$bodyid )
   D0_FB_Inputs_Col=subset(D0_FB_Inputs_All, databaseType.from %in% Columnar_Types & !to   %in% D12s$bodyid )
-  
   
   
   # Get FB column names
@@ -301,11 +299,19 @@ Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
   D0_FB_Outputs_Col$FBcol.to=str_extract(D0_FB_Outputs_Col$name.to, "_C(\\d+)")
   D0_FB_Outputs_Col$FBcol.to=sapply(D0_FB_Outputs_Col$FBcol.to, substring, 2, 3)
   D0_FB_Outputs_Col$FBcol.to=factor(D0_FB_Outputs_Col$FBcol.to, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+  D0_FB_Outputs_Col$FBcol.from=NA
+  D0_FB_Outputs_Col$FBcol.from=str_extract(D0_FB_Outputs_Col$name.from, "_C(\\d+)")
+  D0_FB_Outputs_Col$FBcol.from=sapply(D0_FB_Outputs_Col$FBcol.from, substring, 2, 3)
+  D0_FB_Outputs_Col$FBcol.from=factor(D0_FB_Outputs_Col$FBcol.from, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+  
   D0_FB_Inputs_Col$FBcol.from=NA
   D0_FB_Inputs_Col$FBcol.from=str_extract(D0_FB_Inputs_Col$name.from, "_C(\\d+)")
   D0_FB_Inputs_Col$FBcol.from=sapply(D0_FB_Inputs_Col$FBcol.from, substring, 2, 3)   
   D0_FB_Inputs_Col$FBcol.from=factor(D0_FB_Inputs_Col$FBcol.from, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
-     
+  D0_FB_Inputs_Col$FBcol.to=NA
+  D0_FB_Inputs_Col$FBcol.to=str_extract(D0_FB_Inputs_Col$name.to, "_C(\\d+)")
+  D0_FB_Inputs_Col$FBcol.to=sapply(D0_FB_Inputs_Col$FBcol.to, substring, 2, 3)   
+  D0_FB_Inputs_Col$FBcol.to=factor(D0_FB_Inputs_Col$FBcol.to, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))   
   
   
   # Make plots of all inputs/outputs
@@ -320,21 +326,21 @@ Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
          plot = Input_Plot_1, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
   
   
-  
   # Average by type and column
-  D0_FB_Outputs_Mean=D0_FB_Outputs_Col %>% group_by(type.to, FBcol.to, from, type.from, name.from) %>% summarise(weightRelative=mean(weightRelative))
-  D0_FB_Outputs_Mean$InputName=paste(as.character(D0_FB_Outputs_Mean$name.from), "_", as.character(D0_FB_Outputs_Mean$from),sep="")
-  D0_FB_Outputs_Mean$OutputName=paste( as.character(D0_FB_Outputs_Mean$type.to), "_", as.character(D0_FB_Outputs_Mean$FBcol.to),sep="")
+  D0_FB_Outputs_Mean=D0_FB_Outputs_Col %>% group_by(type.to, FBcol.to, from, type.from, name.from, FBcol.from) %>% summarise(weightRelative=mean(weightRelative), weight=mean(weight))
+  D0_FB_Outputs_Mean$InputName =paste(as.character(D0_FB_Outputs_Mean$type.from), "_", as.character(D0_FB_Outputs_Mean$FBcol.from), "_", as.character(D0_FB_Outputs_Mean$from),sep="")
+  D0_FB_Outputs_Mean$OutputName=paste(as.character(D0_FB_Outputs_Mean$type.to)  , "_", as.character(D0_FB_Outputs_Mean$FBcol.to),sep="")
   D0_FB_Outputs_Mean$from=factor(D0_FB_Outputs_Mean$from, levels= unique(D0_FB_Outputs_Col$from) )
-  D0_FB_Outputs_Mean$type.from =  substr(D0_FB_Outputs_Mean$type.from, 6, 100)
+  D0_FB_Outputs_Mean$type.from =  substring(D0_FB_Outputs_Mean$type.from, 6, 100)
+  D0_FB_Outputs_Mean$InputName = factor(D0_FB_Outputs_Mean$InputName, levels = sort(unique(D0_FB_Outputs_Mean$InputName)))
   
   
-  D0_FB_Inputs_Mean=D0_FB_Inputs_Col %>% group_by(type.from, FBcol.from, to, type.to, name.to) %>% summarise(weightRelative=mean(weightRelative))
-  D0_FB_Inputs_Mean$InputName=paste(as.character(D0_FB_Inputs_Mean$type.from), "_", as.character(D0_FB_Inputs_Mean$FBcol.from),sep="")
-  D0_FB_Inputs_Mean$OutputName=paste( as.character(D0_FB_Inputs_Mean$name.to), "_", as.character(D0_FB_Inputs_Mean$to),sep="")
+  D0_FB_Inputs_Mean=D0_FB_Inputs_Col %>% group_by(type.from, FBcol.from, to, type.to, name.to, FBcol.to) %>% summarise(weightRelative=mean(weightRelative), weight=mean(weight))
+  D0_FB_Inputs_Mean$InputName =paste(as.character(D0_FB_Inputs_Mean$type.from), "_", as.character(D0_FB_Inputs_Mean$FBcol.from),sep="")
+  D0_FB_Inputs_Mean$OutputName=paste(as.character(D0_FB_Inputs_Mean$type.to)  , "_", as.character(D0_FB_Inputs_Mean$FBcol.to), "_", as.character(D0_FB_Inputs_Mean$to),sep="")
   D0_FB_Inputs_Mean$to=factor(D0_FB_Inputs_Mean$to, levels= unique(D0_FB_Inputs_Col$to) )
-  D0_FB_Inputs_Mean$type.to =  substr(D0_FB_Inputs_Mean$type.to, 6, 100)
-  
+  D0_FB_Inputs_Mean$type.to =  substring(D0_FB_Inputs_Mean$type.to, 6, 100)
+  D0_FB_Inputs_Mean$OutputName = factor(D0_FB_Inputs_Mean$OutputName, levels = sort(unique(D0_FB_Inputs_Mean$OutputName)))
   
   
   # Plot Delta0 connectivity matrices to see if typing is decent
@@ -358,7 +364,6 @@ Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
   D0_FB_Inputs_MeanSub=subset(D0_FB_Inputs_Mean, type.from %in% InputColumnsNum$type.from & type.to %in% InputColumnsNum$type.to)
   
   
-  
   # Replot the data
   OutputsPlot_Sub2=D0_OutputPlot_Connectivity(D0_FB_Outputs_MeanSub)
   ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColAve_Sub.png",sep=""),
@@ -369,10 +374,151 @@ Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
          plot = InputsPlot_Sub2, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
   
   
+  # Now average filtered data by column, independent of partner type
+  D0_FB_Outputs_MeanSubCol = D0_FB_Outputs_MeanSub  %>% group_by(FBcol.to, from, type.from, name.from, FBcol.from, InputName) %>%  summarise(weightRelative=mean(weightRelative))
+  D0_FB_Inputs_MeanSubCol  = D0_FB_Inputs_MeanSub   %>% group_by(FBcol.from, to, type.to, name.to, FBcol.to, OutputName)      %>%  summarise(weightRelative=mean(weightRelative))
   
   
   
+  # Plot the per-column connectivity matrices
+  OutputsPlot_Sub3 <- ggplot(D0_FB_Outputs_MeanSubCol) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Outputs_MeanSubCol$weightRelative),
+                         limits=c(0,max(D0_FB_Outputs_MeanSubCol$weightRelative))) + 
+    geom_tile(aes(FBcol.to, InputName,  fill=weightRelative)) + 
+    facet_grid(rows = vars(type.from), space="free", scales="free",switch="both") +
+    theme(axis.text.y = element_blank()) + xlab("FB Columnar Type (POST)") + ylab("Delta0 Type (PRE)")
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColFinal.png",sep=""),
+         plot = OutputsPlot_Sub3, device='png', scale = 1, width = 4, height = 10, units ="in", dpi = 500, limitsize = TRUE)
   
+  
+  InputsPlot_Sub3 <- ggplot(D0_FB_Inputs_MeanSubCol) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Inputs_MeanSubCol$weightRelative),
+                         limits=c(0,max(D0_FB_Inputs_MeanSubCol$weightRelative))) + 
+    geom_tile(aes(OutputName, FBcol.from, fill=weightRelative)) + 
+    facet_grid(cols = vars(type.to), space="free", scales="free",switch="both") +
+    theme(axis.text.x = element_blank()) + ylab("FB Columnar Type (PRE)") + xlab("Delta0 Type (POST)")
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_ColFinal.png",sep=""),
+         plot = InputsPlot_Sub3, device='png', scale = 1, width = 10, height = 3, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  # Loop over Delta0s that talk to columnar neurons and assign them columns based on their connectivity
+  print(paste(as.character(length(unique(c(D0_FB_Outputs_Mean$from, D0_FB_Inputs_Mean$to)))), " of ", as.character(length(unique(D0_Distribution_Filt$bodyid))), 
+              " Delta0 neurons (that are not D12) can be assigned columns based on connectivity"))
+  
+  IDID=unique(D0_FB_Outputs_Mean$from)
+  Delta0_OutputColumnAssignments=data.frame(from=character(), FBcol.from_new=character(), type.from=character())
+  Case=3
+  for (nnn in 1:length(IDID)){
+    Temp_output=subset(D0_FB_Outputs_Mean, from == IDID[nnn])
+    Temp_output=Temp_output %>% group_by(FBcol.to, from, type.from) %>% summarize(weight=mean(weight), n=n())
+    Temp_output$NumOfSyns=Temp_output$weight * Temp_output$n
+    if (Case==1){
+      Column= round(mean(as.numeric(substring(Temp_output$FBcol.to,2,3))))
+      Column = paste("C",as.character(Column),sep="")
+    } else if (Case==2){
+      Column = round(sum(as.numeric(substring(Temp_output$FBcol.to,2,3))*Temp_output$NumOfSyns)/sum(Temp_output$NumOfSyns))
+      Column = paste("C",as.character(Column),sep="")
+    } else if (Case==3){
+      Temp_Ind=which(Temp_output$NumOfSyns == max(Temp_output$NumOfSyns))
+      if (length(Temp_Ind)==1){
+        Column=Temp_output$FBcol.to[Temp_Ind]
+      } else {
+        Column = round(sum(as.numeric(substring(Temp_output$FBcol.to,2,3))*Temp_output$NumOfSyns)/sum(Temp_output$NumOfSyns))
+        Column = paste("C",as.character(Column),sep="")
+      }
+    }
+    Temp_output_DF=data.frame(from=as.character(Temp_output$from[1]), FBcol.from_new=Column, type.from=as.character(Temp_output$type.from[1]))
+    Delta0_OutputColumnAssignments<-rbind(Delta0_OutputColumnAssignments,Temp_output_DF)
+  }
+  
+  Output_Assign_Plot=merge(D0_FB_Outputs_Mean, Delta0_OutputColumnAssignments, by="from")
+  Output_Assign_Plot=distinct(Output_Assign_Plot[c("from","FBcol.from","FBcol.from_new")])
+  Output_Assign_Plot=Output_Assign_Plot %>% group_by(FBcol.from, FBcol.from_new) %>% summarize(n=n())
+  Output_Assign_Plot$FBcol.from=factor(Output_Assign_Plot$FBcol.from, sort(unique(Output_Assign_Plot$FBcol.from)))
+  Output_Assign_Plot$FBcol.from_new=factor(Output_Assign_Plot$FBcol.from_new, sort(unique(Output_Assign_Plot$FBcol.from)))
+  P1=ggplot() + geom_point(data=Output_Assign_Plot, aes(x=FBcol.from, y=FBcol.from_new, size=n)) + 
+    xlab("Column from synapse locations") + ylab("Column from connectivity") + ggtitle("Using Delta0 ouputs")
+  
+  ggsave(paste(D0_Dir_Connect, "ColumnsAssigned_by_Output.png",sep=""),
+         plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  
+
+  Output_Types=unique(Delta0_OutputColumnAssignments$type.from)
+  for (nnn in 1:length(Output_Types)){
+    Output_Assign_Plot=merge(D0_FB_Outputs_Mean, Delta0_OutputColumnAssignments, by="from")
+    
+    Output_Assign_Plot=subset(Output_Assign_Plot, type.from.y == Output_Types[nnn])
+    Output_Assign_Plot=distinct(Output_Assign_Plot[c("from","FBcol.from","FBcol.from_new")])
+    
+    Output_Assign_Plot=Output_Assign_Plot %>% group_by(FBcol.from, FBcol.from_new) %>% summarize(n=n())
+    Output_Assign_Plot$FBcol.from=factor(Output_Assign_Plot$FBcol.from, sort(unique(Output_Assign_Plot$FBcol.from)))
+    Output_Assign_Plot$FBcol.from_new=factor(Output_Assign_Plot$FBcol.from_new, sort(unique(Output_Assign_Plot$FBcol.from_new)))
+    
+    P1=ggplot() + geom_point(data=Output_Assign_Plot, aes(x=FBcol.from, y=FBcol.from_new, size=n)) + 
+      xlab("Column from synapse locations") + ylab("Column from connectivity") + ggtitle(paste("Using ", as.character( Output_Types[nnn]) , " outputs",sep=""))
+    ggsave(paste(D0_Dir_Connect, "ColumnsAssigned_by_Output_",  as.character( Output_Types[nnn]) ,".png",sep=""),
+           plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  }
+  
+
+  IDID=unique(D0_FB_Inputs_Mean$to)
+  Delta0_InputColumnAssignments=data.frame(to=character(), FBcol.to_new=character(), type.to=character())
+  for (nnn in 1:length(IDID)){
+    Temp_Input=subset(D0_FB_Inputs_Mean, to == IDID[nnn])
+    Temp_Input=Temp_Input %>% group_by(FBcol.from, to, type.to) %>% summarize(weight=mean(weight), n=n())
+    Temp_Input$NumOfSyns=Temp_Input$weight * Temp_Input$n
+    if (Case==1){
+      Column= round(mean(as.numeric(substring(Temp_Input$FBcol.from,2,3))))
+      Column = paste("C",as.character(Column),sep="")
+    } else if (Case==2){
+      Column = round(sum(as.numeric(substring(Temp_Input$FBcol.from,2,3))*Temp_Input$NumOfSyns)/sum(Temp_Input$NumOfSyns))
+      Column = paste("C",as.character(Column),sep="")
+    } else if (Case==3){
+      Temp_Ind=which(Temp_Input$NumOfSyns == max(Temp_Input$NumOfSyns))
+      if (length(Temp_Ind)==1){
+        Column=Temp_Input$FBcol.from[Temp_Ind]
+      } else {
+        Column = round(sum(as.numeric(substring(Temp_Input$FBcol.from,2,3))*Temp_Input$NumOfSyns)/sum(Temp_Input$NumOfSyns))
+        Column = paste("C",as.character(Column),sep="")
+      }
+    }
+    Temp_Input_DF=data.frame(to=as.character(Temp_Input$to[1]), FBcol.to_new=Column, type.to=as.character(Temp_Input$type.to[1]))
+    Delta0_InputColumnAssignments<-rbind(Delta0_InputColumnAssignments,Temp_Input_DF)
+  }
+  
+  
+  Input_Assign_Plot=merge(D0_FB_Inputs_Mean, Delta0_InputColumnAssignments, by="to")
+  Input_Assign_Plot=distinct(Input_Assign_Plot[c("to","FBcol.to","FBcol.to_new")])
+  Input_Assign_Plot=Input_Assign_Plot %>% group_by(FBcol.to, FBcol.to_new) %>% summarize(n=n())
+  Input_Assign_Plot$FBcol.to=factor(Input_Assign_Plot$FBcol.to, sort(unique(Input_Assign_Plot$FBcol.to)))
+  Input_Assign_Plot$FBcol.to_new=factor(Input_Assign_Plot$FBcol.to_new, sort(unique(Input_Assign_Plot$FBcol.to)))
+  P2 = ggplot() + geom_point(data=Input_Assign_Plot, aes(x=FBcol.to, y=FBcol.to_new, size=n)) + 
+    xlab("Column from synapse locations") + ylab("Column from connectivity") + ggtitle("Using Delta0 inputs")
+  
+  ggsave(paste(D0_Dir_Connect, "ColumnsAssigned_by_Input.png",sep=""),
+         plot = P2, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+  Input_Types=unique(Delta0_InputColumnAssignments$type.to)
+  for (nnn in 1:length(Input_Types)){
+    Input_Assign_Plot=merge(D0_FB_Inputs_Mean, Delta0_InputColumnAssignments, by="to")
+    
+    Input_Assign_Plot=subset(Input_Assign_Plot, type.to.y == Input_Types[nnn])
+    Input_Assign_Plot=distinct(Input_Assign_Plot[c("to","FBcol.to","FBcol.to_new")])
+    
+    Input_Assign_Plot=Input_Assign_Plot %>% group_by(FBcol.to, FBcol.to_new) %>% summarize(n=n())
+    Input_Assign_Plot$FBcol.to=factor(Input_Assign_Plot$FBcol.to, sort(unique(Input_Assign_Plot$FBcol.to)))
+    Input_Assign_Plot$FBcol.to_new=factor(Input_Assign_Plot$FBcol.to_new, sort(unique(Input_Assign_Plot$FBcol.to_new)))
+    
+    P1=ggplot() + geom_point(data=Input_Assign_Plot, aes(x=FBcol.to, y=FBcol.to_new, size=n)) + 
+      xlab("Column from synapse locations") + ylab("Column from connectivity") + ggtitle(paste("Using ", as.character( Input_Types[nnn]) , " inputs",sep=""))
+    ggsave(paste(D0_Dir_Connect, "ColumnsAssigned_by_Input_",  as.character( Input_Types[nnn]) ,".png",sep=""),
+           plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  }
+  
+
   
 }
 
