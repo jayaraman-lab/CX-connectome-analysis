@@ -483,6 +483,9 @@ D0_Distribution_Columns = Assign_FB_Columns(D0_Distribution_Filt, rbind(FX_Distr
 D0_Distribution_Columns$PBglom = factor(D0_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                                                     "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
 
+# Compare this synapse-based column assignment to one based on connectivity, to make sure they are similar
+Assign_FB_Columns_ToD0(D0_Distribution_Filt, D12s)
+
 
 # Get subset of mapping information
 D0_Distribution_Columns_Mapping=D0_Distribution_Columns[c("bodyid","FBcol")]
