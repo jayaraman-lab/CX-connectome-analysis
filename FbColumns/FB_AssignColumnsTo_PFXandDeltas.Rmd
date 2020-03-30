@@ -39,7 +39,9 @@ SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 # Directory to save plots to.
 PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/ColumnarSynapseLocs/"
 
-
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 ```
 
 
@@ -53,6 +55,9 @@ neuprint_login()
 
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
+source("../InputOutputByTypeUtils.r", chdir = TRUE)
+source("../neuprintQueryUtils.r", chdir = TRUE)
+source("../visualizeConnectivityTables.r", chdir = TRUE)
 
 ```
 
@@ -62,12 +67,12 @@ source("FB_LayerOutline_Utils.r")
 
 load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
 rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
-          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points"))
+          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
 
 ```
 
 
-# Get PB glomeruli or columns (Some columns are mixed and are named _L1/2 for example)
+# Get PB glomeruli or columns
 ```{r}
 
 
@@ -76,7 +81,7 @@ FBC_SynsAll$Side=NA
 FBC_SynsAll$Side[grepl("_R",FBC_SynsAll$bodyname)]<-"R"
 FBC_SynsAll$Side[grepl("_L",FBC_SynsAll$bodyname)]<-"L"
 
-# Assign PB glom
+# Assign PB glomeruli
 FBC_SynsAll$PBglom=NA
 RightColumns=str_extract(FBC_SynsAll$bodyname, "_R(\\d+)")
 LeftColumns=str_extract(FBC_SynsAll$bodyname, "_L(\\d+)")
@@ -84,17 +89,28 @@ FBC_SynsAll$PBglom[which(!is.na(RightColumns))]=RightColumns[which(!is.na(RightC
 FBC_SynsAll$PBglom[which(!is.na(LeftColumns))]=LeftColumns[which(!is.na(LeftColumns))]
 FBC_SynsAll$PBglom=sapply(FBC_SynsAll$PBglom, substring, 2, 3)
 
-# Assign FB glom
+# Assign FB columns
 FBC_SynsAll$FBcol=NA
 FBC_SynsAll$FBcol=str_extract(FBC_SynsAll$bodyname, "_C(\\d+)")
 FBC_SynsAll$FBcol=sapply(FBC_SynsAll$FBcol, substring, 2, 3)
 
 
-# Manually change PB glom of one neuron (PFNp_a)
-FBC_SynsAll$PBglom[FBC_SynsAll$bodyid == 5813128416] = NA # development error. 
+rm(list=c("LeftColumns","RightColumns"))
+```
 
+
+
+# Check to make sure all FX neurons have been given column names
+```{r}
+
+Fx_NamedBodies=subset(NamedBodies, startsWith(bodytype,"FS") | startsWith(bodytype,"FC") | startsWith(bodytype,"FR"))
+Fx_NamedBodies$FBcol=NA
+Fx_NamedBodies$FBcol=str_extract(Fx_NamedBodies$bodyname, "_C(\\d+)")
+Fx_NamedBodies$FBcol=sapply(Fx_NamedBodies$FBcol, substring, 2, 3)
+print(paste(as.character(sum(!is.na(Fx_NamedBodies$FBcol))/length(Fx_NamedBodies$FBcol)*100 ), "% of FX neurons have been given column names"))
 
 ```
+
 
 
 # Get the line that bisects each FB layer in the XZ (horizontal) plane
@@ -113,6 +129,9 @@ Mid_L8=Get_Mid(Outline_L8_XZ)
 ```
 
 
+# ##################################################################################################################
+# ######## Step 1: Define FB column positions based on FX neuron synapse locations #################################
+
 
 # Get synapse distribution information from FX neurons and plot the data for review
 ```{r}
@@ -128,6 +147,7 @@ if (!dir.exists(Fx_Dir_Dist)){dir.create(Fx_Dir_Dist)}
 if (!dir.exists(Fx_Dir_SynScatter)){dir.create(Fx_Dir_SynScatter)}
 if (!dir.exists(Fx_Dir_Crosses)){dir.create(Fx_Dir_Crosses)}
 
+
 # Get all FX neurons (FC, FS, FR)
 FX_SynsAll=subset(FBC_SynsAll, !(is.na(FBcol)) & startsWith(type,"F"))
 FX_SynsAll$FBcol=factor(FX_SynsAll$FBcol, levels=sort(unique(FX_SynsAll$FBcol)) )
@@ -142,24 +162,12 @@ PlotSyns_byColumn(FX_SynsAll, "FX All", "FX_All", Fx_Dir, TRUE, TRUE)
 PlotSyns_byLayer(FX_SynsAll, "FX All", "FX_All_Layers", "FBcol", Fx_Dir_SynScatter, TRUE, TRUE)
 
 
-# Make the same plots but per neuron type 
-FX_Types=unique(FX_SynsAll$type)
-for (ttt in 1:length(FX_Types)){
-  SubData=subset(FX_SynsAll, type == FX_Types[ttt])
-  PlotSyns_byColumn(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],sep=""), Fx_Dir_SynScatter, TRUE, FALSE)
-}
-for (ttt in 1:length(FX_Types)){
-  SubData=subset(FX_SynsAll, type == FX_Types[ttt])
-  PlotSyns_byLayer(SubData, FX_Types[ttt], paste("FX_",FX_Types[ttt],"_Layers",sep=""), "FBcol", Fx_Dir_SynScatter, FALSE, FALSE)
-}
-remove(SubData)
-
 
 ```
 
 
 
-# For each layer, define mean column position based on FX data and plot for review.
+# For each layer, define mean column position based on FX synapse locations and plot for review.
 # Here, FB column positions are defined for each layer using the FX neurons that innervate
 # every column of that layer. This criteria cleans up the column positions by excluding neuron
 # types that happen to have a few neurons with synapses in a layer but don't innervate all columns.
@@ -172,12 +180,14 @@ FX_Column_Positions = as.data.frame(FX_Distribution %>% group_by(FBcol, Layer, t
                                                 Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
                                                 Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
                                                 Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
-                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z)))
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
+                                           
  
-                          
+
 # Plot the distribution of FX column positions for all FX neuron types and each FX type individually 
-PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All", Fx_Dir_Crosses, FALSE)
-PlotColumn_Types(FX_Column_Positions, "FX_Columns", Fx_Dir_Crosses, FALSE) 
+PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All", Fx_Dir_Crosses, FALSE, FX_Column_Positions$id)
+PlotColumn_Types(FX_Column_Positions, "FX_Columns", Fx_Dir_Crosses, FALSE, FX_Column_Positions$id) 
 
 
 # Subset FX column positions to include only those neurons that innervate all columns in a layer
@@ -190,20 +200,25 @@ FX_Column_Positions= inner_join(FX_Column_Positions, FX_ColumnsInnervatedPerLaye
 
 
 # Replot data
-PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All_Clean", Fx_Dir_Crosses, FALSE)
-PlotColumn_Types(FX_Column_Positions, "FX_Columns_Clean", Fx_Dir_Crosses, FALSE) 
+PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All_Clean", Fx_Dir_Crosses, FALSE,  FX_Column_Positions$id)
+PlotColumn_Types(FX_Column_Positions, "FX_Columns_Clean", Fx_Dir_Crosses, FALSE,  FX_Column_Positions$id) 
 
 
 # Subset FX_Distribution based on neurons that innervate all columns of a layer
 FX_Distribution_Columns= inner_join(FX_Distribution, FX_ColumnsInnervatedPerLayer, by = c("type","Layer"))
 
 
-
+remove(FX_Distribution)
 ```
 
 
 
-# Get PB-FB-XX (ie PFX)  synapse distribution data
+# ##################################################################################################################
+# ######## Step 2: Assign columns to PB-FB-XX neurons ##############################################################
+
+
+
+# Get PB-FB-XX (ie PFX) synapse distribution data
 ```{r}
 
 # Make PB-FB-X  plotting directory
@@ -218,7 +233,8 @@ if (!dir.exists(PFX_Dir_Mapping)){dir.create(PFX_Dir_Mapping)}
 if (!dir.exists(PFX_Dir_MapGraph)){dir.create(PFX_Dir_MapGraph)}
 if (!dir.exists(PFX_Dir_Crosses)){dir.create(PFX_Dir_Crosses)}
 
-# Get PB-FB-X neuron synapse locations per layer
+
+# Get PB-FB-XX neuron synapse locations per layer
 PFX_SynsAll=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
 PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir_Dist) # 25 is good here, as some types have low synapse counts
 
@@ -230,23 +246,146 @@ colnames(PFX_NeuronsPerType)[1]="type"
 PFX_NeuronsOfTypePerLayer= PFX_Distribution %>% group_by(type, Layer) %>% summarise(NeuronsPerLayer=n())
 PFX_NeuronsOfTypePerLayer=merge(PFX_NeuronsOfTypePerLayer, PFX_NeuronsPerType)
 PFX_NeuronsOfTypePerLayer$PercentInLayer=PFX_NeuronsOfTypePerLayer$NeuronsPerLayer/PFX_NeuronsOfTypePerLayer$NeuronsPerType*100 
-PFX_NeuronsOfTypePerLayer = subset(PFX_NeuronsOfTypePerLayer, PercentInLayer>90) #PFNp_a has less than 100- 4 bodies dont innervate pb glom. PFNp_b has one neuron missing.
+PFX_NeuronsOfTypePerLayer = subset(PFX_NeuronsOfTypePerLayer, PercentInLayer>90) #PFNp_a has below 100% because 4 bodies dont innervate pb glom. PFNp_b has 1 neuron missing.
 PFX_Distribution_Filt=inner_join(PFX_Distribution, PFX_NeuronsOfTypePerLayer, by = c("type","Layer"))
+
+
 remove(PFX_Distribution)
-
-
-
-#PFX_Distribution2=subset(PFX_Distribution, X_HW_Orth<2000)
-
-#hist(PFX_Distribution2$X_HW_Orth ,100)
-
-
-ggplot() + geom_point(data = subset(PFX_Distribution,Layer=="L1"), aes(x=X_Mean, y=Z_Mean)) +
-  geom_path(data=Outline_FB_XZ, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1)
-
-
 ```
 
+
+
+# Assign the PB-FB-XX neurons to columns defined by the closet FX column for each layer.
+# Plot the PB-FB glomerulus->column pattern for each PB-FB-XX neuron
+```{r}
+
+
+# Assign column names based on closest neuron
+PFX_Distribution_Columns = Assign_FB_Columns(PFX_Distribution_Filt, FX_Distribution_Columns, PFX_Dir_Mapping)
+PFX_Distribution_Columns$PBglom = factor(PFX_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                                                    "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
+
+
+# Plot PB->FB mapping as a graph
+Plot_PBglom_FBcol_Mapping(PFX_Distribution_Columns, PFX_Dir_MapGraph, "ALL")
+
+
+# Manually update mappings to correct what we think are errors.
+# Note, some of these may be old and not show up with the current parameters of the script. But it
+# Doesn't hurt to keep them because it reflects the "true" mapping.
+UpdateMapping=data.frame(type = character(), PBglom =  character(), FBcol=  character(), FBcol_New =  character() )
+UpdateMapping=rbind(UpdateMapping,
+                    data.frame(type = "PFGs",    PBglom = "L8", FBcol= "C9", FBcol_New = "C8" ),
+                    data.frame(type = "PFGs",    PBglom = "L7", FBcol= "C8", FBcol_New = "C7" ),
+                    data.frame(type = "PFL1",    PBglom = "R6", FBcol= "C2", FBcol_New = "C3" ),
+                    data.frame(type = "PFL1",    PBglom = "R5", FBcol= "C3", FBcol_New = "C4" ),
+                    data.frame(type = "PFNa",    PBglom = "L7", FBcol= "C7", FBcol_New = "C6" ),
+                    data.frame(type = "PFNd",    PBglom = "R8", FBcol= "C3", FBcol_New = "C2" ),
+                    data.frame(type = "PFNp_a",  PBglom = "L4", FBcol= "C4", FBcol_New = "C3" ),
+                    data.frame(type = "PFNp_a",  PBglom = "L3", FBcol= "C1", FBcol_New = "C2" ),
+                    data.frame(type = "PFNp_c",  PBglom = "L9", FBcol= "C8", FBcol_New = "C9" ),
+                    data.frame(type = "PFNp_c",  PBglom = "L3", FBcol= "C1", FBcol_New = "C2" ),
+                    data.frame(type = "PFR_a",   PBglom = "L8", FBcol= "C9", FBcol_New = "C8" ),
+                    data.frame(type = "PFNp_b",  PBglom = "R2", FBcol= "C8", FBcol_New = "C9"),
+                    data.frame(type = "PFNp_b",  PBglom = "L6", FBcol= "C6", FBcol_New = "C5"),
+                    data.frame(type = "PFL3",    PBglom = "L3", FBcol= "C6", FBcol_New = "C5" ),
+                    data.frame(type = "PFL3",    PBglom = "R1", FBcol= "C8", FBcol_New = "C7" ),
+                    data.frame(type = "PFR_b",   PBglom = "R5", FBcol= "C3", FBcol_New = "C4" ),
+                    data.frame(type = "PFNp_a",  PBglom = "R9", FBcol= "C1", FBcol_New = "C2"),
+                    data.frame(type = "PFNp_a",  PBglom = "R9", FBcol= "C8", FBcol_New = "C2"),
+                    data.frame(type = "PFNp_a",  PBglom = "R6", FBcol= "C6", FBcol_New = "C5"),
+                    data.frame(type = "PFNm_a",  PBglom = "L3", FBcol= "C1", FBcol_New = "C2"),
+                    data.frame(type = "PFNm_b",  PBglom = "L3", FBcol= "C1", FBcol_New = "C2"),
+                    data.frame(type = "PFNd",    PBglom = "L5", FBcol= "C5", FBcol_New = "C4"),
+                    data.frame(type = "PFL2",    PBglom = "L1", FBcol= "C6", FBcol_New = "C5"))
+
+
+
+# Update PFX_Distribution_Columns with the new manual corrections from above
+for (rrr in 1:length(UpdateMapping$type)){
+  Row_Ind=which(as.character(PFX_Distribution_Columns$type) == as.character(UpdateMapping$type[rrr]) &
+                  as.character(PFX_Distribution_Columns$PBglom) == as.character(UpdateMapping$PBglom[rrr]) &
+                  as.character(PFX_Distribution_Columns$FBcol) == as.character(UpdateMapping$FBcol[rrr]) )
+  PFX_Distribution_Columns$FBcol[Row_Ind]=as.character(UpdateMapping$FBcol_New[rrr])
+}
+
+# Move one of the PFNd neurons over one column
+Row_Ind=which(as.character(PFX_Distribution_Columns$type) == "PFNd" &
+                  as.character(PFX_Distribution_Columns$PBglom) == "L6" &
+                  as.character(PFX_Distribution_Columns$FBcol) ==  "C6" )
+TempID=unique(PFX_Distribution_Columns$bodyid[Row_Ind[which(PFX_Distribution_Columns$FBcol_Con[Row_Ind] == min(PFX_Distribution_Columns$FBcol_Con[Row_Ind]))]])
+Row_Ind=which(PFX_Distribution_Columns$bodyid == TempID)
+PFX_Distribution_Columns$FBcol[Row_Ind]="C5"
+
+
+# Plot NEW PB->FB mapping as a graph
+PFX_GlomToColumn_Sym=Plot_PBglom_FBcol_Mapping(PFX_Distribution_Columns, PFX_Dir_MapGraph, "SYM")
+
+
+# Get number of neurons mapped from gloms to cols
+PFX_NeuonrsPerTypeWithMappings=PFX_GlomToColumn_Sym %>% group_by(type) %>% summarize(Num = sum(Num_Neurons))
+
+
+# Save new PFX names that contain column information for Shin-ya
+PFX_Names=distinct(PFX_Distribution_Columns[c("bodyid","PBglom","FBcol")])
+PFX_Names=merge(PFX_Names, NamedBodies[c("bodyid","bodyname")], by="bodyid")
+colnames(PFX_Names)[colnames(PFX_Names)=="bodyname"]="name"
+PFX_Names$new_name=PFX_Names$name
+for (nnn in 1:length(PFX_Names$name)){
+  PFX_Names$new_name[nnn]=gsub("_C(\\d+)", paste("_",PFX_Names$FBcol[nnn],sep=""), PFX_Names$new_name[nnn])
+}
+PFX_Names$bodyid=as.factor(PFX_Names$bodyid)
+write.xlsx(PFX_Names,  paste(PFX_Dir,"PFX_Names.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
+
+
+# Save xls of PFX neurons that werent assigned a column and do it manually
+PFX_NoNames=subset(PFX_NamedBodies, ! (bodyid %in% PFX_Names$bodyid))
+write.xlsx(PFX_NoNames[,c(1,3,2)],  paste(PFX_Dir,"PFX_NoNames.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
+
+
+rm(list=c("rrr", "nnn", "Row_Ind","PFX_Distribution_Filt","TempID"))
+```
+
+
+
+
+# Now that we have the columns for PFX neurons (in PFX_Distribution_Columns), assign them to PFX_SynsAll and plot the crosses
+```{r}
+
+
+# Get subset of mapping information
+PFX_Distribution_Columns_Mapping=PFX_Distribution_Columns[c("bodyid","PBglom","FBcol")]
+PFX_Distribution_Columns_Mapping$PBglom=as.character(PFX_Distribution_Columns_Mapping$PBglom)
+
+# Update PFX_SynsAll
+Temp_ColNames=colnames(PFX_SynsAll)
+PFX_SynsAll=PFX_SynsAll[!colnames(PFX_SynsAll)=="FBcol"]
+PFX_SynsAll=inner_join(PFX_SynsAll, PFX_Distribution_Columns_Mapping, by=c("bodyid","PBglom"))
+PFX_SynsAll=PFX_SynsAll[Temp_ColNames]
+
+
+# Get average X/Z position of each column in each layer
+PFX_Column_Positions = as.data.frame(PFX_Distribution_Columns %>% group_by(FBcol, Layer, type) %>% 
+                                      summarise(X_Mean = mean(X_Mean), Y_Mean=mean(Y_Mean), Z_Mean = mean(Z_Mean),
+                                                Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
+                                                Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
+                                                Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
+
+
+# Plot the distribution of PB-FB-XX column positions for all neurons and each type individually 
+PlotColumn_Aves(PFX_Column_Positions, "PFX_Columns_All", PFX_Dir_Crosses, FALSE, PFX_Column_Positions$id)
+PlotColumn_Types(PFX_Column_Positions, "PFX_Columns", PFX_Dir_Crosses, FALSE, PFX_Column_Positions$id) 
+
+
+remove(Temp_ColNames)
+```
+
+
+
+# ##################################################################################################################
+# ######## Step 3: Assign columns to Delta0 neurons ################################################################
 
 
 # Get Delta0 synapse distribution data
@@ -258,15 +397,17 @@ D0_Dir=paste(PlotDir,"D0_Plots_All","/",sep="")
 D0_Dir_Dist=paste(D0_Dir,"D0_MeasureWidth","/",sep="")
 D0_Dir_Mapping=paste(D0_Dir,"D0_Mapping","/",sep="")
 D0_Dir_Crosses=paste(D0_Dir,"D0_Crosses","/",sep="")
+D0_Dir_Connect=paste(D0_Dir,"D0_Connect","/",sep="")
 if (!dir.exists(D0_Dir)){dir.create(D0_Dir)}
 if (!dir.exists(D0_Dir_Dist)){dir.create(D0_Dir_Dist)}
 if (!dir.exists(D0_Dir_Mapping)){dir.create(D0_Dir_Mapping)}
 if (!dir.exists(D0_Dir_Crosses)){dir.create(D0_Dir_Crosses)}
+if (!dir.exists(D0_Dir_Connect)){dir.create(D0_Dir_Connect)}
+
 
 # Get Delta0 neuron synapse locations per layer
 D0_SynsAll=subset(FBC_SynsAll, startsWith(type,"Delta0")) # Delta12s are included here and need to be identified
-D0_Distribution=Get_SynLayerDistribution(D0_SynsAll, 25, D0_Dir_Dist) # 25 is good here, as some types have low synapse counts
-
+D0_Distribution=Get_SynLayerDistribution(D0_SynsAll, 25, D0_Dir_Dist) 
 
 
 # Subset D0 data to include only layers innervated by all neurons of a type
@@ -276,7 +417,7 @@ colnames(D0_NeuronsPerType)[1]="type"
 D0_NeuronsOfTypePerLayer= D0_Distribution %>% group_by(type, Layer) %>% summarise(NeuronsPerLayer=n())
 D0_NeuronsOfTypePerLayer=merge(D0_NeuronsOfTypePerLayer, D0_NeuronsPerType)
 D0_NeuronsOfTypePerLayer$PercentInLayer=D0_NeuronsOfTypePerLayer$NeuronsPerLayer/D0_NeuronsOfTypePerLayer$NeuronsPerType*100 
-D0_NeuronsOfTypePerLayer = subset(D0_NeuronsOfTypePerLayer, PercentInLayer==100) #Delta0L is missing synapses at the moment
+D0_NeuronsOfTypePerLayer = subset(D0_NeuronsOfTypePerLayer, PercentInLayer>=50) #50% threshold here to include Delta0A_a/b synapses in layer1
 D0_Distribution_Filt=inner_join(D0_Distribution, D0_NeuronsOfTypePerLayer, by = c("type","Layer"))
 
 
@@ -285,7 +426,7 @@ D0_Distribution_Filt=inner_join(D0_Distribution, D0_NeuronsOfTypePerLayer, by = 
 
 
 
-# Find delta12 neurons, assign them names with columns for Shin-ya, and remove them from D0_Distribution_Filt
+# Find delta12 neurons (there are 46 of them), assign them names with columns for Shin-ya, and remove them from D0_Distribution_Filt
 ```{r}
 
 # Make delta12 directory
@@ -323,112 +464,12 @@ save(D12s, file = paste(D12_Dir,"D12.Rdata",sep=""))
 write.xlsx(D12s,  paste(D12_Dir,"D12.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
 
 
-# Exclude these neurons from D0_Distribution_Filt
+# Exclude these neurons from D0_Distribution_Filt, D0_SynsAll, and D0_NamedBodies
 D0_Distribution_Filt=subset(D0_Distribution_Filt, !(bodyid %in% D12s$bodyid))
+D0_SynsAll=subset(D0_SynsAll, !(bodyid %in% D12s$bodyid))
+D0_NamedBodies=subset(D0_NamedBodies, !(bodyid %in% D12s$bodyid))
 
-
-```
-
-
-
-# Assign the PB-FB-XX neurons to columns defined by the closet FX column for each layer.
-# Plot the PB-FB glomerulus->column pattern for each PB-FB-XX neuron
-```{r}
-
-
-# Assign column names based on closest neuron
-PFX_Distribution_Columns = Assign_FB_Columns(PFX_Distribution_Filt, FX_Distribution_Columns, PFX_Dir_Mapping)
-PFX_Distribution_Columns$PBglom = factor(PFX_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
-                                                                    "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
-remove(PFX_Distribution_Filt)
-
-# Get number of neurons going from each glom to each column
-PFX_GlomToColumn_All=PFX_Distribution_Columns %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n(), FBcol_Con= mean(FBcol_Con))
-PFX_GlomToColumn_All=PFX_GlomToColumn_All %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n(), FBcol_Con= mean(FBcol_Con))
-
-
-# Plot PB->FB mapping as a graph
-Plot_PBglom_FBcol_Mapping(PFX_GlomToColumn_All, PFX_Dir_MapGraph, "ALL")
-
-
-# Manually update mappings to correct what we think are errors
-PFX_GlomToColumn_Sym=PFX_GlomToColumn_All
-UpdateMapping=data.frame(type = character(), PBglom =  character(), FBcol=  character(), FBcol_New =  character() )
-UpdateMapping=rbind(UpdateMapping,
-                    data.frame(type = "PFGs", PBglom = "L8", FBcol= "C9", FBcol_New = "C8" ),
-                    data.frame(type = "PFGs", PBglom = "L7", FBcol= "C8", FBcol_New = "C7" ),
-                    data.frame(type = "PFL1", PBglom = "R6", FBcol= "C2", FBcol_New = "C3" ),
-                    data.frame(type = "PFL1", PBglom = "R5", FBcol= "C3", FBcol_New = "C4" ),
-                    data.frame(type = "PFNa", PBglom = "L7", FBcol= "C7", FBcol_New = "C6" ),
-                    data.frame(type = "PFNd", PBglom = "R8", FBcol= "C3", FBcol_New = "C2" ),
-                    data.frame(type = "PFNd", PBglom = "L5", FBcol= "C5", FBcol_New = "C4" ),
-                    data.frame(type = "PFNp_a", PBglom = "L4", FBcol= "C4", FBcol_New = "C3" ),
-                    data.frame(type = "PFNp_a", PBglom = "L3", FBcol= "C1", FBcol_New = "C2" ),
-                    data.frame(type = "PFNp_c", PBglom = "L9", FBcol= "C8", FBcol_New = "C9" ),
-                    data.frame(type = "PFR_a", PBglom = "L8", FBcol= "C9", FBcol_New = "C8" ),
-                    data.frame(type = "PFNp_b", PBglom = "R2", FBcol= "C8", FBcol_New = "C9"),
-                    data.frame(type = "PFNp_b", PBglom = "L6", FBcol= "C6", FBcol_New = "C5"),
-                    data.frame(type = "PFL3", PBglom = "L3", FBcol= "C6", FBcol_New = "C5" ),
-                    data.frame(type = "PFL3", PBglom = "R1", FBcol= "C8", FBcol_New = "C7" ))
-
-
-
-# Create new mapping with corrections from UpdateMapping  
-N_Count=0
-for (rrr in 1:length(UpdateMapping$type)){
-  Row_Ind=which(as.character(PFX_GlomToColumn_Sym$type) == as.character(UpdateMapping$type[rrr]) &
-                as.character(PFX_GlomToColumn_Sym$PBglom) == as.character(UpdateMapping$PBglom[rrr]) &
-                as.character(PFX_GlomToColumn_Sym$FBcol) == as.character(UpdateMapping$FBcol[rrr]) )
-  PFX_GlomToColumn_Sym$FBcol[Row_Ind] = as.character(UpdateMapping$FBcol_New[rrr])
-  N_Count=N_Count+length(Row_Ind)
-}
-PFX_GlomToColumn_Sym = PFX_GlomToColumn_Sym %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = sum(Num_Neurons),  FBcol_Con = mean(FBcol_Con))
-
-# Plot NEW PB->FB mapping as a graph
-Plot_PBglom_FBcol_Mapping(PFX_GlomToColumn_Sym, PFX_Dir_MapGraph, "SYM")
-
-# Get number of neurons mapped from glom to cols
-PFX_NeuonrsPerTypeWithMappings=PFX_GlomToColumn_All %>% group_by(type) %>% summarize(Num = sum(Num_Neurons))
-
-
-```
-
-
-
-
-# Now that we have the columns for PFX neurons (in PFX_Distribution_Columns), assign them to PFX_SynsAll and plot the crosses
-```{r}
-
-
-# Get subset of mapping information
-PFX_Distribution_Columns_Mapping=PFX_Distribution_Columns[c("bodyid","PBglom","FBcol")]
-
-
-# Update PFX_SynsAll
-Temp_ColNames=colnames(PFX_SynsAll)
-PFX_SynsAll=PFX_SynsAll[!colnames(PFX_SynsAll)=="FBcol"]
-PFX_SynsAll=inner_join(PFX_SynsAll, PFX_Distribution_Columns_Mapping, by=c("bodyid","PBglom"))
-PFX_SynsAll=PFX_SynsAll[Temp_ColNames]
-
-
-# Get average X/Z position of each column in each layer
-PFX_Column_Positions = as.data.frame(PFX_Distribution_Columns %>% group_by(FBcol, Layer, type) %>% 
-                                      summarise(X_Mean = mean(X_Mean), Y_Mean=mean(Y_Mean), Z_Mean = mean(Z_Mean),
-                                                Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
-                                                Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
-                                                Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
-                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z)))
-
-
-# Plot the distribution of PB-FB-XX column positions for all neurons and each type individually 
-PlotColumn_Aves(PFX_Column_Positions, "PFX_Columns_All", PFX_Dir_Crosses, FALSE)
-PlotColumn_Types(PFX_Column_Positions, "PFX_Columns", PFX_Dir_Crosses, FALSE) 
-
-
-
-
-
-
+rm(list=c("nnn", "Temp_Syns","P1","P2","P12"))
 ```
 
 
@@ -436,12 +477,11 @@ PlotColumn_Types(PFX_Column_Positions, "PFX_Columns", PFX_Dir_Crosses, FALSE)
 ```{r}
 
 
-# Assign column names based on closest neuron
-D0_Distribution_Columns = Assign_FB_Columns(D0_Distribution_Filt, FX_Distribution_Columns, D0_Dir_Mapping)
+
+# Assign column names based on closest FX and PFX neurons
+D0_Distribution_Columns = Assign_FB_Columns(D0_Distribution_Filt, rbind(FX_Distribution_Columns[, 1:9], PFX_Distribution_Columns[, 1:9]), D0_Dir_Mapping)
 D0_Distribution_Columns$PBglom = factor(D0_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                                                     "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
-#remove(D0_Distribution_Filt)
-
 
 
 # Get subset of mapping information
@@ -461,13 +501,15 @@ D0_Column_Positions = as.data.frame(D0_Distribution_Columns %>% group_by(FBcol, 
                                                 Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
                                                 Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
                                                 Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
-                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z)))
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
 
 
 # Plot the distribution of PB-FB-XX column positions for all neurons and each type individually 
-PlotColumn_Aves(D0_Column_Positions, "D0_Columns_All", D0_Dir_Crosses, FALSE)
-PlotColumn_Types(D0_Column_Positions, "D0_Columns", D0_Dir_Crosses, FALSE) 
-
+PlotColumn_Aves(D0_Column_Positions, "D0_Columns_All", D0_Dir_Crosses, FALSE, D0_Column_Positions$id)
+PlotColumn_Types(D0_Column_Positions, "D0_Columns", D0_Dir_Crosses, FALSE, D0_Column_Positions$id) 
+PlotColumn_Aves(D0_Distribution_Columns, "D0_Neurons_Columns_All", D0_Dir_Crosses, FALSE, D0_Distribution_Columns$bodyid)
+PlotColumn_Types(D0_Distribution_Columns, "D0_Neurons_Columns", D0_Dir_Crosses, FALSE, D0_Distribution_Columns$body) 
 
 
 # Give them a new name and save data
@@ -477,20 +519,36 @@ D0_Names$new_name=paste(D0_Names$bodyname, "_", D0_Names$FBcol,sep="")
 write.xlsx(D0_Names,  paste(D0_Dir,"D0_Names.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
 
 
+# Check if all Delta0s have been given a name
+D0_NoNames=subset(D0_NamedBodies, !(bodyid %in% D0_Names$bodyid))
+D0_NoNames=subset(D0_NoNames, !(bodyid %in% D12s$bodyid))
+#write.xlsx(D0_NoNames[,c(1,3,2)],  paste(D0_Dir,"D0_NoNames.xlsx",sep=""), sheetName = "Sheet1", col.names = TRUE, row.names = TRUE, append = FALSE)
 
+
+#Check how many columns each Delta0 type innervates
+D0_NeuronsOfTypePerColumn= D0_Distribution_Columns %>% group_by(type, FBcol) %>% summarise(NumofClouds=n()) %>% group_by(type) %>% summarize(NumofCols=length(unique(FBcol)))
+
+rm(list=c("D0_Distribution_Filt","D0_Distribution"))
 ```
 
+
+
+# ##################################################################################################################
+# ######## Step 4: Save data for posterity #########################################################################
 
 
 # Save the entire workspace to a file for later script to use.
 ```{r}
 # Save entire workspace to file
-save.image(file=paste(SaveDir,'All_Data.Rdata',sep=""))
+save.image(file=paste(SaveDir,'ColAssignment_Data.Rdata',sep=""))
 ```
 
 
 
-# How many columns do delta0s have?
+# ##################################################################################################################
+# ######## Step 5: Make some plots to confirm column mappings are okay #############################################
+
+
 # Make plots of mean synapse locations to see if columns pop out
 ```{r}
 
@@ -500,10 +558,10 @@ Plot_NeuronSynMeanPos<- function(Plot_Syns, LayerToPlot){
   eval(parse( text= paste("Outline=Outline_", as.character(LayerToPlot),"_XZ",sep="") ))
   
   # Make scatter plot
-  p_1=ggplot() + geom_point(data=subset(Plot_Syns, Layer==LayerToPlot), aes(x=X_Mean, y=Z_Mean, color=FBcol), shape=16, alpha=0.3) + 
+  p_1=ggplot() + geom_point(data=subset(Plot_Syns, Layer==LayerToPlot), aes(x=X_Mean, y=Z_Mean, color=FBcol), shape=16, alpha=1) + 
     geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) +
     theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-    scale_color_manual(values=col_vector)  +  theme(
+    scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
@@ -577,33 +635,13 @@ ggsave(paste(PlotDir, "AllTypes_MeanSynPositions" , ".png",sep=""), plot = PP_Al
          device='png', scale = 1, width = 12, height = 10, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
 
 
-
-
+rm(list=c("FX_L1","FX_L2","FX_L3","FX_L4","FX_L5","FX_L6","FX_L7","FX_L8",
+          "PFX_L1","PFX_L2","PFX_L3","PFX_L4","PFX_L5","PFX_L6","PFX_L7","PFX_L8",
+          "D0_L1","D0_L2","D0_L3","D0_L4","D0_L5","D0_L6","D0_L7","D0_L8",
+          "FX_All","PFX_All","D0_All","PP_All"))
 
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

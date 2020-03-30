@@ -102,7 +102,7 @@ Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vec
   
   # Format the rest of the plot, get rid of axes
   P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-      scale_color_manual(values=col_vector)  +  theme(
+      scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
@@ -166,30 +166,32 @@ PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName, DIR, TOPLOT_TF, TOPLOT
 ####### Functions for plotting column positions as defined by Fx neuron synapses locations ####################################
 
 
-PlotColumn_Types<- function(Plot_Syns, PlotName, DIR, PLOT){
+PlotColumn_Types<- function(Plot_Syns, PlotName, DIR, PLOT, ID){
   Types=unique(Plot_Syns$type)
   for (nnn in 1:length(Types)){
     Temp_Type=subset(Plot_Syns, type == as.character(Types[nnn]))
-    PlotColumn_Aves(Temp_Type, paste(PlotName, "_", Types[nnn],sep="") , DIR, PLOT)
+    T_ID=ID[Plot_Syns$type == as.character(Types[nnn]) ]
+    PlotColumn_Aves(Temp_Type, paste(PlotName, "_", Types[nnn],sep="") , DIR, PLOT, T_ID)
   }
 }
 
 
 
-PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT){
+PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT, T_ID){
+  
   
   # get layers
   Layers_All=sort(unique(as.character(Plot_Syns$Layer)))
   
   # Make plots
-  l1=Plot_Crosses(Plot_Syns, 1, DIR, PlotName, PLOT)
-  l2=Plot_Crosses(Plot_Syns, 2, DIR, PlotName, PLOT)
-  l3=Plot_Crosses(Plot_Syns, 3, DIR, PlotName, PLOT)
-  l4=Plot_Crosses(Plot_Syns, 4, DIR, PlotName, PLOT)
-  l5=Plot_Crosses(Plot_Syns, 5, DIR, PlotName, PLOT)
-  l6=Plot_Crosses(Plot_Syns, 6, DIR, PlotName, PLOT)
-  l7=Plot_Crosses(Plot_Syns, 7, DIR, PlotName, PLOT)
-  l8=Plot_Crosses(Plot_Syns, 8, DIR, PlotName, PLOT)
+  l1=Plot_Crosses(Plot_Syns, 1, DIR, PlotName, PLOT, T_ID)
+  l2=Plot_Crosses(Plot_Syns, 2, DIR, PlotName, PLOT, T_ID)
+  l3=Plot_Crosses(Plot_Syns, 3, DIR, PlotName, PLOT, T_ID)
+  l4=Plot_Crosses(Plot_Syns, 4, DIR, PlotName, PLOT, T_ID)
+  l5=Plot_Crosses(Plot_Syns, 5, DIR, PlotName, PLOT, T_ID)
+  l6=Plot_Crosses(Plot_Syns, 6, DIR, PlotName, PLOT, T_ID)
+  l7=Plot_Crosses(Plot_Syns, 7, DIR, PlotName, PLOT, T_ID)
+  l8=Plot_Crosses(Plot_Syns, 8, DIR, PlotName, PLOT, T_ID)
   
   
   # Save plot
@@ -199,7 +201,7 @@ PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT){
 }
 
 
-Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT){
+Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT, ID){
   
   # Get color vector
   col_vector=GetColorMap("FBcol")
@@ -207,32 +209,25 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT){
   # Get mean positions for this layer
   Temp_Dist=subset(Plot_Syns, Layer == paste("L",as.character(LayerToPlot),sep="")) 
   colnames(Temp_Dist)[which(colnames(Temp_Dist) %in% c("X_Mean","Z_Mean"))] = c("X","Z")
+  Temp_ID=ID[Plot_Syns$Layer == paste("L",as.character(LayerToPlot),sep="")]
   
   # Get layer outline 
   eval(parse( text= paste("Outline=Outline_L", as.character(LayerToPlot),"_XZ",sep="") ))
   
+  # Get cross lines
+  Horizontal=data.frame(X=c(Temp_Dist[,"Cross_XL_X"], Temp_Dist[,"Cross_XR_X"]), Y=c(Temp_Dist[,"Cross_XL_Z"], Temp_Dist[,"Cross_XR_Z"]),
+                        ID=c(Temp_ID, Temp_ID), COLOR=c(as.character(Temp_Dist[,"FBcol"]), as.character(Temp_Dist[,"FBcol"])))
+  Vertical=data.frame(X=c(Temp_Dist[,"Cross_YU_X"], Temp_Dist[,"Cross_YD_X"]), Y=c(Temp_Dist[,"Cross_YU_Z"], Temp_Dist[,"Cross_YD_Z"]),
+                        ID=c(Temp_ID, Temp_ID), COLOR=c(as.character(Temp_Dist[,"FBcol"]), as.character(Temp_Dist[,"FBcol"])))
+  
+
   # Plot data
-  p1 <- ggplot() + geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
-  
-  if (length(Temp_Dist$FBcol)>0){
-    P_All=list()
-    for (nnn in 1:length(Temp_Dist$FBcol) ){
-      Temp_Neuron_Dist=Temp_Dist[nnn,]
-      CCC= col_vector[which(levels(Temp_Neuron_Dist$FBcol) == Temp_Neuron_Dist$FBcol[1])]
-      
-      p1 = p1 +  
-        geom_line(data=data.frame(XXX = c(Temp_Neuron_Dist$Cross_XL_X, Temp_Neuron_Dist$Cross_XR_X),
-                                  YYY=c(Temp_Neuron_Dist$Cross_XL_Z, Temp_Neuron_Dist$Cross_XR_Z)), aes(x=XXX, y=YYY), size = 0.5, color= CCC ) +
-        geom_line(data=data.frame(XXX = c(Temp_Neuron_Dist$Cross_YU_X, Temp_Neuron_Dist$Cross_YD_X),
-                                  YYY=c(Temp_Neuron_Dist$Cross_YU_Z, Temp_Neuron_Dist$Cross_YD_Z) ), aes(x=XXX, y=YYY), size = 0.5 , color= CCC) + 
-        geom_point(data=Temp_Neuron_Dist, aes(x=X,y=Z),size=2, color= CCC)
-    }
-    
-  }
-  
-  
-  p1 = p1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-    scale_color_manual(values=col_vector)  +  theme(
+  p1 <- ggplot() + geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) +
+    geom_line(data=Horizontal, aes(x=X, y=Y, group=ID, color=COLOR)) + 
+    geom_line(data=Vertical, aes(x=X, y=Y, group=ID, color=COLOR)) +
+    geom_point(data=Temp_Dist, aes(x=X,y=Z, color= FBcol),size=2 ) +
+    theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
+    scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent"), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
@@ -240,6 +235,7 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT){
       legend.background = element_rect(fill = "transparent"), # get rid of legend bg
       legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
     )
+  
   
   if (PLOT==TRUE){
   ggsave(paste(DIR, PlotName, "_L", as.character(LayerToPlot) , ".png",sep=""), plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
@@ -250,7 +246,138 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT){
 
 
 ###############################################################################################################################
-### Third of three functions for assigning FB columns to PB-FB-XX and D0 neurons, here based on closest type average  #########
+### Function for assigning FB columns to D0 neurons, here based on input column ###############################################
+
+D0_OutputPlot_Connectivity <- function(D0_FB_Outputs){
+  
+  OutputsPlot_Sub <- ggplot(D0_FB_Outputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Outputs$weightRelative),
+                         limits=c(0,max(D0_FB_Outputs$weightRelative))) + 
+    geom_tile(aes(FBcol.to, InputName,  fill=weightRelative)) + 
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+    theme(axis.text.y = element_blank()) + xlab("FB Columnar Type (POST)") + ylab("Delta0 Type (PRE)")
+  
+  return(OutputsPlot_Sub)
+}
+
+
+D0_InputPlot_Connectivity <- function(D0_FB_Inputs){
+  
+  InputsPlot_Sub <- ggplot(D0_FB_Inputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         midpoint =0.5*max(D0_FB_Inputs$weightRelative),
+                         limits=c(0,max(D0_FB_Inputs$weightRelative))) + 
+    geom_tile(aes(OutputName, FBcol.from, fill=weightRelative)) + 
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+    theme(axis.text.x = element_blank()) + ylab("FB Columnar Type (PRE)") + xlab("Delta0 Type (POST)")
+  
+  return(InputsPlot_Sub)
+}
+
+
+Assign_FB_Columns_ToD0 <- function(D0_Distribution_Filt, D12s){
+  
+  
+  # Get input and output tables for D0 neurons in FB
+  Columnar_Types=unique(NamedBodies$bodytype[(startsWith(NamedBodies$bodytype, "PF")   | 
+                                              startsWith(NamedBodies$bodytype, "F")  ) &
+                                             !startsWith(NamedBodies$bodytype, "FB") ])
+  D0_Types=as.character(unique(D0_Distribution_Filt$type))
+  D0_Bag=buildInputsOutputsByType(D0_Types, slctROI="FB")
+  D0_FB_Outputs_All=D0_Bag[["outputs_raw"]]
+  D0_FB_Inputs_All=D0_Bag[["inputs_raw"]]
+  
+  
+  
+  # Subset data on columnar types and remove Delta12s 
+  D0_FB_Outputs_Col=subset(D0_FB_Outputs_All, databaseType.to %in% Columnar_Types & !from %in% D12s$bodyid )
+  D0_FB_Inputs_Col=subset(D0_FB_Inputs_All, databaseType.from %in% Columnar_Types & !to   %in% D12s$bodyid )
+  
+  
+  
+  # Get FB column names
+  D0_FB_Outputs_Col$FBcol.to=NA
+  D0_FB_Outputs_Col$FBcol.to=str_extract(D0_FB_Outputs_Col$name.to, "_C(\\d+)")
+  D0_FB_Outputs_Col$FBcol.to=sapply(D0_FB_Outputs_Col$FBcol.to, substring, 2, 3)
+  D0_FB_Outputs_Col$FBcol.to=factor(D0_FB_Outputs_Col$FBcol.to, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+  D0_FB_Inputs_Col$FBcol.from=NA
+  D0_FB_Inputs_Col$FBcol.from=str_extract(D0_FB_Inputs_Col$name.from, "_C(\\d+)")
+  D0_FB_Inputs_Col$FBcol.from=sapply(D0_FB_Inputs_Col$FBcol.from, substring, 2, 3)   
+  D0_FB_Inputs_Col$FBcol.from=factor(D0_FB_Inputs_Col$FBcol.from, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+     
+  
+  
+  # Make plots of all inputs/outputs
+  Output_Plot_1 = plotConnectivityMatrix(D0_FB_Outputs_Col, byGroup = "id", connectionMeasure="weightRelative") 
+  Output_Plot_1 = structureMatrixPlotByType(Output_Plot_1)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_All.png",sep=""),
+         plot = Output_Plot_1, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  Input_Plot_1 = plotConnectivityMatrix(D0_FB_Inputs_Col, byGroup = "id", connectionMeasure="weightRelative") 
+  Input_Plot_1 = structureMatrixPlotByType(Input_Plot_1)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_All.png",sep=""),
+         plot = Input_Plot_1, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  
+  # Average by type and column
+  D0_FB_Outputs_Mean=D0_FB_Outputs_Col %>% group_by(type.to, FBcol.to, from, type.from, name.from) %>% summarise(weightRelative=mean(weightRelative))
+  D0_FB_Outputs_Mean$InputName=paste(as.character(D0_FB_Outputs_Mean$name.from), "_", as.character(D0_FB_Outputs_Mean$from),sep="")
+  D0_FB_Outputs_Mean$OutputName=paste( as.character(D0_FB_Outputs_Mean$type.to), "_", as.character(D0_FB_Outputs_Mean$FBcol.to),sep="")
+  D0_FB_Outputs_Mean$from=factor(D0_FB_Outputs_Mean$from, levels= unique(D0_FB_Outputs_Col$from) )
+  D0_FB_Outputs_Mean$type.from =  substr(D0_FB_Outputs_Mean$type.from, 6, 100)
+  
+  
+  D0_FB_Inputs_Mean=D0_FB_Inputs_Col %>% group_by(type.from, FBcol.from, to, type.to, name.to) %>% summarise(weightRelative=mean(weightRelative))
+  D0_FB_Inputs_Mean$InputName=paste(as.character(D0_FB_Inputs_Mean$type.from), "_", as.character(D0_FB_Inputs_Mean$FBcol.from),sep="")
+  D0_FB_Inputs_Mean$OutputName=paste( as.character(D0_FB_Inputs_Mean$name.to), "_", as.character(D0_FB_Inputs_Mean$to),sep="")
+  D0_FB_Inputs_Mean$to=factor(D0_FB_Inputs_Mean$to, levels= unique(D0_FB_Inputs_Col$to) )
+  D0_FB_Inputs_Mean$type.to =  substr(D0_FB_Inputs_Mean$type.to, 6, 100)
+  
+  
+  
+  # Plot Delta0 connectivity matrices to see if typing is decent
+  OutputsPlot_Sub=D0_OutputPlot_Connectivity(D0_FB_Outputs_Mean)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColAve.png",sep=""),
+         plot = OutputsPlot_Sub, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  InputsPlot_Sub=D0_InputPlot_Connectivity(D0_FB_Inputs_Mean)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_ColAve.png",sep=""),
+         plot = InputsPlot_Sub, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+ 
+  # remove cell types that don't innervate all columns
+  OutputColumnsNum = D0_FB_Outputs_Mean %>% group_by(type.to, type.from) %>% summarize(NumOfCols=length(unique(FBcol.to)))
+  OutputColumnsNum = subset(OutputColumnsNum, NumOfCols>=7)
+  D0_FB_Outputs_MeanSub=subset(D0_FB_Outputs_Mean, type.to %in% OutputColumnsNum$type.to & type.from %in% OutputColumnsNum$type.from)
+  
+  InputColumnsNum  = D0_FB_Inputs_Mean %>% group_by(type.to, type.from) %>% summarize(NumOfCols=length(unique(FBcol.from)))
+  InputColumnsNum  = subset(InputColumnsNum, NumOfCols>=7)
+  D0_FB_Inputs_MeanSub=subset(D0_FB_Inputs_Mean, type.from %in% InputColumnsNum$type.from & type.to %in% InputColumnsNum$type.to)
+  
+  
+  
+  # Replot the data
+  OutputsPlot_Sub2=D0_OutputPlot_Connectivity(D0_FB_Outputs_MeanSub)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Outputs_ColAve_Sub.png",sep=""),
+         plot = OutputsPlot_Sub2, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  InputsPlot_Sub2=D0_InputPlot_Connectivity(D0_FB_Inputs_MeanSub)
+  ggsave(paste(D0_Dir_Connect, "Delta0_Inputs_ColAve_Sub.png",sep=""),
+         plot = InputsPlot_Sub2, device='png', scale = 1, width = 10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  
+  
+  
+  
+  
+}
+
+###############################################################################################################################
+### Function for assigning FB columns to PB-FB-XX and D0 neurons, here based on closest type average  #########################
 
 
 Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
@@ -274,6 +401,14 @@ Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
     
     # Get the synapses for this neuron from the layer with the most synapses for this neuron type
     MaxLayer=Neuron_Data$Layer[which(Neuron_Data$NumberOfSyns == max(Neuron_Data$NumberOfSyns))]
+    
+    
+    # If type is Delta0 and Layer 1 is present use that
+    if ( startsWith(as.character(Neuron_Data$type[1]), "Delta0") & "L1" %in% Neuron_Data$Layer ){
+      MaxLayer="L1"
+    }
+    
+    # Get layer data
     Layer_Data=subset(Neuron_Data, Layer==MaxLayer)
     
     # Subset FX data based on this layer
@@ -321,7 +456,7 @@ Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
       P2<-ggplot() + geom_point(data=Layer_Data, aes(x=X_Mean, y=Z_Mean),  size=5, alpha = 1, stroke = 0, shape=16) +
         geom_point(data=TempCol_Positions, aes(x=X_Mean, y=Z_Mean, color=FBcol),  size=2, alpha = 1, stroke = 0, shape=16) + 
         geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-        scale_color_manual(values=col_vector)  +  theme(
+        scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
           panel.background = element_rect(fill = "transparent"), # bg of the panel
           plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
           panel.grid.major = element_blank(), # get rid of major grid
@@ -355,7 +490,11 @@ Assign_FB_Columns <- function(N_Distribution, FX_Column_Positions_Filt, DIR){
 
 
 
-Plot_PBglom_FBcol_Mapping <- function(PFX_GlomToColumn, DIR, NAME){
+Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
+  
+  # Get number of neurons going from each glom to each column
+  PFX_GlomToColumn=PFX_Distribution %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n(), FBcol_Con= mean(FBcol_Con))
+  PFX_GlomToColumn=PFX_GlomToColumn %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n(), FBcol_Con= mean(FBcol_Con))
   
   
   PB_FB_Types=unique(PFX_GlomToColumn$type)
@@ -425,8 +564,8 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_GlomToColumn, DIR, NAME){
     ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P123, device='png', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
     
     
-    
   }
+  return(PFX_GlomToColumn)
 }
 
 
@@ -490,6 +629,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           
           # Get slope of mid range 
           Mid_subset=subset(MID, X>X_RangeMin & X<X_RangeMax)
+          Layer_Length_Temp=sum((diff(MID$X)^2 + diff(MID$Y)^2)^0.5)
           
           # If no values in range, use two closest values
           if (length(Mid_subset$X)<2){
@@ -529,15 +669,18 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         ############# Compute values we want to save for this neuron ############# 
           
           # Mean in original space 
-          TempMean=as.data.frame( t(colMedians( data.matrix(NeuronData[c("X","Y")])) )) # This
+          #TempMean=as.data.frame( t(colMedians( as.matrix(NeuronData[c("X","Y")])) )) # This
           
           # Mean and STD along new axes
-          TempMean_New=as.data.frame(t(colMeans(NeuronData[c("X_New","Y_New")])))
+          TempMean_New=as.data.frame( t(colMedians( as.matrix(NeuronData[c("X_New","Y_New")]))))
           TempSTD_New=as.data.frame(t(sapply(NeuronData[c("X_New","Y_New")], sd)))
           
           # Ranges along new axes
-          TempRange_New=data.frame(X = abs(quantile(NeuronData$X_New, probs = 0.02) - quantile(NeuronData$X_New, probs = 0.98))/2,
-                                   Y = abs(quantile(NeuronData$Y_New, probs = 0.02) - quantile(NeuronData$Y_New, probs = 0.98))/2)
+          TempRange_New=data.frame(X = abs(quantile(NeuronData$X_New, probs = 0.05) - quantile(NeuronData$X_New, probs = 0.95))/2,
+                                   Y = abs(quantile(NeuronData$Y_New, probs = 0.05) - quantile(NeuronData$Y_New, probs = 0.95))/2)
+          
+          # Mean in original space 
+          TempMean=data.frame(X = as.matrix(TempMean_New[c("X_New","Y_New")]) %*% t(Ax1_NewToOld), Y = as.matrix(TempMean_New[c("X_New","Y_New")]) %*% t(Ax2_NewToOld))
           
           
           # Compute Cross points (4 points making up a cross around synapse mean position)
@@ -566,7 +709,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
           
           # Debugging plot
           PLOT=0
-          if ( mod(ttt*lll*nnn,50) ==0 | abs(TempMean$X)<150){
+          if ( mod(ttt*lll*nnn,50) ==0 | abs(TempMean$X)<150 | (TempRange_New$X*2/Layer_Length_Temp)>2000){
             p1<-ggplot() +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1, color="red") +
               geom_point(data=NeuronData, aes(x=X,y=Y)) + 
               geom_path(data=MID, aes(x=X, y=Y), size = 1, color="orange") + 
@@ -581,15 +724,9 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
               geom_point(data=Box_LL, aes(x=X,y=Y,size=50),color="deeppink") +
               geom_point(data=Box_LR, aes(x=X,y=Y,size=50),color="darkslategray") + coord_fixed(ratio = 1) +
               ggtitle(paste(NeuronData$type[1],"_Layer_",as.character(lll),sep=""))
-             
+            
             ggsave(paste(PlotDir, "Cloud_", NeuronData$type[1],"_Layer_",as.character(lll),"_", as.character(ttt*lll*nnn),".png",sep=""),
                    plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
-            
-            #print(paste("Plotting ttt=", as.character(ttt), "   lll = ", as.character(lll), "   nnn = ", as.character(nnn)))
-            
-            # p2<-ggplot() + geom_point(data=NeuronData, aes(x=X_New,y=Y_New))
-            
-            #ggarrange(p1,p2, nrow = 1, ncol = 2)
             
             remove(p1)
           

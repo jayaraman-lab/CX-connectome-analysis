@@ -1,5 +1,5 @@
-library(parallel)
 library(paletteer)
+library(alphahull)
 
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
@@ -124,4 +124,26 @@ roisPalette <- function(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::
   pal <- my_palette[1:length(roiL)]
   names(pal) <- roiL
   pal
+}
+
+roiOutline <- function(roiMesh,axis=c("x","y"),alpha=100,roiName){UseMethod("roiOutline")}
+
+roiOutline.mesh3d <- function(roiMesh,alpha=100,roiName =deparse(substitute(roiMesh))){
+  roiPts <-  data.frame(dotprops(roiMesh)$points)
+  names(roiPts) <- c("x","y","z")
+  roiHullxy <- ahull(x=roiPts$x,y=roiPts$y,alpha=alpha)
+  roiHullxz <- ahull(x=roiPts$x,y=roiPts$z,alpha=alpha)
+  
+  roiOutxy <- data.frame(roiHullxy$arcs) %>% mutate(x=c1,y=c2,proj="xy",roi=roiName) %>% select(x,y,proj,roi)
+  roiOutxy <-  bind_rows(roiOutxy,roiOutxy[1,])
+  
+  roiOutxz <- data.frame(roiHullxz$arcs) %>% mutate(x=c1,y=c2,proj="xz",roi=roiName) %>% select(x,y,proj,roi)
+  roiOutxz <-  bind_rows(roiOutxz,roiOutxz[1,])
+  
+  bind_rows(roiOutxy,roiOutxz)
+}
+
+roiOutline.character <- function(roi,alpha=100){
+  roiMesh <- neuprint_ROI_mesh(roi)
+  roiOutline(roiMesh,alpha=alpha,roiName=roi)
 }
