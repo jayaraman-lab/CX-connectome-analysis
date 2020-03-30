@@ -110,7 +110,7 @@ getSelfFBGraphData = function(graphData){
 }
 
 # convenient graph plotting
-constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm){
+constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap=NULL){
   source("colorCodeLookup.R")
   
   connectGraph = graph_from_data_frame(graphData)
@@ -120,7 +120,12 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
     ncol = colors()[colorValueLookup$col[colorValueLookup$type ==  getSimpleTypeNames(V(connectGraph)$name[i])]]
     if (length(ncol) > 0) {nodeCols[i] = ncol}
   }
-
+  if (! is_null(colormap)){
+    for (i in seq(1, length(V(connectGraph)$name))) {
+      ncol = unique(colormap %>% filter(Type %in% V(connectGraph)$name[i]) %>% select(hex))
+      if (length(ncol$hex) > 0) {nodeCols[i] = ncol$hex}
+    }
+  }
   
   # The labels are currently node IDs. Setting them to NA will render no labels
   V(connectGraph)$label.color="black"
