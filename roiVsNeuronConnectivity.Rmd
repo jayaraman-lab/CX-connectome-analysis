@@ -31,34 +31,39 @@ Here we select neurons that are part of what we think is a little "sub network" 
 ```{r}
 source = "R6"
 sourceIDs = getBodyIdsForList(source)
-slctROI = NULL
+slctROI = "EB"
+
+splitLR = TRUE
 
 noPost = FALSE
+noPre = TRUE
 # get post connections
 #TODO: Handle this as try/except statement
 if(!noPost){
-  postConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "POST",slctROI, by.roi = TRUE)
+  postConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "POST",slctROI,  synThresh=10, by.roi = TRUE)
   postTypes = unique(postConnections$type.to)
 }
 
 # get pre connections
-preConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "PRE",slctROI, synThresh=3, by.roi = TRUE)
-preTypes = unique(preConnections$type.from)
-
+if(!noPre){
+  preConnections <- getConnectionTable(sourceIDs$bodyid,synapseType = "PRE",slctROI, synThresh=10, by.roi = TRUE)
+  preTypes = unique(preConnections$type.from)
+}
 # all the types
-if(!noPost){
-  print(unique(c(postTypes, preTypes, source)))
-  circuit =  unique(c(postTypes, preTypes,source))
-}else{
+if(noPost){
   print(unique(c(preTypes,source)))
   circuit = unique(c(preTypes,source))
+}else if(noPre){
+  print(unique(c(postTypes,source)))
+  circuit = unique(c(postTypes,source))
+}else{
+  print(unique(c(postTypes, preTypes, source)))
+  circuit =  unique(c(postTypes, preTypes,source))
 }
 ```
 
 
 ```{r}
-splitLR = FALSE
-
 circuitName = paste0(source,"Circuit", slctROI)
 if (splitLR){
   circuitName = paste0(circuitName,"_LR")
@@ -87,10 +92,10 @@ myConnections = getConnectionTable_forSubset(circuitIDs$bodyid,circuitIDs$bodyid
 ```{r}
 myConnections_simple = simplifyConnectionTable(myConnections)
 
-typesTable <- getTypesTable(unique(myConnections_simple$databaseTypeTo))
+typesTable <- getTypesTable(unique(myConnections_simple$databaseType.to))
 
 if (splitLR){
-  # Subdivide types and build a custom types table
+  # Subdevide types and build a custom types table
   myConnections_simple = lrSplit(myConnections_simple, nameCol="name.to",typeCol="type.to")
   myConnections_simple = lrSplit(myConnections_simple, nameCol="name.from",typeCol="type.from")
   typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
@@ -98,12 +103,12 @@ if (splitLR){
 ```
 
 ```{r}
-majorOutputThreshold=0.8
-singleNeuronThreshold=0.01
-singleNeuronThresholdN=3
-pThresh = 0.05
+#majorOutputThreshold=0.8
+#singleNeuronThreshold=0.01
+#singleNeuronThresholdN=3
+#pThresh = 0.05
 
-myConnectionsT2T = getTypeToTypeTable(myConnections_simple, majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh, typesTable = typesTable)
+myConnectionsT2T = getTypeToTypeTable(myConnections_simple, typesTable = typesTable)#, majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh)
 ```
 
 
@@ -112,43 +117,58 @@ myConnectionsT2T = getTypeToTypeTable(myConnections_simple, majorOutputThreshold
 source("visualizeConnectivityTables.R")
 require(igraph)
 
-connectionMeasures = c("weightRelative","weightROIRelativeTotal")
+connectionMeasures = c("weightRelative","weightRelativeTotal", "absoluteWeight")
 connectionMeasure = connectionMeasures[1]
-cutoff = 0.05 # for weight 0.05, 0.01, 0
+cutoff = 0.05 # for weight 0.05, 0.01
 
-# Graph parameter
-largeGraph = FALSE
-selfFeedbackScale = 5
-if(largeGraph){
-  vertexSize = 7 #+ 7 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 15
-}else{
-  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
-  plotSize = 10
-}
-selfFBscale = vertexSize
-arrowSize= 0
-edgeNorm = 0.05#0.07
-
+showself = FALSE#TRUE
 
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
-graphData = data.frame(from = myConnectionsT2T$type.from,
-                       to = myConnectionsT2T$type.to,
-                       relWeight = myConnectionsT2T$weightRelative)
+graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T[[connectionMeasure]])
+
+graphData_noSelf = getNoSelfGraphData(graphData)  
+graphData_self = getSelfFBGraphData(graphData)
+
+if (showself){
+  graphData = graphData
+  graphName = circuitName
+} else {
+  graphData = left_join(graphData_noSelf, graphData_self)
+  graphName = paste(circuitName, "_noSelf")
+}
+
+# Graph parameter
+largeGraph = FALSE
+selfFeedbackScale = 10
+edcurve = 0.2# 0.5
+if(largeGraph){
+  vertexSize = 7#+ 7 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 15
+}else{
+  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
+  
+  plotSize = 10
+}
+
+selfFBscale = vertexSize
+arrowSize= 0
+
+edgeNorm = 0.03#0.05#0.07#
 
 myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm)
+
 
 # remove isolated nodes
 Isolated = which(degree(myGraph) == 0)
 myGraph = delete.vertices(myGraph, Isolated)
 
-l = layout_with_dh(myGraph) #fr
+l = layout_with_fr(myGraph)#layout_with_dh(myGraph)#
 
-myGraph$main = paste0("Connectivity of ",source) 
-plot(myGraph,edge.curved=0.2, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+myGraph$main = paste0("Connectivity within the ",slctROI) 
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",circuitName,'_',
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",circuitName,'post_',
                       connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
 ```
 
@@ -157,7 +177,7 @@ dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",circuitNa
 ```{r}
 plotW = 55#20 # 20
 plotH = 40#17  #15
-connectionMeasures = c("weightRelative")#,"weightROIRelativeTotal")
+connectionMeasures = c("weightRelative","ROIweight") #"weightROIRelativeTotal", 
 
 for (connectionMeasure in connectionMeasures){
   
@@ -165,25 +185,25 @@ for (connectionMeasure in connectionMeasures){
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   #conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
-  #ggsave( paste("connectivityMatrix_",circuitName,'_',connectionMeasure,'_byType.pdf', sep=''),
-  #plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
-  #  scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+  ggsave( paste("connectivityMatrix_",circuitName,'_',connectionMeasure,'_byType.pdf', sep=''),
+  plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
 
-  #conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "name", connectionMeasure)
-  #conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
-  #conMatPlot = structureMatrixPlotByType(conMatPlot)
-  #print(conMatPlot)
-  #ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byName.pdf', sep=''), 
-  #  plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
-  #  scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+  conMatPlot = plotConnectivityMatrix(myConnections_simple, byGroup = "name", connectionMeasure)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  ggsave( paste("connectivityMatrix_",circuitName,'_in_',slctROI,'_',connectionMeasure,'_byName.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
-  ggsave(paste("connectivityMatrix_",circuitName,'_',connectionMeasure,'_byID.pdf', sep=''), 
-    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
-    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+  #ggsave(paste("connectivityMatrix_",circuitName,'_',connectionMeasure,'_byID.pdf', sep=''), 
+  #  plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  #  scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
