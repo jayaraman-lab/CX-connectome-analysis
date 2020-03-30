@@ -24,9 +24,7 @@ neuprint_login()
 source("neuprintQueryUtils.R")
 source("visualizeConnectivityTables.R")
 source("inputOutputRegionsVis.R")
-
-# To be able to use ? for accessing doc strings in custom functions, please install the "docstring" package. Alternatively use docstring(function)
-library(docstring)
+library(igraph)
 ```
 
 ## Bodyid's of neurons that are potentially involved
@@ -42,33 +40,263 @@ APN2ids = c(1539649574, 2096909915, 2096913987)
 # get names
 for (i in APN3ids) {
   print(neuprint_get_neuron_names(i))
-  }
+}
 for (i in APN2ids) {
   print(neuprint_get_neuron_names(i))
-  }
-
+}
 ```
 Get all neurons of the type described by the bodyids  above
 ```{r}
-APN3 = bind_rows(neuprint_search("PDM14j_d.*"),neuprint_search("PDM14j_e.*"))
-APN2 = bind_rows(neuprint_search("ADM06d_.*"),neuprint_search("ADM06p_.*")) 
+APN3 = neuprint_search("PDM14n_pct.*")
+APN2 = bind_rows(neuprint_search("ADM06d_pct.*"),neuprint_search("ADM06p_pct.*")) 
 
 APNBodies = c(APN3$bodyid,APN2$bodyid)
 ```
 
-Also get body ID's of putative downstream partners (these were identified in a shortest path analysis as shown later)
+We will also consider the putative WL-L neuron, which is wind sensitive and connects to R1
+```{r}
+#WL-L
+WLLids = c(1386849677, 1539632818)
+
+for (i in WLLids) {
+  print(neuprint_get_neuron_names(i))
+}
+
+WLL = neuprint_search("PVL06h_pct.*")
+```
+
+Also get body ID's of putative downstream partners
 ```{r}
 # Putative WPN, based on morphology and connectivity: PDL27e
-WPN = neuprint_search("PDL27e_pct.*")#5813047683)
-
-# Partner of APN2 and putative WPN: ADM06b_b
-ADM06b = neuprint_search("ADM06b.*")
+#(these were identified in a shortest path analysis as shown later)
+WPN = neuprint_search("PDL27e_pct.*")
 
 # R1s
-R1 = neuprint_search("R1_.*_R")
-R1a = neuprint_search("R1_a.*_R")
-R1b = neuprint_search("R1_b.*_R")
+R1 = neuprint_search("R1_.*")
+R1a = neuprint_search("R1_a.*")
+R1b = neuprint_search("R1_b.*")
 ```
+
+## Viusualize paths to the CX
+```{r}
+allPathFromAPN_to_R1 = neuprint_get_paths(APNBodies,R1$bodyid, n=4, weightT = 10, chunk = 1)
+```
+```{r}
+allPathFromWLL_to_R1 = neuprint_get_paths(WLL$bodyid,R1$bodyid, n=2, weightT = 10, chunk = 2)
+```
+
+```{r}
+splitLR = TRUE
+majorOutputThreshold=0.8
+singleNeuronThreshold=0.01
+singleNeuronThresholdN=3
+pThresh = 0.05
+#allPathFromAPN_to_R1_meta = neuprint_get_meta(unique(c(allPathFromAPN_to_R1$from,allPathFromAPN_to_R1$to)))
+#head(allPathFromAPN_to_R1_meta)
+
+#source("InputOutputByTypeUtils.R")
+#allPathFromAPN_to_R1_nb = buildInputsOutputsByType(allPathFromAPN_to_R1_meta)
+
+#not sure this works correctly... the columns don't seem to match the content.
+
+# use this alternatively
+APNpathConnections = getConnectionTable_forSubset(unique(allPathFromAPN_to_R1$from),unique(allPathFromAPN_to_R1$to))
+typesTable <- getTypesTable(unique(APNpathConnections$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  APNpathConnections = lrSplit(APNpathConnections, nameCol="name.to",typeCol="type.to")
+  APNpathConnections = lrSplit(APNpathConnections, nameCol="name.from",typeCol="type.from")
+  typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
+}
+
+myAPNPathT2T = getTypeToTypeTable(APNpathConnections,majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh,typesTable = typesTable)
+
+WLLpathConnections = getConnectionTable_forSubset(unique(allPathFromWLL_to_R1$from),unique(allPathFromWLL_to_R1$to))
+typesTable <- getTypesTable(unique(WLLpathConnections$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  WLLpathConnections = lrSplit(WLLpathConnections, nameCol="name.to",typeCol="type.to")
+  WLLpathConnections = lrSplit(WLLpathConnections, nameCol="name.from",typeCol="type.from")
+  typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
+}
+
+myWLLPathT2T = getTypeToTypeTable(WLLpathConnections,majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh,typesTable = typesTable)
+```
+
+```{r}
+myPathT2T = full_join(myAPNPathT2T, myWLLPathT2T)
+```
+
+```{r}
+graphData = data.frame(from = myPathT2T$type.from,
+                       to = myPathT2T$type.to,
+                       relWeight = myPathT2T$weightRelative)
+
+cutoff = 0#0.03
+edcurve = 0
+vertexSize = 9
+edgeNorm = 0.008
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
+
+# remove nodes that are not on path
+if (splitLR){
+  path2R1_1 = all_simple_paths(myGraph, V(myGraph)[c("PDM14n_pct_R")], to = V(myGraph)[c("R1_a_R","R1_b_L","R1_b_R")], mode = "out")
+  path2R1_2 = all_simple_paths(myGraph, V(myGraph)[c("ADM06d_pct_R")], to = V(myGraph)[c("R1_a_R","R1_b_L","R1_b_R")], mode = "out")
+  path2R1_3 = all_simple_paths(myGraph, V(myGraph)[c("ADM06p_pct_R")], to = V(myGraph)[c("R1_a_R","R1_b_L","R1_b_R")], mode = "out")
+}else{
+  path2R1_1 = all_simple_paths(myGraph, V(myGraph)[c("PDM14n_pct")], to = V(myGraph)[c("R1_a","R1_b")], mode = "out")
+  path2R1_2 = all_simple_paths(myGraph, V(myGraph)[c("ADM06d_pct")], to = V(myGraph)[c("R1_a","R1_b")], mode = "out")
+  path2R1_3 = all_simple_paths(myGraph, V(myGraph)[c("ADM06p_pct")], to = V(myGraph)[c("R1_a","R1_b")], mode = "out")
+}
+onpath = V(myGraph)[unique(c(unlist(path2R1_1),unlist(path2R1_2),unlist(path2R1_3)))]
+
+myR1Graph_filt = subgraph(myGraph, onpath)
+
+l = layout_with_dh(myR1Graph_filt)
+
+plot(myR1Graph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myR1Graph_filt))
+
+if(splitLR){
+  dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_R1b_LR.pdf"), width=10, height=10)
+}else{
+  dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_R1b.pdf"), width=10, height=10)
+}
+```
+
+```{r}
+allPathFromAPN_to_WLL = neuprint_get_paths(APNBodies,WLL$bodyid, n=4, weightT = 10, chunk = 1)
+```
+
+```{r}
+splitLR = TRUE
+majorOutputThreshold=0.5
+singleNeuronThreshold=0.01
+singleNeuronThresholdN=3
+pThresh = 0.05
+
+pathConnections = getConnectionTable_forSubset(unique(allPathFromAPN_to_WLL$from),unique(allPathFromAPN_to_WLL$to))
+typesTable <- getTypesTable(unique(pathConnections$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  pathConnections = lrSplit(pathConnections, nameCol="name.to",typeCol="type.to")
+  pathConnections = lrSplit(pathConnections, nameCol="name.from",typeCol="type.from")
+  typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
+}
+
+myPathT2T = getTypeToTypeTable(pathConnections,majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh,typesTable = typesTable)
+```
+
+```{r}
+graphData = data.frame(from = myPathT2T$type.from,
+                       to = myPathT2T$type.to,
+                       relWeight = myPathT2T$weightRelative)
+
+cutoff = 0#0.03
+edcurve = 0
+vertexSize = 9
+edgeNorm = 0.008
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
+
+# remove nodes that are not on path
+if (splitLR){
+  path2WLL_1 = all_simple_paths(myGraph, V(myGraph)[c("PDM14n_pct_R")], to = V(myGraph)[c("PVL06h_pct_L","PVL06h_pct_R" )], mode = "out")
+  path2WLL_2 = all_simple_paths(myGraph, V(myGraph)[c("ADM06d_pct_R")], to = V(myGraph)[c("PVL06h_pct_L","PVL06h_pct_R" )], mode = "out")
+  path2WLL_3 = all_simple_paths(myGraph, V(myGraph)[c("ADM06p_pct_R")], to = V(myGraph)[c("PVL06h_pct_L","PVL06h_pct_R" )], mode = "out")
+}else{
+  path2WLL_1 = all_simple_paths(myGraph, V(myGraph)[c("PDM14n_pct")], to = V(myGraph)[c("PVL06h_pct" )], mode = "out")
+  path2WLL_2 = all_simple_paths(myGraph, V(myGraph)[c("ADM06d_pct")], to = V(myGraph)[c("PVL06h_pct" )], mode = "out")
+  path2WLL_3 = all_simple_paths(myGraph, V(myGraph)[c("ADM06p_pct")], to = V(myGraph)[c("PVL06h_pct" )], mode = "out")
+}
+onpath = V(myGraph)[unique(c(unlist(path2WLL_1),unlist(path2WLL_2),unlist(path2WLL_3)))]
+
+myWLLGraph_filt = subgraph(myGraph, onpath)#delete.vertices(myGraph, notOnPath)
+
+l = layout_with_dh(myWLLGraph_filt)
+
+plot(myWLLGraph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myWLLGraph_filt))
+if(splitLR){
+  dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_WLL_LR.pdf"), width=10, height=10)
+}else{
+  dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_WLL.pdf"), width=10, height=10)
+}
+```
+### Merge graphs
+```{r}
+myGraph_union = union(myR1Graph_filt,myWLLGraph_filt)
+l = layout_with_dh(myGraph_union)
+
+myGraph_union = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
+
+plot(myGraph_union,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph_union))
+
+```
+
+#### Test case
+```{r}
+TB8 = neuprint_search("TuBu08.*")
+EPG = neuprint_search("EPG.*")
+allPathFromTB_to_EPG = neuprint_get_paths(TB8$bodyid,EPG$bodyid, n=4, weightT = 20, chunk = 1)
+```
+
+```{r}
+splitLR = FALSE
+majorOutputThreshold=0.5
+singleNeuronThreshold=0.01
+singleNeuronThresholdN=3
+pThresh = 0.05
+
+pathConnections = getConnectionTable_forSubset(unique(allPathFromTB_to_EPG$from),unique(allPathFromTB_to_EPG$to))
+typesTable <- getTypesTable(unique(APNpathConnections$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  pathConnections = lrSplit(pathConnections, nameCol="name.to",typeCol="type.to")
+  pathConnections = lrSplit(pathConnections, nameCol="name.from",typeCol="type.from")
+  typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
+}
+
+myPathT2T = getTypeToTypeTable(pathConnections,majorOutputThreshold,singleNeuronThreshold, singleNeuronThresholdN, pThresh,typesTable = typesTable)
+
+```
+
+```{r}
+graphData = data.frame(from = myPathT2T$type.from,
+                       to = myPathT2T$type.to,
+                       relWeight = myPathT2T$weightRelative)
+
+cutoff = 0.05
+edcurve = 0.15
+vertexSize = 10
+edgeNorm = 0.5
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
+
+# remove isolated nodes
+if(splitLR){
+  dist1 <- as.numeric(data.frame(distances(myGraph, to=V(myGraph), v=V(myGraph)["EPG_R"], weights=NA) > 100))
+  dist2 <- as.numeric(data.frame(distances(myGraph, to=V(myGraph), v=V(myGraph)["EPG_L"], weights=NA) > 100))
+  notOnPath = which((dist1 + dist2) > 0)
+}else{
+  dist <- as.numeric(data.frame(distances(myGraph, to=V(myGraph), v=V(myGraph)["EPG"], weights=NA) > 100))
+  notOnPath = which(dist > 0)
+
+}
+
+myGraph_filt = delete.vertices(myGraph, notOnPath)
+
+l = layout_with_dh(myGraph_filt)
+
+plot(myGraph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph_filt))
+```
+
+
+
+
 
 ## Check if putative APN3s connect to APN2s
 ### Find where APN3 and 2 have inputs and outputs
@@ -236,9 +464,6 @@ for (slctROI in  c("SAD(-AMMC)", "WED(R)")) {
 ```
 
 Do this without regard for the ROI
-
-
-
 ###  Draw graph
 ```{r, warning=FALSE}
 source("visualizeConnectivityTables.R")
@@ -279,7 +504,7 @@ myGraph = delete.vertices(myGraph, Isolated)
 l = layout_with_dh(myGraph)
 
 myGraph$main = paste0("Connectivity within the ",slctROI) 
-plot(myGraph,edge.curved=0.5, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+plot(myGraph,edge.curved=0.5, la yout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",saveName,'_in_',slctROI,
                       "_",connectionMeasure, cutoff,".pdf"), width=plotSize, height=plotSize)
@@ -317,155 +542,3 @@ for (slctROI in  c("SAD(-AMMC)", "WED(R)")) {
             width=7, height=7)
 }
 ```
-
-## Viusualize paths to the CX
-
-```{r}
-pathFromAPN3_to_R1 = neuprint_get_shortest_paths(APN3$bodyid,R1$bodyid, weightT = 10)
-```
-
-```{r}
-cutoff = 3
-pathFromAPN3_to_R1 = unique(pathFromAPN3_to_R1)
-#Reroganize to make graph with types instead of bodyids
-graphData = reorganizeGraphData(pathFromAPN3_to_R1$type.from,pathFromAPN3_to_R1$type.to,pathFromAPN3_to_R1$weight,cutoff)
-nodes = getGraphNodes(graphData)
-graphData_noSelf = getNoSelfGraphData(graphData)
-graphData_selfFB = getSelfFBGraphData(graphData)
-
-myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.2, 7)
-plot(myGraph,edge.curved=0.5, layout=layout_with_fr(myGraph), 
-     edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap #edge.color=edge.col,
-```
-Filter pathways based on relative weights
-```{r}
-cutoff = 3 #rel. weight (100%)
-pathFromAPN3_to_R1 = unique(pathFromAPN3_to_R1)
-nodeMeta = data.frame(bodyid = union(unique(pathFromAPN3_to_R1$from), unique(pathFromAPN3_to_R1$to)) )  %>%
-                mutate(name = neuprint_get_meta(bodyid)$name,
-                       type = neuprint_get_meta(bodyid)$type,
-                       status = neuprint_get_meta(bodyid)$status,
-                       pre = neuprint_get_meta(bodyid)$pre,
-                       post = neuprint_get_meta(bodyid)$post)
-
-# add relative weight based on total input to postsynaptic neuron
-pathFromAPN3_to_R1 = pathFromAPN3_to_R1 %>% rowwise() %>%
-  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
-
-pathFromAPN3_to_R1_bytype = pathFromAPN3_to_R1 %>% group_by(type.to, type.from) %>%
-  summarise(relWeight = sum(relWeight), depth = mean(depth))
-
-
-#Reroganize to make graph with types instead of bodyids
-graphData = reorganizeGraphData(pathFromAPN3_to_R1_bytype$type.from,
-                                pathFromAPN3_to_R1_bytype$type.to,
-                                pathFromAPN3_to_R1_bytype$relWeight,cutoff)
-nodes = getGraphNodes(graphData)
-graphData_noSelf = getNoSelfGraphData(graphData)
-graphData_selfFB = getSelfFBGraphData(graphData)
-
-myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 3)
-
-# remove isolated nodes
-dist.from.R1b <- distances(myGraph, v=V(myGraph)["R1_b"], to=V(myGraph), weights=NA) > 100
-Isolated = which(dist.from.R1b)
-myGraph_filt = delete.vertices(myGraph, Isolated)
-
-plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
-     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
-
-dev.print(device = pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN3_to_R1_minPostWeight",cutoff,".pdf"), width=12, height=12)
-```
-
-Start from APN2s
-```{r}
-pathFromAPN2_to_R1 = neuprint_get_shortest_paths(APN2$bodyid,R1$bodyid, weightT = 10)
-```
-
-```{r}
-cutoff = 2 # % of inputs
-
-pathFromAPN2_to_R1 = unique(pathFromAPN2_to_R1)
-
-nodeMeta = data.frame(bodyid = union(unique(pathFromAPN2_to_R1$from), unique(pathFromAPN2_to_R1$to)) )  %>%
-                mutate(name = neuprint_get_meta(bodyid)$name,
-                       type = neuprint_get_meta(bodyid)$type,
-                       status = neuprint_get_meta(bodyid)$status,
-                       pre = neuprint_get_meta(bodyid)$pre,
-                       post = neuprint_get_meta(bodyid)$post)
-
-# add relative weight based on total input to postsynaptic neuron
-pathFromAPN2_to_R1 = pathFromAPN2_to_R1 %>% rowwise() %>%
-  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
-
-pathFromAPN2_to_R1_bytype = pathFromAPN2_to_R1 %>% group_by(type.to, type.from) %>%
-  summarise(relWeight = sum(relWeight))
-
-#Reroganize to make graph with types instead of bodyids
-graphData = reorganizeGraphData(pathFromAPN2_to_R1_bytype$type.from,
-                                pathFromAPN2_to_R1_bytype$type.to,
-                                pathFromAPN2_to_R1_bytype$relWeight,cutoff)
-nodes = getGraphNodes(graphData)
-graphData_noSelf = getNoSelfGraphData(graphData)
-graphData_selfFB = getSelfFBGraphData(graphData)
-
-myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 2)
-
-# remove isolated nodes
-dist.from.R1b <- distances(myGraph, v=V(myGraph)["R1_b"], to=V(myGraph), weights=NA) > 100
-Isolated = which(dist.from.R1b)
-myGraph_filt = delete.vertices(myGraph, Isolated)
-
-plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
-     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
-
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN2_to_R1_minPostWeight",cutoff,".pdf"), width=10, height=10)
-```
-Go all the way to EPGs
-```{r}
-EPG = neuprint_search("EPG.*_R.*")
-pathFromAPN3_to_EPG = neuprint_get_shortest_paths(APN3$bodyid,EPG$bodyid, weightT = 10)
-```
-
-Filter pathways based on relative weights
-```{r}
-source("visualizeConnectivityTables.R")
-cutoff = 2# % of inputs
-
-pathFromAPN3_to_EPG = unique(pathFromAPN3_to_EPG)
-
-nodeMeta = data.frame(bodyid = union(unique(pathFromAPN3_to_EPG$from), unique(pathFromAPN3_to_EPG$to)) )  %>%
-                mutate(name = neuprint_get_meta(bodyid)$name,
-                       type = neuprint_get_meta(bodyid)$type,
-                       status = neuprint_get_meta(bodyid)$status,
-                       pre = neuprint_get_meta(bodyid)$pre,
-                       post = neuprint_get_meta(bodyid)$post)
-
-# add relative weight based on total input to postsynaptic neuron
-pathFromAPN3_to_EPG = pathFromAPN3_to_EPG %>% rowwise() %>%
-  mutate(relWeight = 100*as.numeric(weight)/(filter(nodeMeta, nodeMeta$bodyid == to)$post)) %>% ungroup() 
-
-pathFromAPN3_to_EPG_bytype = pathFromAPN3_to_EPG %>% group_by(type.from, type.to) %>%
-  summarise(relWeight = sum(relWeight))
-
-#Reroganize to make graph with types instead of bodyids
-graphData = reorganizeGraphData(pathFromAPN3_to_EPG_bytype$type.from,
-                                pathFromAPN3_to_EPG_bytype$type.to,
-                                pathFromAPN3_to_EPG_bytype$relWeight,cutoff)
-nodes = getGraphNodes(graphData)
-graphData_noSelf = getNoSelfGraphData(graphData)
-graphData_selfFB = getSelfFBGraphData(graphData)
-
-myGraph = constructConnectivityGraph(nodes, graphData_noSelf, graphData_selfFB, cutoff,7,.3, 5)
-
-# remove isolated nodes
-dist.from.sink <- distances(myGraph, v=V(myGraph)["EPG"], to=V(myGraph), weights=NA) > 100
-Isolated = which(dist.from.sink)
-myGraph_filt = delete.vertices(myGraph, Isolated)
-
-plot(myGraph_filt,edge.curved=0.5, layout=layout_with_fr(myGraph_filt), 
-     edge.color = customizeGraphEdges(myGraph_filt)) # use 0.5 curved if edges overlap #edge.color=edge.col,
-
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN3_to_EPG_minPostWeight",cutoff,".pdf"), width=10, height=10)
-```
-
