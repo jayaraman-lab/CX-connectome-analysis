@@ -189,7 +189,7 @@ redefineType <- function(table,type,condition,newTypes,type_col="type"){
   #'                             newTypes=c("PFL2_L","PFL2_R"))
   #' }
   #' 
-  table[[paste0("previous.",type_col)]] <- table[[type_col]] ## keeping track of the last named types
+  table[[paste0("previous.",type_col)]][table[[type_col]] == type] <- type ## keeping track of the last named types
   table[[type_col]][table[[type_col]] == type] <-  newTypes[2]
   table[[type_col]][(table[[type_col]] == newTypes[2]) & condition] <-  newTypes[1] 
   return(table)
