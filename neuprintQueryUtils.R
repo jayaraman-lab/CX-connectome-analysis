@@ -90,17 +90,19 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     outMeta <- refMeta
     inMeta <- partnerMeta
     myConnections <- mutate(myConnections,databaseType.to = refMetaOrig$type,
-                                            databaseType.from = type.from)
+                                          databaseType.from = type.from)
     } else {
     inMeta <- partnerMeta
     outMeta <- partnerMeta
     myConnections <- mutate(myConnections,databaseType.to = type.to,
-                                              databaseType.from = refMetaOrig$type)
+                                          databaseType.from = refMetaOrig$type)
   }
   
   myConnections <-mutate(myConnections,weightRelativeTotal = weight/outMeta[["post"]],
                                        totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
-                                       outputContributionTotal = weight/totalPreWeight
+                                       outputContributionTotal = weight/totalPreWeight,
+                                       previous.type.to = databaseType.to,
+                                       previous.type.from = databaseType.from
                                             )
   
   if (by.roi | !is.null(slctROI)){
