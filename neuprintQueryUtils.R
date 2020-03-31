@@ -413,8 +413,10 @@ getTypeToTypeTable <- function(connectionTable,
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
       select(-pVal)
   }else{
-    loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
-    sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
+    loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold | 
+                                   (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from)))
+    sTable <- sTable%>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN) | 
+                                 (paste0(previous.type.to,previous.type.from) %in% paste0(oldTable$type.to,oldTable$type.from))) %>%
                                 select(-pVal)
     sTable <- bind_rows(sTable,connectionTableOld)
   }               
