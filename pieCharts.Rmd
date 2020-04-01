@@ -1,0 +1,77 @@
+---
+title: "Pie charts"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(paletteer)
+options(nat.plotengine = 'rgl')
+```
+
+```{r}
+neuprint_login()
+```
+
+```{r messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("neuprintQueryUtils.R")
+source("InputOutputByTypeUtils.R")
+source("connectionPieChart.R")
+```
+
+### Construct neuron bag for type of interest
+```{r}
+myType = "R1_a"
+slctROIs = c("EB","LAL(-GA)(R)", "GA(R)","WED(R)", "CRE(R)")
+myType_bag = buildInputsOutputsByType(myType)
+
+# Filter out neurons from left side?
+splitLR = TRUE
+myType = paste0(myType,"_R")
+
+saveDir = "../neuprintR_analysis_plots/mechanoPW/"
+```
+
+Saving figures to static images is a bit tricky and requires installation of a command line tool (orca). I had to install it through conda and then need to point it too the binaries manually:
+```{r}
+Sys.setenv("PATH" = paste(Sys.getenv("PATH"), "/Users/haberkernh/anaconda3/bin", sep = .Platform$path.sep))
+```
+
+### Generate data for pie chart
+```{r}
+myTypeIn = prepData4pieChart(myType_bag,partnerDirection="input",slctRoi=slctROIs, splitLR=TRUE,myType,minweight=0)
+pieDat_in = generatePieChartData(myTypeIn, myType, rootlab = paste0(myType," input"))
+
+myTypeOut = prepData4pieChart(myType_bag,partnerDirection="output",slctRoi=slctROIs, splitLR=TRUE,myType,minweight=0)
+pieDat_out = generatePieChartData(myTypeOut, myType, rootlab = paste0(myType," output"))
+```
+
+### Make chart that illustrates input and output fraction per region
+```{r}
+fig <- plot_ly(data=pieDat_in, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
+               type = 'sunburst',branchvalues = 'total') %>%
+  layout(sunburstcolorway = paletteer_d("awtools::a_palette"), uniformtext=list(minsize=8, mode="show"))
+
+fig
+
+orca(fig, file = paste0(saveDir,"pieChart_",myType,"_in.pdf"))
+
+```
+```{r}
+fig <- plot_ly(data=pieDat_out, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
+               type = 'sunburst',branchvalues = 'total') %>%
+  layout(sunburstcolorway = paletteer_d("awtools::a_palette"), uniformtext=list(minsize=8, mode="show"))
+
+fig
+
+orca(fig, file = paste0(saveDir,"pieChart_",myType,"_out.pdf"))
+
+```
