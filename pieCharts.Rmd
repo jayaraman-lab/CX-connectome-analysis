@@ -29,7 +29,7 @@ source("connectionPieChart.R")
 
 ### Construct neuron bag for type of interest
 ```{r}
-myType = "R1_a"
+myType = "R1_b"
 slctROIs = c("EB","LAL(-GA)(R)", "GA(R)","WED(R)", "CRE(R)")
 myType_bag = buildInputsOutputsByType(myType)
 
@@ -47,31 +47,30 @@ Sys.setenv("PATH" = paste(Sys.getenv("PATH"), "/Users/haberkernh/anaconda3/bin",
 
 ### Generate data for pie chart
 ```{r}
-myTypeIn = prepData4pieChart(myType_bag,partnerDirection="input",slctRoi=slctROIs, splitLR=TRUE,myType,minweight=0)
+myTypeIn = prepData4pieChart(myType_bag,partnerDirection="input",slctRoi=slctROIs, splitLR,myType,minweight=0)
 pieDat_in = generatePieChartData(myTypeIn, myType, rootlab = paste0(myType," input"))
 
-myTypeOut = prepData4pieChart(myType_bag,partnerDirection="output",slctRoi=slctROIs, splitLR=TRUE,myType,minweight=0)
+myTypeOut = prepData4pieChart(myType_bag,partnerDirection="output",slctRoi=slctROIs, splitLR,myType,minweight=0)
 pieDat_out = generatePieChartData(myTypeOut, myType, rootlab = paste0(myType," output"))
 ```
 
 ### Make chart that illustrates input and output fraction per region
 ```{r}
-fig <- plot_ly(data=pieDat_in, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
+fig_in <- plot_ly(data=pieDat_in, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
                type = 'sunburst',branchvalues = 'total') %>%
   layout(sunburstcolorway = paletteer_d("awtools::a_palette"), uniformtext=list(minsize=8, mode="show"))
 
-fig
+fig_in
 
-orca(fig, file = paste0(saveDir,"pieChart_",myType,"_in.pdf"))
+orca(fig_in, file = paste0(saveDir,"pieChart_",myType,"_in.pdf"))
 
-```
-```{r}
-fig <- plot_ly(data=pieDat_out, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
+
+fig_out <- plot_ly(data=pieDat_out, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
                type = 'sunburst',branchvalues = 'total') %>%
   layout(sunburstcolorway = paletteer_d("awtools::a_palette"), uniformtext=list(minsize=8, mode="show"))
 
-fig
+fig_out
 
-orca(fig, file = paste0(saveDir,"pieChart_",myType,"_out.pdf"))
+orca(fig_out, file = paste0(saveDir,"pieChart_",myType,"_out.pdf"))
 
 ```
