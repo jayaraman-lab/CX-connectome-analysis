@@ -79,3 +79,17 @@ MBONTargetFBOut <- MBONTargetBagLat$outputs %>% filter(roi=="FB" & type.from %in
   
 ```
 Looking at this table and sorting it according to various ways, the things that first pops out is that it's mostly a FB tangential network (meaning most FB tangential neuron targets in the FB are other FB tangential neurons, I guess something reminiscent of the ring neurons). So we'd need a way to wean this recurrence in the way we consider which parts of the network are influenced by the MBONs.
+```{r}
+MBONTargetFBOutSummary <- MBONTargetFBOut %>% group_by(type.to) %>% summarise(pathwaysWeight = pathwaysWeight[1])
+```
+
+Considering FB4R separately
+```{r}
+MBONTargetFB4R <- MBONTargetFBOut %>% filter(type.from == "FB4R_R") %>% group_by(type.to) %>% summarise(pathwaysWeight = pathwaysWeight[1])
+```
+
+Suggestion: redo that, but study the pool of neurons influenced by a single MBON type at a time.
+
+Other axis to explore: FB tangential inhomogeneous inputs onto columnar neurons.
+
+
