@@ -137,10 +137,10 @@ simplifyConnectionTable <- function(connectionTable){
   if ("from" %in% names(connectionTable)){return(connectionTable)}else{
   connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,bodyid,partner),
                                                 to = ifelse(prepost==1,partner,bodyid),
-                                                name.from = ifelse(prepost==1,name,partnerName),
-                                                name.to = ifelse(prepost==1,partnerName,name),
-                                                type.from = ifelse(prepost==1,type,partnerType),
-                                                type.to = ifelse(prepost==1,partnerType,type)
+                                                name.from = as.character(ifelse(prepost==1,name,partnerName)),
+                                                name.to = as.character(ifelse(prepost==1,partnerName,name)),
+                                                type.from = as.character(ifelse(prepost==1,type,partnerType)),
+                                                type.to = as.character(ifelse(prepost==1,partnerType,type))
                                                 ) %>%
                                          select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
   return(connectionTable)
@@ -359,9 +359,11 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## Gather the outputContributions
   connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
-                                          mutate(outputContribution = sum(outputContribution)) %>%
+                                          mutate(outputContribution = sum(outputContribution),
+                                                 outputContributionTotal = sum(outputContributionTotal)) %>%
                                           group_by(type.from,type.to,roi) %>%
-                                          mutate(outputContribution = sum(outputContribution[match(unique(from),from)])/n_from) %>%
+                                          mutate(outputContribution = sum(outputContribution[match(unique(from),from)])/n_from,
+                                                 outputContributionTotal = sum(outputContributionTotal[match(unique(from),from)])/n_from) %>%
                                           ungroup()
   
   if (!is.null(oldTable)){
@@ -371,7 +373,7 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal",
                                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
                                 summarize(weightRelative = sum(weightRelative),
                                           weightRelativeTotal = sum(weightRelativeTotal),
@@ -381,10 +383,10 @@ getTypeToTypeTable <- function(connectionTable,
                                           n_targets = n()) %>% ungroup() %>%
                                 ungroup()
   
-  group_In <- names(connectionTable)[names(connectionTable) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution",
+  group_In <- names(connectionTable)[names(connectionTable) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution","outputContributionTotal",
                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
   
-  group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution",
+  group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal",
                  "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
   
   sTable <- lazy_dt(connectionTable)
