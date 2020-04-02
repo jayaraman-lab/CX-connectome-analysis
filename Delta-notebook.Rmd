@@ -11,6 +11,7 @@ library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(gridExtra)
+library(paletteer)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
@@ -76,6 +77,66 @@ print(gg_All)
 dev.off()
 ```
 
+Create a dynamic visualization of the FB network data
+```{r}
+library('visNetwork') 
+
+conTab <- typeToType_Clean
+  
+# Get the table of nodes (types)
+nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
+nodes$id <- 1:nrow(nodes)
+nodes$superType <- nodes$name %>% as.character %>% supertype()
+
+# Position the nodes according to the lookup table
+nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+
+# Get the edges from the connection table
+edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
+  mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+         from = sapply(type.from, function(f) which(f == nodes$name)))
+edges$superType <- edges$type.from %>% as.character %>% supertype()
+  
+sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort()
+pcCols <- paletteer_d("Polychrome::palette36")
+pcCols <- tail(pcCols,length(pcCols)-2) 
+pcCols <- pcCols[-8]
+
+vis.nodes <- nodes[,c("name","id")]
+vis.nodes$name <- nodes$name %>% as.character()
+vis.nodes$title <- nodes$name %>% as.character()
+vis.nodes$label <- nodes$name %>% as.character()
+vis.nodes$font.size <- c(12,12)
+vis.nodes$x <- nodes$y*500
+vis.nodes$y <- nodes$x*500
+vis.nodes$size <- 10
+vis.nodes$color.background <- pcCols[match(nodes$superType,as.factor(sTs))]
+vis.nodes$color.highlight <- pcCols[match(nodes$superType,as.factor(sTs))]
+vis.nodes$color.border <- "black"
+vis.nodes$color.highlight.border <- "orange"
+vis.nodes$group <- as.character(nodes$superType)
+
+vis.links <- edges[,c("to","from")]
+vis.links$width <- edges$weightRelative*10
+vis.links$arrows <- "to"
+vis.links$smooth <- TRUE
+vis.links$color <- pcCols[match(edges$superType,as.factor(sTs))]
+
+v <- visNetwork(vis.nodes, vis.links, width="100%", height="800px",main= "inputs -> outputs") %>% 
+  visNodes(fixed = TRUE) %>% 
+  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.label",nodesIdSelection= TRUE) 
+
+for (st in 1:length(sTs)){
+  v <- v %>% visGroups(groupname = sTs[st], color = pcCols[st])
+}
+
+v <- v %>% visLegend(width=0.04, main="superType")
+
+visSave(v, "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections.html", selfcontained = TRUE, background = "white")
+
+```
+
 Plot all FB columnar network connections - graphs [Inputs]
 ```{r}
 gg_Inputs <- list()
@@ -135,6 +196,31 @@ for (i in 1:length(innerSuperTypes)){
 
 pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inner.pdf", width = 60, height = 60)
 print(grid.arrange(grobs = gg_Inner,layout_matrix = rbind(c(1,NA,2,3),c(4,5,6,7),c(8,9,10,11))))
+dev.off()
+```
+
+Plot connections for each type of inner neuron
+```{r}
+gg_Inner <- list()
+
+innerTypes <-  c(unique(neuprint_search("Delta0.*")$type),
+                    unique(neuprint_search("Delta6.*")$type),
+                    unique(neuprint_search("FC.*")$type))
+innerTypes <- innerTypes[which(!is.na(innerTypes))]
+
+for (i in 1:length(innerTypes)){
+  gg_Inner[[2*i-1]] <- graphConTab(typeToType_Clean[which(grepl(innerTypes[i],typeToType_Clean$type.from)),],
+                         xyLookup,TRUE,FALSE)
+  gg_Inner[[2*i-1]] <- gg_Inner[[2*i-1]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+  
+  gg_Inner[[2*i]] <- graphConTab(typeToType_Clean[which(grepl(innerTypes[i],typeToType_Clean$type.to)),],
+                         xyLookup,TRUE,FALSE)
+  gg_Inner[[2*i]] <- gg_Inner[[2*i]] + xlim(-0.75,0.75) + ylim(0.5,3.5) + scale_y_reverse()
+}
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\NetworkDiagrams\\AllColumnarConnections_Inner_ByType.pdf", width = 60, height = 60)
+print(grid.arrange(grobs = gg_Inner,ncol=8))
 dev.off()
 ```
 
@@ -367,9 +453,9 @@ corMatSum <- function(cormat){
   cormat$bodyid2 <- cormat$neuron2 %>% as.character() %>% sapply(function(x) tail(strsplit(x,'_')[[1]],1)) %>% as.vector()
   cormat <- cormat %>% mutate(type1 = neuprint_get_meta(bodyid1)$type, type2 = neuprint_get_meta(bodyid2)$type)
   if (length(which(grepl("Delta12",cormat$neuron1)))>0)
-    cormat[which(grepl("Delta12",cormat$neuron1)),]$type1 <- gsub("0","12",unique(cormat$type1))
+    cormat[which(grepl("Delta12",cormat$neuron1)),]$type1 <- gsub("Delta0","Delta12",unique(cormat$type1))
   if (length(which(grepl("Delta12",cormat$neuron2)))>0)
-    cormat[which(grepl("Delta12",cormat$neuron2)),]$type2 <- gsub("0","12",unique(cormat$type2))
+    cormat[which(grepl("Delta12",cormat$neuron2)),]$type2 <- gsub("Delta0","Delta12",unique(cormat$type2))
   cormat <- cormat[order(cormat$type2),]
   cormat <- cormat[order(cormat$type1),]
   cormat <- cormat[order(cormat$quad2),]
@@ -421,8 +507,8 @@ quadSum <- function(synDat,prepost,D12bodyids){
     # Rename the Delta 12s
     D0type <- unique(DeltaInputs$type.to)
     if (length(D12bodyids)>0){
-      DeltaInputs[which(DeltaInputs$to %in% D12bodyids),]$type.to <- gsub("0","12",D0type)
-      DeltaInputs[which(DeltaInputs$to %in% D12bodyids),]$name.to <- gsub("0","12",D0type)
+      DeltaInputs[which(DeltaInputs$to %in% D12bodyids),]$type.to <- gsub("Delta0","Delta12",D0type)
+      DeltaInputs[which(DeltaInputs$to %in% D12bodyids),]$name.to <- gsub("Delta0","Delta12",D0type)
     }
     
     # Establish a full name for the neurons of interest
@@ -445,13 +531,13 @@ quadSum <- function(synDat,prepost,D12bodyids){
              name.to = neuprint_get_meta(partner)$name)
     names(DeltaOutputs)[names(DeltaOutputs) == 'bodyid'] <- 'from'
     names(DeltaOutputs)[names(DeltaOutputs) == 'partner'] <- 'to'
-    D0type <- unique(DeltaInputs$type.to)
+    D0type <- unique(DeltaOutputs$type.to)
     
     # Rename the Delta 12s
     D0type <- unique(DeltaOutputs$type.from)
     if (length(D12bodyids)>0){
-      DeltaOutputs[which(DeltaOutputs$from %in% D12bodyids),]$type.from <- gsub("0","12",D0type)
-      DeltaOutputs[which(DeltaOutputs$from %in% D12bodyids),]$name.from <- gsub("0","12",D0type)
+      DeltaOutputs[which(DeltaOutputs$from %in% D12bodyids),]$type.from <- gsub("Delta0","Delta12",D0type)
+      DeltaOutputs[which(DeltaOutputs$from %in% D12bodyids),]$name.from <- gsub("Delta0","Delta12",D0type)
     }
 
     # Establish a full name for the neurons of interest
@@ -503,6 +589,7 @@ quads <- c("DL","DR","UL","UR")
 
 cormatPlot_inputs_all <- list()
 cormatPlot_outputs_all <- list()
+D12bodyids_all <- c()
 for (tp in 1:length(D0types)){
   
   # Get the D0 and D12 bodyids for a given neuron type
@@ -519,7 +606,8 @@ for (tp in 1:length(D0types)){
     if ((max(xs)-min(xs)) > (0.75*(max(synDat$x)-min(synDat$x))))
       D12bodyids <- append(D12bodyids,bodyids[bid])
   }
-      
+  D12bodyids_all <- append(D12bodyids_all,D12bodyids) 
+     
   # Find the mean number of input connections per type per quadrant
   DeltaInputs_Mean <- quadSum(synDat,TRUE,D12bodyids)
   
@@ -798,7 +886,7 @@ for (tp in 1:length(D0types)){
   
   synSum <- synDat %>% group_by(bodyid,prepost) %>% summarize(syns = length(bodyid))
   synSum <- synSum %>% mutate(subtype = neuprint_get_meta(bodyid)$type)
-  synSum[which(synSum$bodyid %in% D12bodyids),]$subtype <- gsub("0","12",synSum[which(synSum$bodyid %in% D12bodyids),]$subtype)
+  synSum[which(synSum$bodyid %in% D12bodyids),]$subtype <- gsub("Delta0","Delta12",synSum[which(synSum$bodyid %in% D12bodyids),]$subtype)
   
   synCheckPre[[tp]] <- ggplot(filter(synSum,prepost==TRUE)) + geom_bar(aes(x=as.factor(bodyid),weight=syns,fill=subtype)) +
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) + ggtitle(D0types[tp]) +

@@ -11,7 +11,10 @@ library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(gridExtra)
+library(reshape2)
+
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
@@ -298,119 +301,137 @@ ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
 
 ```
 
-Generate a von Mises activity profile
-```{r}
-vonMisesProf <- function(){
-  # Make a bump with a von Mises profile
-  k = 2.5
-  m = pi
-  rng = c(1:16)*(2*pi/15) - 2*pi/15
-  actProf = exp(k*cos(rng-m))/(2*pi*besselI(k,0))
-  actProf = (actProf - min(actProf))/(max(actProf)-min(actProf))
-  rawProf = data.frame(nameid = rng,act = actProf)
-  
-  return(actProf)
-  
-#  ggplot(rawProf,aes(x = nameid,y=act)) + geom_line() + 
-#    theme_classic() + coord_cartesian(expand=FALSE) + scale_x_continuous(breaks = seq(0,2*pi, by=pi/2), labels = c("0","pi/2","pi","3pi/2","2pi"))
-#  ggsave("EPGActProfile.pdf", plot = last_plot(), device='pdf', 
-#         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
- #        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-}
-```
-
-Convert a connection table into a weight matrix
-```{r}
-WMFromConTab <- function(conTab, preids, postids){
-
-  justWeights = matrix(0L,nrow=length(preids),ncol=length(postids),)
-  
-  for (i in 1:length(preids)){
-    for (j in 1:length(postids)){
-      w = conTab[which(conTab$nameid == preids[i] & conTab$partnerid == postids[j]),]$ROIweight
-      if (length(w) > 0)
-        justWeights[i,j] = w
-    }
-  }
-  return(justWeights)
-}
-```
-
+############################################################
 Propagate an E-PG bump through the Delta7s
+############################################################
+
+Plot the EPG input from D7s given a von Mises or Impulse input profile
 ```{r}
 # Use a von Mises bump profile
-actrProf <- vonMisesProf()
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
 
-# Use activity only in one set of EPGs in a iven glom.
-actProf <- vector(mode="numeric",length = length(rng))
+# Transform the bump from EB coordinates to 
+vMOut <- EPGToD7Transform("EPG\\\\\\\\(.*",actProfvM)
+
+# Get the profile stats
+D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+# Fit a cosine to the data
+fit <- D7CosFit(D7OutputShape_stats) 
+
+# Plot
+PBEPGToD7Prof_vM <- PBActPlot(D7OutputShape_stats,fit)
+PBEPGToD7Prof_vM <- PBEPGToD7Prof_vM + ggtitle('von Mises input') 
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
 actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+impOut <- EPGToD7Transform("EPG\\\\\\\\(.*",actProfImp)
 
-# Get the EPG to D7 connections
-EPG_2_Delta7 <- getConnectionTable_forSubset(
-  unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
-  unique(neuprint_search("Delta7.*")$bodyid),
-  "PB")
-EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
-EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
+# Get the profile stats
+D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+  
+# Fit a cosine to the data
+fit <- D7CosFit(D7OutputShape_stats) 
 
-# Get the EPG names and glomeruli
-allEPGids = EPG_2_Delta7$nameid %>% as.character() %>% unique() %>% glomSort()
-allEPGGloms = strsplit(allEPGids,"_") %>% lapply(function(x){x[2]}) %>% unlist()
+# Plot
+PBEPGToD7Prof_imp <- PBActPlot(D7OutputShape_stats,fit)
+PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + ggtitle('impulse input') 
 
-# Create a lookup table for the EPG activity to its PB glomerulus
-rawProf = data.frame(nameid = c(1:16),act = actProf)
-glomOrder = c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PBEPGToD7Profiles.pdf", width = 5, height = 5)
+print(grid.arrange(PBEPGToD7Prof_vM,PBEPGToD7Prof_imp,ncol=1))
+dev.off()
+```
 
-# Get the EPG activity given the assumed profile
-EPGact = numeric(length(allEPGids))
-for (EPG in 1:length(allEPGids)){
-  EPGact[EPG] <- actProf[which(grepl(allEPGGloms[EPG],glomOrder))]
+Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Specify the search strings
+PBTps <- c("EPG\\\\\\\\(","PEN_a","PEN_b","PEG",
+           "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNv" )
+PBTpNames <- c("EPG","PEN1","PEN2","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNv" )
+
+allvMPlts <- list()
+allvMDev <- c()
+allimpPlts <- list()
+allimpDev <- c()
+for (tp in 1:length(PBTps)){
+  # Get the von Mises profiles
+  vMOut <- EPGToD7Transform(paste0(PBTps[tp],".*"),actProfvM)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allvMDev <- append(allvMDev,deviance(fit))
+
+  # Plot
+  PBEPGToD7Prof_vM <- PBActPlot(D7OutputShape_stats,fit)
+  PBEPGToD7Prof_vM <- PBEPGToD7Prof_vM + ggtitle(paste('von Mises input',PBTps[tp],sep='-')) 
+  allvMPlts[[tp]] <- PBEPGToD7Prof_vM
+  
+  # Get the impulse profiles
+  impOut <- EPGToD7Transform(paste0(PBTps[tp],".*"),actProfImp)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allimpDev <- append(allimpDev,deviance(fit))
+
+  # Plot
+  PBEPGToD7Prof_imp <- PBActPlot(D7OutputShape_stats,fit)
+  PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + ggtitle(paste('von Mises input',PBTps[tp],sep='-'))
+  allimpPlts[[tp]] <- PBEPGToD7Prof_imp
 }
-EPGProf = data.frame(nameid = allEPGids, act = EPGact)
-EPGProf$nameid = factor(EPGProf$nameid, levels = allEPGids)
 
-# Create a weight matrix of EPG to Delta 7 connections
-allD7ids = EPG_2_Delta7$partnerid %>% as.character() %>% unique() %>% sort()
-justWeights1 <-  WMFromConTab(EPG_2_Delta7,allEPGids,allD7ids)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PBEPGToD7Profiles_All.pdf", width = 50, height = 5)
+print(grid.arrange(grobs = c(allvMPlts,allimpPlts),nrow=2))
+dev.off()
 
-# Get the D7 to EPG connections weight matrix
-Delta7_2_EPG <- getConnectionTable_forSubset(
-  unique(neuprint_search("Delta7.*")$bodyid),
-  unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
-  "PB")
-Delta7_2_EPG$nameid = paste(as.character(Delta7_2_EPG$name.from), as.character(Delta7_2_EPG$from), sep = "_")
-Delta7_2_EPG$partnerid = paste(as.character(Delta7_2_EPG$name.to), as.character(Delta7_2_EPG$to), sep = "_")
+vM_stats <- data.frame(type = PBTpNames, resid = allvMDev)
+gvM <- ggplot(vM_stats,aes(x=as.factor(type),y=resid)) + geom_point(size=4) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  coord_cartesian(expand=FALSE)
+imp_stats <- data.frame(type = PBTpNames, resid = allimpDev)
+gimp <- ggplot(imp_stats,aes(x=as.factor(type),y=resid)) + geom_point(size=4) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  coord_cartesian(expand=FALSE)
 
-justWeights2 <-  WMFromConTab(Delta7_2_EPG,allD7ids,allEPGids)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\D7CosFitStats.pdf", width = 5, height = 5)
+print(grid.arrange(gvM,gimp,nrow=1))
+dev.off()
 
-# Calculate the Delta 7 output activity onto the EPGs for the given EPG activity profile
-D7outAct = as.vector((EPGProf$act %*% justWeights1) %*% justWeights2)
-D7outAct = (D7outAct - min(D7outAct))/(max(D7outAct)-min(D7outAct))
-EPGInputs = data.frame(nameid = allEPGids,act= D7outAct)
-
-PBEPGToD7Prof <- ggplot() + 
-  geom_line(data = EPGProf, aes(x=nameid,y=act,group=1,color="green")) +
-  geom_point(data = EPGProf,aes(x = nameid,y=act),color ='green')
-PBEPGToD7Prof <- PBEPGToD7Prof  + geom_line(data = EPGInputs, aes(x=nameid,y=act,group=1,color="red")) +
-  geom_point(data = EPGInputs,aes(x = nameid,y=act),color ='red')
-
-df = data.frame(pts = c(1:length(allEPGids)), weight = D7outAct)
-fit <- nls(weight ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
-  start=list(C1=0.5, C2=0.2, C3=0.5, theta=35), algorithm="port") 
-dffit <- data.frame(pts = c(1:length(allEPGids)))
-dffit$wMean <- predict(fit, newdata=dffit)
-PBEPGToD7Prof <- PBEPGToD7Prof + geom_line(data = dffit, aes(x=pts,y=wMean,color="red"),linetype='dotted')
-
-PBEPGToD7Prof <- PBEPGToD7Prof + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  coord_cartesian(ylim=c(0,1.1),expand=FALSE) + scale_color_manual(values = c("green","red"),name = "", labels = c("EPG activity","EPG input from D7s"))
-
-print(PBEPGToD7Prof)
-
-ggsave("EPGInputsFromD7s.svg", plot = last_plot(), device='svg', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+gvM <- gvM + theme(axis.text.x = element_text(size=24),
+                     axis.text.y = element_text(size=24))
+gimp <- gimp + theme(axis.text.x = element_text(size=24),
+                     axis.text.y = element_text(size=24))
+ggsave(file="C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\D7CosFitStats.svg", plot=grid.arrange(gvM,gimp,nrow=1), width=10, height=5)
 
 ```
+
+############################################################
+Look at various inputs and outputs
+############################################################
 
 Function to plot mean and sd of partner weights from a connection table with ONE original type
 ```{r}
@@ -591,12 +612,15 @@ print(conmatPlot)
 
 Assemble the plots into a figure
 ```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PB_Summary.pdf", width = 20, height = 20)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PB_Summary.pdf", width = 15, height = 15)
 print(grid.arrange(PBInNOutBarPlot,
                    conmatPlotPBInner,
-                   PBEPGToD7Prof,
+                   PBEPGToD7Prof_vM,
+                   gvM,gimp,
                    conmatPlotPBToEB,
                    conmatPlotPBToFB,
-                   layout_matrix = rbind(c(1,NA),c(2,3),c(4,5))))
+                   layout_matrix = rbind(c(1,1,2,2),c(1,1,2,2),
+                                         c(3,3,6,6),c(4,5,6,6),
+                                         c(7,7,7,7))))
 dev.off()
 ```
