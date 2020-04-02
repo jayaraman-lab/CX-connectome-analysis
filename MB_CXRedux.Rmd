@@ -1,0 +1,81 @@
+---
+title: "MBON Redux"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(ggraph)
+
+source("visualizeConnectivityTables.R")
+source("neuprintQueryUtils.R")
+source("R/table2ggraphUtils.R")
+source("InputOutputByTypeUtils.R")
+source("R/rois.R")
+source("R/supertypeUtils.R")
+source("colorCodeLookup.R")
+
+options(nat.plotengine = 'rgl')
+```
+
+Pulling neurons postsynaptic to MBONs
+```{r}
+MBON_Names <- neuprint_search("MBON.*")
+# Find the postsynaptic partners of all MBONs
+MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## Keeping the default threshold (3)
+```
+
+Selecting CX types as those present in Shin-ya's list.
+```{r}
+CXTypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3") %>% rename(databaseType=n.type))
+MBONCXTargetsL <- unique(MBON_PostConnections$type.to)[unique(MBON_PostConnections$type.to) %in% CXTypes$databaseType]
+MBONCXTargets <- getTypesTable(MBONCXTargetsL)
+```
+Creating a relatively high level ROI set
+```{r}
+roisH <- getRoiTree()
+roiSelection <- selectRoiSet(roisH,default_level=1,exceptions=list("CX"=2))
+```
+Creating a neuron bag of CX MBON targets
+```{r}
+MBONTargetBag <- buildInputsOutputsByType(MBONCXTargets,slctROI=unique(roiSelection$roi))
+```
+
+Separating left and right neurons in there as some tangential input regions might be cut on the left.
+```{r}
+MBONTargetBagLat <- lateralizeInputOutputList(MBONTargetBag)
+```
+
+Isolating the MBON inputs to right side neurons in there
+```{r}
+MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON")& grepl("_R",type.to))
+```
+
+Combine all input regions into one (to get a "fairer" relative weight). Add a variable that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
+```{r}
+MBONTargetInputCombined <- combineRois(MBONTargetBagLat,unique(MBONTargetInp$roi),newRoi="MBON outputs")
+MBONTargetInpC <- MBONTargetInputCombined$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to)) %>% 
+  group_by(roi,type.to) %>% mutate(totalMBContribution = sum(weightRelative)) %>% 
+                            ungroup() %>%
+                                     arrange(desc(totalMBContribution))  %>%
+                                     mutate(type.to = factor(type.to,levels=unique(type.to)))## Filter MBON to right CX neurons (some of the left ones can be cut)
+```
+
+```{r}
+plotConnectivityMatrix(MBONTargetInpC,byGroup="type")
+```
+
+```{r}
+inputProportions <- ggplot(MBONTargetInpC,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=type.from)) + scale_fill_manual(values=typesPalette(unique(MBONTargetInpC$type.from)),name="MBON types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight in input regions",x="Type")
+inputProportions
+```
+
+Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences).
+```{r}
+MBONTargetFBOut <- MBONTargetBagLat$outputs %>% filter(roi=="FB" & type.from %in% MBONTargetInpC$type.to) %>% 
+  mutate(MBONInfluence = MBONTargetInpC$totalMBContribution[match(type.from,MBONTargetInpC$type.to)]*weightRelative) %>% group_by(type.to) %>% mutate(pathwaysWeight = sum(MBONInfluence)) %>% ungroup()
+  
+```
+Looking at this table and sorting it according to various ways, the things that first pops out is that it's mostly a FB tangential network (meaning most FB tangential neuron targets in the FB are other FB tangential neurons, I guess something reminiscent of the ring neurons). So we'd need a way to wean this recurrence in the way we consider which parts of the network are influenced by the MBONs.
