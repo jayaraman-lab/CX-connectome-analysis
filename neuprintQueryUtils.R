@@ -451,5 +451,5 @@ getRoiInfo <- function(bodyids,...){
   roiInfo <- neuprint_get_roiInfo(bodyids,...)
   roiInfo <-  pivot_longer(roiInfo,cols=-bodyid,names_to=c("roi","field"),names_sep="\\.",values_to="count")
   roiInfo <- pivot_wider(roiInfo,names_from = "field",values_from="count")
-  roiInfo %>% select(-upstream) ## Post and upstream are redundant
+  roiInfo
 }
