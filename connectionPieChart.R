@@ -30,7 +30,7 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
   }
   
   myTypeData = myTypeData %>% group_by(target, partnerType, roi) %>% 
-    summarise(sumweight = sum(weightRelativeTotal)) %>% filter(sumweight >= minweight)
+    summarise(sumweight = sum(weightRelativeTotal)) %>% filter(sumweight >= minweight) #Note: ROIweight likely used on neuprint explorer
   
   if(!is.null(slctRoi)){
     myTypeData = myTypeData %>% filter(roi %in% slctRoi)
