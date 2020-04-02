@@ -348,7 +348,8 @@ getTypeToTypeTable <- function(connectionTable,
   
   typesCount <- typesTable %>% group_by(type) %>%
                                summarise(n=n())
-  
+  connectionTable <- connectionTable %>% group_by(type.from) %>%
+                           mutate(n_from = length(unique(from))) %>% ungroup()
   connectionTable <- connectionTable %>% 
                       mutate(n = typesCount[["n"]][match(type.to,typesCount[["type"]])])
  
@@ -360,7 +361,7 @@ getTypeToTypeTable <- function(connectionTable,
   connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
                                           mutate(outputContribution = sum(outputContribution)) %>%
                                           group_by(type.from,type.to,roi) %>%
-                                          mutate(outputContribution = mean(outputContribution)) %>%
+                                          mutate(outputContribution = sum(outputContribution[match(unique(from),from)])/n_from) %>%
                                           ungroup()
   
   if (!is.null(oldTable)){
