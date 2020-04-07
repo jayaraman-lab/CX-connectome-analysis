@@ -1,14 +1,17 @@
 
-neuronForGG <- function(neur){UseMethod("neuronForGG")}
+neuronForGG <- function(neur,axis=c("x","y")){UseMethod("neuronForGG")}
 
-neuronForGG.neuron <- function(neur){
-  dList <- lapply(neur$SegList,function(l){filter(neur$d,PointNo %in% l)})
-  outD <- bind_rows(dList,.id="Segment") %>% rename(x=X,y=Y,z=Z) %>% mutate(bodyid=neur$bodyid)
-  outD
+neuronForGG.neuron <- function(neur,axis=c("x","y")){
+  refT <- mutate(neur$d,x=!!as.name(toupper(axis[1])),y=!!as.name(toupper(axis[2])))
+  refT <- addOutlines(refT)
+  ptsOrd <- treeOrder(neur$SegList[[1]],neur$SegList,branchpoints(neur),refTable = refT)
+  refT <- left_join(ptsOrd,refT,by = c("idx" = "PointNo"))
+  refT <- mutate(refT,x=ifelse(side=="upper",upperX,lowerX),y=ifelse(side=="upper",upperY,lowerY)) %>% mutate(bodyid=neur$bodyid)
+  refT %>% select(x,y,bodyid)
 }
 
-neuronForGG.neuronlist <- function(neurL){
-  outD <- bind_rows(lapply(neurL,neuronForGG)) %>% mutate(Segment = interaction(Segment,bodyid))
+neuronForGG.neuronlist <- function(neurL,axis=c("x","y")){
+  outD <- bind_rows(lapply(neurL,neuronForGG,axis=axis))
 }
 
 angle <- function(x, y) {
@@ -40,29 +43,27 @@ addOutlines <- function(neuronD){
            yPar = ifelse(Parent %in% PointNo,neuronD$y[match(Parent,neuronD$PointNo)],neuronD$y[match(PointNo,neuronD$Parent)]),
           angle = atan2(y-yPar,x-xPar),
           dx = W/2 * (cos(angle + pi/2)),
-                                                    dy = W/2 * (sin(angle + pi/2)),
-                                                    lowerX = xPar - dx,
-                                                    lowerY = yPar - dy,
-                                                    upperX = xPar +dx,
-                                                    upperY =yPar + dy) %>% arrange(PointNo)
-  data.frame(x=c(out$lowerX,rev(out$upperX)),y=c(out$lowerY,rev(out$upperY)))
+          dy = W/2 * (sin(angle + pi/2)),
+          lowerX = xPar - dx,
+          lowerY = yPar - dy,
+          upperX = xPar +dx,
+          upperY =yPar + dy) 
 }
 
-StatNeuron <- ggproto("StatNeuron", Stat,
-                    required_aes = c("x","y","Parent","PointNo","W","group"),
-                    default_aes = aes(color=NA),
-                    compute_group = function(data, scales) {
-                       addOutlines(data)
-                    }
-)
-
-stat_neuron <- function(data = NULL, mapping = aes(Parent=Parent,PointNo=PointNo,W=W,group=Segment), geom = "polygon",
-                       position = "identity", na.rm = FALSE, show.legend = NA, 
-                       inherit.aes = TRUE, ...) {
-  
-  layer(
-    stat = StatNeuron, data = data, mapping = mapping, geom = geom, 
-    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
-    params = list(na.rm = na.rm, ...)
-  )
+treeOrder <- function(subTree,segmentList,branchPts,refTable){
+  if (tail(subTree,1) %in% branchPts){
+    bP <- tail(subTree,1)
+    childrenTrees <- segmentList[sapply(segmentList,function(l) l[1]==bP)]
+    childrenSec <- sapply(childrenTrees,function(s) s[2])
+    childrenTab <- arrange(filter(refTable,PointNo %in% childrenSec),desc(upperY))$PointNo
+    childrenTrees <- childrenTrees[match(childrenTab,childrenSec)]
+    return(bind_rows(list(data.frame(idx=subTree,side="upper",stringsAsFactors = FALSE),
+                          bind_rows(lapply(childrenTrees,treeOrder,segmentList,branchPts,refTable)),
+                          data.frame(idx=rev(subTree),side="lower",stringsAsFactors = FALSE))))
+    
+  }else{
+    return(rbind(data.frame(idx=subTree,side="upper",stringsAsFactors = FALSE),data.frame(idx=rev(subTree),side="lower",stringsAsFactors = FALSE)))
+  }
 }
+
+
