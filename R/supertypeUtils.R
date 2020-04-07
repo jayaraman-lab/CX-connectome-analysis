@@ -9,6 +9,7 @@ supertype.character <- function(types,level=2){
   #' D0, and at level 3 they are FB Interneurons
   supertype <- types
   supertype[is.na(types)] <- "Other"
+  supertype[is.null(types)] <- "Other"
   
   supertype[grepl("FB.*",types)] <- str_extract(types,"FB[1-9]")[grepl("FB.*",types)]
   supertype[grepl("Delta0.*",types)] <- str_extract(types,"Delta0[A-O]")[grepl("Delta0.*",types)]

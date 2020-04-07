@@ -11,6 +11,7 @@ library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(gridExtra)
+library(paletteer)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
@@ -135,6 +136,7 @@ for (tp in 1:4){
 ```
 
 Create a lookup table for node locations vs. ROIs
+[FB to/from outer regions]
 ```{r}
 xyLookupFBROIs <- function(ROIs){
   ROILookup <- data.frame(ROI = ROIs, 
@@ -142,19 +144,17 @@ xyLookupFBROIs <- function(ROIs){
                           y = vector(mode = "numeric", length = length(ROIs)))
 
   
-  ROILookup[which(grepl("(L)",ROIs,fixed=TRUE)),]$x <- -1
-  ROILookup[which(grepl("(R)",ROIs,fixed=TRUE)),]$x <- 1
+  ROILookup[which(grepl("(R)",ROIs,fixed=TRUE) &
+                    grepl("in",ROIs,fixed=TRUE)),]$x <- -1
+  ROILookup[which(grepl("(R)",ROIs,fixed=TRUE) &
+                    grepl("out",ROIs,fixed=TRUE)),]$x <- 1
   
   regions <- ROIs %>% sapply(function(x){strsplit(x,"\\(")[[1]][1]}) %>% unique()
 
   ROILookup[which(grepl("FB",ROIs)),]$y <- seq(-1,1,length.out = length(which(grepl("FB",ROIs))))
   
-  ROILookup[which(!grepl("FB",ROIs) &
-             grepl("(",ROIs,fixed=TRUE)),]$y <-
-    0.4*(rep(1:(0.5*length(which(!grepl("FB",ROIs) &
-             grepl("(",ROIs,fixed=TRUE)))),each=2) - 
-    (0.25*length(which(!grepl("FB",ROIs) &
-             grepl("(",ROIs,fixed=TRUE)))))
+  ROILookup[which(grepl("in",ROIs)),]$y <- seq(-1,1,length.out = length(which(grepl("in",ROIs))))
+  ROILookup[which(grepl("out",ROIs)),]$y <- seq(-1,1,length.out = length(which(grepl("out",ROIs))))
   
   return(ROILookup)
   #ggplot(ROILookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=ROI),hjust=1, vjust=1,size=3)
@@ -162,9 +162,23 @@ xyLookupFBROIs <- function(ROIs){
   }
 ```
 
-Create a lookup table for node locations vs. ROIs
+Create a lookup table for node locations vs. ROIs [FB alone]
 ```{r}
 xyLookupFBROIsIntra <- function(ROIs){
+  ROILookup <- data.frame(ROI = ROIs, 
+                          x = vector(mode = "numeric", length = length(ROIs)),
+                          y = vector(mode = "numeric", length = length(ROIs)))
+
+  ROILookup[which(grepl("FB",ROIs)),]$y <- 
+    seq(-0.5,0.5,length.out = length(which(grepl("FB",ROIs))))
+  
+  return(ROILookup)
+  }
+```
+
+Create a lookup table for node locations vs. ROIs [CX]
+```{r}
+xyLookupFBROIsCX <- function(ROIs){
   ROILookup <- data.frame(ROI = ROIs, 
                           x = vector(mode = "numeric", length = length(ROIs)),
                           y = vector(mode = "numeric", length = length(ROIs)))
@@ -172,12 +186,13 @@ xyLookupFBROIsIntra <- function(ROIs){
   angs <- seq(-pi,pi,length.out=length(which(grepl("FB",ROIs)))+1)
   angs <- angs[1:(length(angs)-1)]
   
-  ROILookup[which(!grepl("FB",ROIs)),]$x <- 1
-  ROILookup[which(grepl("FB",ROIs)),]$x <- 0.5*sin(angs)
+  ROILookup[which(grepl("in",ROIs)),]$x <- -0.5
+  ROILookup[which(grepl("out",ROIs)),]$x <- 0.5
 
   regions <- ROIs %>% sapply(function(x){strsplit(x,"\\(")[[1]][1]}) %>% unique()
 
-  ROILookup[which(grepl("FB",ROIs)),]$y <- 0.5*cos(angs)
+  #ROILookup[which(grepl("FB",ROIs)),]$y <- 0.5*cos(angs)
+  ROILookup[which(grepl("FB",ROIs)),]$y <- seq(-0.5,0.5,length.out = length(which(grepl("FB",ROIs))))
   ROILookup[which(grepl("PB",ROIs)),]$y <- 0.5
   ROILookup[which(grepl("EB",ROIs)),]$y <- 0
   ROILookup[which(grepl("NO",ROIs)),]$y <- -0.5
@@ -190,10 +205,14 @@ xyLookupFBROIsIntra <- function(ROIs){
 
 Get edges from a given ROI pre and post dataframe
 ```{r}
-getEdgesROIdf <- function(FBROIInfo,ROIs){
+getEdgesROIdf <- function(FBROIInfo,ROIsUS,ROIsDS){
+  
+  allROIs <- c(ROIsUS,ROIsDS) %>% unique()
+  
   edges <- data.frame(to = c(),
                       from = c(),
-                      weight = c(),
+                      weightUS = c(),
+                      weightDS = c(),
                       bodyid = c(),
                       type = c())
   for (r in 1:nrow(FBROIInfo)){
@@ -206,17 +225,18 @@ getEdgesROIdf <- function(FBROIInfo,ROIs){
     
     for (us in 1:length(ROIsNow_US)){
       ROIUS <- strsplit(ROIsNow_US[us],".",fixed=TRUE)[[1]][1]
-      if (!(ROIUS %in% ROIs))
+      if (!(ROIUS %in% ROIsUS))
         next
       for (ds in 1:length(ROIsNow_DS)){
         if (rowInfo[ROIsNow_US[us]] > synThresh &
             rowInfo[ROIsNow_DS[ds]] > synThresh){
           ROIDS <- strsplit(ROIsNow_DS[ds],".",fixed=TRUE)[[1]][1]
-          if (!(ROIDS %in% ROIs))
+          if (!(ROIDS %in% ROIsDS))
             next
-          edgeNow <- data.frame(to = which(ROIs == ROIUS),
-                                from = which(ROIs == ROIDS),
-                                weight = as.numeric(rowInfo[ROIsNow_DS[ds]]),
+          edgeNow <- data.frame(from = which(ROIUS == allROIs),
+                                to = which(ROIDS == allROIs),
+                                weightUS = as.numeric(rowInfo[ROIsNow_US[us]]),
+                                weightDS = as.numeric(rowInfo[ROIsNow_DS[ds]]),
                                 bodyid = rowInfo$bodyid,
                                 type = rowInfo$type)
           edges <- rbind(edges,edgeNow)
@@ -229,8 +249,9 @@ getEdgesROIdf <- function(FBROIInfo,ROIs){
 }
 ```
 
-Plot the number of neurons that run between different ROIs
+Specify parameters for network plots
 ```{r}
+# Synapse threshold
 synThresh <- 2
 
 # Get all FB types
@@ -241,52 +262,37 @@ ROIs = c("CRE(R)","CRE(L)","GA(R)","GA(L)","LAL(R)","LAL(L)","SNP(L)","SNP(R)",
                "FBl1","FBl2","FBl3","FBl4","FBl5","FBl6","FBl7","FBl8","FBl9",
                "EB","PB","NO","AB(R)","AB(L)")
 
+# Assign colors to the ROIs
+pcCols <- paletteer_d("Polychrome::palette36")
+ROIcols <- scale_colour_manual(values = pcCols[1:length(ROIs)], limits = ROIs, guide = FALSE)
+ROIcols_edge <- scale_edge_colour_manual(values = pcCols[1:length(ROIs)], limits = ROIs, guide = FALSE)
+
 # Get the ROI info for all FB types
 FBROIInfo <- neuprint_get_roiInfo(getBodyIdsForList(FBNronTypes))
 
 # Select only the relevant ROIs and only the upstream and downstream connections
 ROISelection <- colnames(FBROIInfo)
-ROINames <- sapply(ROIs,function(x){ROISelection[(grepl(paste0(x,"."),ROISelection,fixed=TRUE) &
-                                                    (grepl("upstream",ROISelection) | grepl("downstream",ROISelection)))]}) 
+ROINames <- sapply(ROIs,function(x)
+  {ROISelection[(grepl(paste0(x,"."),ROISelection,fixed=TRUE) &
+                   (grepl("upstream",ROISelection) |
+                      grepl("downstream",ROISelection)))]}) 
 ROINames <- ROINames %>% unlist() %>% as.character()
 FBROIInfo <- FBROIInfo %>% select(c("bodyid",ROINames)) %>% mutate(type = neuprint_get_meta(bodyid)$type)
+```
 
+Plot the number of neurons that run between different ROIs
+[Intra FB]
+```{r}
 # Get the table of nodes (types)
-ROIs_InNOut <- ROIs[which(!(ROIs %in% c("EB","PB","NO")))]
-nodes_InNOut <- xyLookupFBROIs(ROIs_InNOut)
-edges_InNOut <- getEdgesROIdf(FBROIInfo,ROIs_InNOut)
-
-# Pull out the number of types between each ROI
-edges_InNOut_numTypes <- edges_InNOut %>% group_by(to,from) %>% summarize(numTypes = length(unique(type)))
-edges_InNOut_numTypes$ROI.from <- sapply(edges_InNOut_numTypes$from, function(x) nodes_InNOut$ROI[x])
-edges_InNOut_numTypes$ROI.to <- sapply(edges_InNOut_numTypes$to, function(x) nodes_InNOut$ROI[x])
-
-# Plot the network
-graph_InNOut <- tbl_graph(nodes_InNOut,
-                   filter(edges_InNOut_numTypes,(!(grepl("FB",ROI.from) & grepl("FB",ROI.to)))))
-
-gg_InNOut <-
-  ggraph(graph_InNOut,layout="manual",x=nodes_InNOut$x,y=nodes_InNOut$y) + 
-  geom_edge_diagonal(aes(width=numTypes,color=ROI.from),alpha=0.5,
-                     strength=0.5,
-                     arrow = arrow(length = unit(1, "cm")),
-                     end_cap = circle(1, 'cm')) + 
-  geom_edge_loop(aes(direction=45,span=90,width=numTypes,strength=0.1,color=ROI.from),alpha=0.5) +
-  geom_node_point(aes(color=ROI),size=8) + 
-  geom_node_text(aes(label=ROI),angle=40,size=6) +
-  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
-                          axis.line=element_blank(),axis.text.x=element_blank(),
-                          axis.text.y=element_blank(),axis.ticks=element_blank(),
-                          axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
-  coord_fixed(ratio = 1,clip="off")
-
-# Get the table of nodes (types)
-ROIs_Intra <- ROIs[which(grepl("FB",ROIs) | (ROIs %in% c("PB","EB","NO")))]
+ROIs_Intra <- ROIs[which(grepl("FB",ROIs))]
 nodes_Intra <- xyLookupFBROIsIntra(ROIs_Intra)
-edges_Intra <- getEdgesROIdf(FBROIInfo,ROIs_Intra)
+edges_Intra <- getEdgesROIdf(FBROIInfo,ROIs_Intra,ROIs_Intra)
 
 # Pull out the number of types between each ROI
-edges_Intra_numTypes <- edges_Intra %>% group_by(to,from) %>% summarize(numTypes = length(unique(type)))
+edges_Intra_numTypes <- edges_Intra %>% group_by(to,from) %>% 
+  summarize(numTypes = length(unique(type)),
+            numUSsyns = sum(weightUS),
+            numDSsyns = sum(weightDS))
 edges_Intra_numTypes$ROI.from <- sapply(edges_Intra_numTypes$from, function(x) nodes_Intra$ROI[x])
 edges_Intra_numTypes$ROI.to <- sapply(edges_Intra_numTypes$to, function(x) nodes_Intra$ROI[x])
 
@@ -294,12 +300,163 @@ graph_Intra <- tbl_graph(nodes_Intra,edges_Intra_numTypes)
 
 gg_Intra <-
   ggraph(graph_Intra,layout="manual",x=nodes_Intra$x,y=nodes_Intra$y) + 
-  geom_edge_diagonal(aes(width=numTypes,color=ROI.from),alpha=0.5,
-                     strength=0.5,
-                     arrow = arrow(length = unit(1, "cm")),
+  geom_edge_arc(aes(width=numUSsyns,color=ROI.from),alpha=0.5,
+                     strength=1,
+                     arrow = arrow(length = unit(0.5, "cm")),
                      end_cap = circle(1, 'cm')) + 
-  geom_edge_loop(aes(direction=45,span=90,width=numTypes,strength=0.1,color=ROI.from),alpha=0.5) +
+  geom_edge_loop(aes(direction=45,span=90,width=numUSsyns,strength=0.1,color=ROI.from),alpha=0.5) +
+  ROIcols_edge +
   geom_node_point(aes(color=ROI),size=8) + 
+  ROIcols +
+  geom_node_text(aes(label=ROI),angle=40,size=6) +
+  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                          axis.line=element_blank(),axis.text.x=element_blank(),
+                          axis.text.y=element_blank(),axis.ticks=element_blank(),
+                          axis.title.x=element_blank(),axis.title.y=element_blank(),
+                          plot.title = element_text(hjust = 0.5, size = 24)) + 
+  coord_fixed(ratio = 1,clip="off") + ggtitle('all intra FB connections')
+```
+
+Plot the number of neurons that run between different ROIs
+[Intra FB - just Deltas]
+```{r}
+# Get the table of nodes (types)
+edges_Intra_Deltas <- edges_Intra %>% filter(grepl("Delta0",type))
+
+# Pull out the number of types between each ROI
+edges_Intra_Deltas_numTypes <- edges_Intra_Deltas %>% group_by(to,from) %>% 
+  summarize(numTypes = length(unique(type)),
+            numUSsyns = sum(weightUS),
+            numDSsyns = sum(weightDS))
+edges_Intra_Deltas_numTypes$ROI.from <- sapply(edges_Intra_Deltas_numTypes$from, function(x) nodes_Intra$ROI[x])
+edges_Intra_Deltas_numTypes$ROI.to <- sapply(edges_Intra_Deltas_numTypes$to, function(x) nodes_Intra$ROI[x])
+
+graph_Intra_Deltas <- tbl_graph(nodes_Intra,edges_Intra_Deltas_numTypes)
+
+gg_Intra_Deltas <-
+  ggraph(graph_Intra_Deltas,layout="manual",x=nodes_Intra$x,y=nodes_Intra$y) + 
+  geom_edge_arc(aes(width=numUSsyns,color=ROI.from),alpha=0.5,
+                     strength=1,
+                     arrow = arrow(length = unit(0.5, "cm")),
+                     end_cap = circle(1, 'cm')) + 
+  #geom_edge_loop(aes(direction=45,span=90,width=numUSsyns,strength=0.1,color=ROI.from),alpha=0.5) +
+  ROIcols_edge +
+  geom_node_point(aes(color=ROI),size=8) + 
+  ROIcols +
+  geom_node_text(aes(label=ROI),angle=40,size=6) +
+  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                          axis.line=element_blank(),axis.text.x=element_blank(),
+                          axis.text.y=element_blank(),axis.ticks=element_blank(),
+                          axis.title.x=element_blank(),axis.title.y=element_blank(),
+                          plot.title = element_text(hjust = 0.5, size=24)) + 
+  coord_fixed(ratio = 1,clip="off") + ggtitle('Delta0s, intra layer connections removed')
+```
+
+
+Plot the number of neurons that run between different ROIs 
+[From FB to PB, EB, and NO (and vice versa)]
+```{r}
+# Get the table of nodes (types)
+ROIs_CX <- ROIs[which(grepl("FB",ROIs) | (ROIs %in% c("PB","EB","NO")))]
+edges_CX <- getEdgesROIdf(FBROIInfo,ROIs_CX,ROIs_CX)
+edges_CX <- edges_CX %>% filter(!(
+  (to %in% which(grepl("FB",nodes_CX$ROI))) &
+    (from %in% which(grepl("FB",nodes_CX$ROI)))))
+
+colVals <- pcCols[1:length(ROIs)]
+colVals <- c(colVals[which(ROIs %in% ROIs_CX)],
+             colVals[which(ROIs %in% ROIs_CX[which(!grepl("FB",ROIs_CX))])])
+
+ROIs_CX[which(!grepl("FB",ROIs_CX))] <- ROIs_CX[which(!grepl("FB",ROIs_CX))] %>% paste0("_in")
+ROIs_CX <- c(ROIs_CX,
+                 gsub("in","out",ROIs_CX[which(!grepl("FB",ROIs_CX))]))
+nodes_CX <- xyLookupFBROIsCX(ROIs_CX)
+edges_CX <- edges_CX %>% mutate(ROI.to = nodes_CX$ROI[to],
+                                        ROI.from = nodes_CX$ROI[from])
+edges_CX$ROI.to <- gsub("in","out",edges_CX$ROI.to)
+edges_CX$to <- lapply(edges_CX$ROI.to, function(x){which(x == as.character(nodes_CX$ROI))}) %>% unlist()
+
+ROIcols <- scale_colour_manual(values = colVals , limits = ROIs_CX, guide = FALSE)
+ROIcols_edge <- scale_edge_colour_manual(values = colVals , limits = ROIs_CX, guide = FALSE)
+
+# Pull out the number of types between each ROI
+edges_CX_numTypes <- edges_CX %>% group_by(to,from) %>% 
+  summarize(numTypes = length(unique(type)),
+            numUSsyns = sum(weightUS),
+            numDSsyns = sum(weightDS))
+edges_CX_numTypes$ROI.from <- sapply(edges_CX_numTypes$from, function(x) nodes_CX$ROI[x])
+edges_CX_numTypes$ROI.to <- sapply(edges_CX_numTypes$to, function(x) nodes_CX$ROI[x])
+
+graph_CX <- tbl_graph(nodes_CX,
+                      filter(edges_CX_numTypes,(grepl("FB",ROI.from) | grepl("FB",ROI.to))))
+
+gg_CX <-
+  ggraph(graph_CX,layout="manual",x=nodes_CX$x,y=nodes_CX$y) + 
+  geom_edge_arc(aes(width=numUSsyns,color=ROI.from),alpha=0.5,
+                     strength=0.25,
+                     arrow = arrow(length = unit(0.5, "cm")),
+                     end_cap = circle(1, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=numUSsyns,strength=0.1,color=ROI.from),alpha=0.5) +
+  ROIcols_edge +
+  geom_node_point(aes(color=ROI),size=8) + 
+  ROIcols +
+  geom_node_text(aes(label=ROI),angle=40,size=6) +
+  theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                          axis.line=element_blank(),axis.text.x=element_blank(),
+                          axis.text.y=element_blank(),axis.ticks=element_blank(),
+                          axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+  coord_fixed(ratio = 1,clip="off")
+```
+
+Plot the number of neurons that run between different ROIs 
+[From outside CX in to layers (L) and vice versa (L) for (R) ROIs]
+```{r}
+# Get the table of nodes (types)
+ROIs_InNOut <- ROIs[which(!(ROIs %in% c("EB","PB","NO")))]
+ROIs_InNOut <- ROIs_InNOut[which(grepl("FB",ROIs_InNOut) |
+                                   grepl("(R)",ROIs_InNOut,fixed=TRUE))]
+edges_InNOut <- getEdgesROIdf(FBROIInfo,ROIs_InNOut,ROIs_InNOut)
+
+colVals <- pcCols[1:length(ROIs)]
+colVals <- c(colVals[which(ROIs %in% ROIs_InNOut)],
+             colVals[which(ROIs %in% ROIs_InNOut[which(!grepl("FB",ROIs_InNOut))])])
+
+ROIs_InNOut[which(!grepl("FB",ROIs_InNOut))] <- ROIs_InNOut[which(!grepl("FB",ROIs_InNOut))] %>% paste0("_in")
+ROIs_InNOut <- c(ROIs_InNOut,
+                 gsub("in","out",ROIs_InNOut[which(!grepl("FB",ROIs_InNOut))]))
+nodes_InNOut <- xyLookupFBROIs(ROIs_InNOut)
+edges_InNOut <- edges_InNOut %>% mutate(ROI.to = nodes_InNOut$ROI[to],
+                                        ROI.from = nodes_InNOut$ROI[from])
+edges_InNOut$ROI.to <- gsub("in","out",edges_InNOut$ROI.to)
+edges_InNOut$to <- sapply(edges_InNOut$ROI.to, function(x){which(x == nodes_InNOut$ROI)})
+
+ROIcols <- scale_colour_manual(values = colVals , limits = ROIs_InNOut, guide = FALSE)
+ROIcols_edge <- scale_edge_colour_manual(values = colVals , limits = ROIs_InNOut, guide = FALSE)
+
+# Pull out the number of types between each ROI
+edges_InNOut_numTypes <- edges_InNOut %>% group_by(to,from) %>% 
+  summarize(numTypes = length(unique(type)),
+            numUSsyns = sum(weightUS),
+            numDSsyns = sum(weightDS))
+edges_InNOut_numTypes$ROI.from <- sapply(edges_InNOut_numTypes$from, function(x) nodes_InNOut$ROI[x])
+edges_InNOut_numTypes$ROI.to <- sapply(edges_InNOut_numTypes$to, function(x) nodes_InNOut$ROI[x])
+
+# Plot the network
+graph_InNOut <- tbl_graph(nodes_InNOut,
+                   filter(edges_InNOut_numTypes,(
+                     (grepl("FB",ROI.from) | grepl("FB",ROI.to)) &
+                       !(grepl("FB",ROI.from) & grepl("FB",ROI.to)))))
+
+gg_InNOut <-
+  ggraph(graph_InNOut,layout="manual",x=nodes_InNOut$x,y=nodes_InNOut$y) + 
+  geom_edge_diagonal(aes(width=numUSsyns,color=ROI.from),alpha=0.5,
+                     strength=1,
+                     arrow = arrow(length = unit(0.5, "cm")),
+                     end_cap = circle(1, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=numUSsyns,strength=0.1,color=ROI.from),alpha=0.5) +
+  ROIcols_edge +
+  geom_node_point(aes(color=ROI),size=8) + 
+  ROIcols +
   geom_node_text(aes(label=ROI),angle=40,size=6) +
   theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
                           axis.line=element_blank(),axis.text.x=element_blank(),
@@ -307,745 +464,229 @@ gg_Intra <-
                           axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
   coord_fixed(ratio = 1,clip="off")
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FBROIConnectivity.pdf", width = 30, height = 15)
-print(grid.arrange(gg_InNOut,gg_Intra,nrow=1))
+```
+
+Plot the ROI connectivity graphs
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FBROIConnectivity.pdf", width = 40, height = 10)
+print(grid.arrange(gg_InNOut,gg_Intra,gg_Intra_Deltas,gg_CX,nrow=1))
+dev.off()
+```
+
+############################################################
+Look at where the PFLs get their synapses
+############################################################
+
+```{r}
+# Pull the PFL ROI info
+PFLROIInfo <- neuprint_get_roiInfo(getBodyIdsForList("PFL.*"))
+
+# Restrict to upstream PB connections
+PFLROIInfo_PB <- PFLROIInfo[,which((grepl("PB",colnames(PFLROIInfo)) & grepl("upstream",colnames(PFLROIInfo))) | grepl("bodyid",colnames(PFLROIInfo)))]
+PFLROIInfo_PB <- PFLROIInfo_PB %>% mutate(type = neuprint_get_meta(bodyid)$type,
+                                          name = neuprint_get_meta(bodyid)$name)
+PBDatToPlot <- PFLROIInfo_PB[,which(grepl("(",colnames(PFLROIInfo_PB),fixed=TRUE) |
+                                      grepl("name",colnames(PFLROIInfo_PB)))]
+# Rename the columns by the glomeruli
+PBGloms <- colnames(PBDatToPlot) %>% 
+  sapply(function(x){strsplit(x,"(",fixed=TRUE)[[1]][2]}) %>% as.character() %>%
+  sapply(function(x){strsplit(x,")",fixed=TRUE)[[1]][1]}) %>% as.character()
+PBGloms <- PBGloms %>% head(length(PBGloms)-1)
+colnames(PBDatToPlot) <- c(PBGloms,"name")
+
+# Melt the data into one dataframe
+library(reshape2)
+PBDatToPlot <- melt(PBDatToPlot,id="name")
+colnames(PBDatToPlot)[2] <- "PBglom"
+colnames(PBDatToPlot)[3] <- "upstreamSynapses"
+PBDatToPlot$PBglom <- factor(PBDatToPlot$PBglom, 
+                             levels = sort(as.character(unique(PBDatToPlot$PBglom))))
+PBDatToPlot <- PBDatToPlot[which(!is.na(PBDatToPlot$upstreamSynapses)),]
+
+# Plot it
+g <- ggplot(PBDatToPlot) + geom_tile(aes(x=PBglom,y=name,fill=upstreamSynapses)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(PBDatToPlot$upstreamSynapses),
+                         limits=c(0,max(PBDatToPlot$upstreamSynapses))) + 
+  geom_hline(yintercept = 14.5) + geom_hline(yintercept = 24.5)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PFLGlomConnectivity.pdf", width = 10, height = 10)
+print(g)
+dev.off()
+```
+
+############################################################
+Look at connectivity matrices between Delta6s and FX/PB-FB-XX neurons, rotate to align by column
+############################################################
+```{r}
+D6types <- getBodyIdsForList("Delta6.*")$type %>% unique()
+coltypes <- getBodyIdsForList(c("PF.*","FC.*","FS.*","FR.*"))$type %>% unique()
+
+prePlots <- list()
+pltNow <- 1
+for (d6t in 1:length(D6types)){
+  for (colt in 1:length(coltypes)){
+    D6ids <- getBodyIdsForList(paste0(D6types[d6t],".*"))$bodyid
+    colids <- getBodyIdsForList(paste0(coltypes[colt],".*"))$bodyid
+    
+    D6CTPre <- getConnectionTable(D6ids,"PRE","FB") %>% filter(from %in% colids)
+    
+    if ((length(unique(D6CTPre$from)) < 0.5*length(colids)) |
+        (length(unique(D6CTPre$to)) < 0.5*length(D6ids)))
+      next
+    
+    D6CTPre$nameid.from = paste(as.character(D6CTPre$name.from), as.character(D6CTPre$from), sep = "_")
+    D6CTPre$nameid.to = paste(as.character(D6CTPre$name.to), as.character(D6CTPre$to), sep = "_")
+    nameids <- unique(D6CTPre$nameid.from)
+    idOrder = c()
+    for (cl in 1:9) {
+      idOrder <-  append(idOrder,sort(nameids[which(grepl(paste0('_C',cl,'_'),nameids))]))
+    }
+    D6CTPre$nameid.from <- factor(D6CTPre$nameid.from,levels=idOrder)
+    
+    cmax = max(D6CTPre$weightRelative)
+    prePlot = ggplot(D6CTPre) + 
+        theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+        scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                             midpoint =0.5*cmax, limits=c(0,cmax)) +
+      geom_tile(aes(x=as.factor(nameid.to),y=as.factor(nameid.from),fill=weightRelative))
+    prePlots[[pltNow]] <- prePlot
+    pltNow <- pltNow + 1
+    
+  }
+}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Deltas\\Delta6Pre.pdf", width = 100, height = 100)
+print(grid.arrange(grobs=prePlots))
+dev.off()
+
+
+postPlots <- list()
+pltNow <- 1
+for (d6t in 1:length(D6types)){
+  for (colt in 1:length(coltypes)){
+    D6ids <- getBodyIdsForList(paste0(D6types[d6t],".*"))$bodyid
+    colids <- getBodyIdsForList(paste0(coltypes[colt],".*"))$bodyid
+    
+    D6CTPost <- getConnectionTable(D6ids,"POST","FB") %>% filter(to %in% colids)
+    
+    if ((length(unique(D6CTPost$from)) < 0.5*length(D6ids)) |
+        (length(unique(D6CTPost$to)) < 0.5*length(colids)))
+      next
+    
+    D6CTPost$nameid.from = paste(as.character(D6CTPost$name.from), as.character(D6CTPost$from), sep = "_")
+    D6CTPost$nameid.to = paste(as.character(D6CTPost$name.to), as.character(D6CTPost$to), sep = "_")
+    nameids <- unique(D6CTPost$nameid.to)
+    idOrder = c()
+    for (cl in 1:9) {
+      idOrder <-  append(idOrder,sort(nameids[which(grepl(paste0('_C',cl,'_'),nameids))]))
+    }
+    D6CTPost$nameid.to <- factor(D6CTPost$nameid.to,levels=idOrder)
+    
+    cmax = max(D6CTPost$weightRelative)
+    postPlot = ggplot(D6CTPost) + 
+        theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+        scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                             midpoint =0.5*cmax, limits=c(0,cmax)) +
+      geom_tile(aes(x=as.factor(nameid.to),y=as.factor(nameid.from),fill=weightRelative))
+    postPlots[[pltNow]] <- postPlot
+    pltNow <- pltNow + 1
+    
+  }
+}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Deltas\\Delta6Post.pdf", width = 100, height = 100)
+print(grid.arrange(grobs=postPlots))
 dev.off()
 
 ```
 
 ############################################################
-Old Plots
+Look at tangential cells
 ############################################################
 
-Look at who FB-Q's output to
+Get the connection tables
 ```{r}
-FQTypes = neuprint_search('FQ.*')$type %>% unique() 
-FQ_Post = getConnectionTable(getBodyIdsForList(c("FQ")),"POST","CRE(R)")
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","CRE(L)"))
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","SMP(R)"))
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","SMP(L)"))
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","SIP(R)"))
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","SIP(L)"))
-FQ_Post <- rbind(FQ_Post,getConnectionTable(getBodyIdsForList(c("FQ")),"POST","SLP(R)"))
 
-for (tp in 1:length(FQTypes)){
-  
-  FQ_Post_Sum <- aggregate(weight~type+partnerType,
-                              FQ_Post[which(FQ_Post$type==FQTypes[tp]),],
-                              sum)
-  FQ_Post_Mean <- aggregate(weight~type+partnerType,
-                               FQ_Post[which(FQ_Post$type==FQTypes[tp]),],
-                               mean)
+FBt_Pre = getConnectionTable(getBodyIdsForList(c("FB")),"PRE","FB")
+FBt_To_Col_Pre <- FBt_Pre %>% filter(supertype.from2 != "FBt")
 
-  conmatPlot = ggplot(FQ_Post_Sum %>% filter(weight > 5)) + 
+FBt_Post = getConnectionTable(getBodyIdsForList(c("FB")),"POST","FB")
+FBt_To_FBt_Post <- FBt_Post %>% filter(supertype.to2 == "FBt")
+FBt_To_Col_Post <- FBt_Post %>% filter(supertype.to2 != "FBt")
+
+
+FBt_To_FBt_Post_T2T <- getTypeToTypeTable(FBt_To_FBt_Post)
+conmatPlot <- plotConnectivityMatrix(FBt_To_FBt_Post_T2T,byGroup="type")
+print(conmatPlot)
+
+FBt_To_Col_Pre_T2T <- getTypeToTypeTable(FBt_To_Col_Pre)
+conmatPlot <- plotConnectivityMatrix(FBt_To_Col_Pre_T2T,byGroup="type")
+print(conmatPlot)
+
+FBt_To_Col_Post_T2T <- getTypeToTypeTable(FBt_To_Col_Post)
+conmatPlot <- plotConnectivityMatrix(FBt_To_Col_Post_T2T,byGroup="type")
+print(conmatPlot)
+
+cmax = max(FBt_To_Col_Pre_T2T$weightRelative)
+conmatPlot <- ggplot(FBt_To_Col_Pre_T2T) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
-    geom_tile(aes(type,partnerType,fill=weight))
-  print(conmatPlot)
-  
-  conmatPlot = ggplot(FQ_Post_Mean) + 
-    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-    geom_tile(aes(type,partnerType,fill=weight))
-  print(conmatPlot)
-    
-}
-```
-
-Look at who PFR_b's output to
-```{r}
-PFRbs_Post <- getConnectionTable(getBodyIdsForList(c("PFR_b")),"POST","CRE(R)")
-
-plotConnectivityMatrix(PFRbs_Post, synapseCutOff = 3, 1)
-
-```
-
-Show connections between those inputs and outputs
-```{r}
-PFNs_Post <- getConnectionTable(getBodyIdsForList(c("PFN")),"POST","FB")
-conmatPlot = ggplot(PFNs_Post   %>% filter(weight > 3)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-```
-
-Look at inputs to PFL1,2,3s, group by type, calculate correlation
-```{r}
-PFL_Pre = getConnectionTable(getBodyIdsForList(c("PFL")),"PRE","FB")
-  
-PFL_Pre_Sum <- aggregate(weight~type+partnerType,
-                            PFL_Pre,
-                            sum)
-PFL_Pre_Mean <- aggregate(weight~type+partnerType,
-                             PFL_Pre,
-                             mean)
-
-conmatPlot = ggplot(PFL_Pre_Sum %>% filter(weight > 5)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
-  geom_tile(aes(type,partnerType,fill=weight))
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(type.from,type.to,fill=weightRelative))
 print(conmatPlot)
 
-conmatPlot = ggplot(PFL_Pre_Mean) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-# Look at the correlations across input types
-corrDat = spread(PFL_Pre_Mean,type,weight)
-corrDat[is.na(corrDat)] <- 0
-rownames(corrDat)<-corrDat$partnerType
-corrDat$partnerType<-NULL
-library(corrplot)
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFLInputs.pdf", width = 20, height = 15)
-corrplot(cor(corrDat))
-dev.off()
-
-   
 ```
 
-As above but for FQs
+Format the FBt to columnar connections data frame
 ```{r}
-FQ_Pre = getConnectionTable(getBodyIdsForList(c("FQ","PFR")),"PRE","FB")
-  
-FQ_Pre_Sum <- aggregate(weight~type+partnerType,
-                            FQ_Pre,
-                            sum)
-FQ_Pre_Mean <- aggregate(weight~type+partnerType,
-                             FQ_Pre,
-                             mean)
-
-conmatPlot = ggplot(FQ_Pre_Sum %>% filter(weight > 5)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-conmatPlot = ggplot(FQ_Pre_Mean) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-# Look at the correlations across input types
-corrDat = spread(FQ_Pre_Mean,type,weight)
-corrDat[is.na(corrDat)] <- 0
-rownames(corrDat)<-corrDat$partnerType
-corrDat$partnerType<-NULL
-library(corrplot)
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenFQInputs.pdf", width = 20, height = 15)
-corrplot(cor(corrDat))
-dev.off()
- 
-```
-
-As above, for PFN outputs
-```{r}
-PFN_Post = getConnectionTable(getBodyIdsForList(c("PFN")),"POST","FB")
-  
-PFN_Post_Sum <- aggregate(weight~type+partnerType,
-                            PFN_Post,
-                            sum)
-PFN_Post_Mean <- aggregate(weight~type+partnerType,
-                             PFN_Post,
-                             mean)
-
-conmatPlot = ggplot(PFN_Post_Sum %>% filter(weight > 5)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-conmatPlot = ggplot(PFN_Post_Mean) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-# Look at the correlations across input types
-corrDat = spread(PFN_Post_Mean,type,weight)
-corrDat[is.na(corrDat)] <- 0
-rownames(corrDat)<-corrDat$partnerType
-corrDat$partnerType<-NULL
-library(corrplot)
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFNOutputs.pdf", width = 20, height = 15)
-corrplot(cor(corrDat))
-dev.off()
-
-```
-
-Look at primary outputs of PFNs
-```{r}
-
-for (pfn in 1:8){
-  if (pfn == 1)
-    typeNow = "PFNa"
-  if (pfn == 2)
-    typeNow = "PFNp_c"
-  if (pfn == 3)
-    typeNow = "PFNm_a"
-  if (pfn == 4)
-    typeNow = "PFNp_a"
-  if (pfn == 5)
-    typeNow = "PFNd"
-  if (pfn == 6)
-    typeNow = "PFNm_b"
-  if (pfn == 7)
-    typeNow = "PFNp_b"
-  if (pfn == 8)
-    typeNow = "PFNv"
-  
-  bodyIDs = neuprint_search(paste0(typeNow,'.*'),field='type')
-  
-  PF_Post <- getConnectionTable(bodyIDs,"POST","FB")
-  PF_Post <- PF_Post[which(PF_Post$weight>4),]
-  p <- connectivityBarPlot(PF_Post,"POST") + ggtitle(paste(typeNow,"outputs",sep=' ')) + ylim(0,80)
-  print(p)
-  ggsave(paste(typeNow,"Outputs.pdf",sep='_'), plot = last_plot(), device='pdf', 
-         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-         scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-}
-
-```
-
-Look at primary inputs onto PFLs
-```{r}
-
-for (pfn in 1:3){
-  if (pfn == 1)
-    typeNow = "PFL1"
-  if (pfn == 2)
-    typeNow = "PFL2"
-  if (pfn == 3)
-    typeNow = "PFL3"
-  
-  bodyIDs = neuprint_search(paste0(typeNow,'.*'),field='type')
-  
-  PF_Post <- getConnectionTable(bodyIDs,"PRE","FB")
-  PF_Post <- PF_Post[which(PF_Post$weight>4),]
-  p <- connectivityBarPlot(PF_Post,"POST") + ggtitle(paste(typeNow,"inputs",sep=' ')) + ylim(0,100)
-  print(p)
-  ggsave(paste(typeNow,"Inputs.pdf",sep='_'), plot = last_plot(), device='pdf', 
-         path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-         scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-}
-
-```
-
-Look at the correlation between the different PF types outputs
-```{r}
-FQ_Post = getConnectionTable(getBodyIdsForList(c("PF")),"POST","FB")
-FQ_Post <- FQ_Post[which(!grepl("PFL",FQ_Post$type) & !grepl("PFR_b",FQ_Post$type)),]
-
-FQ_Post_Sum <- aggregate(weight~type+partnerType,
-                            FQ_Post,
-                            sum)
-FQ_Post_Mean <- aggregate(weight~type+partnerType,
-                             FQ_Post,
-                             mean)
-
-conmatPlot = ggplot(FQ_Post_Sum %>% filter(weight > 5)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,100)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-conmatPlot = ggplot(FQ_Post_Mean) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="ivory", mid="peachpuff", high="black", limits=c(0,20)) +
-  geom_tile(aes(type,partnerType,fill=weight))
-print(conmatPlot)
-
-# Look at the correlations across input types
-corrDat = spread(FQ_Post_Mean,type,weight)
-corrDat[is.na(corrDat)] <- 0
-rownames(corrDat)<-corrDat$partnerType
-corrDat$partnerType<-NULL
-library(corrplot)
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\CorrelationBetweenPFOutputs.pdf", width = 20, height = 15)
-corrplot(cor(corrDat))
-dev.off()
- 
-```
-
-
-
-```{r}
-preSynFBPlot <- function(type,prePost){
-  # Load the reshape library 
-  library(reshape2)
-  
-  # Specify the number of bins to use
-  nbins <- 100
-  
-  # Pull the FB mesh
-  FB_Mesh = neuprint_ROI_mesh("FB")
-  FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
-  
-  # Get the x and z bins
-  x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
-  z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
-  
-  # Create a 2D histogram of the FB points
-  FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
-  FBfreq2D <- diag(nbins)*0
-  FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
-  dimnames(FBfreq2D) <- list(x.bin, z.bin)
-  FBhist.melt <- melt(FBfreq2D)
-  names(FBhist.melt) <- c("x", "z", "numPts")
-  
-  # Make a binary mask out of the FB points
-  FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- 0.1
-  FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
-  FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
-  
-  # Get the body ids
-  bodyIds = neuprint_search(paste0(type,".*"))$bodyid
-  
-  # Assign a color map given the number of synapsese
-  cMap = c("#000000FF")
-  cMap = append(cMap,rainbow(length(bodyIds)))
-  
-  # Create a plot with the FB outline
-  p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
-  for (bid in 1:length(bodyIds)){
-    
-    # Pull the individual PFL synapses
-    syns = neuprint_get_synapses(bodyIds[bid], roi="FB")
-    if (grepl("PRE",prePost))
-      syns <-  syns[which(syns$prepost == 0),]
-    else
-      syns <- syns[which(syns$prepost == 1),]
-    if (nrow(syns)==0)
-      next
-    syns <- syns %>% mutate(name=as.character(type))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-     
-    # Create a 2D histogram of the synapses
-    freq <-  melt(table(findInterval(syns$x, x.bin),findInterval(syns$z, z.bin)))
-    freq2D <- diag(nbins)*0
-    freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
-    dimnames(freq2D) <- list(x.bin, z.bin)
-    hist.melt <- melt(freq2D)
-    names(hist.melt) <- c("xPos", "zPos", "numSyns")
-    
-    # Make a binary mask out of the synapses
-    hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- bid+1
-    hist.melt[which(hist.melt$numSyns<0.1),]$numSyns <- 0
-    
-    hist.melt$bodyid = bodyIds[bid]
-
-    #p1 <- p1 + geom_contour(data=hist.melt, aes(x = xPos,y = zPos,z = numSyns,color=bodyid),bins=1)
-    hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
-    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.25))
-    
-  }
-  p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
-    scale_x_reverse() + scale_y_reverse() +
-    scale_fill_gradientn(colors=cMap) + theme(legend.position="none")
-  if (grepl("PRE",prePost))
-    p1 <-  p1 + ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
-  else
-    p1 <-  p1 + ggtitle(paste0(as.character(type),": inputs (n=",length(bodyIds),")")) 
-  
-  return(p1)
-}
-```
-
-
-```{r}
-plotAndSaveSynDistrosFB <- function(typeRoot,prePost){
-  allNrons = neuprint_search(paste0(typeRoot,".*"))
-  types = unique(allNrons$type)
-  plot_list = list()
-  for (t in 1:length(types)){
-    if (is.na(types[t])) {
-      next
-    }
-    p <- preSynFBPlot(types[t],prePost)
-    plot_list[[t]] = p
-  }
-  return(plot_list)
-}
-
-```
-
-```{r}
-library(gridExtra)
-
-# PFNs
-pPFN_Pre <- plotAndSaveSynDistrosFB("PFN","PRE")
-pPFN_Post <- plotAndSaveSynDistrosFB("PFN","POST")
-
-# PFRs
-pPFR_Pre <- plotAndSaveSynDistrosFB("PFR","PRE")
-pPFR_Post <- plotAndSaveSynDistrosFB("PFR","POST")
-
-# PFGs
-pPFG_Pre <- plotAndSaveSynDistrosFB("PFG","PRE")
-pPFG_Post <- plotAndSaveSynDistrosFB("PFG","POST")
-
-# PFLs
-pPFL_Pre <- plotAndSaveSynDistrosFB("PFL","PRE")
-pPFL_Post <- plotAndSaveSynDistrosFB("PFL","POST")
-
-gPF1 = do.call("grid.arrange", c(c(pPFN_Post[1:4]), ncol=4))
-gPF2 = do.call("grid.arrange", c(c(pPFN_Pre[1:4]), ncol=4))
-gPF3 = do.call("grid.arrange", c(c(pPFN_Post[5:8]), ncol=4))
-gPF4 = do.call("grid.arrange", c(c(pPFN_Pre[5:8]), ncol=4))
-gPF5 = do.call("grid.arrange", c(c(pPFG_Post,pPFR_Post), ncol=4))
-gPF6 = do.call("grid.arrange", c(c(pPFG_Pre,pPFR_Pre), ncol=4))
-gPF7 = do.call("grid.arrange", c(c(pPFL_Post), ncol=4))
-gPF <-grid.arrange(gPF1,gPF2,gPF3,gPF4,gPF5,gPF6,gPF7,ncol=1) 
-ggsave(paste0("PFSynapses.pdf"), gPF, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-
-# PFQs
-pFQ_Pre <- plotAndSaveSynDistrosFB("FQ","PRE")
-pFQ_Post <- plotAndSaveSynDistrosFB("FQ","POST")
-
-gFQ1 = do.call("grid.arrange", c(c(pFQ_Post[1:5]), ncol=5))
-gFQ2 = do.call("grid.arrange", c(c(pFQ_Pre[1:5]), ncol=5))
-gFQ3 = do.call("grid.arrange", c(c(pFQ_Post[6:10]), ncol=5))
-gFQ4 = do.call("grid.arrange", c(c(pFQ_Pre[6:10]), ncol=5))
-gFQ5 = do.call("grid.arrange", c(c(pFQ_Post[11:15]), ncol=5))
-gFQ6 = do.call("grid.arrange", c(c(pFQ_Pre[11:15]), ncol=5))
-gFQ7 = do.call("grid.arrange", c(c(pFQ_Post[16:20]), ncol=5))
-gFQ8 = do.call("grid.arrange", c(c(pFQ_Pre[16:20]), ncol=5))
-gFQ <-grid.arrange(gFQ1,gFQ2,gFQ3,gFQ4,gFQ5,gFQ6,gFQ7,gFQ8,ncol=1) 
-ggsave(paste0("FQSynapses.pdf"), gFQ, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-
-# Delta 0s
-Delta0_Pre <- plotAndSaveSynDistrosFB("Delta0","PRE")
-Delta0_Post <- plotAndSaveSynDistrosFB("Delta0","POST")
-
-gD01 = do.call("grid.arrange", c(c(Delta0_Post[1:4]), ncol=4))
-gD02 = do.call("grid.arrange", c(c(Delta0_Pre[1:4]), ncol=4))
-gD03 = do.call("grid.arrange", c(c(Delta0_Post[5:8]), ncol=4))
-gD04 = do.call("grid.arrange", c(c(Delta0_Pre[5:8]), ncol=4))
-gD05 = do.call("grid.arrange", c(c(Delta0_Post[9:12]), ncol=4))
-gD06 = do.call("grid.arrange", c(c(Delta0_Pre[9:12]), ncol=4))
-gD07 = do.call("grid.arrange", c(c(Delta0_Post[13:16]), ncol=4))
-gD08 = do.call("grid.arrange", c(c(Delta0_Pre[13:16]), ncol=4))
-gD0 <-grid.arrange(gD01,gD02,gD03,gD04,gD05,gD06,gD07,gD08,ncol=1) 
-ggsave(paste0("Delta0Synapses.pdf"), gD0, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-
-# Delta 6s
-Delta6_Pre <- plotAndSaveSynDistrosFB("Delta6","PRE")
-Delta6_Post <- plotAndSaveSynDistrosFB("Delta6","POST")
-
-gD61 = do.call("grid.arrange", c(c(Delta6_Post[1:4]), ncol=4))
-gD62 = do.call("grid.arrange", c(c(Delta6_Pre[1:4]), ncol=4))
-gD63 = do.call("grid.arrange", c(c(Delta6_Post[5:8]), ncol=4))
-gD64 = do.call("grid.arrange", c(c(Delta6_Pre[5:8]), ncol=4))
-gD65 = do.call("grid.arrange", c(c(Delta6_Post[9:12]), ncol=4))
-gD66 = do.call("grid.arrange", c(c(Delta6_Pre[9:12]), ncol=4))
-gD67 = do.call("grid.arrange", c(c(Delta6_Post[13]), ncol=4))
-gD68 = do.call("grid.arrange", c(c(Delta6_Pre[13]), ncol=4))
-gD6 <-grid.arrange(gD61,gD62,gD63,gD64,gD65,gD66,gD67,gD68,ncol=1) 
-ggsave(paste0("Delta6Synapses.pdf"), gD6, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-```
-
-Plot histograms of inputs and outputs of a set of types by layer
-```{r}
-FBLayerHist <- function(types,legOff,yl){
-  
-  library(gridExtra)
-  
-  ROIs = neuprint_ROIs()
-  ROIs <- ROIs[which(grepl("FB",ROIs) & (ROIs!="FB"))]
-  
-  plot_list = list()
-  for (pp in 1:2){
-    if (pp == 1)
-      prePost = "PRE"
-    else
-      prePost = "POST"
-    
-    FBSyns = neuprint_connection_table(
-      getBodyIdsForList(types),
-      prepost=prePost,by.roi=TRUE)
-    
-    FBSyns <- FBSyns[FBSyns$roi %in% ROIs,]
-    FBSyns <- FBSyns %>% mutate(type = neuprint_get_meta(bodyid)$type, 
-                                    partnerType = neuprint_get_meta(partner)$type)
-    emptyROIs = ROIs[which(!(ROIs %in% unique(FBSyns$roi)))]
-    if (length(emptyROIs)>0){
-      for (eR in 1:length(emptyROIs)){
-        dfTmp = data.frame(bodyid  = 0, partner = 0, prepost = pp-1,
-                           roi = emptyROIs[eR],
-                           ROIweight = 0, weight = 0, type = NA, partnerType = NA)
-        FBSyns <- rbind(FBSyns,dfTmp)
-      }
-    }
-  
-    p <- ggplot(FBSyns,aes(x=roi,y=ROIweight,fill=factor(type))) + geom_bar(stat="identity") +
-      ggtitle(paste(paste(types, collapse = ','),prePost,sep="-")) + coord_flip() + ylim(0, yl) +
-      theme_classic() + theme(panel.grid.major = element_line(colour = "gray",linetype="dashed"))
-    if ((legOff == 1) | (pp == 2))
-      p <- p + theme(legend.position="none")
-    
-    plot_list[[pp]] = p
-  }
-  g = do.call("grid.arrange", c(c(plot_list), nrow=2))
-  return(g)
-}
-
-```
-
-Show the pre and post synaptic layer synapse counts for the columnar neurons
-```{r}
-yl = 100000
-gPFN = FBLayerHist("PFN",0,yl)
-ggsave(paste0("PFNSynsByLayer.pdf"), gPFN, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-gPFOther = FBLayerHist(c("PFR","PFG"),0,yl)
-ggsave(paste0("PFOtherSynsByLayer.pdf"), gPFOther, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Overview\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-gPFL = FBLayerHist("PFL",0,yl)
-ggsave(paste0("PFLSynsByLayer.pdf"), gPFL, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-gFQ = FBLayerHist("FQ",0,yl)
-ggsave(paste0("FQSynsByLayer.pdf"), gFQ, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-gD0 = FBLayerHist("Delta0",0,yl)
-ggsave(paste0("Delta0SynsByLayer.pdf"), gD0, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-gD6 = FBLayerHist("Delta6",0,yl)
-ggsave(paste0("Delta6SynsByLayer.pdf"), gD6, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\SynapseDistributions\\",
-   scale = 1.5, width = 10, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-
-gAll <-grid.arrange(gPFN,gD6,gD0,gPFOther,gFQ,gPFL,nrow=1) 
-ggsave(paste0("AllSynsByLayer.pdf"), gAll, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Overview\\",
-   scale = 1.5, width = 60, height = 10, units ="cm", dpi = 72, limitsize = TRUE)
-```
-
-Show the pre and post synaptic layer synapse counts for the tangential neurons
-```{r}
-# Get the FB tangential neuron names
-tangFBtypes = neuprint_search("FB.*")$type %>% unique
-tangFBtypes <- tangFBtypes[which(!is.na(tangFBtypes) & !(tangFBtypes=="SA3"))]
-
-yl = 100000
-gFBTang = FBLayerHist(c("FB","SA3"),1,2*yl)
-ggsave(paste0("FBTangentialSynsByLayer.pdf"), gFBTang, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Overview\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-gExR = FBLayerHist(c("ExR1","ExR3","ExR5","OA-VPM3"),0,yl)
-ggsave(paste0("ExRSynsByLayer.pdf"), gExR, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Overview\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-gAll2 <-grid.arrange(gPFN,gD6,gD0,gPFOther,gFBTang,gExR,gFQ,gPFL,nrow=2) 
-ggsave(paste0("AllSynsByLayerWTang.pdf"), gAll2, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Overview\\",
-   scale = 1.5, width = 30, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-```
-
-Plot the FB layers
-```{r}
- # Load the reshape library 
+FBt_To_Col_4Clust <- getTypeToTypeTable(FBt_To_Col) %>% select(type.from,type.to,weightRelative)
 library(reshape2)
 
-# Specify the number of bins to use
-nbins <- 100
+# cluster based on the FBts
+FBt_To_Col_4Clust_FBt <- dcast(FBt_To_Col_4Clust,type.from~type.to)
+FBt_To_Col_4Clust_FBt[is.na(FBt_To_Col_4Clust_FBt)] <- 0
+rownames(FBt_To_Col_4Clust_FBt) <- FBt_To_Col_4Clust_FBt$type.from
+FBt_To_Col_4Clust_FBt <- FBt_To_Col_4Clust_FBt %>% select(tail(colnames(FBt_To_Col_4Clust_FBt),ncol(FBt_To_Col_4Clust_FBt)-1))
+FBt_To_Col_4Clust_FBt <- scale(FBt_To_Col_4Clust_FBt)
 
-# Assign a color map for each layer
-cMap = rainbow(9)
-
-# Pull the FB mesh
-FB_Mesh = neuprint_ROI_mesh("FB")
-FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
-
-# Get the x and z bins
-x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
-y.bin <- seq(floor(min(FB_xyz$y)), ceiling(max(FB_xyz$y)), length=nbins)
-z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
-
-# Create a plot with the FB outline
-p1 <- ggplot()
-
-# Pull and plot the FB mesh for each layer
-for (l in 1:9){
-  FB_Mesh = neuprint_ROI_mesh(paste0("FBl",l))
-  FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
-  
-  # Create a 2D histogram of the FB points
-  FBfreq <-  melt(table(findInterval(FB_xyz$z, z.bin),findInterval(FB_xyz$x, x.bin)))
-  FBfreq2D <- diag(nbins)*0
-  FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
-  dimnames(FBfreq2D) <- list(z.bin, x.bin)
-  FBhist.melt <- melt(FBfreq2D)
-  names(FBhist.melt) <- c("x", "z", "numPts")
-  
-  # Make a binary mask out of the FB points
-  FBhist.melt[which(FBhist.melt$numPts>=0.1),]$numPts <- l
-  FBhist.melt[which(FBhist.melt$numPts<0.1),]$numPts <- 0
-  FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
-  
-  FBhist.melt$numPts <- as.factor(FBhist.melt$numPts)
-  p1 <- p1 + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts),alpha=0.5)
-}
-
-p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
-  scale_x_reverse() + scale_y_reverse() +
-  scale_fill_manual(values=cMap,name = "FB layer")
-
-ggsave(paste0("FBLayerOverview_xz.pdf"), p1, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
+# cluster based on the columnar neurons
+FBt_To_Col_4Clust_Col <- dcast(FBt_To_Col_4Clust,type.to~type.from)
+FBt_To_Col_4Clust_Col[is.na(FBt_To_Col_4Clust_Col)] <- 0
+rownames(FBt_To_Col_4Clust_Col) <- FBt_To_Col_4Clust_Col$type.to
+FBt_To_Col_4Clust_Col <- FBt_To_Col_4Clust_Col %>% select(tail(colnames(FBt_To_Col_4Clust_Col),ncol(FBt_To_Col_4Clust_Col)-1))
+FBt_To_Col_4Clust_Col <- scale(FBt_To_Col_4Clust_Col)
 ```
 
-Plot the FB columns - color by PB glom
+Perform hierarchical clustering
 ```{r}
-type = "PFN"
-prePost = "PRE"
+# Dissimilarity matrix
+d <- dist(FBt_To_Col_4Clust_FBt, method = "euclidean")
+# Hierarchical clustering using Complete Linkage
+hc1 <- hclust(d, method = "ward" )
+# Plot the obtained dendrogram
+plot(hc1, cex = 0.6, hang = -1)
 
-PBGloms = c("FB",
-            "L9","L8","L7","L6","L5","L4","L3","L2","L1",
-            "R1","R2","R3","R4","R5","R6","R7","R8","R9")
+clustOrder_FBt <- hc1$labels[hc1$order]
 
-# Load the reshape library 
-library(reshape2)
+# Dissimilarity matrix
+d <- dist(FBt_To_Col_4Clust_Col, method = "euclidean")
+# Hierarchical clustering using Complete Linkage
+hc1 <- hclust(d, method = "ward" )
+# Plot the obtained dendrogram
+plot(hc1, cex = 0.6, hang = -1)
 
-# Specify the number of bins to use
-nbins <- 100
+clustOrder_Col <- hc1$labels[hc1$order]
+```
 
-# Pull the FB mesh
-FB_Mesh = neuprint_ROI_mesh("FB")
-FB_xyz = data.frame(x = FB_Mesh$vb[1,], y = FB_Mesh$vb[2,], z = FB_Mesh$vb[3,])
+Plot the clustered groups
+```{r}
+FBt_To_Col_T2T <- getTypeToTypeTable(FBt_To_Col)
+FBt_To_Col_T2T$type.from <- factor(FBt_To_Col_T2T$type.from,levels=clustOrder_FBt)
+conmatPlot <- plotConnectivityMatrix(FBt_To_Col_T2T,byGroup="type")
+print(conmatPlot)
 
-# Get the x and z bins
-x.bin <- seq(floor(min(FB_xyz$x)), ceiling(max(FB_xyz$x)), length=nbins)
-z.bin <- seq(floor(min(FB_xyz$z)), ceiling(max(FB_xyz$z)), length=nbins)
-
-# Create a 2D histogram of the FB points
-FBfreq <-  melt(table(findInterval(FB_xyz$x, x.bin),findInterval(FB_xyz$z, z.bin)))
-FBfreq2D <- diag(nbins)*0
-FBfreq2D[cbind(FBfreq[,1], FBfreq[,2])] <- FBfreq[,3]
-dimnames(FBfreq2D) <- list(x.bin, z.bin)
-FBhist.melt <- melt(FBfreq2D)
-names(FBhist.melt) <- c("x", "z", "numPts")
-
-# Make a binary mask out of the FB points
-FBhist.melt <- FBhist.melt[which(FBhist.melt$numPts>0),]
-FBhist.melt$numPts <- "FB"
-FBhist.melt$numPts <- factor(FBhist.melt$numPts, levels = PBGloms)
-
-# Get the body ids
-bodyIds = neuprint_search(paste0(type,".*"))$bodyid
-
-# Assign a color map given the number of synapsese
-cMap_R <- rainbow(0.5*length(PBGloms))
-cMap_L <- rev(rainbow(0.5*length(PBGloms)))
-cMap_Both <-  append(cMap_L,cMap_R)
-cMap_R <- append(c("#000000FF"),cMap_R)
-cMap_L <- append(c("#000000FF"),cMap_L)
-cMap_Both <- append(c("#000000FF"),cMap_Both)
-
-# Create a plot with the FB outline
-p1 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
-p2 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
-p3 <- ggplot() + geom_tile(data = FBhist.melt, aes(x = x,y = z, fill = numPts))
-
-for (bid in 1:length(bodyIds)){
-  
-  # Pull the individual PFL synapses
-  syns = neuprint_get_synapses(bodyIds[bid], roi="FB")
-  if (grepl("PRE",prePost)){
-    syns <-  syns[which(syns$prepost == 0),]
-  } else{
-    syns <- syns[which(syns$prepost == 1),]
-  }
-  if (nrow(syns)==0)
-    next
-  syns <- syns %>% mutate(name=as.character(type))%>%  mutate(x=as.numeric(x),y=as.numeric(y),z=as.numeric(z),prepost=as.logical(prepost))
-   
-  # Create a 2D histogram of the synapses
-  freq <-  melt(table(findInterval(syns$x, x.bin),findInterval(syns$z, z.bin)))
-  freq2D <- diag(nbins)*0
-  freq2D[cbind(freq[,1], freq[,2])] <- freq[,3]
-  dimnames(freq2D) <- list(x.bin, z.bin)
-  hist.melt <- melt(freq2D)
-  names(hist.melt) <- c("xPos", "zPos", "numSyns")
-  
-  # Get the PB ROI
-  ROIDat = neuprint_get_roiInfo(bodyIds[bid])
-  PBROIs = colnames(ROIDat)
-  PBROIs <- PBROIs[which(grepl("PB",PBROIs) & PBROIs != "PB.post")]
-  if (length(PBROIs) > 1){
-    PBROI = names(which.max(ROIDat[,which(colnames(ROIDat) %in% PBROIs)]))
-  } else {
-    PBROI = PBROIs
-  }
-  if (length(PBROI) == 0)
-    next
-    
-  
-  # Make a binary mask out of the synapses
-  hist.melt <- hist.melt[which(hist.melt$numSyns>0),]
-  glomIndex = PBGloms %>% lapply(function(x){grepl(x[[1]],PBROI)}) %>% unlist() %>% which() 
-  hist.melt[which(hist.melt$numSyns>=0.1),]$numSyns <- PBGloms[glomIndex]
-  hist.melt$numSyns <- factor(hist.melt$numSyns,levels=PBGloms)
-  
-  hist.melt$bodyid = bodyIds[bid]
-
-  if (grepl("R",PBROI))
-    p1 <- p1 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
-  else
-    p2 <- p2 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
-  
-  p3 <- p3 + geom_tile(data=hist.melt,aes(x=xPos,y=zPos,fill=numSyns,alpha=0.1))
-}
-
-p1 <- p1 + coord_fixed(ratio = 1) + theme_void() +
-  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_R,name = "PB Glom") +
-  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
-
-ggsave(paste0("FBColumnsPFNs_R.pdf"), p1, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-p2 <- p2 + coord_fixed(ratio = 1) + theme_void() +
-  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_L,name = "PB Glom") +
-  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
-
-ggsave(paste0("FBColumnsPFNs_L.pdf"), p2, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-p3 <- p3 + coord_fixed(ratio = 1) + theme_void() +
-  scale_x_reverse() + scale_y_reverse()  +  scale_fill_manual(values=cMap_Both,name = "PB Glom") +
-  ggtitle(paste0(as.character(type),": outputs (n=",length(bodyIds),")")) 
-
-ggsave(paste0("FBColumnsPFNs_All.pdf"), p3, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-   scale = 1.5, width = 20, height = 15, units ="cm", dpi = 72, limitsize = TRUE)
-
-library(gridExtra)
-g <- grid.arrange(p1,p2,p3,nrow=1)
-ggsave(paste0("FBColumnsPFNs_Composite.pdf"), g, device='pdf', 
-   path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\",
-   scale = 1.5, width = 20, height = 10, units ="cm", dpi = 72, limitsize = TRUE)
+FBt_To_Col_T2T <- getTypeToTypeTable(FBt_To_Col)
+FBt_To_Col_T2T$type.to <- factor(FBt_To_Col_T2T$type.to,levels=clustOrder_Col)
+conmatPlot <- plotConnectivityMatrix(FBt_To_Col_T2T,byGroup="type")
+print(conmatPlot)
 
 ```

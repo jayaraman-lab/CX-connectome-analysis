@@ -1,0 +1,129 @@
+---
+title: "Skeleton Plot"
+output: html_notebook
+---
+
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Look at the upstream partners of the IbSpsP neurons
+```{r}
+IbSpsPs <- neuprint_search("IbSpsP.*")$bodyid
+USNronsIB <- getConnectionTable(IbSpsPs,"PRE","IB") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsSPS <- getConnectionTable(IbSpsPs,"PRE","SPS(R)") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsVMNP <- getConnectionTable(IbSpsPs,"PRE","VMNP") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsINP <- getConnectionTable(IbSpsPs,"PRE","INP") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsAll <- unique(c(USNronsIB,USNronsSPS,USNronsVMNP,USNronsINP))
+
+USSkelDat <- neuprint_read_neurons(USNronsAll)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\IbSpsPsUpstreamPartners.pdf", width = 10, height = 10)
+plot(USSkelDat,WithNodes=FALSE)
+dev.off()
+
+nclear3d()
+plot3d(USSkelDat)
+```
+
+Plot the downstream partners of the FX neurons
+```{r}
+allROIs <- neuprint_ROIs()
+allROIsButFB <- allROIs[which(!grepl("FB",allROIs) & !grepl("hemibrain",allROIs))]
+```
+
+FCs
+```{r}
+FCs <- neuprint_search("FC.*")$type %>% unique()
+for (tp in 1:length(FCs)){
+  FCNow <- neuprint_search(paste0(FCs[tp],".*"))$bodyid
+  DSNronsAll <- c()
+  for (r in 1:length(allROIsButFB)){
+    DSNronsNow <- getConnectionTable(FCNow,"POST",allROIsButFB[r])
+    if (!is.null(DSNronsNow)){
+      DSNronsNow <- DSNronsNow %>% filter(ROIweight > 3) %>% 
+        select(to) %>% unique() %>% unlist() %>% as.numeric()
+        DSNronsAll <- append(DSNronsAll, DSNronsNow)
+    }
+  }
+  DSNronsAll <- DSNronsAll %>% unique()
+ 
+  DSSkelDat <- neuprint_read_neurons(DSNronsAll)
+
+  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FXDownstreamPartners\\",FCs[tp],"_DownstreamPartners.pdf"), width = 10, height = 10)
+  plot(DSSkelDat,WithNodes=FALSE,main=FCs[tp])
+  dev.off()
+}
+```
+FSs
+```{r}
+FSs <- neuprint_search("FS.*")$type %>% unique()
+for (tp in 1:length(FSs)){
+  FSNow <- neuprint_search(paste0(FSs[tp],".*"))$bodyid
+  DSNronsAll <- c()
+  for (r in 1:length(allROIsButFB)){
+    DSNronsNow <- getConnectionTable(FSNow,"POST",allROIsButFB[r])
+    if (!is.null(DSNronsNow)){
+      DSNronsNow <- DSNronsNow %>% filter(ROIweight > 3) %>% 
+        select(to) %>% unique() %>% unlist() %>% as.numeric()
+        DSNronsAll <- append(DSNronsAll, DSNronsNow)
+    }
+  }
+  DSNronsAll <- DSNronsAll %>% unique()
+ 
+  DSSkelDat <- neuprint_read_neurons(DSNronsAll)
+
+  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FXDownstreamPartners\\",FSs[tp],"_DownstreamPartners.pdf"), width = 10, height = 10)
+  plot(DSSkelDat,WithNodes=FALSE,main=FSs[tp])
+  dev.off()
+}
+```
+
+FRs
+```{r}
+FRs <- neuprint_search("FR.*")$type %>% unique()
+for (tp in 1:length(FRs)){
+  FRNow <- neuprint_search(paste0(FRs[tp],".*"))$bodyid
+  DSNronsAll <- c()
+  for (r in 1:length(allROIsButFB)){
+    DSNronsNow <- getConnectionTable(FRNow,"POST",allROIsButFB[r])
+    if (!is.null(DSNronsNow)){
+      DSNronsNow <- DSNronsNow %>% filter(ROIweight > 3) %>% 
+        select(to) %>% unique() %>% unlist() %>% as.numeric()
+        DSNronsAll <- append(DSNronsAll, DSNronsNow)
+    }
+  }
+  DSNronsAll <- DSNronsAll %>% unique()
+ 
+  DSSkelDat <- neuprint_read_neurons(DSNronsAll)
+
+  pdf(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FXDownstreamPartners\\",FRs[tp],"_DownstreamPartners.pdf"), width = 10, height = 10)
+  plot(DSSkelDat,WithNodes=FALSE,main=FRs[tp])
+  dev.off()
+}
+
+
+```
+
