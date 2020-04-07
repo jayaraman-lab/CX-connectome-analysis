@@ -1,51 +1,68 @@
+
 neuronForGG <- function(neur){UseMethod("neuronForGG")}
 
 neuronForGG.neuron <- function(neur){
-  neur$d <- mutate(neur$d,segment=0)
-  for (i in 1:length(neur$SegList)){
-    newD <- mutate(neur$d,segment=ifelse(PointNo %in% neur$SegList[[i]],i,segment))
-    neur$d <- distinct(bind_rows(neur$d,newD))
-  }
-  neur$d <- filter(neur$d,segment!=0) %>% rename(x=X,y=Y,z=Z) %>% mutate(bodyid=neur$bodyid)
-  neur$d
+  dList <- lapply(neur$SegList,function(l){filter(neur$d,PointNo %in% l)})
+  outD <- bind_rows(dList,.id="Segment") %>% rename(x=X,y=Y,z=Z) %>% mutate(bodyid=neur$bodyid)
+  outD
 }
 
 neuronForGG.neuronlist <- function(neurL){
-  bind_rows(lapply(neurL,neuronForGG))
+  outD <- bind_rows(lapply(neurL,neuronForGG)) %>% mutate(Segment = interaction(Segment,bodyid))
 }
 
-
-neuronForGGMem <- memoise::memoise(neuronForGG)
-
-ggNeuron <- function(neurGG,proj=c("x","y"),...){UseMethod("ggNeuron")}
-
-ggNeuron.neuronlist <- function(neurGG,proj=c("x","y"),...){
-  neurGG <- neuronForGGMem(neurGG)
-  ggNeuron(neurGG,proj=proj,...)
+angle <- function(x, y) {
+  atan2(y[2] - y[1], x[2] - x[1])
 }
 
-ggNeuron.neuron <- function(neurGG,proj=c("x","y"),...){
-  neurGG <- neuronForGGMem(neurGG)
-  ggNeuron(neurGG,proj=proj,...)
+## x and y are vectors of length 2
+perpUp <- function(x, y, len, a) {
+  dx <- len*cos(a + pi/2)
+  dy <- len*sin(a + pi/2)
+  upper <- c(x[1] + dx, y[1] + dy)
 }
 
-ggNeuron.data.frame <- function(neurGG,proj=c("x","y"),...){
+perpLow <-  function(x, y, len, a) {
+  dx <- len*cos(a + pi/2)
+  dy <- len*sin(a + pi/2)
+  lower <- c(x[1] - dx, y[1] - dy)
+}
+    
+
+## x and y are vectors of length 2
+perpStart <- function(x, y, len){
+  perp(x, y, len, angle(x, y), 1)
+}
+
+addOutlines <- function(neuronD){
+  out <- neuronD %>%
+    mutate(xPar = ifelse(Parent %in% PointNo,neuronD$x[match(Parent,neuronD$PointNo)],neuronD$x[match(PointNo,neuronD$Parent)]),
+           yPar = ifelse(Parent %in% PointNo,neuronD$y[match(Parent,neuronD$PointNo)],neuronD$y[match(PointNo,neuronD$Parent)]),
+          angle = atan2(y-yPar,x-xPar),
+          dx = W/2 * (cos(angle + pi/2)),
+                                                    dy = W/2 * (sin(angle + pi/2)),
+                                                    lowerX = xPar - dx,
+                                                    lowerY = yPar - dy,
+                                                    upperX = xPar +dx,
+                                                    upperY =yPar + dy) %>% arrange(PointNo)
+  data.frame(x=c(out$lowerX,rev(out$upperX)),y=c(out$lowerY,rev(out$upperY)))
+}
+
+StatNeuron <- ggproto("StatNeuron", Stat,
+                    required_aes = c("x","y","Parent","PointNo","W","group"),
+                    default_aes = aes(color=NA),
+                    compute_group = function(data, scales) {
+                       addOutlines(data)
+                    }
+)
+
+stat_neuron <- function(data = NULL, mapping = aes(Parent=Parent,PointNo=PointNo,W=W,group=Segment), geom = "polygon",
+                       position = "identity", na.rm = FALSE, show.legend = NA, 
+                       inherit.aes = TRUE, ...) {
   
- geom_path(data=neurGG,aes(x=!!as.name(proj[1]),y=!!as.name(proj[2]),group=interaction(segment,bodyid),color=bodyid),...)
-}
-
-ggSoma <- function(neurGG,proj=c("x","y"),...){UseMethod("ggSoma")}
-
-ggSoma.neuronlist <- function(neurGG,proj=c("x","y"),...){
-  neurGG <- neuronForGGMem(neurGG)
-  ggSoma(neurGG,proj=proj,...)
-}
-
-ggSoma.neuron <- function(neurGG,proj=c("x","y"),...){
-  neurGG <- neuronForGGMem(neurGG)
-  ggSoma(neurGG,proj=proj,...)
-}
-
-ggSoma.data.frame <- function(neurGG,proj=c("x","y"),...){
-    geom_circle(data=distinct(neurGG %>% filter(Label==1)),aes(x0=!!as.name(proj[1]),y0=!!as.name(proj[2]),r = W,fill=bodyid,color=bodyid),inherit.aes = FALSE,...)  # The soma
+  layer(
+    stat = StatNeuron, data = data, mapping = mapping, geom = geom, 
+    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
+    params = list(na.rm = na.rm, ...)
+  )
 }
