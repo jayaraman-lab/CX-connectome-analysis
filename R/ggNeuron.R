@@ -3,7 +3,7 @@ neuronForGG <- function(neur,axis=c("x","y")){UseMethod("neuronForGG")}
 neuronForGG.neuron <- function(neur,axis=c("x","y")){
   refT <- mutate(neur$d,x=!!as.name(toupper(axis[1])),y=!!as.name(toupper(axis[2])))
   refT <- addOutlines(refT)
-  ptsOrd <- tryCatch(treeOrder(1,neur$SegList,branchpoints(neur),refTable = refT),error=function(cond){segOrder(neur,toupper(axis[2]))})##
+  ptsOrd <- tryCatch(treeOrder(1,neur$SegList,branchpoints(neur),refTable = refT),error=function(cond){segOrder(neur,toupper(axis[2]))})##segOrder(neur,toupper(axis[2]))#
   refT <- left_join(ptsOrd,refT,by = c("idx" = "PointNo"))
   refT <- mutate(refT,x=ifelse(side=="upper",upperX,lowerX),y=ifelse(side=="upper",upperY,lowerY)) %>% mutate(bodyid=neur$bodyid)
   refT %>% select(x,y,bodyid)
@@ -74,14 +74,15 @@ segOrder <- function(neuronOb,ax="Y"){
   V(nGraph)$name <-  V(nGraph)$label
   tree <- as_data_frame(nGraph)
   
-  roots <- (filter(tree,rootpoints(neuronOb)==from) %>% arrange(weight))$segid
+  roots <- (filter(tree,rootpoints(neuronOb)==from) %>% arrange(desc(weight)))$segid
+  baseTree <- unlist(lapply(roots,iterativePreorder,tree))
+  startVertices <- match(tree$to,V(nGraph)$name)
+  allSubTrees <- lapply(startVertices,function(r){na.omit(dfs(nGraph,r,unreachable=FALSE)$order)$name})
+  allSubTrees<- lapply(allSubTrees,function(s) filter(tree,to %in% s)$segid)
+  allSubTrees <- lapply(1:length(baseTree),function(i) baseTree[baseTree %in% c(i,allSubTrees[[i]])])
   
-  
-  allSubTrees <- lapply(1:(length(neuronOb$SegList)),function(r){iterativePreorder(r,tree)})
-  
-  baseTree <- unlist(allSubTrees[roots])
   for (i in (baseTree)){
-    baseTree <- append(baseTree,-i,after=tail(which(baseTree == tail(allSubTrees[[i]],1)),1))
+    baseTree <- append(baseTree,-i,after=tail(which(baseTree == tail(allSubTrees[[i]],1),1)))
   }
   idx <- integer()
   side <- character()
@@ -98,9 +99,7 @@ segOrder <- function(neuronOb,ax="Y"){
   data.frame(idx=idx,side=side)
 }
 
-
-
- 
+# all argument to return all the subtrees?
 iterativePreorder <- function(node,tree){  
   if (is.null(node)) return(NULL)
   todo <- c()
