@@ -1,8 +1,8 @@
 source("neuprintQueryUtils.R")
 source("R/supertypeUtils.R")
-source("R/rois.R")
 library(pbapply)
 library(ggnewscale)
+#library(ggiraph)
 library(paletteer)
 
 ## Define an S3 class, neuronBag, to hold the connectivity information of a bunch of neurons
@@ -412,7 +412,8 @@ haneschPlot <- function(roiTable,
                         alphaRois=0.15,
                         roiLabel=selectRoiSet(getRoiTree(),default_level = 0),
                         regionOutlines=T,
-                        theme=theme_minimal()){
+                        theme=theme_minimal(),
+                        interactive=FALSE){
   roiTable <- roiTable %>% filter(roi %in% unique(roiSelect$roi))  %>% 
                       mutate(roi = factor(roi,levels=levels(roiSelect$roi)),
                              l4 = roiSelect$level4[match(roi,roiSelect$roi)],
@@ -435,8 +436,12 @@ haneschPlot <- function(roiTable,
     geom_rect(data=roiPos,aes(xmin=xmin,xmax=xmax,ymin=-Inf,ymax=Inf,fill=superroi),alpha=alphaRois,inherit.aes = F) + 
               scale_fill_manual(name="Brain region",values=roiP,guide = guide_legend(reverse = TRUE)) +
               new_scale_fill()}
+  if (interactive){
+    hanesch <- hanesch + geom_point_interactive(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type,tooltip=OutputWeight),shape=21,alpha=alphaG)}
+  else{
   hanesch <- hanesch + 
-    geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)+
+    geom_point(data=roiTable,aes(size=fullWeight,fill=deltaWeight,x=roi,y=type),shape=21,alpha=alphaG)}
+  hanesch <- hanesch +
     scale_fill_gradient(name="Polarity",breaks=c(-1,-0.5,0,0.5,1),labels=c("Receives inputs","","Mixed","","Sends outputs"),low = "white", high = "black",
                         space = "Lab") +
     guides(fill = guide_legend(override.aes = list(size=5))) +
