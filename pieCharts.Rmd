@@ -29,12 +29,12 @@ source("connectionPieChart.R")
 
 ### Construct neuron bag for type of interest
 ```{r}
-myType = "PVL06h_pct"
+myType = "EPG"
 myType_bag = buildInputsOutputsByType(myType)
 
-slctROIs = c("EB","LAL(R)","WED(R)", "CRE(R)", "EPA(R)") #"LAL(-GA)(R)", "GA(R)",
+slctROIs = c("PB", "FB", "NO", "EB","LAL(R)","WED(R)", "CRE(R)", "EPA(R)") #"LAL(-GA)(R)", "GA(R)",
 # Filter out neurons from left side?
-splitLR = TRUE
+splitLR = FALSE
 if(splitLR){myType = paste0(myType,"_L")}
 
 saveDir = "../neuprintR_analysis_plots/mechanoPW/"
@@ -73,7 +73,7 @@ if(length(myTypeOut$roi)>0){
   fig_out
   
   orca(fig_out, file = paste0(saveDir,"pieChart_",myType,"_out.pdf"))
-}
+} 
 
 fig_in
 fig_out
