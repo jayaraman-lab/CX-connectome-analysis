@@ -1,0 +1,142 @@
+---
+title: "PB Glom 9 connectivity"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Get all neurons that arborize in glomeruli 9L and 9R and plot their connectivity matrix
+```{r}
+synCutoff <- 2
+Glom9Nrons <- rbind(neuprint_bodies_in_ROI("PB(R9)"),
+                    neuprint_bodies_in_ROI("PB(L9)"))
+Glom9Nrons <- Glom9Nrons %>% mutate(type = neuprint_get_meta(bodyid)$type) %>% filter(roipost > synCutoff | roipre > synCutoff)
+Glom9Types <- Glom9Nrons$type %>% unique() %>% sort()
+
+Glom9_Post = rbind(getConnectionTable(getBodyIdsForList(Glom9Types),"POST","PB(R9)"),
+                   getConnectionTable(getBodyIdsForList(Glom9Types),"POST","PB(L9)"))
+
+conmatPlot <- plotConnectivityMatrix(Glom9_Post,byGroup="id")
+conmatPlot <- structureMatrixPlotByType(conmatPlot)
+
+print(conmatPlot)
+
+P68P9_Pre = getConnectionTable(getBodyIdsForList("P6-8P9"),"PRE","PB")
+
+conmatPlot_P68P9Pre <- plotConnectivityMatrix(P68P9_Pre,byGroup="id")
+conmatPlot_P68P9Pre <- structureMatrixPlotByType(conmatPlot_P68P9Pre)
+
+print(conmatPlot_P68P9Pre)
+
+P68P9_Post =getConnectionTable(getBodyIdsForList("P6-8P9"),"POST","PB")
+
+conmatPlot_P68P9Post <- plotConnectivityMatrix(P68P9_Post,byGroup="id")
+conmatPlot_P68P9Post <- structureMatrixPlotByType(conmatPlot_P68P9Post)
+
+print(conmatPlot_P68P9Post)
+```
+
+Select a subset of the above and also plot the P6-8P9 presynaptic partners
+```{r}
+Glom9_Post_Filt <- Glom9_Post %>% filter(type.from %in% c("Delta7","EPGt","LPsP","IbSpsP","P6-8P9"))
+Glom9_Post_Filt <- Glom9_Post_Filt %>% filter(grepl("9",name.to) | type.to == "Delta7" | type.to == "LPsP")
+
+Glom9_Post_Filt$nameid.from = paste(as.character(Glom9_Post_Filt$name.from), as.character(Glom9_Post_Filt$from), sep = "_")
+Glom9_Post_Filt$nameid.to = paste(as.character(Glom9_Post_Filt$name.to), as.character(Glom9_Post_Filt$to), sep = "_")
+
+namesFrom <- Glom9_Post_Filt$nameid.from %>% unique()
+nmOrder <- c("Delta7","P6-8P9","IbSpsP","EPGt","LPsP")
+namesFromOrdered <- c()
+for (o in 1:length(nmOrder)){
+  namesFromOrdered <- append(namesFromOrdered,
+                             sort(namesFrom[which(grepl(nmOrder[o],namesFrom))]))
+}
+Glom9_Post_Filt$nameid.from <- factor(Glom9_Post_Filt$nameid.from,levels = namesFromOrdered)
+Glom9_Post_Filt$type.from <- factor(Glom9_Post_Filt$type.from,levels = rev(nmOrder))
+
+cmax = max(Glom9_Post_Filt$weightRelative)
+  
+conmatPlot_Filt = ggplot(Glom9_Post_Filt) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=weightRelative)) +
+  theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+        strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50"),
+        text = element_text(size=6)) +
+  facet_grid(type.from ~ type.to, space="free", scales="free",switch="both") +
+  ggtitle("select connectivity in R9 and L9")
+
+print(conmatPlot_Filt)
+
+P68P9_Pre_Filt <- P68P9_Pre
+D7_Pre = getConnectionTable(getBodyIdsForList("Delta7"),"PRE","PB")
+
+conmatPlot_P68P9Pre_Filt <- plotConnectivityMatrix(rbind(P68P9_Pre_Filt,D7_Pre) ,byGroup="id")
+conmatPlot_P68P9Pre_Filt <- structureMatrixPlotByType(conmatPlot_P68P9Pre_Filt) + ggtitle("PB inputs to P6-8P9 and D7s") + 
+  theme(text = element_text(size=6))
+
+print(conmatPlot_P68P9Pre_Filt)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\Glom9_Summary.pdf", width = 15, height = 5)
+print(grid.arrange(conmatPlot_Filt,conmatPlot_P68P9Pre_Filt,
+                   layout_matrix = rbind(c(1,1,1,2))))
+dev.off()
+```
+
+Compare neurons that arborize in gloms 1 vs 9
+```{r}
+synCutoff <- 2
+Glom9Nrons <- rbind(neuprint_bodies_in_ROI("PB(R9)"),
+                    neuprint_bodies_in_ROI("PB(L9)"))
+Glom9Nrons <- Glom9Nrons %>% mutate(type = neuprint_get_meta(bodyid)$type) %>% filter(roipost > synCutoff | roipre > synCutoff)
+Glom9Types <- Glom9Nrons$type %>% unique() %>% sort()
+print(Glom9Types)
+
+synCutoff <- 2
+Glom1Nrons <- rbind(neuprint_bodies_in_ROI("PB(R1)"),
+                    neuprint_bodies_in_ROI("PB(L1)"))
+Glom1Nrons <- Glom1Nrons %>% mutate(type = neuprint_get_meta(bodyid)$type) %>% filter(roipost > synCutoff | roipre > synCutoff)
+Glom1Types <- Glom1Nrons$type %>% unique() %>% sort()
+print(Glom1Types)
+
+Glom9_CT = rbind(rbind(getConnectionTable(getBodyIdsForList(Glom9Types),"POST","PB(R9)"),
+                       getConnectionTable(getBodyIdsForList(Glom9Types),"POST","PB(L9)")),
+                 rbind(getConnectionTable(getBodyIdsForList(Glom9Types),"PRE","PB(R9)"),
+                       getConnectionTable(getBodyIdsForList(Glom9Types),"PRE","PB(L9)")))
+
+conmatPlot9 <- plotConnectivityMatrix(Glom9_CT,byGroup="id")
+conmatPlot9 <- structureMatrixPlotByType(conmatPlot9)
+
+Glom1_CT = rbind(rbind(getConnectionTable(getBodyIdsForList(Glom1Types),"POST","PB(R1)"),
+                       getConnectionTable(getBodyIdsForList(Glom1Types),"POST","PB(L1)")),
+                 rbind(getConnectionTable(getBodyIdsForList(Glom1Types),"PRE","PB(R1)"),
+                       getConnectionTable(getBodyIdsForList(Glom1Types),"PRE","PB(L1)")))
+
+conmatPlot1 <- plotConnectivityMatrix(Glom1_CT,byGroup="id")
+conmatPlot1 <- structureMatrixPlotByType(conmatPlot1)
+
+print(conmatPlot9)
+print(conmatPlot1)
+```

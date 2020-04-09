@@ -12,6 +12,7 @@ library(tidygraph)
 library(ggraph)
 library(gridExtra)
 library(reshape2)
+library(paletteer)
 
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
@@ -437,36 +438,29 @@ Function to plot mean and sd of partner weights from a connection table with ONE
 ```{r}
 connectivityBarPlot <- function(df,prepost){
   
-  dfMean <- aggregate(weight~partnerType,
-                      df,
-                      mean)
-  dfSD <- aggregate(weight~partnerType,
-                      df,
-                      sd)
-  colnames(dfMean)[2] <- "mean"
-  colnames(dfSD)[2] <- "sd"
-  df <- merge(dfMean, dfSD,by="partnerType")
+  nronType = c("Delta7","EPG","EPGt","LPsP","P1-9","P6-8P9","PEG","PEN_a(PEN1)","PEN_b(PEN2)",
+               "PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNv",
+               "SpsP")
+  colScale <- scale_fill_manual(values = paletteer_d("Polychrome::palette36"),drop=TRUE,limits = nronType)
   
-    dodge <- position_dodge(width = 0.9)
-  limits <- aes(ymax = df$mean + df$sd,
-                ymin = df$mean - df$sd)
-
-  p <- ggplot(data = df, aes(x = reorder(as.factor(partnerType), -mean), y = mean, fill = partnerType)) + 
-  geom_bar(stat = "identity", position = dodge) +
-  geom_errorbar(limits, position = dodge, width = 0.25) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1),text = element_text(size=12)) +
-  xlab('neuron type') + theme(legend.position="none")
+  dodge <- position_dodge(width = 0.9)
+  limits <- aes(ymax = weightRelative + varWeight,
+                ymin = weightRelative - varWeight)
   
-  if (grepl(prepost,"PRE")){
-    p <- p + ylab("PSDs")
+  if (prepost == "PRE"){
+    p <- ggplot(data = df, aes(x = reorder(as.factor(type.from), -weightRelative), y = weightRelative, fill = type.from))
+  } else {
+    p <- ggplot(data = df, aes(x = reorder(as.factor(type.to), -weightRelative), y = weightRelative, fill = type.to))
+  }
     
-  }
-  if (grepl(prepost,"POST")){
-    p <- p  + ylab("tbars") 
-  }
- 
-
+  p <- p + 
+    geom_bar(stat = "identity", position = dodge) +
+    geom_errorbar(limits, position = dodge, width = 0.25) +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1),text = element_text(size=8)) +
+    xlab('neuron type') + theme(legend.position="none") + 
+    scale_y_continuous(expand = c(0, 0)) + colScale
   
   return(p)
 }
@@ -474,76 +468,76 @@ connectivityBarPlot <- function(df,prepost){
 
 Look at IbSpsP inputs
 ```{r}
-IbSpsP_Pre <- getConnectionTable(getBodyIdsForList(c("IbSpsP")),"PRE","IB")
-p <- connectivityBarPlot(IbSpsP_Pre,"PRE") + ggtitle("IbSpsP inputs")
-print(p)
-ggsave("IbSpsPInputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+IbSpsP_Post <- getConnectionTable(getBodyIdsForList(c("IbSpsP")),"POST","PB")
+IbSpsP_Post_T2T <- getTypeToTypeTable(IbSpsP_Post)
+pIbSpsP <- connectivityBarPlot(IbSpsP_Post_T2T[1:17,],"POST") + ggtitle("IbSpsP outputs")
+print(pIbSpsP)
 ```
 
 
 PB-Sps only synapses on PFNds
 ```{r}
 SpsP_Post <- getConnectionTable(getBodyIdsForList(c("SpsP")),"POST","PB")
+SpsP_Post_T2T <- getTypeToTypeTable(SpsP_Post)
+pSpsP <- connectivityBarPlot(SpsP_Post_T2T,"POST") + ggtitle("SpsP outputs")
+print(pSpsP)
 
-p <- connectivityBarPlot(SpsP_Post,"POST") + ggtitle("SpsP outputs")
-print(p)
-
-ggsave("SpsPOutputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 LPsP inputs and outputs
 ```{r}
 LPsP_Post <- getConnectionTable(getBodyIdsForList(c("LPsP")),"POST","PB")
-p <- connectivityBarPlot(LPsP_Post,"POST") + ggtitle("LPsP outputs")
-print(p)
-ggsave("LPsPOutputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+LPsP_Post_T2T <- getTypeToTypeTable(LPsP_Post)
+pLPsP_Post <- connectivityBarPlot(LPsP_Post_T2T,"POST") + ggtitle("LPsP outputs")
+print(pLPsP_Post)
 
 LPsP_Pre <- getConnectionTable(getBodyIdsForList(c("LPsP")),"PRE","PB")
-p <- connectivityBarPlot(LPsP_Pre,"PRE") + ggtitle("LPsP inputs")
-print(p)
-ggsave("LPsPInputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+LPsP_Pre_T2T <- getTypeToTypeTable(LPsP_Pre)
+pLPsP_Pre <- connectivityBarPlot(LPsP_Pre_T2T,"PRE") + ggtitle("LPsP inputs")
+print(pLPsP_Pre)
 ```
 
-Look more closely at the P6-8P9
-```{r}
-P68P9_Post <- getConnectionTable(getBodyIdsForList(c("P6-8P9")),"POST","PB")
-p <- connectivityBarPlot(P68P9_Post,"POST") + ggtitle("P6-8P9 outputs")
-print(p)
-ggsave("P6-8P9Outputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-
-P68P9_Pre <- getConnectionTable(getBodyIdsForList(c("P6-8P9")),"PRE","PB")
-p <- connectivityBarPlot(P68P9_Pre,"PRE") + ggtitle("P6-8P9 inputs")
-print(p)
-ggsave("P6-8P9Inputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
-```
 
 Look at P1-9 inputs and outputs
 ```{r}
 P19_Post <- getConnectionTable(getBodyIdsForList(c("P1-9")),"POST","PB")
-p <- connectivityBarPlot(P19_Post,"POST") + ggtitle("P1-9 outputs")
-print(p)
-ggsave("P1-9Outputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+P19_Post_T2T <- getTypeToTypeTable(P19_Post)
+pp19_Post <- connectivityBarPlot(P19_Post_T2T,"POST") + ggtitle("P1-9 outputs")
+print(pp19_Post)
 
 P19_Pre <- getConnectionTable(getBodyIdsForList(c("P1-9")),"PRE","PB")
-p <- connectivityBarPlot(P19_Pre,"PRE") + ggtitle("P1-9 inputs")
-print(p)
-ggsave("P1-9Inputs.pdf", plot = last_plot(), device='pdf', 
-       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
-       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+P19_Pre_T2T <- getTypeToTypeTable(P19_Pre)
+pp19_Pre <- connectivityBarPlot(P19_Pre_T2T,"PRE") + ggtitle("P1-9 inputs")
+print(pp19_Pre)
+```
+
+Compare EPG and EPGt connectivity
+```{r}
+EPG_CT_PB <- getConnectionTable(getBodyIdsForList(c("EPG")),"POST","PB")
+conmatPlot_EPG_PB <- plotConnectivityMatrix(EPG_CT_PB,byGroup="id")
+conmatPlot_EPG_PB <- structureMatrixPlotByType(conmatPlot_EPG_PB) + ggtitle("EPG and EPGt outputs in the PB")
+print(conmatPlot_EPG_PB)
+
+EPG_CT_EB <- getConnectionTable(getBodyIdsForList(c("EPGt")),"PRE","EB")
+conmatPlot_EPG_EB <- plotConnectivityMatrix(EPG_CT_EB,byGroup="id")
+conmatPlot_EPG_EB <- structureMatrixPlotByType(conmatPlot_EPG_EB) + ggtitle("EPGt inputs in the EB")
+print(conmatPlot_EPG_EB)
+```
+
+Put everything into one figure
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\PB_NewNeuronSummary.pdf", width = 10, height = 10)
+print(grid.arrange(pIbSpsP,
+                   pSpsP,
+                   pLPsP_Pre,
+                   pLPsP_Post,
+                   pp19_Pre,
+                   pp19_Post,
+                   conmatPlot_EPG_EB,
+                   conmatPlot_EPG_PB,
+                   layout_matrix = rbind(c(1,3,5,7),c(2,4,6,7),c(8,8,8,8)
+                                         )))
+dev.off()
 ```
 
 Show EB<->PB and FB<->PB connections
@@ -594,7 +588,6 @@ ggsave("PBToFBConnections.pdf", plot = last_plot(), device='pdf',
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
-
 Look at P1-9s
 ```{r}
 P19Inputs = getConnectionTable(getBodyIdsForList("P1-9")$bodyid,"PRE", "PB")
