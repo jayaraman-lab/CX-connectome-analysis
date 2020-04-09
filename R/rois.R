@@ -1,5 +1,6 @@
 library(paletteer)
 library(alphahull)
+source("InputOutputByTypeUtils.R")
 
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
