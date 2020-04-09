@@ -1,0 +1,204 @@
+---
+title: "Tools for analysing connectivity between neurons within a region"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+options(nat.plotengine = 'rgl')
+
+neuprint_login()
+```
+
+```{r, messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("neuprintQueryUtils.R")
+source("visualizeConnectivityTables.R")
+source("R/rois.R")
+
+# To be able to use ? for accessing doc strings in custom functions, please install the "docstring" package. Alternatively use docstring(function)
+#library(docstring)
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
+```{r}
+ROI = "FB"
+slctROI = "FB"#"LAL(-GA)(R)"
+
+splitLR = FALSE
+
+saveName = paste0("FBall_",slctROI)
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+useCuratedListPost = FALSE#
+useCuratedListPre = FALSE#
+
+```
+
+```{r}
+roiTable = getNeuronsInRoiTable(slctROI,minTypePercentage=0.5)
+```
+
+
+### Get connectivity table
+```{r, warning=FALSE}
+myConnections = getConnectionTable_forSubset(roiTable$bodyid,roiTable$bodyid, slctROI)
+```
+
+```{r}
+myConnections_simple = simplifyConnectionTable(myConnections)
+
+typesTable <- getTypesTable(unique(myConnections_simple$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  myConnections_simple = lrSplit(myConnections_simple, nameCol="name.to",typeCol="type.to")
+  myConnections_simple = lrSplit(myConnections_simple, nameCol="name.from",typeCol="type.from")
+  typesTable = lrSplit(typesTable, nameCol="name",typeCol="type")
+}
+```
+
+```{r}
+myConnectionsT2T = getTypeToTypeTable(myConnections_simple,typesTable = typesTable)
+
+ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.from)) + 
+  #geom_label(aes(label=as.character(type.to)), position = "nudge") + 
+  geom_point()
+ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.to)) + 
+  #geom_label(aes(label=as.character(type.to)), position = "nudge") + 
+  geom_point()
+
+```
+
+###  Draw graph
+
+```{r, warning=FALSE} 
+source("visualizeConnectivityTables.R")
+require(igraph)
+
+connectionMeasures = c("weightRelative","weightROIRelativeTotal")
+connectionMeasure = connectionMeasures[1]
+cutoff = 0.01 # for weight 0.05, 0.01, 0
+
+showself = FALSE
+
+# drop na in "to" column
+myConnectionsT2T = myConnectionsT2T %>% 
+  drop_na(type.to) #%>%
+  #filter(supertype.to2 %in% c("FBt"))
+
+graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T$weightRelative)
+
+graphData_noSelf = getNoSelfGraphData(graphData)  
+graphData_self = getSelfFBGraphData(graphData)
+
+if (showself){
+  graphData = graphData
+  graphName = saveName
+} else {
+  graphData = left_join(graphData_noSelf, graphData_self)
+  graphName = paste0(saveName, "_noSelf")
+}
+
+# Graph parameter
+largeGraph = TRUE
+selfFeedbackScale = 10
+edcurve = 0.2# 0.5
+if(largeGraph){
+  vertexSize = 5#+ 7 * graphData$relWeightSelf * selfFeedbackScale
+  plotSize = 15
+}else{
+  vertexSize = 12 #+ 12 * graphData$relWeightSelf * selfFeedbackScale
+  
+  plotSize = 10
+}
+
+selfFBscale = vertexSize
+arrowSize= 0
+
+edgeNorm = 0.05#0.07#0.03#
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm)
+
+
+# remove isolated nodes
+#Isolated = which(degree(myGraph) == 0)
+#myGraph = delete.vertices(myGraph, Isolated)
+
+l = layout_with_dh(myGraph)#layout_with_fr(myGraph)#
+
+myGraph$main = paste0("Connectivity within the ",slctROI)
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.5 curved if edges overlap
+
+#dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
+#                      "_",connectionMeasure, round(100*cutoff),"perc.pdf"), width=plotSize, height=plotSize)
+```
+```{r}
+connectGraph = graph_from_data_frame(graphData)
+
+connectGraph_ud = as.undirected(connectGraph, mode = "each")
+ceb <- cluster_edge_betweenness(connectGraph_ud) 
+
+dendPlot(ceb, mode="hclust")
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_dendrogram_",graphName,'_in_',slctROI,".pdf"), width=30, height=10)
+```
+
+```{r}
+V(connectGraph_ud)$size = 5
+plot(ceb, connectGraph_ud) 
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_communities_",graphName,'_in_',slctROI,".pdf"), width=30, height=30)
+```
+
+```{r}
+typeMembership = stack(membership(ceb))
+
+# find layer 6 cluster
+FB6A_group = typeMembership %>% filter(ind == "FB6A") %>% select(values)
+FB6A_group = as.numeric(FB6A_group)
+
+FB6A_group_members = typeMembership %>% filter(values == FB6A_group) %>% select(ind)
+as.character(FB6A_group_members$ind)
+```
+
+```{r}
+source("visualizeConnectivityTables.R")
+
+myConnectionsT2T_group = myConnectionsT2T %>% 
+  filter(type.to %in% as.character(FB6A_group_members$ind)) %>% 
+  filter(type.from %in% as.character(FB6A_group_members$ind)) 
+
+graphData_group = data.frame(from = myConnectionsT2T_group$type.from, to = myConnectionsT2T_group$type.to, relWeight = myConnectionsT2T_group$weightRelative)
+
+graphData_noSelf = getNoSelfGraphData(graphData_group)  
+graphData_self = getSelfFBGraphData(graphData_group)
+
+myGraph = constructConnectivityGraph(graphData_group, cutoff=0.05, vertexSize, selfFBscale, arrowSize, edgeNorm, useRandCol = TRUE)
+
+l = layout_with_fr(myGraph)#layout_with_fr(myGraph)#
+
+myGraph$main = paste0("Connectivity within the ",slctROI)
+plot(myGraph,edge.curved=0.15, layout=l, edge.color = customizeGraphEdges(myGraph)) # use 0.15 curved if edges overlap
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_FB6Acommunity_",graphName,'_in_',slctROI,".pdf"), width=30, height=30)
+
+```
+
+
+
+```{r}
+colrs <- adjustcolor( c("gray50", "tomato", "gold", "yellowgreen"), alpha=.6)
+
+kc <- coreness(myGraph, mode="all")
+
+plot(myGraph, vertex.size=kc*6, vertex.label=kc, vertex.color=colrs[kc])
+
+```
