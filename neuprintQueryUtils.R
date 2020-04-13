@@ -75,6 +75,12 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   myConnections <- filter(myConnections,partnerMeta$status =="Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
   
+  processConnectionTable(myConnections,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,...)  
+}
+
+processConnectionTable <- function(myConnections,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,...){  
+  
+  
   refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
   refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
 
