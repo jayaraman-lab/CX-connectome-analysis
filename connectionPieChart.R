@@ -1,6 +1,6 @@
 # Utility functions for generating hierarchical pie charts (similar to those shown on neuprint explorer)
 
-prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  splitLR = TRUE, myType = NULL, minweight = 0){
+prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  splitLR = TRUE, myType = NULL, minweight = 0, minrelweight=0){
   #' Prepare neuron bag data for plotting of pie chart..
   #' @param myType_bag: Neuron bag object for type of interest
   #' @param partnerDirection: Chose "input" vs. "output" partners
@@ -8,6 +8,7 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
   #' @param splitLR: Split types into left and right population.
   #' @param myType: Optional filtering for subtype in neuron bag.
   #' @param minweight: Option to filter by fraction of contribution to inputs/outputs per region.
+  #' @param minrelweight: Option to filter by relative fraction of contribution to inputs/outputs per region.
   
   if(splitLR){
     myType_bag = lateralizeInputOutputList(myType_bag)
@@ -30,14 +31,14 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
   }
   
   myTypeData = myTypeData %>% group_by(target, partnerType, roi) %>% 
-    summarise(sumweight = sum(weightRelativeTotal)) %>% filter(sumweight >= minweight) #Note: ROIweight likely used on neuprint explorer
+    summarise(sumrelweight = sum(weightRelativeTotal), sumweight = sum(weight)) %>% filter(sumweight >= minweight & sumrelweight >= minrelweight) #Note: ROIweight likely used on neuprint explorer
   
   if(!is.null(slctRoi)){
     myTypeData = myTypeData %>% filter(roi %in% slctRoi)
   }
   
   myTypeData = myTypeData %>% group_by(roi, partnerType) %>% 
-    summarise(avWeight = mean(sumweight)) %>% 
+    summarise(avWeight = mean(sumrelweight)) %>% 
     arrange(roi, partnerType) %>% ungroup() 
   
   myTypeData$roi = as.factor(myTypeData$roi)
