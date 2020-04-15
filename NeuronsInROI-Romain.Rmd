@@ -56,13 +56,25 @@ EBSummary <- getROISummary(EBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB)
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE)
 haneschEB_R
 ```
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 14,height=6)
 ggsave(paste0(haneschSaveFolder,"EB/EBTypesRight.svg"),haneschEB_R,width = 14,height=6)
+```
+
+```{r}
+interHaneschEB_R <- girafe(ggobj = haneschEB_R, width_svg=14,height_svg=6,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschEB_R,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.html")
+htmlwidgets::saveWidget(interHaneschEB_R,paste0(haneschSaveFolder,"EB/EBTypesRight.html"))
 ```
 
 How do those compare to the Brad Types
@@ -100,11 +112,23 @@ NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO)
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE)
 ```
 
 ```{r}
 haneschNOR
+```
+
+```{r}
+interHaneschNOR <- girafe(ggobj = haneschNOR, width_svg=15,height_svg=8,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschNOR,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.html")
+htmlwidgets::saveWidget(interHaneschNOR,paste0(haneschSaveFolder,"NO/NO_RTypes.html"))
 ```
 
 
@@ -151,8 +175,19 @@ PBSummary <- getROISummary(PBTypesTable,filter=FALSE)
 ```
 
 ```{r}
-haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB)
+haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE)
 haneschPB
+```
+```{r}
+interHaneschPB <- girafe(ggobj = haneschPB, width_svg=19,height_svg=8,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschPB,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.html")
+htmlwidgets::saveWidget(interHaneschPB,paste0(haneschSaveFolder,"PB/PBTypes.html"))
 ```
 
 ```{r}
@@ -174,7 +209,7 @@ PBTypes$databaseType[!(PBTypes$databaseType %in% PB_Type)]
 # FB
 Tighten your seat belts, there are many neurons here.
 ```{r}
-FBTypesTable <- getTypesInRoiTable("FB",big = T,lateralize = F,clN = 10)
+FBTypesTable <- getTypesInRoiTable("FB",lateralize = F)
 ```
 
 ```{r}
@@ -197,8 +232,20 @@ FBSummary <- getROISummary(FBTypesTable,filter=TRUE)
 ```
 
 ```{r}
-haneschFBtR <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & supertype2 == "FBt" & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1")
+haneschFBtR <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & supertype2 == "FBt" & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE)
 haneschFBtR
+```
+
+```{r}
+interHaneschFBtR <- girafe(ggobj = haneschFBtR, width_svg=25,height_svg=8,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschFBtR,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschTangentialRight.html")
+htmlwidgets::saveWidget(interHaneschFBtR,paste0(haneschSaveFolder,"FB/FBTangentialsRight.html"))
 ```
 
 ```{r}
@@ -207,8 +254,20 @@ ggsave(paste0(haneschSaveFolder,"FB/FBTangentialsRight.svg"),haneschFBtR,width =
 ```
 
 ```{r}
-haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2")
+haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
 haneschFBOutLay
+```
+
+```{r}
+interHaneschFBQL <- girafe(ggobj = haneschFBOutLay, width_svg=12,height_svg=8,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschFBQL,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFB-QsLeft.html")
+htmlwidgets::saveWidget(interHaneschFBQL,paste0(haneschSaveFolder,"FB/FBQsLeft.html"))
 ```
 
 ```{r}
@@ -217,9 +276,21 @@ ggsave(paste0(haneschSaveFolder,"FB/FBQsLeft.svg"),haneschFBOutLay,width = 12,he
 ```
 
 ```{r}
-haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2")
+haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
 haneschFBColL
 ```
+```{r}
+interHaneschFBColL <- girafe(ggobj = haneschFBColL, width_svg=12,height_svg=8,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschFBColL,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBColumnarLeft.html")
+htmlwidgets::saveWidget(interHaneschFBColL,paste0(haneschSaveFolder,"FB/FBColumnarLeft.html"))
+```
+
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBColumnarLeft.svg",haneschFBColL,width = 12,height=8)
 ggsave(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,width = 12,height=8)
@@ -227,6 +298,39 @@ ggsave(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,width = 12,he
 
 ```{r}
 FBSuperSummary <- compressROISummary(FBSummary %>% filter(type %in% FBTypes$type),level = 1,stat = sum)
+```
+
+```{r}
+haneschDeltas <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Interneuron") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
+haneschDeltas
+```
+```{r}
+interHaneschDelta <- girafe(ggobj = haneschDeltas, width_svg=10,height_svg=7,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschDelta,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBDeltas.html")
+htmlwidgets::saveWidget(interHaneschDelta,paste0(haneschSaveFolder,"FB/FBDeltas.html"))
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBDeltas.svg",haneschDeltas,width = 10,height=7)
+ggsave(paste0(haneschSaveFolder,"FB/FBDeltas.svg"),haneschDeltas,width = 10,height=7)
+```
+
+### Full FB schematic?
+```{r}
+library(cowplot)
+```
+```{r}
+fbSummary <- plot_grid(haneschFBColL,haneschDeltas,haneschFBOutLay,nrow = 1)
+```
+
+```{r}
+ggsave(paste0(haneschSaveFolder,"FB/FBSummary.svg"),fbSummary,width = 30,height=7)
 ```
 
 

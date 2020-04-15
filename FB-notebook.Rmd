@@ -600,7 +600,7 @@ dev.off()
 ```
 
 ############################################################
-Look at tangential cells
+Try clustering, graph analyses on FB network
 ############################################################
 
 Get the connection tables
@@ -659,6 +659,7 @@ conmatPlot_FBt <- conmatPlot_FBt +
   theme(axis.text.x = element_text(size=2),
                 axis.text.y = element_text(size=2)) +
   ggtitle("FBt to FBt")
+
 conmatPlot_Clust <- conmatPlot_Clust + 
   theme(axis.text.x = element_text(size=4),
                 axis.text.y = element_text(size=2)) +
@@ -739,8 +740,12 @@ pFB_Post <- pFB_Post +
 pFB_Pre <- pFB_Pre +
   ggtitle("pre synaptic clustering")
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\AllFBClustering.pdf", width = 10, height = 10)
-print(grid.arrange(pFB_Post,pFB_Pre,ncol=1))
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\AllFBClustering_Pre.pdf", width = 10, height = 10)
+print(pFB_Pre)
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\AllFBClustering_Post.pdf", width = 10, height = 10)
+print(pFB_Post)
 dev.off()
 ```
 
@@ -813,3 +818,46 @@ dendPlot <- function(hc,rotate){
   return(p)
 }
 ```
+
+Create an igraph network of the FB connections
+First, get the type to type connectivity table
+```{r}
+nrons = c("PF","FC","FR","FS","Delta0","Delta6","FB")
+FB_Post = getConnectionTable(getBodyIdsForList(c(nrons)),"POST","FB")
+FB_T2T <- getTypeToTypeTable(FB_Post)
+```
+
+Now, convert it into an igraph function
+```{r}
+library(igraph)
+FBNodes <- c(FB_T2T$type.to,FB_T2T$type.from) %>% unique() %>% as.data.frame()
+colnames(FBNodes) <- "nodes"
+FBNodes$supertype <- FBNodes$nodes %>% as.character() %>% supertype()
+sTs <- unique(FBNodes$supertype)
+pcCols <- paletteer_d("Polychrome::palette36")
+sTsCols <- c(pcCols[35],pcCols[32],pcCols[2],pcCols[8],
+             pcCols[24],pcCols[24],pcCols[17],pcCols[9],
+             pcCols[3],pcCols[1],pcCols[7],pcCols[24],
+             pcCols[26],pcCols[24],pcCols[24],pcCols[24],
+             pcCols[24])
+
+FBEdges <- FB_T2T %>% mutate(from = type.from, to = type.to, weight = weightRelative) %>%
+  select(from,to,weight)
+FBEdges$supertype.from <- FBEdges$from %>% as.character() %>% supertype()
+
+g <- graph_from_data_frame(FBEdges, directed = TRUE, vertices = FBNodes)
+
+
+E(g)$weight <- FBEdges$weight
+E(g)$color <- sapply(FBEdges$supertype.from, function(st){sTsCols[which(st==sTs)]})
+V(g)$label.cex = 0.6
+V(g)$label.color = "black"
+V(g)$color = sapply(FBNodes$supertype, function(st){sTsCols[which(st==sTs)]})
+co <- layout_with_lgl(g)
+plot(g, layout = co, vertex.size=5, edge.arrow.size=0.1)
+
+cfg <- cluster_fast_greedy(as.undirected(g))
+plot(cfg, as.undirected(g), vertex.size=10)
+```
+
+Could also try t-SNE projection

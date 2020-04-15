@@ -1,3 +1,5 @@
+require(igraph)
+
 neuronForGG <- function(neur,axis=c("x","y")){UseMethod("neuronForGG")}
 
 neuronForGG.neuron <- function(neur,axis=c("x","y")){
