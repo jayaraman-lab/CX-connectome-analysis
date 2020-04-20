@@ -1,5 +1,6 @@
 library(paletteer)
 library(alphahull)
+source("InputOutputByTypeUtils.R")
 
 getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   #' Returns a table of all instances of neurons of types with non zero pre/post counts in slctROI.
@@ -120,7 +121,7 @@ selectRoiSet <- function(roiTree,default_level=2,exceptions=NULL,exceptionLevelM
  
 roisPalette <- function(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::palette36")){
   rois <- getRoiTree()
-  roiL <- unique(delateralize(c(as.character(rois$level1),as.character(roiH$level2[roiH$level1==favoriteRegion]))))
+  roiL <- unique(delateralize(c(as.character(rois$level1),as.character(rois$level2[rois$level1==favoriteRegion]))))
   pal <- my_palette[1:length(roiL)]
   names(pal) <- roiL
   pal

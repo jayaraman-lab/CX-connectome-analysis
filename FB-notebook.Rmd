@@ -600,7 +600,7 @@ dev.off()
 ```
 
 ############################################################
-Look at tangential cells
+Try clustering, graph analyses on FB network
 ############################################################
 
 Get the connection tables
@@ -615,78 +615,249 @@ FBt_To_Col_Post <- FBt_Post %>% filter(supertype.to2 != "FBt")
 
 
 FBt_To_FBt_Post_T2T <- getTypeToTypeTable(FBt_To_FBt_Post)
-conmatPlot <- plotConnectivityMatrix(FBt_To_FBt_Post_T2T,byGroup="type")
-print(conmatPlot)
+conmatPlot_FBt <- plotConnectivityMatrix(FBt_To_FBt_Post_T2T,byGroup="type")
+print(conmatPlot_FBt)
 
 FBt_To_Col_Pre_T2T <- getTypeToTypeTable(FBt_To_Col_Pre)
-conmatPlot <- plotConnectivityMatrix(FBt_To_Col_Pre_T2T,byGroup="type")
-print(conmatPlot)
+conmatPlot_Col_Pre <- plotConnectivityMatrix(FBt_To_Col_Pre_T2T,byGroup="type")
+print(conmatPlot_Col_Pre)
 
 FBt_To_Col_Post_T2T <- getTypeToTypeTable(FBt_To_Col_Post)
-conmatPlot <- plotConnectivityMatrix(FBt_To_Col_Post_T2T,byGroup="type")
-print(conmatPlot)
+conmatPlot_Col_Post <- plotConnectivityMatrix(FBt_To_Col_Post_T2T,byGroup="type")
+print(conmatPlot_Col_Post)
 
 cmax = max(FBt_To_Col_Pre_T2T$weightRelative)
-conmatPlot <- ggplot(FBt_To_Col_Pre_T2T) + 
+conmatPlot_Col_Post_Flip <- ggplot(FBt_To_Col_Pre_T2T) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
     scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
                          midpoint =0.5*cmax, limits=c(0,cmax)) +
   geom_tile(aes(type.from,type.to,fill=weightRelative))
+print(conmatPlot_Col_Post_Flip)
+
+```
+
+Format the FBt to columnar connections data frame and perform hierarchical clustering
+```{r}
+hc_Pre <- hierClustT2T(FBt_To_Col_Post_T2T,"PRE")
+hc_Post <- hierClustT2T(FBt_To_Col_Post_T2T,"POST")
+
+pFB_Pre <- dendPlot(hc_Pre,TRUE)
+pFB_Post <- dendPlot(hc_Post,FALSE)
+
+clustOrder_FBt <- hc_Pre$labels[hc_Pre$order]
+clustOrder_Col <- hc_Post$labels[hc_Post$order]
+
+FBt_To_Col_Post_T2T$type.from <- factor(FBt_To_Col_Post_T2T$type.from,levels=clustOrder_FBt)
+FBt_To_Col_Post_T2T$type.to <- factor(FBt_To_Col_Post_T2T$type.to,levels=clustOrder_Col)
+conmatPlot_Clust <- plotConnectivityMatrix(FBt_To_Col_Post_T2T,byGroup="type")
+print(conmatPlot_Clust)
+```
+
+Put them all on a plot
+```{r}
+conmatPlot_FBt <- conmatPlot_FBt + 
+  theme(axis.text.x = element_text(size=2),
+                axis.text.y = element_text(size=2)) +
+  ggtitle("FBt to FBt")
+
+conmatPlot_Clust <- conmatPlot_Clust + 
+  theme(axis.text.x = element_text(size=4),
+                axis.text.y = element_text(size=2)) +
+  ggtitle("FBt to FB columnar - clustered") + guides(fill=FALSE)
+pFB_Pre <- pFB_Pre +
+  theme(axis.text.y = element_text(size=2)) +
+  guides(color=FALSE)
+pFB_Post <- pFB_Post +
+  theme(axis.text.x = element_text(size=4)) +
+  guides(color=FALSE)
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FBtClustering.pdf", width = 10, height = 10)
+print(grid.arrange(grobs = list(conmatPlot_FBt,pFB_Post,pFB_Pre,conmatPlot_Clust),
+                   layout_matrix = rbind(c(2,1),c(4,3))))
+dev.off()
+```
+
+Try the above for columnar to columnar connections
+```{r}
+nrons = c("PF","FC","FR","FS","Delta0","Delta6")
+Col_Post = getConnectionTable(getBodyIdsForList(c(nrons)),"POST","FB")
+
+Col_To_Col <- Col_Post %>% filter(supertype.to3 == "FB Columnar"  | supertype.to3 == "FB Interneuron" | supertype.to3 == "FB Output")
+
+Col_To_Col_T2T <- getTypeToTypeTable(Col_To_Col)
+conmatPlot <- plotConnectivityMatrix(Col_To_Col_T2T,byGroup="type")
 print(conmatPlot)
-
 ```
 
-Format the FBt to columnar connections data frame
 ```{r}
-FBt_To_Col_4Clust <- getTypeToTypeTable(FBt_To_Col) %>% select(type.from,type.to,weightRelative)
-library(reshape2)
 
-# cluster based on the FBts
-FBt_To_Col_4Clust_FBt <- dcast(FBt_To_Col_4Clust,type.from~type.to)
-FBt_To_Col_4Clust_FBt[is.na(FBt_To_Col_4Clust_FBt)] <- 0
-rownames(FBt_To_Col_4Clust_FBt) <- FBt_To_Col_4Clust_FBt$type.from
-FBt_To_Col_4Clust_FBt <- FBt_To_Col_4Clust_FBt %>% select(tail(colnames(FBt_To_Col_4Clust_FBt),ncol(FBt_To_Col_4Clust_FBt)-1))
-FBt_To_Col_4Clust_FBt <- scale(FBt_To_Col_4Clust_FBt)
+hc_Pre <- hierClustT2T(Col_To_Col_T2T,"PRE")
+hc_Post <- hierClustT2T(Col_To_Col_T2T,"POST")
 
-# cluster based on the columnar neurons
-FBt_To_Col_4Clust_Col <- dcast(FBt_To_Col_4Clust,type.to~type.from)
-FBt_To_Col_4Clust_Col[is.na(FBt_To_Col_4Clust_Col)] <- 0
-rownames(FBt_To_Col_4Clust_Col) <- FBt_To_Col_4Clust_Col$type.to
-FBt_To_Col_4Clust_Col <- FBt_To_Col_4Clust_Col %>% select(tail(colnames(FBt_To_Col_4Clust_Col),ncol(FBt_To_Col_4Clust_Col)-1))
-FBt_To_Col_4Clust_Col <- scale(FBt_To_Col_4Clust_Col)
+pFB_Pre <- dendPlot(hc_Pre,TRUE)
+pFB_Post <- dendPlot(hc_Post,FALSE)
+
+pFB_Pre <- pFB_Pre +
+  theme(axis.text.y = element_text(size=2)) +
+  guides(color=FALSE)
+pFB_Post <- pFB_Post +
+  theme(axis.text.x = element_text(size=4)) +
+  guides(color=FALSE)
+
+clustOrder_Pre <- hc_Pre$labels[hc_Pre$order]
+clustOrder_Post <- hc_Post$labels[hc_Post$order]
+
+Col_To_Col_T2T$type.to <- factor(Col_To_Col_T2T$type.to,levels=clustOrder_Post)
+Col_To_Col_T2T$type.from <- factor(Col_To_Col_T2T$type.from,levels=clustOrder_Pre)
+conmatPlot <- plotConnectivityMatrix(Col_To_Col_T2T,byGroup="type")
+conmatPlot <- conmatPlot + 
+  theme(axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6)) +
+  guides(fill=FALSE)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\ColClustering.pdf", width = 10, height = 10)
+print(grid.arrange(grobs = list(pFB_Post,pFB_Pre,conmatPlot),
+                   layout_matrix = rbind(c(1,NA),c(3,2))))
+dev.off()
 ```
 
-Perform hierarchical clustering
+Cluster all FB types
 ```{r}
-# Dissimilarity matrix
-d <- dist(FBt_To_Col_4Clust_FBt, method = "euclidean")
-# Hierarchical clustering using Complete Linkage
-hc1 <- hclust(d, method = "ward" )
+nrons = c("PF","FC","FR","FS","Delta0","Delta6","FB")
+FB_Post = getConnectionTable(getBodyIdsForList(c(nrons)),"POST","FB")
+FB_T2T <- getTypeToTypeTable(FB_Post)
+
+# Get the dendrograms
+hc_Post <- hierClustT2T(FB_T2T,"POST")
+hc_Pre <- hierClustT2T(FB_T2T,"PRE")
+
 # Plot the obtained dendrogram
-plot(hc1, cex = 0.6, hang = -1)
+pFB_Post <- dendPlot(hc_Post,FALSE)
+pFB_Pre <- dendPlot(hc_Pre,TRUE)
+pFB_Post <- pFB_Post +
+  ggtitle("post synaptic clustering")
+pFB_Pre <- pFB_Pre +
+  ggtitle("pre synaptic clustering")
 
-clustOrder_FBt <- hc1$labels[hc1$order]
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\AllFBClustering_Pre.pdf", width = 10, height = 10)
+print(pFB_Pre)
+dev.off()
 
-# Dissimilarity matrix
-d <- dist(FBt_To_Col_4Clust_Col, method = "euclidean")
-# Hierarchical clustering using Complete Linkage
-hc1 <- hclust(d, method = "ward" )
-# Plot the obtained dendrogram
-plot(hc1, cex = 0.6, hang = -1)
-
-clustOrder_Col <- hc1$labels[hc1$order]
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\AllFBClustering_Post.pdf", width = 10, height = 10)
+print(pFB_Post)
+dev.off()
 ```
 
-Plot the clustered groups
+Function to hierarchically cluster pre or post data from a connection table
 ```{r}
-FBt_To_Col_T2T <- getTypeToTypeTable(FBt_To_Col)
-FBt_To_Col_T2T$type.from <- factor(FBt_To_Col_T2T$type.from,levels=clustOrder_FBt)
-conmatPlot <- plotConnectivityMatrix(FBt_To_Col_T2T,byGroup="type")
-print(conmatPlot)
-
-FBt_To_Col_T2T <- getTypeToTypeTable(FBt_To_Col)
-FBt_To_Col_T2T$type.to <- factor(FBt_To_Col_T2T$type.to,levels=clustOrder_Col)
-conmatPlot <- plotConnectivityMatrix(FBt_To_Col_T2T,byGroup="type")
-print(conmatPlot)
-
+hierClustT2T <- function(T2T,prepost){
+  library(reshape2)
+  
+  # Select only the relevant columns
+  Data4Clust <- T2T %>% select(type.from,type.to,weightRelative)
+  
+  # Format the data
+  if (prepost == "POST"){
+    Data4Clust <- dcast(Data4Clust,type.to~type.from)
+  } else {
+    Data4Clust <- dcast(Data4Clust,type.from~type.to)
+  }
+  Data4Clust[is.na(Data4Clust)] <- 0
+  if (prepost == "POST"){
+    rownames(Data4Clust) <- Data4Clust$type.to
+  } else {
+    rownames(Data4Clust) <- Data4Clust$type.from
+  }
+  Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))
+  Data4Clust <- scale(Data4Clust)
+  
+  # Calculate the dissimilarity matrix
+  d <- dist(Data4Clust, method = "euclidean")
+  
+  # Perform hierarchical clustering
+  hc <- hclust(d, method = "ward.D2" )
+  
+  # Return the cluster
+  return(hc)
+}
 ```
+
+Function to plot a dendrogram
+```{r}
+dendPlot <- function(hc,rotate){
+  library(ggdendro)
+  
+  # Pull of the data
+  dend <- as.dendrogram(hc)
+  dend_data <- dendro_data(dend, type = "rectangle")
+
+  # Add a supertype category
+  HClabels <- dend_data$labels
+  HClabels$supertype <- HClabels$label %>% as.character() %>% supertype() %>% as.factor()
+
+  p <- ggplot(dend_data$segments)
+  if (rotate){
+    p <- p + geom_segment(aes(x = y, y = x, xend = yend, yend = xend)) +
+    geom_text(data = HClabels, aes(y, x, label = label,color=supertype),
+              hjust = 1, size = 1)
+  } else {
+    p <- p + geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_text(data = HClabels, aes(x, y, label = label,color=supertype),
+              hjust = 1, angle = 90, size = 1)
+  }
+  p <- p + theme_classic() +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line=element_blank())
+  
+  return(p)
+}
+```
+
+Create an igraph network of the FB connections
+First, get the type to type connectivity table
+```{r}
+nrons = c("PF","FC","FR","FS","Delta0","Delta6","FB")
+FB_Post = getConnectionTable(getBodyIdsForList(c(nrons)),"POST","FB")
+FB_T2T <- getTypeToTypeTable(FB_Post)
+```
+
+Now, convert it into an igraph function
+```{r}
+library(igraph)
+FBNodes <- c(FB_T2T$type.to,FB_T2T$type.from) %>% unique() %>% as.data.frame()
+colnames(FBNodes) <- "nodes"
+FBNodes$supertype <- FBNodes$nodes %>% as.character() %>% supertype()
+sTs <- unique(FBNodes$supertype)
+pcCols <- paletteer_d("Polychrome::palette36")
+sTsCols <- c(pcCols[35],pcCols[32],pcCols[2],pcCols[8],
+             pcCols[24],pcCols[24],pcCols[17],pcCols[9],
+             pcCols[3],pcCols[1],pcCols[7],pcCols[24],
+             pcCols[26],pcCols[24],pcCols[24],pcCols[24],
+             pcCols[24])
+
+FBEdges <- FB_T2T %>% mutate(from = type.from, to = type.to, weight = weightRelative) %>%
+  select(from,to,weight)
+FBEdges$supertype.from <- FBEdges$from %>% as.character() %>% supertype()
+
+g <- graph_from_data_frame(FBEdges, directed = TRUE, vertices = FBNodes)
+
+
+E(g)$weight <- FBEdges$weight
+E(g)$color <- sapply(FBEdges$supertype.from, function(st){sTsCols[which(st==sTs)]})
+V(g)$label.cex = 0.6
+V(g)$label.color = "black"
+V(g)$color = sapply(FBNodes$supertype, function(st){sTsCols[which(st==sTs)]})
+co <- layout_with_lgl(g)
+plot(g, layout = co, vertex.size=5, edge.arrow.size=0.1)
+
+cfg <- cluster_fast_greedy(as.undirected(g))
+plot(cfg, as.undirected(g), vertex.size=10)
+```
+
+Could also try t-SNE projection

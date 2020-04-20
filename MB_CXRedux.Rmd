@@ -20,6 +20,12 @@ source("colorCodeLookup.R")
 options(nat.plotengine = 'rgl')
 ```
 
+### Connect to neuprint
+```{r}
+# neuprint_login()
+neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
+```
+
 Pulling neurons postsynaptic to MBONs
 ```{r}
 MBON_Names <- neuprint_search("MBON.*")
@@ -29,7 +35,7 @@ MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## K
 
 Selecting CX types as those present in Shin-ya's list.
 ```{r}
-CXTypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3") %>% rename(databaseType=n.type))
+CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types4") %>% rename(databaseType=n.type))
 MBONCXTargetsL <- unique(MBON_PostConnections$type.to)[unique(MBON_PostConnections$type.to) %in% CXTypes$databaseType]
 MBONCXTargets <- getTypesTable(MBONCXTargetsL)
 ```

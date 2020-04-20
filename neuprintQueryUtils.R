@@ -27,7 +27,7 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 }
 
 ### Connection table
-getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
+getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,computeKnownRatio=FALSE,...){
   #' Get connection table of inputs and add meta
   #' @return Returns a connection table as data frame. Added columns are \code{weightRelativeTotal} which is 
   #' the relative weight considering all the synapses (irrespective of the ROI), and if ROI are used (either if
@@ -43,27 +43,30 @@ getConnectionTable <- function(bodyIDs,synapseType, slctROI,by.roi, synThresh = 
   #' @param chunk_meta : to be passed to metadata and roiInfo queries (default TRUE)
   #' @param chunk_connection : to be passed to neuprint_connection_table (default TRUE)
   #' @param verbose : should the function report on its progress?
+  #' @param computeKnownRatio : should the function also compute ratios (weightRelative and outputContribution) relative to known synaptic partners rather
+  #' than relative to the total number of synapses
   #' @param ...: Other arguments to be passed to neuprint queries (neuprint_connection_table, getRoiInfo and neuprint_get_meta)
   
   UseMethod("getConnectionTable")}
 
 
-getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE, synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
+getConnectionTable.default = function(bodyIDs, synapseType, slctROI=NULL,by.roi=FALSE, synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,computeKnownRatio=FALSE,...){
   refMeta <- neuprint_get_meta(bodyIDs,chunk=chunk_meta,...)
-  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,synThresh,chunk_connections=chunk_connections,chunk_meta=chunk_meta,...))
+  return(getConnectionTable(refMeta,synapseType,slctROI,by.roi,synThresh,chunk_connections=chunk_connections,chunk_meta=chunk_meta,computeKnownRatio=computeKnownRatio,...))
 }
 
-getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,...){
+getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.roi=FALSE,synThresh=3,chunk_connections=TRUE,chunk_meta=TRUE,verbose=FALSE,computeKnownRatio=FALSE,...){
   refMeta <- bodyIDs
   bodyIDs <- neuprint_ids(bodyIDs$bodyid)
 
   if (verbose) message("Pull connections")
-  myConnections <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,chunk=chunk_connections,...)
-  
+  myConnections_raw <- neuprint_connection_table(bodyIDs, synapseType, slctROI,by.roi=by.roi,chunk=chunk_connections,...)
+
   if (by.roi | !is.null(slctROI)){
-   myConnections <- myConnections %>% drop_na(ROIweight) %>% filter(ROIweight>synThresh)
+   myConnections_raw <- myConnections_raw %>% drop_na(ROIweight)
+   myConnections <- myConnections_raw %>% filter(ROIweight>synThresh)
   }else{
-    myConnections <- myConnections %>% filter(weight>synThresh)
+    myConnections <- myConnections_raw %>% filter(weight>synThresh)
   }
   
   if (nrow(myConnections)==0){return(NULL)}
@@ -74,6 +77,12 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   
   myConnections <- filter(myConnections,partnerMeta$status =="Traced")
   partnerMeta <- filter(partnerMeta,status == "Traced")
+  
+  processConnectionTable(myConnections,myConnections_raw,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,chunk_connections,computeKnownRatio,...)  
+}
+
+processConnectionTable <- function(myConnections,myConnections_raw,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,chunk_connections,computeKnownRatio,...){  
+  
   
   refMeta <- slice(refMeta,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMeta$bodyid))))
   refMetaOrig <- slice(refMetaOrig,as.integer(sapply(myConnections$bodyid,function(b) match(b,refMetaOrig$bodyid))))
@@ -87,15 +96,32 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
   myConnections <- simplifyConnectionTable(myConnections)
   ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
   if (synapseType == "PRE"){
+    if (computeKnownRatio){
+      knownTablePost <- myConnections_raw  %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                to = ifelse(prepost==1,partner,bodyid)) %>% select(-bodyid,-partner)
+      knownTablePre <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,chunk=chunk_connections,...) %>% drop_na(ROIweight) %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                                                                                                                                   to = ifelse(prepost==1,partner,bodyid)) %>% select(-bodyid,-partner)
+    }
     outMeta <- refMeta
     inMeta <- partnerMeta
     myConnections <- mutate(myConnections,databaseType.to = refMetaOrig$type,
                                           databaseType.from = type.from)
     } else {
-    inMeta <- partnerMeta
+      if (computeKnownRatio){
+        knownTablePre <- myConnections_raw  %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                   to = ifelse(prepost==1,partner,bodyid)) %>% select(-bodyid,-partner)
+        knownTablePost <- neuprint_connection_table(unique(myConnections$to),"PRE",slctROI,by.roi=by.roi,chunk=chunk_connections,...) %>% drop_na(ROIweight) %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                                                                                                                                 to = ifelse(prepost==1,partner,bodyid)) %>% select(-bodyid,-partner)
+      }
+    inMeta <- refMeta
     outMeta <- partnerMeta
     myConnections <- mutate(myConnections,databaseType.to = type.to,
                                           databaseType.from = refMetaOrig$type)
+  }
+  
+  if (computeKnownRatio){
+    knownTablePostTotal <- knownTablePost %>% group_by(to) %>% distinct(from,weight) %>% mutate(knownPostWeight = sum(weight)) %>% ungroup()
+    knownTablePreTotal <- knownTablePre %>% group_by(from) %>% distinct(to,weight) %>% mutate(knownPreWeight = sum(weight)) %>% ungroup()
   }
   
   myConnections <-mutate(myConnections,weightRelativeTotal = weight/outMeta[["post"]],
@@ -104,6 +130,14 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
                                        previous.type.to = databaseType.to,
                                        previous.type.from = databaseType.from
                                             )
+  if  (computeKnownRatio){
+    myConnections <-mutate(myConnections,
+                           knownWeightRelativeTotal = weight/knownTablePostTotal$knownPostWeight[match(myConnections$to,knownTablePostTotal$to)],
+                           knownTotalPreWeight = knownTablePreTotal$knownPreWeight[match(myConnections$from,knownTablePreTotal$from)],
+                           knownOutputContributionTotal = weight/knownTotalPreWeight
+    )
+    
+  }
   
   if (by.roi | !is.null(slctROI)){
     if (verbose) message("Pull roiInfo")
@@ -116,14 +150,27 @@ getConnectionTable.data.frame <- function(bodyIDs,synapseType, slctROI=NULL,by.r
     myConnections <- left_join(myConnections,outInfo,by=c("to" = "bodyid","roi"="roi")) %>% rename(totalROIweight = post) %>%
       mutate(weightRelative=ROIweight/totalROIweight,
              outputContribution=ROIweight/totalPreROIweight)
+    
+    if (computeKnownRatio){
+      knownTablePostROI <- knownTablePost %>% group_by(to,roi)  %>% summarize(knownPostWeight = sum(ROIweight)) %>% ungroup()
+      knownTablePreROI <- knownTablePre %>% group_by(from,roi)  %>% summarize(knownPreWeight = sum(ROIweight)) %>% ungroup()
  ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
-    myConnections <- myConnections %>% drop_na(weightRelative)  ## NA values can occur in rare cases where
+      myConnections <- myConnections %>% mutate(knownWeightRelative = ROIweight/knownTablePostROI$knownPostWeight[match(paste0(myConnections$to,myConnections$roi),paste0(knownTablePostROI$to,knownTablePostROI$roi))],
+                                              knownTotalPreROIweight = knownTablePreROI$knownPreWeight[match(paste0(myConnections$from,myConnections$roi),paste0(knownTablePreROI$from,knownTablePreROI$roi))],
+                                              knownOutputContribution = ROIweight/knownTotalPreROIweight) %>% drop_na(weightRelative)  ## NA values can occur in rare cases where
+    }
     ## synapse (pre/post) is split between ROIs
   }else{
   myConnections <- mutate(myConnections,roi = "All brain", 
                                         outputContribution = outputContributionTotal,
                                         weightRelative = weightRelativeTotal,
                                         ROIweight = weight)
+  if (computeKnownRatio){
+    myConnections <- mutate(myConnections,
+                            knownOutputContribution = knownOutputContributionTotal,
+                            knownWeightRelative = knownWeightRelativeTotal)
+    
+  }
   }
   return(supertype(myConnections))
 }
@@ -154,7 +201,7 @@ getTypesTable <- function(types){
   #' @return A data frame of instances of those types
   #' 
   
-  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(paste0("^",t,"$"),field="type")))
+  typesTable <- bind_rows(lapply(types,function(t) neuprint_search(t,field="type",fixed=TRUE,exact=TRUE)))
   
   if (length(typesTable)>0){typesTable <- typesTable %>%
                                             mutate(databaseType = type)}
@@ -359,11 +406,9 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## Gather the outputContributions
   connectionTable <-  connectionTable %>% group_by(from,type.to,roi) %>%
-                                          mutate(outputContribution = sum(outputContribution),
-                                                 outputContributionTotal = sum(outputContributionTotal)) %>%
+                                          mutate_at(vars(any_of(c("outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal"))),sum) %>%
                                           group_by(type.from,type.to,roi) %>%
-                                          mutate(outputContribution = sum(outputContribution[match(unique(from),from)])/n_from,
-                                                 outputContributionTotal = sum(outputContributionTotal[match(unique(from),from)])/n_from) %>%
+                                          mutate_at(vars(any_of(c("outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal"))),~sum(.[match(unique(from),from)])/n_from) %>%
                                           ungroup()
   
   if (!is.null(oldTable)){
@@ -373,44 +418,63 @@ getTypeToTypeTable <- function(connectionTable,
   
   ## This contains the neurons unique in their type that reach our hard threshold
   loners <- connectionTable %>% filter(n==1) %>%
-                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal",
+                                group_by_if(names(.) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal",
                                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))) %>%
-                                summarize(weightRelative = sum(weightRelative),
-                                          weightRelativeTotal = sum(weightRelativeTotal),
-                                          weight = sum(ROIweight),
-                                          absoluteWeight = sum(ROIweight),
-                                          n_type = 1,
-                                          n_targets = n()) %>% ungroup() %>%
-                                ungroup()
+                                mutate_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal"))),sum) %>%
+                                mutate(weight = sum(ROIweight),
+                                       absoluteWeight = sum(ROIweight),
+                                       n_type = 1,
+                                       n_targets = n()) %>%
+                                 summarize_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal","weight","absoluteWeight","n_type","n_targets"))),first) %>% ungroup() 
   
-  group_In <- names(connectionTable)[names(connectionTable) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution","outputContributionTotal",
+  group_In <- names(connectionTable)[names(connectionTable) %in% c("type.from","to","type.to","roi","previous.type.from","previous.type.to","n","outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal",
                                             "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
   
-  group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal",
+  group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal",
                  "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
   
-  sTable <- lazy_dt(connectionTable)
-  ## Main filter
-  sTable <- sTable %>% filter(n>1) %>%
-                                group_by_at(group_In) %>%
-                                      summarise(weightRelative = sum(weightRelative),
-                                                weightRelativeTotal = sum(weightRelativeTotal),
-                                                weight = sum(ROIweight)
-                                          ) %>% 
-                                group_by_at(group_Out) %>%
-                                        mutate(missingV = ifelse(is.null(n),NULL,list(rep(0,length.out=n[1]-n())))) %>% 
-                                        summarise(pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==first(n)),   ## t.test doesn't run if values are constant. Keep those.
-                                                                  0,
-                                                                  t.test(c(weightRelative,unlist(missingV)),
-                                                                                    alternative="greater",exact=FALSE)[["p.value"]]),
-                                          varWeight = var(c(weightRelative,unlist(missingV))),
-                                          weightRelative = mean(c(weightRelative,unlist(missingV))),
-                                          weightRelativeTotal = mean(c(weightRelativeTotal,unlist(missingV))),
-                                          absoluteWeight = sum(weight),
-                                          weight = mean(c(weight,unlist(missingV))),
-                                          n_targets = n(),
-                                          n_type = n[1]
-                                ) %>% ungroup() %>% as.data.frame()
+  if ("knownWeightRelative" %in% names(connectionTable)){
+    sTable <- connectionTable %>% filter(n>1) %>%
+      group_by_at(group_In) %>%
+      summarize(weight=sum(ROIweight),
+                weightRelative=sum(weightRelative),
+                weightRelativeTotal=sum(weightRelativeTotal),
+                knownWeightRelative=sum(knownWeightRelative),
+                knownWeightRelativeTotal=sum(knownWeightRelativeTotal)) %>%
+      group_by_at(group_Out) %>%
+      summarize(n_targets = n(),
+                n_type = n[1],
+                absoluteWeight = sum(weight),
+                weightM = sum(weight)/n_type,
+                weightRM = sum(weightRelative)/n_type,#mean(c(weightRelative,unlist(missingV))),
+                weightRelativeTotal = sum(weightRelativeTotal)/n_type,
+                weightRM2 = sum(weightRelative^2)/n_type,
+                knownWeightRelative = sum(knownWeightRelative)/n_type,
+                knownWeightRelativeTotal = sum(knownWeightRelativeTotal)/n_type
+      ) %>% ungroup()
+  }else{
+    sTable <- connectionTable %>% filter(n>1) %>%
+      group_by_at(group_In) %>%
+      summarize(weight=sum(ROIweight),
+                weightRelative=sum(weightRelative),
+                weightRelativeTotal=sum(weightRelativeTotal)) %>%
+      group_by_at(group_Out) %>%
+      summarize(n_targets = n(),
+                n_type = n[1],
+                absoluteWeight = sum(weight),
+                weightM = sum(weight)/n_type,
+                weightRM = sum(weightRelative)/n_type,
+                weightRelativeTotal = sum(weightRelativeTotal)/n_type,
+                weightRM2 = sum(weightRelative^2)/n_type
+      ) %>% ungroup()
+    
+  }
+  
+  sTable <-sTable %>% mutate(varWeight = (n_type/(n_type-1))*(weightRM2 - weightRM^2),
+                             sdWeight = sqrt(varWeight),
+                             tt = weightRM/(sdWeight/sqrt(n_type)),
+                             pVal = pt(tt,n_type-1,lower.tail = FALSE)) %>% rename(weight=weightM,weightRelative=weightRM)
+  
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%

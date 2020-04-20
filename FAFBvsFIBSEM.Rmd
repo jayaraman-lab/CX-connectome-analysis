@@ -8,6 +8,12 @@ Load the libraries
 library(nat)
 library(neuprintr)
 library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(reshape2)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
 options(nat.plotengine = 'rgl')
@@ -75,10 +81,31 @@ FAFBLoad <- function(region){
       }
     }
     if (grepl("D7",nmPrts[[1]][1])){
-      if (nchar(nmPrts[[1]][2]) > 4)
-        nronNames[n] <- paste0("Delta7(PB15)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],4,4),substr(nmPrts[[1]][2],3,3),'_',substr(nmPrts[[1]][2],5,5))
-      else
-        nronNames[n] <- paste0("Delta7(PB15)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],4,4),substr(nmPrts[[1]][2],3,3))
+      if (nchar(nmPrts[[1]][2]) > 4){
+        if (paste0(substr(nmPrts[[1]][2],2,2),
+                   substr(nmPrts[[1]][2],1,1)) == "R1"){
+          nronNames[n] <- paste0("Delta7(PB15)",'_L8_',
+                                 substr(nmPrts[[1]][2],2,2),
+                                 substr(nmPrts[[1]][2],1,1),'_',
+                                 substr(nmPrts[[1]][2],4,4),
+                                 substr(nmPrts[[1]][2],3,3),'_',
+                                 substr(nmPrts[[1]][2],5,5))
+        } else {
+          nronNames[n] <- paste0("Delta7(PB15)",'_',
+                                 substr(nmPrts[[1]][2],4,4),
+                                 substr(nmPrts[[1]][2],3,3),'_',
+                                 substr(nmPrts[[1]][2],2,2),
+                                 substr(nmPrts[[1]][2],1,1),'_',
+                                 substr(nmPrts[[1]][2],5,5))
+        }
+      } else {
+        nronNames[n] <- paste0("Delta7(PB15)",'_',
+                               substr(nmPrts[[1]][2],4,4),
+                               substr(nmPrts[[1]][2],3,3),'_',
+                               substr(nmPrts[[1]][2],2,2),
+                               substr(nmPrts[[1]][2],1,1))
+      }
+        
     }
     if (grepl("R",substring(nmPrts[[1]][1],1,1)))
       nronNames[n] <- paste0('R4m','_',substr(nmPrts[[1]][1],2,2))
@@ -106,16 +133,17 @@ FAFBLoad <- function(region){
 
 Compare the FAFB data to the FIBSEM data - PB
 ```{r}
-synapseCutOff = 3
-
 FAFB_PB_df <-FAFBLoad("PB")
+FAFB_PB_df <- FAFB_PB_df %>% filter(grepl("EPG",partnerid) | grepl("Delta7",partnerid))
 
-ggplot(FAFB_PB_df  %>% filter(weight > synapseCutOff)) + 
+gFAFB <- ggplot(FAFB_PB_df) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+  scale_fill_gradient2(low="white", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
+  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1) + ggtitle("FAFB data")
 
-ggsave("FAFB_PB.pdf", plot = last_plot(), device='pdf', 
+print(gFAFB)
+
+ggsave("FAFB_PB.pdf", plot = gFAFB, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
@@ -141,6 +169,7 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
 
@@ -148,29 +177,122 @@ FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, g
 FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
 FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
-ggplot(FIBSEM_PB  %>% filter(ROIweight > synapseCutOff)) + 
+L6EPGs <- paste(getBodyIdsForList("EPG\\\\\\\\(PB08\\\\\\\\)_L6")$name, getBodyIdsForList("EPG\\\\\\\\(PB08\\\\\\\\)_L6")$bodyid, sep="_")
+FIBSEM_PB_Mat <- FIBSEM_PB %>% select(nameid.from,nameid.to,ROIweight)
+FIBSEM_PB_Mat <-rbind(FIBSEM_PB_Mat,
+                      data.frame(nameid.from = L6EPGs, nameid.to = L6EPGs, ROIweight = 0))
+FIBSEM_PB_Mat <- FIBSEM_PB_Mat %>% dcast(nameid.to~nameid.from)
+FIBSEM_PB_Mat[is.na(FIBSEM_PB_Mat)] <- 0
+FIBSEM_PB_Mat <- FIBSEM_PB_Mat %>% melt()
+colnames(FIBSEM_PB_Mat) <- c("nameid.to","nameid.from","ROIweight")
+
+gFIBSEM <- ggplot(FIBSEM_PB_Mat) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
+  scale_fill_gradient2(low="white", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
-ggsave("FIBSEM_PB.pdf", plot = last_plot(), device='pdf', 
+print(gFIBSEM)
+
+ggsave("FIBSEM_PB.pdf", plot = gFIBSEM, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+Downselect the FIBSEM neurons for a direct comparison
+```{r}
+DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+numNrons <-  c(2,2,1,2,2,1,1)
+
+FIBSEM_PB_Cut <- FIBSEM_PB_Mat
+
+for (ds in 1:length(DSneuronList)){
+  bodyids2cut <- getBodyIdsForList(DSneuronList[ds])$bodyid
+  bodyids2cut <- bodyids2cut %>% sample(length(bodyids2cut)-numNrons[ds])
+  nameids2cut <- paste(neuprint_get_meta(bodyids2cut)$name,bodyids2cut,sep='_')
+  FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% 
+    filter(!(nameid.from %in% nameids2cut) & !(nameid.to %in% nameids2cut))
+}
+
+gFIBSEM_DS <- ggplot(FIBSEM_PB_Cut) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="white", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) + ggtitle("select FIBSEM data")
+
+print(gFAFB)
+print(gFIBSEM_DS)
+```
+
+Compare the two matrices
+```{r}
+FAFB_PB_df_Mat <- FAFB_PB_df %>% dcast(partnerid~nameid)
+rownames(FAFB_PB_df_Mat) <- FAFB_PB_df_Mat$partnerid
+FAFB_PB_df_Mat <- FAFB_PB_df_Mat[,2:ncol(FAFB_PB_df_Mat)] %>% data.matrix
+
+FIBSEM_PB_Cut_Mat <- FIBSEM_PB_Cut %>% dcast(nameid.from~nameid.to)
+rownames(FIBSEM_PB_Cut_Mat) <- FIBSEM_PB_Cut_Mat$partnerid
+FIBSEM_PB_Cut_Mat <- FIBSEM_PB_Cut_Mat[,2:ncol(FIBSEM_PB_Cut_Mat)] %>% data.matrix
+
+matDiff <- FAFB_PB_df_Mat - FIBSEM_PB_Cut_Mat
+matSum <- FAFB_PB_df_Mat + FIBSEM_PB_Cut_Mat
+
+perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+for (r in 1:nrow(perMat)){
+  for (c in 1:ncol(perMat)){
+    if (FAFB_PB_df_Mat[r,c] == 0){
+      diffMat[r,c] <- -FIBSEM_PB_Cut_Mat[r,c]
+      next
+    }
+    if (FIBSEM_PB_Cut_Mat[r,c] == 0){
+      diffMat[r,c] <- FAFB_PB_df_Mat[r,c]
+      next
+    }
+    if (matSum[r,c] > 0)
+      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
+  }
+}
+
+gPer <- ggplot(melt(perMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
+
+gDiff <- ggplot(melt(diffMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
+
+print(gPer)
+print(gDiff)
+```
+
+Put them all on one plot and compare
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\PBComp.pdf", width = 20, height = 20)
+print(grid.arrange(gFAFB,gFIBSEM_DS,gPer,gDiff,
+                   layout_matrix = rbind(c(3,1),c(4,5))))
+dev.off()
 ```
 
 Compare the FAFB data to the FIBSEM data - EB
 ```{r}
 
-synapseCutOff = 3
+synapseCutOff = 0
 
-FAFB_EB_df <-FAFBLoad("EB")
+FAFB_EB_df <-FAFBLoad("EB") %>% filter(nameid != "EQ5" & partnerid != "EQ5")
 
-ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) + 
+gFAFB <- ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,175)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
-ggsave("FAFB_EB.pdf", plot = last_plot(), device='pdf', 
+ggsave("FAFB_EB.pdf", plot = gFAFB, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
@@ -200,22 +322,102 @@ FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, g
 FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
 FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
 
-ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
+gFIBSEM <- ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =60, limits=c(0,175)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
-ggsave("FIBSEM_EB.pdf", plot = last_plot(), device='pdf', 
+ggsave("FIBSEM_EB.pdf", plot = gFIBSEM, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+Downselect the FIBSEM neurons for a direct comparison
+```{r}
+DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+                  "R4m")
+numNrons <-  c(2,2,7)
+
+FIBSEM_EB_Cut <- FIBSEM_EB
+
+for (ds in 1:length(DSneuronList)){
+  bodyids2cut <- getBodyIdsForList(DSneuronList[ds])$bodyid
+  bodyids2cut <- bodyids2cut %>% sample(length(bodyids2cut)-numNrons[ds])
+  nameids2cut <- paste(neuprint_get_meta(bodyids2cut)$name,bodyids2cut,sep='_')
+  FIBSEM_EB_Cut <- FIBSEM_EB_Cut %>% 
+    filter(!(nameid.from %in% nameids2cut) & !(nameid.to %in% nameids2cut))
+}
+
+gFIBSEM_DS <- ggplot(FIBSEM_EB_Cut) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="white", mid="blueviolet", high="black", midpoint =60, limits=c(0,120)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) + ggtitle("select FIBSEM data")
+
+print(gFAFB)
+print(gFIBSEM_DS)
+```
+
+Compare the two matrices
+```{r}
+FAFB_EB_df_Mat <- FAFB_EB_df %>% dcast(partnerid~nameid)
+FAFB_EB_df_Mat[is.na(FAFB_EB_df_Mat)] <- 0
+rownames(FAFB_EB_df_Mat) <- FAFB_EB_df_Mat$partnerid
+FAFB_EB_df_Mat <- FAFB_EB_df_Mat[,2:ncol(FAFB_EB_df_Mat)] %>% data.matrix
+
+FIBSEM_EB_Cut_Mat <- FIBSEM_EB_Cut %>% select(nameid.from,nameid.to,ROIweight) %>% dcast(nameid.from~nameid.to)
+FIBSEM_EB_Cut_Mat[is.na(FIBSEM_EB_Cut_Mat)] <- 0 
+rownames(FIBSEM_EB_Cut_Mat) <- FIBSEM_EB_Cut_Mat$partnerid
+FIBSEM_EB_Cut_Mat <- FIBSEM_EB_Cut_Mat[,2:ncol(FIBSEM_EB_Cut_Mat)] %>% data.matrix
+
+matDiff <- FAFB_EB_df_Mat - FIBSEM_EB_Cut_Mat
+matSum <- FAFB_EB_df_Mat + FIBSEM_EB_Cut_Mat
+
+perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+for (r in 1:nrow(perMat)){
+  for (c in 1:ncol(perMat)){
+    if (FAFB_EB_df_Mat[r,c] == 0){
+      diffMat[r,c] <- -FIBSEM_EB_Cut_Mat[r,c]
+      next
+    }
+    if (FIBSEM_EB_Cut_Mat[r,c] == 0){
+      diffMat[r,c] <- FAFB_EB_df_Mat[r,c]
+      next
+    }
+    if (matSum[r,c] > 0)
+      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
+  }
+}
+
+gPer <- ggplot(melt(perMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
+
+gDiff <- ggplot(melt(diffMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
+
+print(gPer)
+print(gDiff)
+```
+
+Put them all on one plot and compare
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EBComp.pdf", width = 20, height = 20)
+print(grid.arrange(gFAFB,gFIBSEM_DS,gPer,gDiff,
+                   layout_matrix = rbind(c(3,1),c(4,5))))
+dev.off()
 ```
 
 Compare the FAFB data to the FIBSEM data - NO
 ```{r}
 
-synapseCutOff = 3
+synapseCutOff = 0
 
-FAFB_NO_df <-FAFBLoad("NO")
+FAFB_NO_df <-FAFBLoad("NO") %>% filter(nameid != "GLN" & partnerid != "GLN")
 
 ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
@@ -255,3 +457,252 @@ ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf',
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
+
+Compare the two matrices
+```{r}
+FAFB_NO_df_Mat <- FAFB_NO_df %>% dcast(partnerid~nameid)
+FAFB_NO_df_Mat[is.na(FAFB_NO_df_Mat)] <- 0
+rownames(FAFB_NO_df_Mat) <- FAFB_NO_df_Mat$partnerid
+FAFB_NO_df_Mat <- FAFB_NO_df_Mat[,2:ncol(FAFB_NO_df_Mat)] %>% data.matrix
+
+FIBSEM_NO_Cut_Mat <- FIBSEM_NO %>% select(nameid.from,nameid.to,ROIweight) %>% dcast(nameid.from~nameid.to)
+FIBSEM_NO_Cut_Mat[is.na(FIBSEM_NO_Cut_Mat)] <- 0 
+rownames(FIBSEM_NO_Cut_Mat) <- FIBSEM_NO_Cut_Mat$partnerid
+FIBSEM_NO_Cut_Mat <- FIBSEM_NO_Cut_Mat[,2:ncol(FIBSEM_NO_Cut_Mat)] %>% data.matrix
+
+matDiff <- FAFB_NO_df_Mat - FIBSEM_NO_Cut_Mat
+matSum <- FAFB_NO_df_Mat + FIBSEM_NO_Cut_Mat
+
+perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+for (r in 1:nrow(perMat)){
+  for (c in 1:ncol(perMat)){
+    if (FAFB_NO_df_Mat[r,c] == 0){
+      diffMat[r,c] <- -FIBSEM_NO_Cut_Mat[r,c]
+      next
+    }
+    if (FIBSEM_NO_Cut_Mat[r,c] == 0){
+      diffMat[r,c] <- FAFB_NO_df_Mat[r,c]
+      next
+    }
+    if (matSum[r,c] > 0)
+      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
+  }
+}
+
+gPer <- ggplot(melt(perMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
+
+gDiff <- ggplot(melt(diffMat)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
+  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
+
+print(gPer)
+print(gDiff)
+```
+
+Put them all on one plot and compare
+```{r}
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\NOComp.pdf", width = 20, height = 20)
+print(grid.arrange(gFAFB,gFIBSEM,gPer,gDiff,
+                   layout_matrix = rbind(c(3,1),c(4,5))))
+dev.off()
+```
+
+EPG and D7 connections in PB
+```{r}
+neuronList <- c("EPG","Delta7")
+FIBSEM_EPGD7PB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
+FIBSEM_EPGD7PB <- FIBSEM_EPGD7PB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt <- plotConnectivityMatrix(FIBSEM_EPGD7PB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt <- structureMatrixPlotByType(conTabPlt)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EPGD7PB_Connectivity.pdf", width = 5, height = 4)
+print(conTabPlt)
+dev.off()
+```
+
+hyper local recurrence in EB of EPGs
+```{r}
+neuronList <- c("EPG")
+FIBSEM_EPGEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
+FIBSEM_EPGEB <- FIBSEM_EPGEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt <- plotConnectivityMatrix(FIBSEM_EPGEB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt <- structureMatrixPlotByType(conTabPlt)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EPGEB_Connectivity.pdf", width = 5, height = 4)
+print(conTabPlt)
+dev.off()
+```
+
+EPG + D7 to PEN1/2 in PB
+```{r}
+neuronList_Pre <- c("EPG","Delta7")
+neuronList_Post <- c("PEN_a","PEN_b")
+FIBSEM_EPGD7ToPENsPB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList_Pre)$bodyid, getBodyIdsForList(neuronList_Post)$bodyid, "PB")
+FIBSEM_EPGD7ToPENsPB <- FIBSEM_EPGD7ToPENsPB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt <- plotConnectivityMatrix(FIBSEM_EPGD7ToPENsPB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt <- structureMatrixPlotByType(conTabPlt)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EPGD7ToPENPB_Connectivity.pdf", width = 4, height = 5)
+print(conTabPlt)
+dev.off()
+```
+ 
+EPG <-> PEN1/2 in EB
+```{r}
+neuronList <- c("EPG","PEN")
+FIBSEM_EPGPENsEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
+FIBSEM_EPGPENsEB <- FIBSEM_EPGPENsEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt <- plotConnectivityMatrix(FIBSEM_EPGPENsEB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt <- structureMatrixPlotByType(conTabPlt)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EPGPENsEB_Connectivity.pdf", width = 5, height = 4)
+print(conTabPlt)
+dev.off()
+```
+ 
+Ring neuron connectivity in the ring
+```{r}
+neuronList <- c("EPG","R4m")
+FIBSEM_EPGR4mEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
+FIBSEM_EPGR4mEB <- FIBSEM_EPGR4mEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt <- plotConnectivityMatrix(FIBSEM_EPGR4mEB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt <- structureMatrixPlotByType(conTabPlt)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EPGRingEB_Connectivity.pdf", width = 5, height = 4)
+print(conTabPlt)
+dev.off()
+``` 
+
+PEN1 -> EPG synapse counts in EB
+```{r}
+neuronList_Pre <- c("PEN_a")
+neuronList_Post <- c("EPG")
+FIBSEM_PEN1ToEPGEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList_Pre)$bodyid, getBodyIdsForList(neuronList_Post)$bodyid, "EB")
+FIBSEM_PEN1ToEPGEB <- FIBSEM_PEN1ToEPGEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt_PEN1 <- plotConnectivityMatrix(FIBSEM_PEN1ToEPGEB, byGroup = "id", connectionMeasure="ROIweight")
+print(conTabPlt_PEN1)
+
+FIBSEM_PEN1ToEPGEB <- FIBSEM_PEN1ToEPGEB %>% mutate(nameid.from = paste(name.from,from,sep='_'),
+                                                    nameid.to = paste(name.to,to,sep='_'))
+g_totSynsPEN1_L <- ggplot(FIBSEM_PENaToEPGEB %>% filter(grepl("_L",nameid.from))) +
+  geom_bar(aes(y=ROIweight, x=nameid.to, fill = nameid.from),stat="identity") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+print(g_totSynsPEN1_L)
+g_totSynsPEN1_R <- ggplot(FIBSEM_PENaToEPGEB %>% filter(grepl("_R",nameid.from))) +
+  geom_bar(aes(y=ROIweight, x=nameid.to, fill = nameid.from),stat="identity") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+print(g_totSynsPEN1_R)
+
+neuronList_Pre <- c("PEN_b")
+neuronList_Post <- c("EPG")
+FIBSEM_PEN2ToEPGEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList_Pre)$bodyid, getBodyIdsForList(neuronList_Post)$bodyid, "EB")
+FIBSEM_PEN2ToEPGEB <- FIBSEM_PEN2ToEPGEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt_PEN2 <- plotConnectivityMatrix(FIBSEM_PEN2ToEPGEB, byGroup = "id", connectionMeasure="ROIweight")
+print(conTabPlt_PEN2)
+
+FIBSEM_PEN2ToEPGEB <- FIBSEM_PEN2ToEPGEB %>% mutate(nameid.from = paste(name.from,from,sep='_'),
+                                                    nameid.to = paste(name.to,to,sep='_'))
+g_totSynsPEN2_L <- ggplot(FIBSEM_PEN2ToEPGEB %>% filter(grepl("_L",nameid.from))) +
+  geom_bar(aes(y=ROIweight, x=nameid.to, fill = nameid.from),stat="identity") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+print(g_totSynsPEN2_L)
+g_totSynsPEN2_R <- ggplot(FIBSEM_PEN2ToEPGEB %>% filter(grepl("_R",nameid.from))) +
+  geom_bar(aes(y=ROIweight, x=nameid.to, fill = nameid.from),stat="identity") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+print(g_totSynsPEN2_R)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\PENsEB_SynNums.pdf", width = 25, height = 10)
+print(grid.arrange(conTabPlt_PEN1,g_totSynsPEN1_L,g_totSynsPEN1_R,
+                   conTabPlt_PEN2,g_totSynsPEN2_L,g_totSynsPEN2_R,
+                   layout_matrix=rbind(c(1,2,3),c(4,5,6))))
+dev.off()
+```
+
+Quantify ring synapses around the ring
+```{r}
+EPGOrder <- c("R5","L4","R6","L3","R7","L2","R8","L1","R1","L8","R2","L7","R3","L6","R4","L5")
+
+neuronList_Pre <- c("R4m")
+neuronList_Post <- c("EPG")
+FIBSEM_R4mToEPGEB <- getConnectionTable_forSubset(getBodyIdsForList(neuronList_Pre)$bodyid, getBodyIdsForList(neuronList_Post)$bodyid, "EB")
+FIBSEM_R4mToEPGEB <- FIBSEM_R4mToEPGEB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+
+FIBSEM_R4mToEPGEB <- FIBSEM_R4mToEPGEB %>% mutate(nameid.from = paste(name.from,from,sep='_'),
+                                                    nameid.to = paste(name.to,to,sep='_'))
+preNames <- FIBSEM_R4mToEPGEB$nameid.from %>% unique() %>% as.character()
+preNames_R <- preNames[which(grepl("_R_",preNames))]
+preNames_L <- preNames[which(grepl("_L_",preNames))]
+postNames <- FIBSEM_R4mToEPGEB$nameid.to %>% unique() %>% as.character()
+postNames_sorted <- c()
+for (o in 1:length(EPGOrder)){
+  postNames_sorted <- append(postNames_sorted,postNames[which(grepl(EPGOrder[o],postNames))])
+}
+FIBSEM_R4mToEPGEB$nameid.to <- factor(FIBSEM_R4mToEPGEB$nameid.to, levels = as.factor(postNames_sorted))
+FIBSEM_R4mToEPGEB$RNLoc <- "R"
+FIBSEM_R4mToEPGEB[which(FIBSEM_R4mToEPGEB$nameid.from %in% preNames_L),]$RNLoc <- "L"
+
+conTabPlt <- plotConnectivityMatrix(FIBSEM_R4mToEPGEB, byGroup = "id", connectionMeasure="ROIweight")
+print(conTabPlt)
+
+g_R4Profile <- ggplot()
+for (pn in 1:length(preNames_R)){
+  g_R4Profile <- g_R4Profile + geom_line(data = FIBSEM_R4mToEPGEB %>% filter(nameid.from == preNames_R[pn]),aes(x=as.factor(nameid.to),y=ROIweight,group=1,color=RNLoc))
+}
+for (pn in 1:length(preNames_L)){
+  g_R4Profile <- g_R4Profile + geom_line(data = FIBSEM_R4mToEPGEB %>% filter(nameid.from == preNames_L[pn]),aes(x=as.factor(nameid.to),y=ROIweight,group=1,color=RNLoc))
+}
+g_R4Profile <- g_R4Profile + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+print(g_R4Profile)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\RNsToEPGsEB_SynNums.pdf", width = 10, height = 10)
+print(grid.arrange(conTabPlt,g_R4Profile,ncol=1))
+dev.off()
+```
+ 
+Number of EPGs, PEGs, PENs per glom
+```{r}
+gloms <- c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+           "R1","R2","R3","R4","R5","R6","R7","R8","R9")
+
+nrons <- c("EPG","PEN_a","PEN_b","PEG")
+g_list <- list()
+for (n in 1:length(nrons)){
+  nronNames <- paste0(getBodyIdsForList(nrons[n])$name, getBodyIdsForList(nrons[n])$bodyid, sep='_') %>% unique
+  glomCts <- vector(mode="numeric", length=length(gloms))
+  for (g in 1:length(gloms)){
+    glomCts[g] <- length(which(grepl(gloms[g],nronNames)))
+  }
+  glomDF <- data.frame(gloms = factor(gloms,levels=as.factor(gloms)), counts = glomCts)
+  g_list[[n]] <- ggplot(glomDF) + geom_bar(aes(x=gloms, y=counts),stat="identity") + ggtitle(paste(nrons[n],"neurons per glomerulus",sep='-')) +
+    theme_classic() + ylim(0,4)
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\GlomCounts.pdf", width = 10, height = 5)
+print(grid.arrange(grobs=g_list,layout_matrix=rbind(c(1,2),c(4,3))))
+dev.off()
+
+```
+
+ Entire weight matrix (of given types) from FIBSEM dataset in EB,PB,NO
+```{r}
+nrons <- c("EPG","PEN","PEG","Delta7","R4m")
+
+FIBSEM_PB <- getConnectionTable_forSubset(getBodyIdsForList(nrons)$bodyid, getBodyIdsForList(nrons)$bodyid, "PB")
+FIBSEM_PB <- FIBSEM_PB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt_PB <- plotConnectivityMatrix(FIBSEM_PB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt_PB <- structureMatrixPlotByType(conTabPlt_PB) + ggtitle("PB connectivity")
+
+FIBSEM_EB <- getConnectionTable_forSubset(getBodyIdsForList(nrons)$bodyid, getBodyIdsForList(nrons)$bodyid, "EB")
+FIBSEM_EB <- FIBSEM_EB %>% filter(type.to != "EPGt" & type.from != "EPGt")
+conTabPlt_EB <- plotConnectivityMatrix(FIBSEM_EB, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt_EB <- structureMatrixPlotByType(conTabPlt_EB) + ggtitle("EB connectivity")
+
+FIBSEM_NO <- getConnectionTable_forSubset(getBodyIdsForList(nrons)$bodyid, getBodyIdsForList(nrons)$bodyid, "NO")
+conTabPlt_NO <- plotConnectivityMatrix(FIBSEM_NO, byGroup = "id", connectionMeasure="ROIweight")
+conTabPlt_NO <- structureMatrixPlotByType(conTabPlt_NO) + ggtitle("NO connectivity")
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\EBPBNO_Connectivity.pdf", width = 30, height = 8)
+print(grid.arrange(conTabPlt_PB,conTabPlt_EB,conTabPlt_NO,nrow=1))
+dev.off()
+```
+ 
