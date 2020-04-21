@@ -140,3 +140,70 @@ conmatPlot1 <- structureMatrixPlotByType(conmatPlot1)
 print(conmatPlot9)
 print(conmatPlot1)
 ```
+
+Compare the D7 inputs and outputs to the P6-8P9 inputs and outputs
+```{r}
+D7_Post <- getConnectionTable(getBodyIdsForList("Delta7"),"POST","PB")
+P68P9_Post <- getConnectionTable(getBodyIdsForList("P6-8P9"),"POST","PB")
+D7_Pre <- getConnectionTable(getBodyIdsForList("Delta7"),"PRE","PB")
+P68P9_Pre <- getConnectionTable(getBodyIdsForList("P6-8P9"),"PRE","PB")
+
+conmatPlot_Post <- plotConnectivityMatrix(rbind(D7_Post,P68P9_Post),byGroup="id")
+print(conmatPlot_Post)
+
+conmatPlot_Pre <- plotConnectivityMatrix(rbind(D7_Pre,P68P9_Pre),byGroup="id")
+print(conmatPlot_Pre)
+```
+
+Compare the D7 inputs and outputs to the P6-8P9 inputs and outputs
+- select only the 9,8,1 D7s and only gloms 6-9
+```{r}
+PBGloms_L <- c("PB(L6)","PB(L7)","PB(L8)","PB(L9)")
+PBGloms_R <- c("PB(R6)","PB(R7)","PB(R8)","PB(R9)")
+
+edgeD7s_L <- getBodyIdsForList("Delta7") %>% filter(grepl("L1",name))
+edgeD7s_R <- getBodyIdsForList("Delta7") %>% filter(grepl("R1",name))
+P68P9s_L <- getBodyIdsForList("P6-8P9") %>% filter(grepl("_L",name))
+P68P9s_R <- getBodyIdsForList("P6-8P9") %>% filter(grepl("_R",name))
+
+cM_list <- list()
+for (g in 1:length(PBGloms_L)) {
+  
+  D7_Post <- getConnectionTable(edgeD7s_L$bodyid,"POST",PBGloms_L[g])
+  P68P9_Post <- getConnectionTable(P68P9s_L$bodyid,"POST",PBGloms_L[g])
+  D7_Pre <- getConnectionTable(edgeD7s_L$bodyid,"PRE",PBGloms_L[g])
+  P68P9_Pre <- getConnectionTable(P68P9s_L,"PRE",PBGloms_L[g])
+  
+  if (PBGloms_L[g] == "PB(L9)"){
+    conmatPlot <- plotConnectivityMatrix(rbind(D7_Post,P68P9_Post),byGroup="id")
+  } else {
+    conmatPlot <- plotConnectivityMatrix(rbind(D7_Pre,P68P9_Pre),byGroup="id")
+  }
+  
+  conmatPlot <- conmatPlot + ggtitle(PBGloms_L[g])
+  cM_list[[g]] <- conmatPlot
+}
+for (g in 1:length(PBGloms_R)) {
+  
+  D7_Post <- getConnectionTable(edgeD7s_R$bodyid,"POST",PBGloms_R[g])
+  P68P9_Post <- getConnectionTable(P68P9s_R$bodyid,"POST",PBGloms_R[g])
+  D7_Pre <- getConnectionTable(edgeD7s_R$bodyid,"PRE",PBGloms_R[g])
+  P68P9_Pre <- getConnectionTable(P68P9s_R,"PRE",PBGloms_R[g])
+  
+  if (PBGloms_R[g] == "PB(R9)"){
+    conmatPlot <- plotConnectivityMatrix(rbind(D7_Post,P68P9_Post),byGroup="id")
+  } else {
+    conmatPlot <- plotConnectivityMatrix(rbind(D7_Pre,P68P9_Pre),byGroup="id")
+  }
+  conmatPlot <- conmatPlot + ggtitle(PBGloms_R[g])
+  cM_list[[g+length(PBGloms_L)]] <- conmatPlot
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\P68P9VsD7.pdf", width = 30, height = 30)
+print(grid.arrange(grobs = cM_list,
+                   layout_matrix = rbind(c(1,2,3),c(4,4,4),
+                                         c(5,6,7),c(8,8,8))
+                   ))
+dev.off()
+
+```

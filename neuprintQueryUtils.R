@@ -433,29 +433,48 @@ getTypeToTypeTable <- function(connectionTable,
   group_Out <- names(connectionTable)[names(connectionTable) %in% c("type.from","type.to","roi","previous.type.from","previous.type.to","outputContribution","outputContributionTotal","knownOutputContribution","knownOutputContributionTotal",
                  "databaseType.to","databaseType.from",paste0("supertype.to",1:3),paste0("supertype.from",1:3))]
   
-  sTable <- lazy_dt(connectionTable)
-  ## Main filter
-  sTable <- sTable %>% filter(n>1) %>%
-                                group_by_at(group_In) %>%
-    mutate_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal"))),sum) %>%
-    mutate(weight=sum(ROIweight)) %>% 
-    summarize_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal","weight"))),first) %>% 
-                                group_by_at(group_Out) %>%
-                                        mutate(missingV = ifelse(is.null(n),NULL,list(rep(0,length.out=n[1]-n()))),
-                                               pVal = ifelse((all(weightRelative == weightRelative[1]) & n()==first(n)),   ## t.test doesn't run if values are constant. Keep those.
-                                                             0,
-                                                             t.test(c(weightRelative,unlist(missingV)),
-                                                                    alternative="greater",exact=FALSE)[["p.value"]]),
-                                               varWeight = var(c(weightRelative,unlist(missingV))),
-                                               absoluteWeight = sum(weight),
-                                               weightM = mean(c(weight,unlist(missingV))),
-                                               n_targets = n(),
-                                               n_type = n[1]
-                                               ) %>% 
-                                        mutate_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal"))),~mean(c(.,unlist(missingV)))) %>%
-                                        summarize_at(vars(any_of(c("weightRelative","weightRelativeTotal","knownWeightRelative","knownWeightRelativeTotal","weightM","pVal","varWeight","absoluteWeight","n_targets","n_type"))),first) %>% 
-    ungroup() 
-  sTable <- as.data.frame(sTable) %>% rename(weight=weightM)
+  if ("knownWeightRelative" %in% names(connectionTable)){
+    sTable <- connectionTable %>% filter(n>1) %>%
+      group_by_at(group_In) %>%
+      summarize(weight=sum(ROIweight),
+                weightRelative=sum(weightRelative),
+                weightRelativeTotal=sum(weightRelativeTotal),
+                knownWeightRelative=sum(knownWeightRelative),
+                knownWeightRelativeTotal=sum(knownWeightRelativeTotal)) %>%
+      group_by_at(group_Out) %>%
+      summarize(n_targets = n(),
+                n_type = n[1],
+                absoluteWeight = sum(weight),
+                weightM = sum(weight)/n_type,
+                weightRM = sum(weightRelative)/n_type,#mean(c(weightRelative,unlist(missingV))),
+                weightRelativeTotal = sum(weightRelativeTotal)/n_type,
+                weightRM2 = sum(weightRelative^2)/n_type,
+                knownWeightRelative = sum(knownWeightRelative)/n_type,
+                knownWeightRelativeTotal = sum(knownWeightRelativeTotal)/n_type
+      ) %>% ungroup()
+  }else{
+    sTable <- connectionTable %>% filter(n>1) %>%
+      group_by_at(group_In) %>%
+      summarize(weight=sum(ROIweight),
+                weightRelative=sum(weightRelative),
+                weightRelativeTotal=sum(weightRelativeTotal)) %>%
+      group_by_at(group_Out) %>%
+      summarize(n_targets = n(),
+                n_type = n[1],
+                absoluteWeight = sum(weight),
+                weightM = sum(weight)/n_type,
+                weightRM = sum(weightRelative)/n_type,
+                weightRelativeTotal = sum(weightRelativeTotal)/n_type,
+                weightRM2 = sum(weightRelative^2)/n_type
+      ) %>% ungroup()
+    
+  }
+  
+  sTable <-sTable %>% mutate(varWeight = (n_type/(n_type-1))*(weightRM2 - weightRM^2),
+                             sdWeight = sqrt(varWeight),
+                             tt = weightRM/(sdWeight/sqrt(n_type)),
+                             pVal = pt(tt,n_type-1,lower.tail = FALSE)) %>% rename(weight=weightM,weightRelative=weightRM)
+  
   if (is.null(oldTable)){
     loners <-  loners %>% filter((weightRelative > singleNeuronThreshold & weight > singleNeuronThresholdN)| outputContribution > majorOutputThreshold)
     sTable <- sTable %>% filter(pVal < pThresh | (outputContribution > majorOutputThreshold & weight > singleNeuronThresholdN)) %>%
