@@ -11,7 +11,7 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
   #' @param minrelweight: Option to filter by relative fraction of contribution to inputs/outputs per region.
   
   if(splitLR){
-    myType_bag = lateralizeInputOutputList(myType_bag)
+    myType_bag = lateralize_types(myType_bag)
   }
   if (partnerDirection == "input"){
     myTypeData = myType_bag$inputs_raw %>%
@@ -31,14 +31,16 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
   }
   
   myTypeData = myTypeData %>% group_by(target, partnerType, roi) %>% 
-    summarise(sumrelweight = sum(weightRelativeTotal), sumweight = sum(weight)) %>% filter(sumweight >= minweight & sumrelweight >= minrelweight) #Note: ROIweight likely used on neuprint explorer
+    summarise(sumrelweight = sum(weightRelativeTotal), sumweight = sum(weight)) %>%  #Note: ROIweight likely used on neuprint explorer
+    ungroup() %>% group_by(partnerType) %>%
+    filter(sumweight >= minweight & sumrelweight >= minrelweight) %>% ungroup() 
   
   if(!is.null(slctRoi)){
     myTypeData = myTypeData %>% filter(roi %in% slctRoi)
   }
   
   myTypeData = myTypeData %>% group_by(roi, partnerType) %>% 
-    summarise(avWeight = mean(sumrelweight)) %>% 
+    summarise(avRelWeight = mean(sumrelweight), avWeight = mean(sumweight)) %>% 
     arrange(roi, partnerType) %>% ungroup() 
   
   myTypeData$roi = as.factor(myTypeData$roi)
@@ -49,7 +51,7 @@ prepData4pieChart <- function(myType_bag, partnerDirection, slctRoi = NULL,  spl
 
 
 generatePieChartData <- function(myTypeIn, myType, rootlab){
-  roiFrac = myTypeIn %>% group_by(roi) %>% summarise(roifrac = sum(avWeight)) 
+  roiFrac = myTypeIn %>% group_by(roi) %>% summarise(roifrac = sum(avRelWeight)) 
   
   pieData = data.frame(labels = c(rootlab,
                                   unique(as.character(myTypeIn$roi)) ,
@@ -65,7 +67,7 @@ generatePieChartData <- function(myTypeIn, myType, rootlab){
                        
                        values = c(sum(roiFrac$roifrac),
                                   roiFrac$roifrac, 
-                                  myTypeIn$avWeight)
+                                  myTypeIn$avRelWeight)
   )
   return(pieData)
 }
