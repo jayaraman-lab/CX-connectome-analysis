@@ -4,18 +4,17 @@ output: html_notebook
 ---
 
 ```{r}
-library(nat)
 library(neuprintr)
 library(tidyverse)
 library(cowplot)
-
-source("neuprintQueryUtils.R")
-source("R/table2ggraphUtils.R")
-source("InputOutputByTypeUtils.R")
-source("R/rois.R")
-source("R/ggNeuron.R")
+library(ggiraph)
+library(neuprintrExtra)
+library(paletteer)
 ```
   
+```{r}
+validationFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/"
+```
 
 
   
@@ -39,45 +38,37 @@ FBC3Neurons[is.na(FBC3Neurons)] <- 0
 FBC3Neurons <- supertype(FBC3Neurons)
 ```
 
-Filter for "really in this region": neurons we're confident belong here. At least 30 synapses and 10% of it's FB synapses in Column3. This is because the type to type quantification, which will be slightly different here, cannot do the job (as we want to normalize "types" to the area)
+Filter for "really in this region": neurons we're confident belong here. At least 200 synapses and 90% of it's FB synapses in Column3. This is because the type to type quantification, which will be slightly different here, cannot do the job (as we want to normalize "types" to the area)
 ```{r}
-FBC3Real <- FBC3Neurons %>% filter(C3.uRatio > 0.8 & FB.upstream > 500) 
-FBC3RealOut <- FBC3Neurons %>% filter(C3.dRatio > 0.8 & FB.downstream > 500) 
-FBC3OutTypes <- FBC3Neurons %>% filter(C3.u > 400) ## Used to filter outputs to consider
+FBC3Real <- FBC3Neurons %>% filter(C3.uRatio > 0.8 & FB.upstream > 200) 
+FBC3RealOut <- FBC3Neurons %>% filter(C3.dRatio > 0.8 & FB.downstream > 200) 
 ```
 
-Compare raw synapse counts in the FB for comparison.
+Compare raw synapse counts in the FB for comparison. To be done before/after instead.
 ```{r}
 FBCTypes_In <- getTypesTable(unique(FBC3Real$type))
 FBCTypes_Out <- getTypesTable(unique(FBC3RealOut$type))
-FBCTypes_In <- left_join(FBCTypes_In,neuprint_get_roiInfo(FBCTypes_In$bodyid) %>% select(bodyid,FB.upstream))
-FBCTypes_Out <- left_join(FBCTypes_Out,neuprint_get_roiInfo(FBCTypes_Out$bodyid) %>% select(bodyid,FB.downstream))
+FBCTypes_In <- left_join(FBCTypes_In,neuprint_get_roiInfo(FBCTypes_In$bodyid) %>% select(bodyid,FB.upstream,FB.post))
+FBCTypes_Out <- left_join(FBCTypes_Out,neuprint_get_roiInfo(FBCTypes_Out$bodyid) %>% select(bodyid,FB.downstream,FB.pre))
 ```
 
 ```{r}
-FBCXReal <- FBCTypes_In %>% filter(!(name %in% FBC3Neurons$name) & FB.upstream>300)
-FBCXRealOut <- FBCTypes_Out %>% filter(!(name %in% FBC3Neurons$name) & FB.downstream>300)
+FBCXReal <- FBCTypes_In %>% filter(!(bodyid %in% FBC3Neurons$bodyid))
+FBCXRealOut <- FBCTypes_Out %>% filter(!(bodyid %in% FBC3Neurons$bodyid))# & FB.downstream>500)
 ```
 
 ```{r}
-FBCTypes_In <- mutate(FBCTypes_In,C3 = name %in% FBC3Real$name)
-FBCTypes_Out <- mutate(FBCTypes_Out,C3 = name %in% FBC3RealOut$name)
+FBCTypes_In <- mutate(FBCTypes_In,C3 = bodyid %in% FBC3Real$bodyid)
+FBCTypes_Out <- mutate(FBCTypes_Out,C3 = bodyid %in% FBC3RealOut$bodyid)
 ```
-
-To be recompared with C7 ?
-```{r}
-ggplot(supertype(FBCTypes_In),aes(y=FB.upstream,x=as.factor(C3),group=type,color=supertype1)) + stat_summary(fun = mean, geom="point")+ stat_summary(fun = mean, geom="line",aes(group=type)) + scale_color_paletteer_d("Polychrome::palette36")
-ggplot(supertype(FBCTypes_Out),aes(y=FB.downstream,x=as.factor(C3),group=type,color=supertype1)) + stat_summary(fun = mean, geom="point")+ stat_summary(fun = mean, geom="line",aes(group=type))+ scale_color_paletteer_d("Polychrome::palette36")
-```
-
 
 
 Building the full bag in the FB and in the restricted column. Notice that at this stage the numbers for FC3 in the type to type DFs won't "make sense" as they are normalized on all instances.
 ```{r}
-FBC3NeuronsBag <- buildInputsOutputsByType(unique(c(FBC3Real$type,FBC3RealOut$type)),fixed=TRUE,slctROI="FB")
+FBC3NeuronsBag <- create_neuronBag(unique(c(FBC3Real$type,FBC3RealOut$type)),fixed=TRUE,slctROI="FB",synThresh=0,computeKnownRatio=TRUE,verbose=TRUE)
 ```
 
-Do not redefine the partners (maybe make that an option in the neuronBag method)
+Redefine types (different renaming for inputs and outputs)
 ```{r}
 FBC3Set <- unique(FBC3Real$name)
 FBC3OutSet <- unique(FBC3RealOut$name)
@@ -85,17 +76,10 @@ FBCXSet <- unique(FBCXReal$name)
 FBCXOutSet <- unique(FBCXRealOut$name)
 retypedBag <- FBC3NeuronsBag
 
-for (t in unique(FBC3Real$type)){
-retypedBag$inputs_raw <- redefineType(retypedBag$inputs_raw,type = t,condition = retypedBag$inputs_raw$name.to %in% FBC3Set,type_col = "type.to",c(paste0(t,"_C3"),t))
-retypedBag$names <- redefineType(retypedBag$names,type = t,condition = retypedBag$names$name %in% FBC3Set,type_col = "type",c(paste0(t,"_C3"),t))
-retypedBag$inputs_raw <- redefineType(retypedBag$inputs_raw,type = t,condition = retypedBag$inputs_raw$name.to %in% FBCXSet,type_col = "type.to",c(paste0(t,"_CX"),t))
-retypedBag$names <- redefineType(retypedBag$names,type = t,condition = retypedBag$names$name %in% FBCXSet,type_col = "type",c(paste0(t,"_CX"),t))
-}
+retypedBag$inputs_raw <- redefineTypeByName(FBC3NeuronsBag$inputs_raw,postfix="to",sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"))
+retypedBag$names <- redefineTypeByName(FBC3NeuronsBag$names,sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"),postfix = "raw")
+retypedBag$outputs_raw <- redefineTypeByName(retypedBag$outputs_raw,postfix="from",sets=list(FBC3OutSet,FBCXOutSet),nameModifiers=c("_C3","_CX"))
 
-for (t in unique(FBC3RealOut$type)){
-retypedBag$outputs_raw <- redefineType(retypedBag$outputs_raw,type = t,condition = retypedBag$outputs_raw$name.from %in% FBC3OutSet,type_col = "type.from",c(paste0(t,"_C3"),t))
-retypedBag$outputs_raw <- redefineType(retypedBag$outputs_raw,type = t,condition = retypedBag$outputs_raw$name.from %in%  FBCXOutSet,type_col = "type.from",c(paste0(t,"_CX"),t))
-}
 retypedBag$inputs <- getTypeToTypeTable(retypedBag$inputs_raw,typesTable=retypedBag$names,oldTable=retypedBag$inputs)
 retypedBag$outputs <-  getTypeToTypeTable(retypedBag$outputs_raw,typesTable=retypedBag$outputsTableRef,oldTable=retypedBag$outputs) 
 ```
@@ -104,7 +88,7 @@ retypedBag$outputs <-  getTypeToTypeTable(retypedBag$outputs_raw,typesTable=rety
 FBC3InputComp <- retypedBag$inputs %>% filter(grepl("_C[3|X]",type.to)) %>% 
   mutate(column=substring(str_extract(type.to,"_C[3|X]"),2)) %>%
   group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(weightRelative=sum(weightRelative)) %>%
+  summarize(weightRelative=sum(knownWeightRelative)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
@@ -114,10 +98,10 @@ FBC3InputComp <- retypedBag$inputs %>% filter(grepl("_C[3|X]",type.to)) %>%
 ```
 
 ```{r}
-FBC3OutputComp <- retypedBag$outputs %>% filter(grepl("_C[3|X]",type.from) & (type.to %in% unique(FBC3OutTypes$type))) %>% 
+FBC3OutputComp <- retypedBag$outputs %>% filter(grepl("_C[3|X]",type.from)) %>% 
   mutate(column=substring(str_extract(type.from,"_C[3|X]"),2)) %>%
   group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(outputContribution=mean(outputContribution)) %>%
+  summarize(outputContribution=mean(knownOutputContribution)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
@@ -138,8 +122,19 @@ myPal <- typesPalette(allTypes)
 
 
 ```{r}
-inputPlot <- ggplot(FBC3InputComp,aes(x=C3,y=CX,group=databaseType.to)) + geom_point(aes(color=supertype.from2),size=4)  + geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Partner type",breaks=allTypes) + xlab("Relative input weight in column 3") + ylab("Relative input weight in the rest of the FB") + facet_wrap(supertype.to2~.) + ggtitle("Receiving in FB")
-outputPlot <- ggplot(FBC3OutputComp,aes(x=C3,y=CX,group=databaseType.from)) + geom_point(aes(color=supertype.to2),size=4) +  geom_abline(linetype=2) +theme_minimal()+ scale_color_manual(values=myPal)  + xlab("Relative output contribution in column 3") + ylab("Relative output contribution in the rest of the FB") + facet_wrap(supertype.from2~.) + ggtitle("Sending in FB")
+inputPlot <- ggplot(FBC3InputComp,aes(x=C3,y=CX)) + geom_point_interactive(aes(color=supertype.to2,
+                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
+                                                                                              format(C3,digits=3,scientific=FALSE)," in C3, ",
+                                                                                              format(CX,digits=3,scientific=FALSE)," outside C3.")),alpha=0.5)  + 
+  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + xlab("Relative input weight in column 3") + 
+  ylab("Relative input weight in the rest of the FB") + ggtitle(paste0("Receiving in FB. r = ",format(inputCor,digits = 3)))
+
+outputPlot <- ggplot(FBC3OutputComp,aes(x=C3,y=CX)) + geom_point_interactive(aes(color=supertype.from2,
+                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
+                                                                                              format(C3,digits=3,scientific=FALSE)," in C3, ",
+                                                                                              format(CX,digits=3,scientific=FALSE)," outside C3.")),alpha=0.5) +  
+  geom_abline(linetype=2) + theme_minimal()+ scale_color_manual(values=myPal)  + 
+  xlab("Relative output weight in column 3") + ylab("Relative output weight in the rest of the FB") + ggtitle(paste0("Sending in FB. r = ",format(outputCor,digits = 3)))
 FBComp <- plot_grid(inputPlot+ theme(legend.position = "none"),outputPlot+ theme(legend.position = "none"))
 leg <- get_legend(inputPlot + theme(legend.box.margin = margin(0, 0, 0, 12)))
 FBComp <- plot_grid(FBComp,leg, rel_widths = c(3, .4))
@@ -147,116 +142,32 @@ FBComp
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlot.svg",FBComp,height=7,width=13)
-```
-
-
-
-```{r}
-FBC3NeuronsBagRe <- FBC3NeuronsBag
-for (FBCol in paste0("_C",1:9)){
-  print(FBCol)
-  FBC3NeuronsBagRe <- redefineTypeByNameInList(FBC3NeuronsBagRe,unique(FBC3NeuronsBagRe$names$type),pattern = FBCol,newPostFixes = c(FBCol,""))
-}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlot.svg",FBComp,height=5,width=8)
 ```
 
 ```{r}
-FBC3Ratios <- FBC3NeuronsBagRe$names
-FBC3Ratios <- mutate(FBC3Ratios,C3.uRatio = ifelse(bodyid %in% FBC3Neurons$bodyid,FBC3Neurons$C3.uRatio[match(bodyid,FBC3Neurons$bodyid)],0),
-                                C3.dRatio = ifelse(bodyid %in% FBC3Neurons$bodyid,FBC3Neurons$C3.dRatio[match(bodyid,FBC3Neurons$bodyid)],0)) %>% 
-              group_by(type) %>%
-              summarize_at(c("C3.uRatio","C3.dRatio"),mean)
-```
-
-
-```{r}
-ColumnsInputComp <- FBC3NeuronsBagRe$inputs %>% filter(grepl("_C[1-9]",type.to)) %>% 
-  mutate(column=substring(str_extract(type.to,"_C[1-9]"),2),
-         C3.uRatio=FBC3Ratios$C3.uRatio[match(type.to,FBC3Ratios$type)]) %>%
-  group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(weightRelative=sum(weightRelative),
-            C3.uRatio=mean(C3.uRatio)) %>%
-  ungroup() %>%
-  supertype() %>%
-  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
-              names_from= "column",
-              values_from = c("weightRelative","C3.uRatio"),
-              values_fill=list("weightRelative"=0,"C3.uRatio"=0))
+FBComp_inter <- girafe(ggobj = FBComp, width_svg=7,height_svg=7)
 ```
 
 ```{r}
-ColumnsOutputComp <- FBC3NeuronsBagRe$outputs %>% filter(grepl("_C[1-9]",type.from)) %>% 
-  mutate(column=substring(str_extract(type.from,"_C[1-9]"),2)) %>%
-  group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(weightRelative=sum(weightRelative)) %>%
-  ungroup() %>%
-  supertype() %>%
-  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),names_from= "column",values_from = "weightRelative") %>%
-  replace_na(list("C1"=0,"C2"=0,"C5"=0,"C3"=0,"C4"=0,"C6"=0,"C7"=0,"C8"=0,"C9"=0))
-
-```
-
-
-
-
-```{r}
-columnsCorPlot <- ggcorr(ColumnsInputComp %>% select_at(c("C1","C2","C3","C4","C5","C6","C7","C8","C9")),limits=c(0.8,1),midpoint=0.8,label = TRUE,label_round = 2)
-columnsCorPlot
-```
-```{r}
-my_cor_fn <- function(data, mapping, method="p", use="pairwise", minV = 0,...){
-
-              # grab data
-              x <- eval_data_col(data, mapping$x)
-              y <- eval_data_col(data, mapping$y)
-
-              # calculate correlation
-              corr <- cor(x, y, method=method, use=use)
-
-              # calculate colour based on correlation value
-              # Here I have set a correlation of minus one to blue, 
-              # zero to white, and one to red 
-              # Change this to suit: possibly extend to add as an argument of `my_fn`
-              colFn <-paletteer_c("ggthemes::Red",200)
-              fill <- colFn[findInterval(corr, seq(minV, 1, length=200))]
-
-              ggally_cor(data = data, mapping = mapping, color="black",...) + 
-                theme_void() +
-                theme(panel.background = element_rect(fill=fill,size = 0))
-            }
-
-my_res_fn <- function(data,mapping,bins=50,...){
-  x <- eval_data_col(data, mapping$x)
-  y <- eval_data_col(data, mapping$y)
-  varProp <- str_extract(as_label(mapping$x),pattern = "C[1-9]")
-  columnProp <-  eval_data_col(data, mapping[[varProp]])
-  ggplot(data) + geom_point(aes(x=x,y=y,color=columnProp),...) + geom_abline(linetype=2,color="grey80") + scale_color_paletteer_c("ggthemes::Blue",direction = -1,limits=c(0,1),"Proportion of \nsynapses in \nthe better traced volume") + theme_minimal()
-}
-
-myDiagFunc <- function(data,mapping,theme=theme_minimal()){
-  ggally_densityDiag(data,mapping) + theme
-}
-  
+htmlwidgets::saveWidget(FBComp_inter,paste0(validationFolder,"C3CompPlot.html"))
 ```
 
 ```{r}
-fullPairsPlot <- ggpairs(FBC3InputComp,columns = paste0("weightRelative_C",1:9),aes(C1=C3.uRatio_C1,
-                                                                                    C2=C3.uRatio_C2,
-                                                                                    C3=C3.uRatio_C3,
-                                                                                    C4=C3.uRatio_C4,
-                                                                                    C5=C3.uRatio_C5,
-                                                                                    C6=C3.uRatio_C6,
-                                                                                    C7=C3.uRatio_C7,
-                                                                                    C8=C3.uRatio_C8,
-                                                                                    C9=C3.uRatio_C9),columnLabels = paste0("C",1:9),
-                    upper = list(continuous = wrap(my_res_fn,alpha=0.5)),lower=list(continuous=wrap(my_res_fn,alpha=0.5)),diag = list(continuous=myDiagFunc),progress = FALSE,legend=c(2,1))
-fullPairsPlot
+inputPlotQQ <- ggplot(FBC3InputComp,aes(sample=C3-CX)) + stat_qq(aes(color=supertype.to2,alpha=0.5)) + stat_qq_line(linetype=2) + ggtitle(paste0("Receiving in FB. r = ",format(inputCor,digits = 3))) + theme_minimal()+ scale_color_manual(values=myPal)+ ylim(c(-0.1,0.2))
+
+outputPlotQQ <- ggplot(FBC3OutputComp,aes(sample=C3-CX)) +  stat_qq(aes(color=supertype.from2,alpha=0.5)) + stat_qq_line(linetype=2) +
+ theme_minimal()+ scale_color_manual(values=myPal)  + 
+ ggtitle(paste0("Sending in FB. r = ",format(outputCor,digits = 3))) + ylim(c(-0.1,0.2))
+FBCompQQ <- plot_grid(inputPlotQQ+ theme(legend.position = "none"),outputPlotQQ+ theme(legend.position = "none"))
+leg <- get_legend(inputPlotQQ + theme(legend.box.margin = margin(0, 0, 0, 12)))
+FBCompQQ <- plot_grid(FBCompQQ,leg, rel_widths = c(3, .4))
+FBCompQQ
 ```
-
-
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/ColumnsPairPlot.svg",fullPairsPlot,width=15,height=13)
+ggsave(paste0(validationFolder,"FBC3CompQQ.svg"))
 ```
+
 
 ### Anatomy illustration of FB column 3
 ```{r}
@@ -272,24 +183,37 @@ FB <- roiOutline("FB")
 ```
 
 ```{r}
-FBC3InputsAnatomies <- neuprint_read_neurons(FBC3Real$bodyid,resample=10) ## Resampling usually avoids cutting artefacts to appear
-FBC3OutputsAnatomies <- neuprint_read_neurons(FBC3RealOut$bodyid,resample=10)
-```
-
-
-```{r}
-FBC3InputsAnatomies <- bind_rows(list(neuronForGG(FBC3InputsAnatomies) %>% mutate(proj="xy"),neuronForGG(FBC3InputsAnatomies,axis=c("x","z")) %>% mutate(proj="xz")))
-FBC3OutputsAnatomies <- bind_rows(list(neuronForGG(FBC3OutputsAnatomies) %>% mutate(proj="xy"),neuronForGG(FBC3OutputsAnatomies,axis=c("x","z")) %>% mutate(proj="xz")))
-```
-
-
-```{r}
-FBC3InputsAnatomiesDF <- mutate(FBC3InputsAnatomies,supertype2 = FBC3Real$supertype2[match(bodyid,FBC3Real$bodyid)])
-FBC3OutputsAnatomiesDF <- mutate(FBC3OutputsAnatomies,supertype2 = FBC3RealOut$supertype2[match(bodyid,FBC3RealOut$bodyid)])
+FBC3InputsAnatomies <- neuprint_read_neurons(FBC3Real$bodyid,resample=10,meta=FALSE,connectors=FALSE) ## Resampling usually avoids cutting artefacts to appear
+FBC3OutputsAnatomies <- neuprint_read_neurons(FBC3RealOut$bodyid,resample=10,meta=FALSE,connectors=FALSE)
 ```
 
 ```{r}
-C3InputsPlot <- ggplot(FBC3InputsAnatomiesDF,aes(x,y,group=bodyid,fill=supertype2),alpha=0.5) + geom_polygon() + geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),fill="grey50",alpha=0.3,inherit.aes = FALSE)+ coord_fixed() + scale_fill_manual(values=myPal,name="Type",breaks=allTypes) + scale_y_reverse() + theme_void() +facet_grid(proj~.)
+FBC3InputsAnatomies <- bind_rows(list(neuron2polygon(FBC3InputsAnatomies,cl=20),neuron2polygon(FBC3InputsAnatomies,axis=c("x","z"),cl=20)))
+FBC3OutputsAnatomies <- bind_rows(list(neuron2polygon(FBC3OutputsAnatomies,cl=20),neuron2polygon(FBC3OutputsAnatomies,axis=c("x","z"),cl=20)))
+```
+
+```{r}
+FBC3InputsAnatomies <- mutate(FBC3InputsAnatomies,supertype2 = FBC3Real$supertype2[match(bodyid,FBC3Real$bodyid)])
+FBC3OutputsAnatomies <- mutate(FBC3OutputsAnatomies,supertype2 = FBC3RealOut$supertype2[match(bodyid,FBC3RealOut$bodyid)])
+```
+
+```{r}
+ExampleC3Anat <- filter(FBC3InputsAnatomies,bodyid %in% filter(FBC3Real,type=="FC2A")$bodyid)
+```
+
+```{r}
+FBCXExampleAnatomies <- neuprint_read_neurons(filter(FBCXReal,type=="FC2A")$bodyid,resample=10,meta=FALSE,connectors=FALSE)
+```
+
+```{r}
+FBCXExampleAnatomies <- bind_rows(list(neuron2polygon(FBCXExampleAnatomies,cl=20),neuron2polygon(FBCXExampleAnatomies,axis=c("x","z"),cl=20)))
+```
+
+
+
+```{r}
+C3InputsPlot <- ggplot() + geom_polygon(data=FBCXExampleAnatomies[seq(1,by=10,to = nrow(FBCXExampleAnatomies)),],aes(x,y,group=bodyid),fill="grey50") + 
+  geom_polygon(data=ExampleC3Anat[seq(1,by=10,to = nrow(ExampleC3Anat)),],aes(x,y,group=bodyid),fill="#0072B2") + geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="#908827")+ coord_fixed() + scale_fill_manual(values=myPal,name="Type",breaks=allTypes) + scale_y_reverse() + theme_void() +facet_grid(proj~.)
 ```
 
 ```{r}
@@ -299,24 +223,101 @@ C3InputsPlot
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3TargetsAnatomies.svg",C3InputsPlot,height=21)
 ```
+
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3TargetsAnatomies.png",C3InputsPlot,height=21)
+C3OutputsPlot <- ggplot(FBC3OutputsAnatomies,aes(x,y,group=bodyid,fill=supertype2)) + geom_polygon() + geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),linetype=2,alpha=0.3,inherit.aes = FALSE)+ coord_fixed() + scale_fill_manual(values=myPal,name="Type",breaks=allTypes) + scale_y_reverse() + theme_void() +facet_grid(proj~.)
 ```
 
 ```{r}
-C3OutputsPlot <- ggplot(FBC3OutputsAnatomiesDF,aes(x,y,group=bodyid,fill=supertype2),alpha=0.5) + geom_polygon() + geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),fill="grey50",alpha=0.3,inherit.aes = FALSE)+ coord_fixed() + scale_fill_manual(values=myPal,name="Type",breaks=allTypes) + scale_y_reverse() + theme_void() +facet_grid(proj~.)
+FBC3Panel <- plot_grid(C3InputsPlot+ theme(legend.position = "none"),FBComp,rel_widths = c(0.5,1))
+FBC3Panel
 ```
 
 ```{r}
-C3OutputsPlot
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/FBC3.svg",FBC3Panel,height=7,width=17)
+```
+
+### FBC3 vs FB, figure panel
+
+## PB glomeruli comparisons
+
+ Do not use names, do the exact same kind of criterion as before.
+```{r}
+PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE,slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
+```
+
+Redefine types (different renaming for inputs and outputs)
+```{r}
+PBL3 <- PBTypesTable$names %>% filter(grepl("_L3_",name))
+PBL4 <- PBTypesTable$names %>% filter(grepl("_L4_",name))
+PBR3 <- PBTypesTable$names %>% filter(grepl("_R3_",name))
+PBR4 <- PBTypesTable$names %>% filter(grepl("_R4_",name))
+
+retypedBagPB <- PBTypesTable
+
+retypedBagPB$inputs_raw <- redefineTypeByName(retypedBagPB$inputs_raw,postfix="to",sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"))
+retypedBagPB$names <- redefineTypeByName(retypedBagPB$names,sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"),postfix = "raw")
+retypedBagPB$outputs_raw <- redefineTypeByName(retypedBagPB$outputs_raw,postfix="from",sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"))
+
+retypedBagPB$inputs <- getTypeToTypeTable(retypedBagPB$inputs_raw,typesTable=retypedBagPB$names,oldTable=retypedBagPB$inputs)
+retypedBagPB$outputs <-  getTypeToTypeTable(retypedBagPB$outputs_raw,typesTable=retypedBagPB$outputsTableRef,oldTable=retypedBagPB$outputs) 
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3TargetingAnatomies.svg",C3OutputsPlot,height=21)
+PB3InputComp <- retypedBagPB$inputs %>% filter(grepl("_[L|R]3",type.to)) %>% 
+  mutate(column=substring(str_extract(type.to,"_[L|R]3"),2)) %>%
+  group_by(databaseType.from,databaseType.to,column) %>%
+  summarize(weightRelative=sum(knownWeightRelative)) %>%
+  ungroup() %>%
+  supertype() %>%
+  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
+              names_from= "column",
+              values_from = "weightRelative",
+              values_fill=list("weightRelative"=0))
 ```
+
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3TargetingAnatomies.png",C3OutputsPlot,height=21)
+PB3OutputComp <- retypedBagPB$outputs %>% filter(grepl("_[L|R]3",type.from)) %>% 
+  mutate(column=substring(str_extract(type.from,"_[L|R]3"),2)) %>%
+  group_by(databaseType.from,databaseType.to,column) %>%
+  summarize(outputContribution=mean(knownOutputContribution)) %>%
+  ungroup() %>%
+  supertype() %>%
+  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
+              names_from= "column",
+              values_from = "outputContribution",
+              values_fill=list("outputContribution"=0))
 ```
+
+```{r}
+inputCor3 <- cor(PB3InputComp$R3,PB3InputComp$L3)
+outputCor3 <- cor(PB3OutputComp$R3,PB3OutputComp$L3)
+```
+
+```{r}
+allTypesPB <- unique(c(retypedBagPB$inputs_raw$supertype.from2,retypedBagPB$outputs_raw$supertype.to2))
+myPalPB <- typesPalette(allTypesPB)
+```
+
+```{r}
+inputPlot <- ggplot(PB3InputComp,aes(x=R3,y=L3)) + geom_point_interactive(aes(color=supertype.to2,
+                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
+                                                                                              format(R3,digits=3,scientific=FALSE)," in R3, ",
+                                                                                              format(L3,digits=3,scientific=FALSE)," in L3.")),alpha=0.5)  + 
+  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes)
+
+outputPlot <- ggplot(PB3OutputComp,aes(x=R3,y=L3)) + geom_point_interactive(aes(color=supertype.to2,
+                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
+                                                                                              format(R3,digits=3,scientific=FALSE)," in R3, ",
+                                                                                              format(L3,digits=3,scientific=FALSE)," in L3.")),alpha=0.5)  + 
+  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes)
+```
+
+```{r}
+outputPlot
+```
+
+
 
 ### Comparing with the old version of the dataset
 ```{r}
@@ -356,8 +357,8 @@ oldPartnerTable <- filter(oldPartnerTable,bodyid %in% oldPartnersNewDataset$body
 
 
 ```{r,warning=FALSE}
-newConnTable <- processConnectionTable(newRawTable,newRefTable,newPartnerTable,newRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection)
-oldConnTable <- processConnectionTable(oldRawTable,oldRefTable,oldPartnerTable,oldRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection)
+newConnTable <- processConnectionTable(newRawTable,newRawTable,newRefTable,newPartnerTable,newRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection)
+oldConnTable <- processConnectionTable(oldRawTable,oldRawTable,oldRefTable,oldPartnerTable,oldRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection)
 ```
 
 ```{r,warning=FALSE}
@@ -387,8 +388,8 @@ oldPartnerTableOut <- filter(oldPartnerTableOut,bodyid %in% oldPartnersNewDatase
 ```
 
 ```{r,warning=FALSE}
-newConnTableOut <- processConnectionTable(newRawTableOut,newRefTableOut,newPartnerTableOut,newRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection)
-oldConnTableOut <- processConnectionTable(oldRawTableOut,oldRefTableOut,oldPartnerTableOut,oldRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection)
+newConnTableOut <- processConnectionTable(newRawTableOut,newRawTableOut,newRefTableOut,newPartnerTableOut,newRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection,chunk_connections = TRUE)
+oldConnTableOut <- processConnectionTable(oldRawTableOut,oldRefTableOut,oldRefTableOut,oldPartnerTableOut,oldRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection,chunk_connections = TRUE)
 ```
 
 ```{r}
@@ -427,46 +428,5 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotO
 ```{r}
 ggplot(inputsAges,aes(x=ROIweight.new,y=abs(weightRelative.old-weightRelative.new))) + geom_point(alpha=0.2)
 ```
-
-## PB glomeruli comparisons
-```{r}
-PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE,slctROI="PB")
-```
-
-
-```{r}
-PBL3 <- PBTypesTable$names %>% filter(grepl("_L3_",name))
-PBL4 <- PBTypesTable$names %>% filter(grepl("_L4_",name))
-PBR3 <- PBTypesTable$names %>% filter(grepl("_R3_",name))
-PBR4 <- PBTypesTable$names %>% filter(grepl("_R4_",name))
-```
-
-```{r}
-PBL3LocalBag <- localized(PBTypesTable,"PB",localRef = PBL3)
-PBL4LocalBag <- localized(PBTypesTable,"PB",localRef = PBL4)
-PBR3LocalBag <- localized(PBTypesTable,"PB",localRef = PBR3)
-PBR4LocalBag <- localized(PBTypesTable,"PB",localRef = PBR4)
-```
-
-```{r}
-PBTypesTableInputComp <- bind_rows(PBL3LocalBag$inputs %>% mutate(roi="L3"),
-                                   PBR4LocalBag$inputs %>% mutate(roi="R4"),
-                                   PBR3LocalBag$inputs %>% mutate(roi="R3"),
-                                   PBL4LocalBag$inputs %>% mutate(roi="L4")) %>% mutate(weightRelativeR = weightRelative*n_type/n_targets)
-PBTypesTableInputComp <- PBTypesTableInputComp %>% pivot_wider(id_cols=c("type.from","type.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),names_from="roi",values_from = "weightRelativeR")
-PBTypesTableInputComp <-  replace_na(PBTypesTableInputComp,list("R3"=0,"L4"=0,"R4"=0,"L3"=0))
-```
-
-```{r}
-PBPairsPlot <- ggpairs(PBTypesTableInputComp,columns = c("L4","R3","R4","L3"),aes(alpha=0.5),
-                    upper = list(continuous = function(data,mapping) my_cor_fn(data,mapping,minV=0.65)),progress = FALSE)
-PBPairsPlot
-```
-
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/PBPairPlot.svg",PBPairsPlot,width=8,height=7)
-```
-
 
 
