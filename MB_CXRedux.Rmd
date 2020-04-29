@@ -20,6 +20,21 @@ source("colorCodeLookup.R")
 options(nat.plotengine = 'rgl')
 ```
 
+### Configurable inputs: choose save/plot directories
+```{r}
+# Directory to save data to.
+SaveDir = "/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+
+# Directory to save plots to.
+PlotDir = "/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis"
+```
+
+### Create save/plot directory if they dont exists yet
+```{r}
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+```
+
 ### Connect to neuprint
 ```{r}
 # neuprint_login()
@@ -35,7 +50,7 @@ MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## K
 
 Selecting CX types as those present in Shin-ya's list.
 ```{r}
-CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types4") %>% rename(databaseType=n.type))
+CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types042020") %>% rename(databaseType=n.type))
 MBONCXTargetsL <- unique(MBON_PostConnections$type.to)[unique(MBON_PostConnections$type.to) %in% CXTypes$databaseType]
 MBONCXTargets <- getTypesTable(MBONCXTargetsL)
 ```
@@ -59,7 +74,7 @@ Isolating the MBON inputs to right side neurons in there
 MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON")& grepl("_R",type.to))
 ```
 
-Combine all input regions into one (to get a "fairer" relative weight). Add a variable that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
+Combine all input regions into one (to get a "more fair" relative weight). Add a variable, totalMBContribution, that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
 ```{r}
 MBONTargetInputCombined <- combineRois(MBONTargetBagLat,unique(MBONTargetInp$roi),newRoi="MBON outputs")
 MBONTargetInpC <- MBONTargetInputCombined$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to)) %>% 
@@ -70,15 +85,22 @@ MBONTargetInpC <- MBONTargetInputCombined$inputs %>% filter(startsWith(type.from
 ```
 
 ```{r}
-plotConnectivityMatrix(MBONTargetInpC,byGroup="type")
+plotConnMat_MBON_CX_Romain <- plotConnectivityMatrix(MBONTargetInpC,byGroup="type")
+print(plotConnMat_MBON_CX_Romain)
+ggsave("MBON_CX_ConnectionsByType_weightRelative_Romain.eps", plot=plotConnMat_MBON_CX_Romain, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
 ```{r}
 inputProportions <- ggplot(MBONTargetInpC,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=type.from)) + scale_fill_manual(values=typesPalette(unique(MBONTargetInpC$type.from)),name="MBON types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight in input regions",x="Type")
-inputProportions
+print(inputProportions)
+ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=inputProportions, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
-Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences).
+Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences). 
+
+***Should also find pathways through middle neurons outside of the CX. 
 ```{r}
 MBONTargetFBOut <- MBONTargetBagLat$outputs %>% filter(roi=="FB" & type.from %in% MBONTargetInpC$type.to) %>% 
   mutate(MBONInfluence = MBONTargetInpC$totalMBContribution[match(type.from,MBONTargetInpC$type.to)]*weightRelative) %>% group_by(type.to) %>% mutate(pathwaysWeight = sum(MBONInfluence)) %>% ungroup()

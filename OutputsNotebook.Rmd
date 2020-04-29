@@ -4,35 +4,24 @@ output: html_notebook
 ---
 
 ```{r message=FALSE, warning=FALSE}
-library(nat)
 library(neuprintr)
 library(tidyverse)
-library(ggforce)
-library(igraph)
-library(tidygraph)
-library(ggraph)
-library(pbapply)
-library(parallel)
-source("neuprintQueryUtils.R")
-source("R/table2ggraphUtils.R")
-source("InputOutputByTypeUtils.R")
-source("R/rois.R")
-options(nat.plotengine = 'rgl')
+library(neuprintrExtra)
 ```
 
 ## Building the outputs neuron bag
-Building connection table in steps to avoid timeouts.
+Building connection table.
 ```{r}
-outputBag <- buildInputsOutputsByType("FC[1|2].*|FS.*|^FR.*|ExR7.*|ExR8.*|PFL.*|PFR_b.*",verbose=TRUE)
+outputBag <- create_neuronBag("FC[1|2].*|FS.*|^FR.*|ExR5.*|ExR7.*|ExR8.*|PFL.*|PFR_b.*|EL.*|EPG.*|PEG.*|PFG.*",verbose=TRUE)
 ```
 
-### Renaming (convenience function does that dealing with tricky PF types)
+### Renaming
 ```{r}
 outputBag <- cxRetyping(outputBag)
 ```
 Consider only "right side" neurons
 ```{r}
-reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R")
+reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R" | type == "ExR5_R" | type =="PFGs_R")
 ```
 
 ## What do their respective innervation patterns look like ?
@@ -48,15 +37,12 @@ outputsByRoi <- getROISummary(reducedBag,filter=FALSE)
 
 
 ```{r}
-outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE)
-```
-
-```{r}
+outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE)
 outputsInnervation_L
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,width=12,height=8)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,width=14,height=8)
 ```
 
 ## Who are those neurons they talk to?
@@ -69,7 +55,7 @@ allOuts <- reducedBag$outputsTableRef %>% filter(type %in% allOutsTable$type.to)
 
 
 ```{r}
-outputsInOutBag <- buildInputsOutputsByType(allOuts,selfRef = TRUE,verbose=TRUE,progress=TRUE)
+outputsInOutBag <- create_neuronBag(allOuts,selfRef = TRUE,verbose=TRUE)
 ```
 
 ```{r}
@@ -78,7 +64,7 @@ outputsInOutBag <- cxRetyping(outputsInOutBag)
 
 Look at those targets at a "global" output region level
 ```{r}
-outputsOverview <- supertype(combineRois(outputsInOutBag,c("VLNP(R)","SNP(R)","VMNP(R)","INP","LX(R)","LX(L)"),"Output regions",singleNeuronThreshold=0.001))
+outputsOverview <- combineRois(outputsInOutBag,c("VLNP(R)","SNP(R)","VMNP(R)","INP","LX(R)","LX(L)"),"Output regions",singleNeuronThreshold=0.001)
 ## One cleans up anything not getting significant CX input
 signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
 outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
@@ -89,38 +75,52 @@ CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell
 ```
 
 ```{r}
-outputTypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL1"=1,"PFL2"=1,"PFL3"=1,"FS1"=1,"FS4"=1,"ExR7"=1,"ExR8"=1),exceptionLevelMatch = 1)
+outputTypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL1"=1,"PFL2"=1,"PFL3"=1,"FS1"=1,"FS4"=1,"ExR5"=1,"ExR7"=1,"ExR8"=1),exceptionLevelMatch = 1)
+```
+
+```{r}
+inputs_toOutputs <- outputsOverview$inputs %>% mutate(customSupertype = outputTypes$type[match(supertype.from1,outputTypes$supertype1)])
+inputs_toOutputs <- replace_na(inputs_toOutputs,list("customSupertype" = "Other"))
+```
+
+```{r}
+inputs_toOutputsMat <- connectivityMatrix(connObj = inputs_toOutputs,slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to")
+```
+```{r}
+CXtoOutputs <- filter(inputs_toOutputs,customSupertype !="Other") %>% group_by(type.to,databaseType.to) %>% summarize(totalCX = sum(weightRelative)) %>% ungroup() %>% filter(!(databaseType.to %in% CXtypes$databaseType)) %>% arrange(desc(totalCX))
+```
+
+```{r}
+outputsIDs <- neuprint_get_meta(unique(outputsOverview$inputs_raw$to[(outputsOverview$inputs_raw$type.to %in% CXtoOutputs$type.to)])) %>% filter(statusLabel != "Leaves") %>% mutate(typeF = factor( as.character(outputsOverview$inputs_raw$type.to[match(bodyid,outputsOverview$inputs_raw$to)]),levels=CXtoOutputs$type.to)) %>% arrange(typeF) %>% filter(!grepl("ring.*",name))
+```
+
+```{r}
+write.csv(outputsIDs,file="~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsList.csv")
 ```
 
 
 ```{r}
-inp <- outputsOverview$inputs %>% mutate(customSupertype = outputTypes$type[match(supertype.from1,outputTypes$supertype1)])
-inp <- replace_na(inp,list("customSupertype" = "Other"))
+outputs_FromOutputs <- bind_rows(outputsInOutBag$outputs %>% filter(roi=="CX"),outputsOverview$outputs)
 ```
 
 ```{r}
-source("R/inProgress.R")
+outputs_fromOutputsMat <- connectivityMatrix(outputs_FromOutputs,slctROI=c("CX","Output regions"),allToAll=FALSE,from = "type.from","type.to",ref="outputs")
 ```
 
 ```{r}
-test <- connectivityMatrix(inp,slctROI="Output regions",allToAll = FALSE,from = "type.from","type.to")
-```
-
-
-```{r}
-#Clustering on 
-testM <- t(test[rownames(test) %in% outputBag$names$type,])
-d <- dist(testM/colSums(test),method="canberra")
-hc <- hclust(d)
+#Clustering on the input strengths only of "output" CX neurons 
+inputsCl_Out <- hClust_connMat(inputs_toOutputsMat,rowSelect=outputBag$names$type)
+inputsCl_All <- hClust_connMat(inputs_toOutputsMat)
+inputsCl_Other <- hClust_connMat(inputs_toOutputsMat,rowSelect=rownames(inputs_toOutputsMat)[!(rownames(inputs_toOutputsMat) %in% outputBag$names$type)])
 ```
 
 ```{r}
-inp$typeF <- factor(inp$type.to,levels=row.names(testM)[hc$order])
+inputs_toOutputs$type.toF <- factor(inputs_toOutputs$type.to,levels=colnames(inputs_toOutputsMat)[inputsCl_Out$order])
 ```
 
 
 ```{r}
-inputProportions <- ggplot(inp,aes(x=typeF)) + geom_col(aes(y=weightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(outputTypes$type),name="Input types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight",x="Output type")
+inputProportions <- ggplot(inputs_toOutputs,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(outputTypes$type),name="Input types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight",x="Output type")
 inputProportions
 ```
 
