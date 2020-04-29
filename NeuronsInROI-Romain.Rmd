@@ -5,15 +5,11 @@ output: html_notebook
 
 
 ```{r}
-library(nat)
 library(neuprintr)
 library(tidyverse)
-
-source("neuprintQueryUtils.R")
-source("R/table2ggraphUtils.R")
-source("InputOutputByTypeUtils.R")
-source("R/rois.R")
-
+library(ggiraph)
+library(neuprintrExtra)
+library(cowplot)
 ```
   
 Picking the lowest level ROIs
@@ -61,7 +57,6 @@ haneschEB_R
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.svg",haneschEB_R,width = 14,height=6)
 ggsave(paste0(haneschSaveFolder,"EB/EBTypesRight.svg"),haneschEB_R,width = 14,height=6)
 ```
 
@@ -73,8 +68,80 @@ interHaneschEB_R <- girafe(ggobj = haneschEB_R, width_svg=14,height_svg=6,
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschEB_R,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/EB/RoiInOut/HaneschEBTypes_Right.html")
 htmlwidgets::saveWidget(interHaneschEB_R,paste0(haneschSaveFolder,"EB/EBTypesRight.html"))
+```
+
+```{r}
+haneschExR <- haneschPlot(EBSummary %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE)
+haneschExR
+```
+```{r}
+ExRTable <- neuprint_search("ExR.*",field="type") %>% mutate(databaseType = type) %>% lateralize_types(postfix = "raw") %>% filter(grepl("_R.*",type))
+```
+
+```{r}
+ExRNeurons <- neuprint_read_neurons(ExRTable$bodyid,meta = FALSE,connectors = FALSE)
+```
+```{r}
+ExRNeuronsXY <- neuron2polygon(ExRNeurons)
+ExRNeuronsXZ <- neuron2polygon(ExRNeurons,axis=c("x","z"))
+ExRNeurons <- bind_rows(ExRNeuronsXY[seq(1,by=2,to=nrow(ExRNeuronsXY)),],ExRNeuronsXZ[seq(1,by=2,to=nrow(ExRNeuronsXZ)),]) %>% mutate(type = ExRTable$type[match(bodyid,ExRTable$bodyid)])
+```
+
+```{r}
+EBShape <- roiOutline("EB",alpha=200)
+LALRShape <- roiOutline("LAL(-GA)(R)",alpha=200)
+GAShape <- roiOutline("GA(R)")
+BUShape <- roiOutline("BU(R)")
+outlineRois <- selectRoiSet(roiH,exceptions=list("LAL(R)"=3))
+roiShapes <- bind_rows(EBShape,LALRShape,GAShape,BUShape) %>% mutate(l4 = outlineRois$level4[match(roi,outlineRois$roi)],superroi = labelRoisEB$roi[match(l4,labelRoisEB$level4)])
+```
+
+
+```{r}
+ExRAnatPlot <- ggplot() + geom_path(data=roiShapes,aes(x=x,y=y,group=roi),color="grey50") + geom_polygon(data=roiShapes,aes(x=x,y=y,group=roi,fill=superroi),alpha=0.3) + scale_fill_manual(values=roiPal) + geom_polygon_interactive(data=ExRNeurons,aes(x=x,y=y,group=bodyid,data_id=type),fill="grey80",alpha=0.2) + facet_grid(proj~.) + theme_void() + coord_fixed()  + scale_y_reverse()
+```
+
+```{r}
+ExRSummaryPlot <- plot_grid(ExRAnatPlot + theme(legend.position = "none"),haneschExR)
+```
+
+```{r}
+interExRSummary <- girafe(ggobj = ExRSummaryPlot, width_svg=14,height_svg=7,options = list(
+    opts_hover(css= girafe_css(css = "stroke:red;",
+                               area = "fill:black;stroke:none;fill-opacity:1;"
+                               ))
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interExRSummary,paste0(haneschSaveFolder,"EB/ExRSummary.html"))
+```
+
+
+```{r}
+haneschExRFull <- haneschPlot(EBSummary %>% filter(startsWith(type,"ExR")),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE)
+```
+
+```{r}
+ggsave(paste0(haneschSaveFolder,"EB/ExRRight.svg"),haneschExR,width = 8,height=6)
+ggsave(paste0(haneschSaveFolder,"EB/ExRFull.svg"),haneschExRFull,width = 10,height=6)
+```
+
+```{r}
+interHaneschExR <- girafe(ggobj = haneschExR, width_svg=8,height_svg=6,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+interHaneschExRFull <- girafe(ggobj = haneschExRFull, width_svg=8,height_svg=6,
+  options = list(
+    opts_sizing(width=0.7)
+  ))
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschExR,paste0(haneschSaveFolder,"EB/ExRRight.html"))
+htmlwidgets::saveWidget(interHaneschExRFull,paste0(haneschSaveFolder,"EB/ExRFull.html"))
 ```
 
 How do those compare to the Brad Types
@@ -133,7 +200,6 @@ htmlwidgets::saveWidget(interHaneschNOR,paste0(haneschSaveFolder,"NO/NO_RTypes.h
 
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.svg",haneschNOR,width = 15,height=8)
 ggsave(paste0(haneschSaveFolder,"NO/NO_RTypes.svg"),haneschNOR,width = 15,height=8)
 ```
 
@@ -153,8 +219,9 @@ NORTypes$databaseType[!(NORTypes$databaseType %in% NO_Type)]
 
 # PB
 ```{r}
-PBTypesTable <- getTypesInRoiTable("PB",big=TRUE,lateralize = FALSE,clN = 5)
+PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE)
 ```
+
 ```{r}
 PBTypesTable <- cxRetyping(PBTypesTable)
 ```
@@ -191,7 +258,6 @@ htmlwidgets::saveWidget(interHaneschPB,paste0(haneschSaveFolder,"PB/PBTypes.html
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.svg",haneschPB,width = 19,height=8)
 ggsave(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,width = 19,height=8)
 ```
 

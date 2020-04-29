@@ -5,6 +5,7 @@ output:
     df_print: paged
 ---
 
+
 ### Command to clear environment is: rm(list = ls(all.names = TRUE))
 ### Command to update is remotes::update_packages('neuprintr')
 ### Load libraries
@@ -190,18 +191,7 @@ for (ppp in 1:length(Pre_Post$type.from)){
   Temp_Scatter = subset(Scatter_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
   Temp_Scatter = merge(Temp_Scatter, Temp_PFX_Out[c("to","FBcol.to")], by="to")
   
-  # Make names
-  Temp_PFX_Out$from_name = paste(Temp_PFX_Out$FBcol.from, Temp_PFX_Out$from, sep="__")
-  TempDF=distinct(Temp_PFX_Out[c("from_name","from","FBcol.from")])
-  TempDF$from_name2=paste(TempDF$FBcol.from, order(TempDF$from_name), sep="_")
-  Temp_PFX_Out=merge(Temp_PFX_Out, TempDF[c("from_name","from_name2")], by="from_name")
 
-  Temp_PFX_Out$to_name   = paste(Temp_PFX_Out$FBcol.to, Temp_PFX_Out$to, sep="__")
-  TempDF=distinct(Temp_PFX_Out[c("to_name","to","FBcol.to")])
-  TempDF$to_name2=paste(TempDF$FBcol.to, order(TempDF$to_name), sep="_")
-  Temp_PFX_Out=merge(Temp_PFX_Out, TempDF[c("to_name","to_name2")], by="to_name")
-  
-  
   # Calculate number of pre and post neurons
   PreNum=length(unique(Temp_PFX_Out$from))
   PostNum=length(unique(Temp_PFX_Out$to))
