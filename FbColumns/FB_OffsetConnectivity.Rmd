@@ -26,6 +26,9 @@ library(igraph)
 library(tidygraph)
 library(xlsx)
 library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -63,12 +66,12 @@ neuprint_login()
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
-source("../InputOutputByTypeUtils.r", chdir = TRUE)
-source("../neuprintQueryUtils.r", chdir = TRUE)
+#source("../InputOutputByTypeUtils.r", chdir = TRUE)
+#source("../neuprintQueryUtils.r", chdir = TRUE)
 source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
 source("../GetNeuronsInRoi.r")
-library("xlsx")
+
 
 ```
 
@@ -109,7 +112,7 @@ FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "bodyname", "Side", "PBglom", "FBco
 
 # Get input and output tables
 PFX_Types=unique(NamedBodies$bodytype[startsWith(NamedBodies$bodytype, "PF" )])
-PFX_Bag=buildInputsOutputsByType(PFX_Types, slctROI="FB")
+PFX_Bag=create_neuronBag(PFX_Types, slctROI="FB")
 PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
 PFX_FB_Inputs_All=PFX_Bag[["inputs_raw"]]
 
