@@ -8,7 +8,13 @@ library(nat)
 library(neuprintr)
 library(tidyverse)
 library(ggraph)
+library(plotly)
+library(dplyr)
+library(pbapply)
+library(tidygraph)
+library(gridExtra)
 
+# Go to the neurpintR-notebooks directory before loading these functions
 source("visualizeConnectivityTables.R")
 source("neuprintQueryUtils.R")
 source("R/table2ggraphUtils.R")
@@ -16,6 +22,10 @@ source("InputOutputByTypeUtils.R")
 source("R/rois.R")
 source("R/supertypeUtils.R")
 source("colorCodeLookup.R")
+source("pathways.R")
+source("inputOutputRegionsVis.R")
+source("GetNeuronsInRoi.R")
+source("FBNetworkVisUtils.R")
 
 options(nat.plotengine = 'rgl')
 ```
@@ -41,40 +51,67 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 ```
 
-Pulling neurons postsynaptic to MBONs
+### Pulling neurons postsynaptic to MBONs
 ```{r}
 MBON_Names <- neuprint_search("MBON.*")
 # Find the postsynaptic partners of all MBONs
 MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## Keeping the default threshold (3)
 ```
 
-Selecting CX types as those present in Shin-ya's list.
+### Selecting CX types as those present in Shin-ya's list.
 ```{r}
 CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types042020") %>% rename(databaseType=n.type))
 MBONCXTargetsL <- unique(MBON_PostConnections$type.to)[unique(MBON_PostConnections$type.to) %in% CXTypes$databaseType]
 MBONCXTargets <- getTypesTable(MBONCXTargetsL)
 ```
-Creating a relatively high level ROI set
+
+### Creating a relatively high level ROI set
 ```{r}
 roisH <- getRoiTree()
 roiSelection <- selectRoiSet(roisH,default_level=1,exceptions=list("CX"=2))
 ```
-Creating a neuron bag of CX MBON targets
+
+### Find secondary targets of MBONs
+```{r}
+# Find the postsynaptic partners of all MBON targets
+MBON_2ndaryPostConnections <- getConnectionTable(MBON_PostConnections$to,synapseType = "POST") ## Keeping the default threshold (3)
+# head(MBON_2ndaryPostConnections)
+```
+
+```{r}
+# Find the MBON secondary targets in the CX
+MBONCX2ndaryTargetsL <- unique(MBON_2ndaryPostConnections$type.to)[unique(MBON_2ndaryPostConnections$type.to) %in% CXTypes$databaseType]
+MBONCX2ndaryTargets <- getTypesTable(MBONCX2ndaryTargetsL)
+```
+
+### Creating neuron bags of MBON primary and secondary CX targets
 ```{r}
 MBONTargetBag <- buildInputsOutputsByType(MBONCXTargets,slctROI=unique(roiSelection$roi))
+MBON2ndaryTargetBag <- buildInputsOutputsByType(MBONCX2ndaryTargets,slctROI=unique(roiSelection$roi))
 ```
 
-Separating left and right neurons in there as some tangential input regions might be cut on the left.
+### Separating left and right neurons in there as some tangential input regions might be cut on the left.
 ```{r}
 MBONTargetBagLat <- lateralizeInputOutputList(MBONTargetBag)
+MBON2ndaryTargetBagLat <- lateralizeInputOutputList(MBON2ndaryTargetBag)
 ```
 
-Isolating the MBON inputs to right side neurons in there
+### Isolating the MBON primary and secondary inputs to right side neurons in there
 ```{r}
 MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON")& grepl("_R",type.to))
+MBON2ndaryTargetInp <- MBON2ndaryTargetBagLat$inputs %>% filter(grepl("_R",type.to))
 ```
 
-Combine all input regions into one (to get a "more fair" relative weight). Add a variable, totalMBContribution, that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
+
+```{r}
+MBON2ndaryCXTargetTypes <- unique(as.vector(MBON2ndaryTargetInp$databaseType.to))
+
+
+```
+
+
+
+### Combine all input regions into one (to get a "more fair" relative weight). Add a variable, totalMBContribution, that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
 ```{r}
 MBONTargetInputCombined <- combineRois(MBONTargetBagLat,unique(MBONTargetInp$roi),newRoi="MBON outputs")
 MBONTargetInpC <- MBONTargetInputCombined$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to)) %>% 
@@ -82,21 +119,142 @@ MBONTargetInpC <- MBONTargetInputCombined$inputs %>% filter(startsWith(type.from
                             ungroup() %>%
                                      arrange(desc(totalMBContribution))  %>%
                                      mutate(type.to = factor(type.to,levels=unique(type.to)))## Filter MBON to right CX neurons (some of the left ones can be cut)
-```
 
-```{r}
 plotConnMat_MBON_CX_Romain <- plotConnectivityMatrix(MBONTargetInpC,byGroup="type")
 print(plotConnMat_MBON_CX_Romain)
 ggsave("MBON_CX_ConnectionsByType_weightRelative_Romain.eps", plot=plotConnMat_MBON_CX_Romain, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-```
 
-```{r}
 inputProportions <- ggplot(MBONTargetInpC,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=type.from)) + scale_fill_manual(values=typesPalette(unique(MBONTargetInpC$type.from)),name="MBON types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight in input regions",x="Type")
 print(inputProportions)
 ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=inputProportions, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
+
+
+```{r}
+### Pull significant MBONTargetInpC connections based on "totalMBContribution"
+# Find Strongly connected MBON targets in the CX
+StrongMBONTargetInpC <- MBONTargetInpC  %>% filter(totalMBContribution > 0.05)
+StrongMBON2CX_TargetsType <- unique(as.vector(StrongMBONTargetInpC$databaseType.to))
+StrongMBON2CX_TargetNeurons <- getTypesTable(StrongMBON2CX_TargetsType)
+# head(StrongMBON2CX_TargetNeurons)
+```
+
+```{r}
+### Plot the pathways from MBONs to CX
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
+numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
+numTo <- length(unique(as.vector(StrongMBONTargetInpC$type.to)))
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTo)), y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTo)))
+
+# Graph the TypeToType ConnTable using the lookupTable
+StrongMBONTargetInpCdf <- StrongMBONTargetInpC
+StrongMBONTargetInpCdf$type.to <- as.vector(StrongMBONTargetInpCdf$type.to)
+gg_MBON2TargetTab <- graphConTab(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
+print(gg_MBON2TargetTab)
+ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+Notes: 
+1) MBON05 has no branches ipsilateral to the cell body, only contralateral. FB4R only has dendrites ipsilateral to cell body. Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
+2) MBON09 has bilateral branches, but only makes contact with ipsilateral FB4R, i.e., MBON09_R onto FB4R_R.
+3) MBON21 has bilateral branches, and synapses onto FB4R bilaterally.
+4) MBON04 has bilateral branches, but more contralaterally relative to the name (although the *_L cell body is just off to the midline on the right side).
+5) MBON12R and MBON13R only have branches ipsilateral to the cell body.
+6) MBON03 has bilateral branches, but more contralaterally relative to the name.
+7) MBON22 has ipsilateral branches in the calyz and bilateral branches in SIP/SMP.
+8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
+
+```{r}
+# Find the postsynaptic partners of StrongMBON2CX_TargetNeurons
+StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetNeurons,synapseType="POST")
+# head(StrongMBON2CX_TargetsCnctTable)
+StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_TargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
+# StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% arrange(type.from %in% StrongMBON2CX_TargetsType)
+
+# Filter the table by weightRelative
+# StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.05)
+
+# Plot and save the StrongMBON2CXTargetsToPostInFB_Type2TypeTab based on the connectionMeasure of "weightRelative"
+p4 <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
+print(p4)
+ggsave("StrongMBON2CXTargetsToPostInFB_Type2TypeTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+
+########### ran well up to here ################
+
+### put a break here
+
+### Find connections among strong direct MBON targets in CX
+```{r}
+# StrongMBON2CXTargetsToSelfInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% filter(type.to %in% type.from)
+# Plot the mutual connections among these
+```
+
+### Plot the pathways from strong direct MBON->CX targets to secondary CX targets
+```{r}
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)),unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to))))
+numTypes <- length(types)
+numFrom <- length(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)))
+numTo <- length(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))
+
+# Arrange the primary MBON->CX targets in a circle
+angs <- seq(-pi,pi,length.out = numFrom + 1)
+angs <- angs[1:(length(angs)-1)]
+xFrom <- sin(angs) - 1
+yFrom <- cos(angs)
+
+# xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTypes-numFrom)), 
+#                      y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTypes-numFrom)))
+
+xyLookup = data.frame(type = types, x = c(xFrom,rep(1,times = numTypes-numFrom)), 
+                      y = c(yFrom, seq(-1,1,length.out = numTypes-numFrom)))
+
+# Graph the TypeToType ConnTable using the xyLookup lookupTable
+gg_MBON1stTo2ndaryTargetTab <- graphConTab(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+gg_MBON1stTo2ndaryTargetTab <- gg_MBON1stTo2ndaryTargetTab + scale_y_reverse()
+print(gg_MBON1stTo2ndaryTargetTab)
+ggsave("MBON1stTo2ndaryTargetTab.svg", plot=gg_MBON1stTo2ndaryTargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
+
+
+
+
+
+```{r}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences). 
 
