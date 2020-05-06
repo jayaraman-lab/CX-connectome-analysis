@@ -139,7 +139,27 @@ StrongMBONTargetInpC <- MBONTargetInpC  %>% filter(totalMBContribution > 0.05)
 StrongMBON2CX_TargetsType <- unique(as.vector(StrongMBONTargetInpC$databaseType.to))
 StrongMBON2CX_TargetNeurons <- getTypesTable(StrongMBON2CX_TargetsType)
 # head(StrongMBON2CX_TargetNeurons)
+
+# Find the MBON bodyids
+StrongMBON2CX_FromType <- unique(as.vector(StrongMBONTargetInpC$databaseType.from))
+StrongMBON2CX_FromNeurons <- getTypesTable(StrongMBON2CX_FromType)
+# head(StrongMBON2CX_FromNeurons)
+
+# Find neuron to neuron connection table for strong direct MBON to CX connections
+StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeurons$bodyid, StrongMBON2CX_TargetNeurons$bodyid)
+
 ```
+
+### Plot StrongMBON2CX_ConnTable
+```{r}
+plotStrongMBON2CX_ConnTable <- plotConnectivityMatrix(StrongMBON2CX_ConnTable,byGroup="id")
+print(plotStrongMBON2CX_ConnTable)
+ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+```
+
+
 
 ```{r}
 ### Plot the pathways from MBONs to CX
@@ -177,7 +197,7 @@ StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXT
 # StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% arrange(type.from %in% StrongMBON2CX_TargetsType)
 
 # Filter the table by weightRelative
-# StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.05)
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.02)
 
 # Plot and save the StrongMBON2CXTargetsToPostInFB_Type2TypeTab based on the connectionMeasure of "weightRelative"
 p4 <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
@@ -214,7 +234,7 @@ yFrom <- cos(angs)
 #                      y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTypes-numFrom)))
 
 xyLookup = data.frame(type = types, x = c(xFrom,rep(1,times = numTypes-numFrom)), 
-                      y = c(yFrom, seq(-1,1,length.out = numTypes-numFrom)))
+                      y = c(yFrom, seq(-3,3,length.out = numTypes-numFrom)))
 
 # Graph the TypeToType ConnTable using the xyLookup lookupTable
 gg_MBON1stTo2ndaryTargetTab <- graphConTab(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
