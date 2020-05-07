@@ -104,3 +104,7 @@ scale_color_CX_supertype <- function(...){
   scale_color_manual(values=pal$pal,breaks=pal$breaks,...)
 }                                      
 
+scale_fill_CX_supertype <- function(...){
+  pal <- supertype2Palette()
+  scale_fill_manual(values=pal$pal,breaks=pal$breaks,...)
+}    
