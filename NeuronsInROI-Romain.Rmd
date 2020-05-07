@@ -10,6 +10,7 @@ library(tidyverse)
 library(ggiraph)
 library(neuprintrExtra)
 library(cowplot)
+library(patchwork)
 ```
   
 Picking the lowest level ROIs
@@ -35,7 +36,7 @@ EBTypesTable <- cxRetyping(EBTypesTable)
 
 
 ```{r}
-EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4))
+EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 ```
 
 ```{r}
@@ -48,23 +49,22 @@ EBTypes <- typesInROI(EBTypesTable,ROI = "EB")
 ```
 
 ```{r}
-EBSummary <- getROISummary(EBTypesTable,filter=FALSE)
+EBSummary <- getROISummary(EBTypesTable,threshold=20)
 ```
 
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE)
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = TRUE,theme = theme_minimal_grid())
 haneschEB_R
 ```
 
 ```{r}
-ggsave(paste0(haneschSaveFolder,"EB/EBTypesRight.svg"),haneschEB_R,width = 14,height=6)
+save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth2.svg"),haneschEB_R,nrow=2,ncol=2)
+save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth25.svg"),haneschEB_R,nrow=2,ncol=2.5)
 ```
 
 ```{r}
-interHaneschEB_R <- girafe(ggobj = haneschEB_R, width_svg=14,height_svg=6,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+interHaneschEB_R <- girafe(ggobj = haneschEB_R, width_svg=20,height_svg=10,
+  )
 ```
 
 ```{r}
@@ -72,9 +72,19 @@ htmlwidgets::saveWidget(interHaneschEB_R,paste0(haneschSaveFolder,"EB/EBTypesRig
 ```
 
 ```{r}
-haneschExR <- haneschPlot(EBSummary %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE)
+haneschExR <- haneschPlot(EBSummary %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = T,theme=theme_minimal_grid())
 haneschExR
 ```
+
+```{r}
+save_plot(paste0(haneschSaveFolder,"EB/ExRs.svg"),haneschExR,nrow=2)
+```
+
+```{r}
+interHaneschExR <- girafe(ggobj = haneschExR, width_svg=6,height_svg=6)
+htmlwidgets::saveWidget(interHaneschExR,paste0(haneschSaveFolder,"EB/ExRs.html"))
+```
+
 ```{r}
 ExRTable <- neuprint_search("ExR.*",field="type") %>% mutate(databaseType = type) %>% lateralize_types(postfix = "raw") %>% filter(grepl("_R.*",type))
 ```
@@ -168,39 +178,33 @@ NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
 ```
 
 ```{r}
-NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4))
+NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 
-labelRoisNO <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2),exceptionLevelMatch = 2)
+labelRoisNO <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
 ```
 
 
 ```{r}
-NOSummary <- getROISummary(NOTypesTable,filter=FALSE)
+NOSummary <- getROISummary(NOTypesTable,threshold=20)
 ```
 
 ```{r}
-haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE)
-```
-
-```{r}
+haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE,showCount = TRUE,theme=theme_minimal_grid())
 haneschNOR
 ```
 
 ```{r}
 interHaneschNOR <- girafe(ggobj = haneschNOR, width_svg=15,height_svg=8,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+  )
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschNOR,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NO/RoiInOut/HaneschNORTypes.html")
 htmlwidgets::saveWidget(interHaneschNOR,paste0(haneschSaveFolder,"NO/NO_RTypes.html"))
 ```
 
 
 ```{r}
-ggsave(paste0(haneschSaveFolder,"NO/NO_RTypes.svg"),haneschNOR,width = 15,height=8)
+save_plot(paste0(haneschSaveFolder,"NO/NO_RTypes.svg"),haneschNOR,ncol=2,nrow=2.5)
 ```
 
 
@@ -232,33 +236,50 @@ PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
 ```
 
 ```{r}
-PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4))
+PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 
-labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2),exceptionLevelMatch = 2)
+labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
 ```
 
 ```{r}
-PBSummary <- getROISummary(PBTypesTable,filter=FALSE)
+PBSummary <- getROISummary(PBTypesTable,threshold=20)
 ```
 
 ```{r}
-haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE)
+haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFamide")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_minimal_grid())
 haneschPB
 ```
 ```{r}
-interHaneschPB <- girafe(ggobj = haneschPB, width_svg=19,height_svg=8,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+interHaneschPB <- girafe(ggobj = haneschPB, width_svg=19,height_svg=8
+  )
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschPB,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/RoiInOut/HaneschPBTypes.html")
 htmlwidgets::saveWidget(interHaneschPB,paste0(haneschSaveFolder,"PB/PBTypes.html"))
 ```
 
 ```{r}
-ggsave(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,width = 19,height=8)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,nrow=2,ncol=2.5)
+```
+
+```{r}
+PBRoisDetailed <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
+```
+```{r}
+haneschPBLoc <- haneschPlot(PBSummary %>% filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP")),roiSelect = PBRoisDetailed,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_minimal_grid())
+haneschPBLoc
+```
+```{r}
+interHaneschPBLoc <- girafe(ggobj = haneschPBLoc, width_svg=6,height_svg=6
+  )
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschPBLoc,paste0(haneschSaveFolder,"PB/PBTypesLocal.html"))
+```
+
+```{r}
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal.svg"),haneschPBLoc,nrow=1.5,ncol=1.5)
 ```
 
 ```{r}
@@ -288,115 +309,99 @@ FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
 ```
 
 ```{r}
-FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4))
+FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,2,1,1))
 
-labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2),exceptionLevelMatch = 2)
+labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
 ```
 
 ```{r}
-FBSummary <- getROISummary(FBTypesTable,filter=TRUE)
+FBSummary <- getROISummary(FBTypesTable,threshold=20)
 ```
 
 ```{r}
-haneschFBtR <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & supertype2 == "FBt" & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE)
+haneschFBtR <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & supertype2 == "FBt" & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_minimal_grid()) 
 haneschFBtR
 ```
 
 ```{r}
 interHaneschFBtR <- girafe(ggobj = haneschFBtR, width_svg=25,height_svg=8,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+  )
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschFBtR,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschTangentialRight.html")
 htmlwidgets::saveWidget(interHaneschFBtR,paste0(haneschSaveFolder,"FB/FBTangentialsRight.html"))
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschTangentialRight.svg",haneschFBtR,width=25,height=8)
-ggsave(paste0(haneschSaveFolder,"FB/FBTangentialsRight.svg"),haneschFBtR,width = 25,height=8)
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight.svg"),haneschFBtR,nrow=2,ncol=4)
 ```
 
 ```{r}
-haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
+haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_minimal_grid())
 haneschFBOutLay
 ```
 
 ```{r}
 interHaneschFBQL <- girafe(ggobj = haneschFBOutLay, width_svg=12,height_svg=8,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+  )
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschFBQL,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFB-QsLeft.html")
 htmlwidgets::saveWidget(interHaneschFBQL,paste0(haneschSaveFolder,"FB/FBQsLeft.html"))
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFB-QsLeft.svg",haneschFBOutLay,width = 12,height=8)
-ggsave(paste0(haneschSaveFolder,"FB/FBQsLeft.svg"),haneschFBOutLay,width = 12,height=8)
+save_plot(paste0(haneschSaveFolder,"FB/FBQsLeft.svg"),haneschFBOutLay,nrow=1.5,ncol=1.5)
 ```
 
 ```{r}
-haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
+haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_minimal_grid())
 haneschFBColL
 ```
 ```{r}
-interHaneschFBColL <- girafe(ggobj = haneschFBColL, width_svg=12,height_svg=8,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+interHaneschFBColL <- girafe(ggobj = haneschFBColL, width_svg=12,height_svg=8
+  )
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschFBColL,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBColumnarLeft.html")
 htmlwidgets::saveWidget(interHaneschFBColL,paste0(haneschSaveFolder,"FB/FBColumnarLeft.html"))
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBColumnarLeft.svg",haneschFBColL,width = 12,height=8)
-ggsave(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,width = 12,height=8)
+save_plot(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,nrow=1.5,ncol=1.5)
 ```
 
 ```{r}
-FBSuperSummary <- compressROISummary(FBSummary %>% filter(type %in% FBTypes$type),level = 1,stat = sum)
-```
-
-```{r}
-haneschDeltas <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Interneuron") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE)
+haneschDeltas <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Interneuron") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_minimal_grid())
 haneschDeltas
 ```
 ```{r}
-interHaneschDelta <- girafe(ggobj = haneschDeltas, width_svg=10,height_svg=7,
-  options = list(
-    opts_sizing(width=0.7)
-  ))
+interHaneschDelta <- girafe(ggobj = haneschDeltas, width_svg=10,height_svg=7)
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interHaneschDelta,"~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBDeltas.html")
 htmlwidgets::saveWidget(interHaneschDelta,paste0(haneschSaveFolder,"FB/FBDeltas.html"))
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBDeltas.svg",haneschDeltas,width = 10,height=7)
-ggsave(paste0(haneschSaveFolder,"FB/FBDeltas.svg"),haneschDeltas,width = 10,height=7)
+save_plot(paste0(haneschSaveFolder,"FB/FBDeltas.svg"),haneschDeltas,nrow=1.5,ncol=1.5)
 ```
 
 ### Full FB schematic?
+
 ```{r}
-library(cowplot)
+summaryFB <- FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & !grepl("_R",type))
+summaryFB$supertype2 <- factor(summaryFB$supertype2,levels=c("PFN","D0","D6","PFGs","PFR","PFL","FC","FS","FR"))
 ```
+
+
 ```{r}
-fbSummary <- plot_grid(haneschFBColL,haneschDeltas,haneschFBOutLay,nrow = 1)
+haneschFBSummary <- haneschPlot(summaryFB,roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_minimal_grid())
+haneschFBSummary
 ```
 
 ```{r}
-ggsave(paste0(haneschSaveFolder,"FB/FBSummary.svg"),fbSummary,width = 30,height=7)
+save_plot(paste0(haneschSaveFolder,"FB/FBSummary.svg"),haneschFBSummary,nrow=2,ncol=3)
 ```
 
 
