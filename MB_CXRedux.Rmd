@@ -172,8 +172,8 @@ xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = 
 # Graph the TypeToType ConnTable using the lookupTable
 StrongMBONTargetInpCdf <- StrongMBONTargetInpC
 StrongMBONTargetInpCdf$type.to <- as.vector(StrongMBONTargetInpCdf$type.to)
-# gg_MBON2TargetTab <- graphConTab(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
-gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+gg_MBON2TargetTab <- graphConTab_old(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
 gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 

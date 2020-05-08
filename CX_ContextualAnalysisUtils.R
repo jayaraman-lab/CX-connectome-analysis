@@ -3,6 +3,66 @@
 ########################################################################################
 
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
+graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
+  
+  # Get the table of nodes (types)
+  nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
+  nodes$superType <- nodes$name %>% as.character %>% supertype()
+  
+  # Position the nodes according to the lookup table
+  nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+  nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+  
+  # Assign colors to the supertypes
+  sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort() %>% as.factor()
+  if (guideOnOff){
+    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+  } else {
+    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
+  }
+  
+  sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
+  
+  # Get the edges from the connection table
+  edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
+    mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+           from = sapply(type.from, function(f) which(f == nodes$name)))
+  edges$superType <- edges$type.from %>% as.character %>% supertype()
+  
+  # Get the mean weights between types in the connection table
+  edges_Mean <- unique(edges[,c('from','to','superType')])
+  meanWs <- c()
+  for (i in 1:nrow(edges_Mean)){
+    meanWs <- append(meanWs,
+                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
+  }
+  edges_Mean$weightRelative <- meanWs
+  
+  # Plot the network
+  graph <- tbl_graph(nodes,edges_Mean)
+  
+  gg <-
+    ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+                       strength=0.5,
+                       arrow = arrow(length = unit(1, "cm")),
+                       end_cap = circle(1, 'cm')) + 
+    geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
+    geom_node_point(aes(color=superType),size=8) + 
+    sTScale_edge +
+    sTScale +
+    geom_node_text(aes(label=name),angle=40,size=6,repel = textRepel) +
+    theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+                            axis.line=element_blank(),axis.text.x=element_blank(),
+                            axis.text.y=element_blank(),axis.ticks=element_blank(),
+                            axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+    coord_fixed(ratio = 1,clip="off")
+  
+  return(gg)
+}
+
+
+# From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Get the table of nodes (types)
@@ -28,13 +88,24 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
            from = sapply(type.from, function(f) which(f == nodes$name)))
   edges$superType <- edges$type.from %>% as.character %>% supertype()
   
+  # Get the mean weights between types in the connection table
+  edges_Mean <- unique(edges[,c('from','to','superType')])
+  meanWs <- c()
+  for (i in 1:nrow(edges_Mean)){
+    meanWs <- append(meanWs,
+                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
+  }
+  edges_Mean$weightRelative <- meanWs
+  
   # Plot the network
-  graph <- tbl_graph(nodes,edges)
+  graph <- tbl_graph(nodes,edges_Mean)
+  
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+    #geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+    geom_edge_diagonal(aes(width=weightRelative),alpha=0.5,                   
                        strength=0.2,
-                       #arrow = arrow(length = unit(0.5, "cm")),
+                       arrow = arrow(length = unit(0.5, "cm")),
                        end_cap = circle(0.5, 'cm')) + 
     #geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
     geom_node_point(aes(color=superType),size=4) + 
@@ -47,6 +118,7 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
                             axis.text.y=element_blank(),axis.ticks=element_blank(),
                             axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
     coord_fixed(ratio = 1,clip="off")
+  
   return(gg)
 }
 
