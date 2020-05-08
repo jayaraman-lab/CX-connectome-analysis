@@ -89,3 +89,20 @@ colorValueLookup = data.frame(
            592, 591, 590, 589, 616, 617, 618, 619, 128, 130)
 
 )
+
+supertype2Palette <- function(){
+  s2 <- c("D0","D6","Delta7","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LN","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","Ring","SA")  
+  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,32,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36)]
+  names(pal) <- s2
+  list(pal=pal,breaks=s2)
+}
+
+scale_color_CX_supertype <- function(...){
+  pal <- supertype2Palette()
+  scale_color_manual(values=pal$pal,breaks=pal$breaks,...)
+}                                      
+
+scale_fill_CX_supertype <- function(...){
+  pal <- supertype2Palette()
+  scale_fill_manual(values=pal$pal,breaks=pal$breaks,...)
+}    
