@@ -37,12 +37,11 @@ legTitSz <- 8
 pltTit <- 8
 
 sTCols <- data.frame(
-  type = c("Delta7","EPG","EPGt","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","SIFamide"),
-  colorID = c(28,12,32,21,30,31,33,16,27,7,26,1,2)
+ supertype = c("Delta7","EPG","EPGt","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","SIFamide","EL", "ExR","FBt","Ring"),
+  colorID = c(28,12,32,21,30,31,33,16,27,7,26,1,2,8, 6, 10, 15)
 )
 pcCols <- paletteer_d("Polychrome::palette36")
 sTCols <- sTCols %>% mutate(color = pcCols[colorID])
-
 ```
 
 
@@ -222,7 +221,7 @@ gPBGloms <- gPBGloms +
       legend.text = element_text(size = legSz),
       legend.title = element_text(size = legTitSz))
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBOverview_1.pdf", width = unit(8,"in"), height = unit(6,"in"))
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBOverview_1.pdf", width = unit(6,"in"), height = unit(6,"in"))
 plot_grid(gOutline, gPBGloms,
           labels = c('A','B'), label_size = 12,ncol=1,
           rel_heights = c(1,5))
@@ -497,17 +496,132 @@ dev.off()
  
 Compare EPG and EPGt connectivity
 ```{r}
-EPG_CT_PB <- getConnectionTable(getBodyIdsForList(c("EPGt")),"POST","PB")
-conmatPlot_EPG_PB <- plotConnectivityMatrix(EPG_CT_PB,byGroup="id")
-conmatPlot_EPG_PB <- structureMatrixPlotByType(conmatPlot_EPG_PB) + ggtitle("EPG and EPGt outputs in the PB")
-print(conmatPlot_EPG_PB)
+# Get the connection table
+EPG_CT <- rbind(getConnectionTable(getBodyIdsForList(c("EPG")),"POST","CX"),
+                getConnectionTable(getBodyIdsForList(c("EPG")),"PRE","CX"))
 
-EPG_CT_EB <- getConnectionTable(getBodyIdsForList(c("EPGt")),"PRE","CX")
-conmatPlot_EPG_EB <- plotConnectivityMatrix(EPG_CT_EB,byGroup="id")
-conmatPlot_EPG_EB <- structureMatrixPlotByType(conmatPlot_EPG_EB) + ggtitle("EPGt inputs in the EB")
-print(conmatPlot_EPG_EB)
+# Convert it to type-to-type
+EPG_CT_T2T <- getTypeToTypeTable(EPG_CT)
+
+# Get the neuron types
+preTypes <- EPG_CT_T2T %>% filter(type.from != "EPG" & type.from != "EPGt") %>% select(type.from) %>% unique() %>% unlist() %>% as.character()
+postTypes <- EPG_CT_T2T %>% filter(type.to != "EPG" & type.to != "EPGt") %>% select(type.to) %>% unique() %>% unlist() %>% as.character()
+allTypes <- c(preTypes,postTypes) %>% unique()
+allTypes <- allTypes[1:(length(allTypes)-1)]
+
+# Sort them
+PBNrons <- c("Delta7","SIFamide","SpsP","LPsP","P1-9","P6-8P9","IbSpsP","PEG","PEN_a(PEN1)","PEN_b(PEN2)",
+             "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3",
+             "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv")
+allTypes <- c(PBNrons, sort(allTypes[which(!(allTypes %in% PBNrons))]))
+
+# Create a lookup table with position and color
+angs <- seq(-pi,pi,length.out=(length(allTypes)+1))
+angs <- angs[1:(length(angs)-1)]
+xyLookup <- data.frame(type = allTypes, x = cos(angs), y = sin(angs), xTxt = 1.1*cos(angs), yTxt = 1.1*sin(angs))
+xyLookup_EPG <- rbind(xyLookup,
+                  data.frame(type = "EPG", x = 0, y = 0, xTxt = 0, yTxt = 0.1))
+xyLookup_EPGt <- rbind(xyLookup,
+                  data.frame(type = "EPGt", x = 0, y = 0, xTxt = 0, yTxt = 0.1))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPG,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPGt,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
 ```
- 
-Previously uncharacterized neuron types
- - Summary of inputs and outputs (switch from bar graph to network style diagrams)
- - P6-8P9s as D7s
+
+Look at P1-9 and LPsP partners
+```{r}
+# Get the connection tables
+Mod_CT <- rbind(getConnectionTable(getBodyIdsForList(c("P1-9","LPsP")),"POST","PB") %>%
+                  filter(type.to != "P1-9" & type.to != "LPsP"),
+                getConnectionTable(getBodyIdsForList(c("P1-9","LPsP")),"PRE","PB"))
+
+# Convert it to type-to-type
+Mod_CT_T2T <- getTypeToTypeTable(Mod_CT)
+
+# Combine the two
+CT_T2T <- rbind(P19_CT_T2T,LPsP_CT_T2T)
+
+# Plot them
+nronTyps <- c(Mod_CT_T2T$type.to, Mod_CT_T2T$type.from) %>% unique()
+nronGps <- list(c("P1-9","LPsP"),nronTyps[which(!(nronTyps %in% c("P1-9","LPsP")))])
+  
+xyLookup <- data.frame(type = c(), x = c(), y = c(), xTxt = c(), yTxt = c())
+for (g in 1:length(nronGps)){
+  types <-  nronGps[[g]]
+  
+  xs <- numeric(length(types))
+  ys <- numeric(length(types))
+  if (g > 1){
+    angs <- seq(-pi/3,pi/3,length.out=length(types))
+    xsTxt <- xs + 1.1*sin(angs)
+    xs <- xs + sin(angs)
+    ysTxt <- ys - 1.1*cos(angs)
+    ys <- ys - cos(angs)
+  } else {
+    xs <- xs + c(-0.25,0.25)
+    xsTxt <- xs
+    ysTxt <- ys + 0.1
+  }
+  
+  typeLookup <- data.frame(type = types, x = xs, y = ys, xTxt = xsTxt, yTxt = ysTxt)
+  xyLookup <- rbind(xyLookup,typeLookup)
+}
+  
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\ModConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(Mod_CT_T2T,xyLookup,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+```
+
+Compare P6-8P9 and D7 connectivity
+```{r}
+# Get the connection table
+P68_CT_Post <- rbind(getConnectionTable(getBodyIdsForList(c("P6-8P9","Delta7")),"POST","PB")  %>%
+                  filter(type.to != "P6-8P9" & type.to != "Delta7"),
+                getConnectionTable(getBodyIdsForList(c("P6-8P9","Delta7")),"PRE","PB"))
+
+# Convert it to type-to-type
+P68_CT_T2T <- getTypeToTypeTable(P68_CT)
+
+# Get the neuron types
+preTypes1 <- P68_CT_T2T %>% filter(type.from != "P6-8P9" & type.from != "Delta7" & type.to == "Delta7") %>%
+  select(type.from) %>% unique() %>% unlist() %>% as.character()
+preTypes2 <- P68_CT_T2T %>% filter(type.from != "P6-8P9" & type.from != "Delta7" & type.to == "P6-8P9") %>%
+  select(type.from) %>% unique() %>% unlist() %>% as.character()
+preTypes <- c(preTypes1[which(!(preTypes1 %in% preTypes2))] %>% sort(),
+              preTypes2 %>% sort())
+
+postTypes <- P68_CT_T2T %>% filter(type.to != "P6-8P9" & type.to != "Delta7") %>%
+  select(type.to) %>% unique() %>% unlist() %>% as.character() %>% sort()
+allTypes <- c(preTypes,postTypes) %>% unique() %>% sort()
+
+# Create a lookup table with position and color
+xyLookup <- data.frame(type = preTypes,
+                       x = seq(-1,1,length.out = length(preTypes)), y = 0.5, 
+                       xTxt = seq(-1,1,length.out = length(preTypes)), yTxt = 0.6)
+xyLookup <- rbind(xyLookup,
+                  data.frame(type = c("Delta7", "P6-8P9"),
+                             x = c(-0.25, 0.25), y = 0, 
+                             xTxt = c(-0.25, 0.25), yTxt = 0.1))
+xyLookup <- rbind(xyLookup,
+                  data.frame(type = postTypes[which(!(postTypes %in% preTypes))],
+                             x = seq(-1,1,length.out = length(postTypes[which(!(postTypes %in% preTypes))])), y = -0.5,
+                             xTxt = seq(-1,1,length.out = length(postTypes[which(!(postTypes %in% preTypes))])), yTxt = -0.6))
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\D7P68P9Connectivity.pdf", width = unit(6,"in"), height = unit(6,"in"))
+graphConTab(P68_CT_T2T,xyLookup,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+```

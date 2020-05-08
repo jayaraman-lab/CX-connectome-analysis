@@ -277,7 +277,7 @@ xyLookupTable <- function(){
 }
 
 # Create a function for plotting a graph of PB connections
-graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
+graphConTab <- function(conTab,xyLookup,sTCols,textRepel,guideOnOff){
   
   # Get the table of nodes (types)
   nodes = data.frame(name = xyLookup$type)
@@ -288,17 +288,14 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
   
   # Assign colors to the supertypes
-  sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort()
-  pcCols <- paletteer_d("Polychrome::palette36")
-  sTCols <- c(pcCols[28],pcCols[12],pcCols[33],pcCols[16],pcCols[27],pcCols[7],pcCols[26],pcCols[1],pcCols[21])
   
   if (guideOnOff){
-    sTScale <- scale_colour_manual(values = sTCols, drop=TRUE,limits = sTs)
+    sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype)
   } else {
-    sTScale <- scale_colour_manual(values = sTCols, drop=TRUE,limits = sTs,guide = FALSE)
+    sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
   }
   
-  sTScale_edge <- scale_edge_colour_manual(values = sTCols, drop=TRUE,limits = sTs,guide = FALSE)
+  sTScale_edge <- scale_edge_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
   
   # Get the edges from the connection table
   edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
@@ -306,23 +303,14 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
            from = sapply(type.from, function(f) which(f == nodes$name)))
   edges$superType <- edges$type.from %>% as.character %>% supertype()
   
-  # Get the mean weights between types in the connection table
-  edges_Mean <- unique(edges[,c('from','to','superType')])
-  meanWs <- c()
-  for (i in 1:nrow(edges_Mean)){
-    meanWs <- append(meanWs,
-                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
-  }
-  edges_Mean$weightRelative <- meanWs
-  
   # Plot the network
-  graph <- tbl_graph(nodes,edges_Mean)
+  graph <- tbl_graph(nodes,edges)
   
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
     geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
                        strength=0.2,
-                       arrow = arrow(length = unit(0.5, "cm")),
+                       #arrow = arrow(length = unit(0.5, "cm")),
                        end_cap = circle(0.5, 'cm')) + 
     #geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
     geom_node_point(aes(color=superType),size=4) + 
