@@ -8,7 +8,13 @@ library(nat)
 library(neuprintr)
 library(tidyverse)
 library(ggraph)
+library(plotly)
+library(dplyr)
+library(pbapply)
+library(tidygraph)
+library(gridExtra)
 
+# Go to the neurpintR-notebooks directory before loading these functions
 source("visualizeConnectivityTables.R")
 source("neuprintQueryUtils.R")
 source("R/table2ggraphUtils.R")
@@ -16,6 +22,11 @@ source("InputOutputByTypeUtils.R")
 source("R/rois.R")
 source("R/supertypeUtils.R")
 source("colorCodeLookup.R")
+source("pathways.R")
+source("inputOutputRegionsVis.R")
+source("GetNeuronsInRoi.R")
+source("FBNetworkVisUtils.R")
+source("CX_ContextualAnalysisUtils.R")
 
 options(nat.plotengine = 'rgl')
 ```
@@ -129,75 +140,128 @@ StrongMBONTargetInpC <- MBONTargetInpC  %>% filter(totalMBContribution > 0.05)
 StrongMBON2CX_TargetsType <- unique(as.vector(StrongMBONTargetInpC$databaseType.to))
 StrongMBON2CX_TargetNeurons <- getTypesTable(StrongMBON2CX_TargetsType)
 # head(StrongMBON2CX_TargetNeurons)
+
+# Find the MBON bodyids
+StrongMBON2CX_FromType <- unique(as.vector(StrongMBONTargetInpC$databaseType.from))
+StrongMBON2CX_FromNeurons <- getTypesTable(StrongMBON2CX_FromType)
+# head(StrongMBON2CX_FromNeurons)
+
+# Find neuron to neuron connection table for strong direct MBON to CX connections
+StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeurons$bodyid, StrongMBON2CX_TargetNeurons$bodyid)
+
+# Arrange StrongMBON2CX_ConnTable in the order of StrongMBONTargetInpC$databaseType.to
+StrongMBON2CX_ConnTable$type.to <- factor(StrongMBON2CX_ConnTable$type.to,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
+StrongMBON2CX_ConnTable <- arrange(StrongMBON2CX_ConnTable,type.to)
 ```
 
-########### ran well up to here ################
+### Plot StrongMBON2CX_ConnTable
+```{r}
+plotStrongMBON2CX_ConnTable <- plotConnectivityMatrix(StrongMBON2CX_ConnTable,byGroup="id")
+print(plotStrongMBON2CX_ConnTable)
+ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+```
 
 ```{r}
 ### Plot the pathways from MBONs to CX
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
-xyLookup = data.frame(type = types,
-                      x = c(-1,vector(mode = "numeric",length = (length(types)-1))),
-                      y = c(0,seq(-1,1,length.out = (length(types)-1))))
+numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
+numTo <- length(unique(as.vector(StrongMBONTargetInpC$type.to)))
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTo)), y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTo)))
 
-# Graph the TypeToType ConnTable using the combined lookupTable
-gg_MBON2TargetTab <- graphConTab(StrongMBONTargetInpC,xyLookup,FALSE,TRUE)
+# Graph the TypeToType ConnTable using the lookupTable
+StrongMBONTargetInpCdf <- StrongMBONTargetInpC
+StrongMBONTargetInpCdf$type.to <- as.vector(StrongMBONTargetInpCdf$type.to)
+gg_MBON2TargetTab <- graphConTab_old(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
 gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
+Notes: 
+1) MBON05 has no branches ipsilateral to the cell body, only contralateral. FB4R only has dendrites ipsilateral to cell body. Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
+2) MBON09 has bilateral branches, but only makes contact with ipsilateral FB4R, i.e., MBON09_R onto FB4R_R.
+3) MBON21 has bilateral branches, and synapses onto FB4R bilaterally.
+4) MBON04 has bilateral branches, but more contralaterally relative to the name (although the *_L cell body is just off to the midline on the right side).
+5) MBON12R and MBON13R only have branches ipsilateral to the cell body.
+6) MBON03 has bilateral branches, but more contralaterally relative to the name.
+7) MBON22 has ipsilateral branches in the calyz and bilateral branches in SIP/SMP.
+8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
 
-
-
-
-### put a break here
-
+### Find connections from strong direct MBON targets to secondary targets in CX
 ```{r}
 # Find the postsynaptic partners of StrongMBON2CX_TargetNeurons
-StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetNeurons,synapseType="POST",synThresh=5)
+StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetNeurons,synapseType="POST")
 # head(StrongMBON2CX_TargetsCnctTable)
-StrongMBON2CX_TargetsType2TypeTable <- getTypeToTypeTable(StrongMBON2CX_TargetsCnctTable)
-# head(StrongMBON2CX_TargetsType2TypeTable)
+StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_TargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
 
-# Plot and save the StrongMBON2CX_TargetsType2TypeTable based on the connectionMeasure of "weightRelative"
-p4 <- plotConnectivityMatrix(StrongMBON2CX_TargetsType2TypeTable,byGroup="type",connectionMeasure="weightRelative")
-print(p4)
-ggsave("StrongMBON2CXTargetsType2TypeCnctTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
-       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+# Arrange StrongMBON2CXTargetsToPostInFB in the order of StrongMBONTargetInpC$databaseType.to
+StrongMBON2CXTargetsToPostInFB$type.from <- factor(StrongMBON2CXTargetsToPostInFB$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
+StrongMBON2CXTargetsToPostInFB <- arrange(StrongMBON2CXTargetsToPostInFB,type.from)
 
+# Plot and save the StrongMBON2CXTargetsToPostInFB based on the connectionMeasure of "weightRelative"
+plotStrongMBON2CXTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB,byGroup="id")
+print(plotStrongMBON2CXTargetsToPostInFB)
+ggsave("plotStrongMBON2CXTargetsToPostInFB.eps", plot=plotStrongMBON2CXTargetsToPostInFB, device="eps", path=PlotDir, scale=1, 
+       width=80, height=10, units="in", dpi=300, limitsize=FALSE)
 ```
-
-
 
 ```{r}
-
-### Plot the pathways from MBONs to CX
-# Get the subset of strong connections in the FB
-StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_TargetNeurons$bodyid, StrongMBONTargetInpC$databaseType.to,"FB")
+# Get type to type connection table
+StrongMBON2CXTargetsToPostInFB$type.from <- as.vector(StrongMBON2CXTargetsToPostInFB$type.from)
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
-# head(StrongMBON2CXTargetsToPostInFB_Type2TypeTab)
+# StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% arrange(type.from %in% StrongMBON2CX_TargetsType)
 
 # Filter the table by weightRelative
-StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.05)
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab  %>% filter(weightRelative > 0.01)
+# Exclude connections to self types
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% filter(type.from != type.to)
 
-# Set up the layout for the pathway plot
-types <- unique(c(unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from),unique(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))
-xyLookup = data.frame(type = types,
-                      x = c(-1,vector(mode = "numeric",length = (length(types)-1))),
-                      y = c(0,seq(-1,1,length.out = (length(types)-1))))
+# Arrange StrongMBON2CXTargetsToPostInFB_Type2TypeTab in the order of StrongMBONTargetInpC$databaseType.to
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from <- factor(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- arrange(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,type.from)
 
-# Graph the TypeToType ConnTable using the combined lookupTable
-gg_MBONtargetTab <- graphConTab(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
-gg_MBONtargetTab <- gg_MBONtargetTab + scale_y_reverse()
-print(gg_MBONtargetTab)
-ggsave("gg_MBONtargetTab.svg", plot=gg_MBONtargetTab, device="svg", path=PlotDir, scale=1, 
+# Plot and save the StrongMBON2CXTargetsToPostInFB_Type2TypeTab based on the connectionMeasure of "weightRelative"
+p4 <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
+print(p4)
+ggsave("StrongMBON2CXTargetsToPostInFB_Type2TypeTable_weightRelative.eps", plot=p4, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
+### Plot the pathways from strong direct MBON->CX targets to secondary CX targets
+```{r}
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)),unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to))))
+numTypes <- length(types)
+numFrom <- length(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)))
+numTo <- length(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))
 
+# Arrange the primary MBON->CX targets in a circle
+angs <- seq(-pi,pi,length.out = numFrom + 1)
+angs <- angs[1:(length(angs)-1)]
+xFrom <- 2*sin(angs) - 3
+yFrom <- 2*cos(angs)
 
+# xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTypes-numFrom)), 
+#                      y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTypes-numFrom)))
+
+xyLookup = data.frame(type = types, x = c(xFrom,rep(3,times = numTypes-numFrom)), 
+                      y = c(yFrom, seq(-5,5,length.out = numTypes-numFrom)))
+
+# Graph the TypeToType ConnTable using the xyLookup lookupTable
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from <- as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)
+gg_MBON1stTo2ndaryTargetTab <- graphConTab_old(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+gg_MBON1stTo2ndaryTargetTab <- gg_MBON1stTo2ndaryTargetTab + scale_y_reverse()
+print(gg_MBON1stTo2ndaryTargetTab)
+ggsave("MBON1stTo2ndaryTargetTab.svg", plot=gg_MBON1stTo2ndaryTargetTab, device="svg", path=PlotDir, scale=1, 
+       width=11, height=32, units="in", dpi=300, limitsize=FALSE)
+```
+
+########### ran well up to here ################
+
+### put a break here
 
 
 ```{r}

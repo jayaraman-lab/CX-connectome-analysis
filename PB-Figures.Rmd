@@ -1,0 +1,627 @@
+---
+title: "PB Figures"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(ggrepel)
+library(cowplot)
+library(reshape2)
+library(paletteer)
+library(neuprintrExtra)
+library(gridExtra)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Specify plotting text sizes
+```{r}
+tickLabSz <- 6
+axLabSz <- 8
+legSz <- 6
+legTitSz <- 8
+pltTit <- 8
+
+sTCols <- data.frame(
+ supertype = c("Delta7","EPG","EPGt","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","SIFamide","EL", "ExR","FBt","Ring"),
+  colorID = c(28,12,32,21,30,31,33,16,27,7,26,1,2,8, 6, 10, 15)
+)
+pcCols <- paletteer_d("Polychrome::palette36")
+sTCols <- sTCols %>% mutate(color = pcCols[colorID])
+```
+
+
+Plot an outline of the PB glomeruli
+```{r}
+PBGloms <- c("L1","L2","L3","L4","L5","L6","L7","L8","L9",
+             "R1","R2","R3","R4","R5","R6","R7","R8","R9")
+gOutline <- ggplot()
+for (g in 1:length(PBGloms)){
+  olDat <- roiOutline(paste0("PB(",PBGloms[g],")")) %>% filter(proj == "xz")
+  gOutline <- gOutline + geom_path(data=olDat, aes(x = x, y = -y)) +
+    annotate("text", x=mean(olDat$x), y=-mean(olDat$y), label= PBGloms[g],size=2)
+}
+gOutline <- gOutline + theme_nothing() + coord_fixed()
+```
+
+Identify types that arborize within the PB
+```{r}
+PBNronTypes = neuprint_find_neurons("PB")$bodytype %>% unique()
+PBNronTypes <- PBNronTypes[which(!is.na(PBNronTypes))]
+```
+
+Split the PB types into inputs, outputs, and inner neurons
+```{r}
+# For each single neuron
+PBpreNpostRatios <- preNpostRatios(PBNronTypes,"PB")
+
+# Look at the pre and post ratios and then cut those neurons with minimal innervations
+#ggplot(PBpreNpostRatios, aes(x=preRelative, y=postRelative,color=type)) + geom_point()
+PBpreNpostRatios <- PBpreNpostRatios[which(PBpreNpostRatios$preRelative > 0.02 | PBpreNpostRatios$postRelative > 0.01),]
+#ggplot(PBpreNpostRatios, aes(x=preRelative, y=postRelative,color=type)) + geom_point()
+
+# Order the neurons by the pre and post ratio difference
+PBpreNpostRatios <- PBpreNpostRatios[order(PBpreNpostRatios$prePostDiff),]
+
+```
+
+Average the pre and post values within a given class
+```{r}
+PBpreNpost <- PBpreNpostRatios %>% group_by(type) %>% 
+  summarize(diffMean = mean(prePostDiff),
+            diffSD = sd(prePostDiff),
+            relMeanPre = mean(preRelative),
+            relSDPre = sd(preRelative),
+            relSEMPre = sd(preRelative)/sqrt(length(preRelative)),
+            relMeanPost = mean(postRelative),
+            relSDPost = sd(postRelative),
+            relSEMPost = sd(postRelative)/sqrt(length(postRelative)))
+
+PBpreNpost['classification'] = 'inner'
+PBpreNpost[which(PBpreNpost$diffMean > 0.15),]$classification = 'input'
+PBpreNpost[which(PBpreNpost$diffMean < -0.12),]$classification = 'output'
+PBpreNpost$classification <- factor(PBpreNpost$classification, levels = c('input','inner','output'))
+PBpreNpost <- PBpreNpost[order(PBpreNpost$diffMean),]
+
+PBpreNpost$superType = PBpreNpost$type %>% as.character() %>% supertype() %>% as.factor()
+
+PBpreNpost$label = PBpreNpost$type %>% as.character()
+
+g2DPreNPost <- ggplot(PBpreNpost, aes(x=relMeanPre, y=relMeanPost)) +
+  geom_abline(intercept = 0, slope = 1, color="darkgray", linetype="dashed", size=0.5) +
+  geom_point(size=2,aes(color=superType),alpha=0.75) +
+  geom_errorbar(aes(ymin=relMeanPost-relSEMPost, ymax=relMeanPost+relSEMPost,
+                    color=superType),
+                width=.02, position=position_dodge(0.05),alpha=0.5) +
+  geom_errorbarh(aes(xmin=relMeanPre-relSEMPre, xmax=relMeanPre+relSEMPre,
+                     color=superType),
+                height=.02, position=position_dodge(0.05),alpha=0.5) +
+  geom_text(aes(label=label,color = superType,alpha=1),hjust=-0.2, vjust=-0.2,size = 2,show.legend = FALSE) +
+  theme_minimal_grid() + xlab('PB output/total output') + ylab('PB input/total input') + 
+  coord_fixed(ratio =1 ,xlim=c(0, 1.1),ylim=c(0, 1.1),expand=FALSE,clip = 'off') +
+  annotate("text", x=0.25, y=0.75, label= "output",size=3) +
+  annotate("text", x=0.75, y=0.25, label= "input",size=3) +
+  scale_color_manual(breaks = sTCols$type, values=as.character(sTCols$color))
+
+
+g2DPreNPost <- g2DPreNPost + theme_minimal_grid() +
+  theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBOverview_2.pdf", width = unit(4,"in"), height = unit(4,"in"))
+print(g2DPreNPost)
+dev.off()
+
+```
+
+Show where neurons arborize in PB
+-columnar
+```{r}
+# List the order of PB gloms
+PBGlomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+                 "L1","L2","L3","L4","L5","L6","L7","L8","L9")
+typeOrder <- c("EPGt","EPG","IbSpsP",
+               "PEG","PEN_a(PEN1)","PEN_b(PEN2)",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+
+# Get the columnar neurons
+colNrons = neuprint_search(".*_[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}.*") %>% filter(type != "Delta7")
+
+#Get the location of their synapses
+colSynLocs <- neuprint_get_roiInfo(colNrons$bodyid) 
+
+# Restrict those locations to PB glomeruli
+colSynLocs <- colSynLocs[,c(1, which(grepl("PB\\(",colnames(colSynLocs))))] %>% mutate(type = neuprint_get_meta(bodyid)$type)
+colSynLocs[is.na(colSynLocs)] <- 0
+
+# Group by type
+colSynByType <- colSynLocs %>% group_by(type) %>% summarize_all(sum)
+colSynByType_US <- colSynByType[,c(1, which(grepl("upstream",colnames(colSynByType))))] %>%
+  melt(id = "type",variable.name="PBGlom",value.name = "syns")
+colSynByType_US$PBGlom <- as.character(regmatches(as.character(colSynByType_US$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                                 as.character(colSynByType_US$PBGlom))))
+colSynByType_US$PBGlom <- factor(colSynByType_US$PBGlom,levels= PBGlomOrder)
+colSynByType_US$type <- factor(colSynByType_US$type,levels= typeOrder)
+colSynByType_US$label <- "columnar"
+colSynByType_US$direction <- "upstream" 
+                                                                                                                                                
+colSynByType_DS <- colSynByType[,c(1, which(grepl("downstream",colnames(colSynByType))))] %>%
+  melt(id = "type",variable.name="PBGlom",value.name = "syns")
+colSynByType_DS$PBGlom <- as.character(regmatches(as.character(colSynByType_DS$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                                 as.character(colSynByType_DS$PBGlom))))
+colSynByType_DS$PBGlom <- factor(colSynByType_DS$PBGlom,levels= PBGlomOrder)
+colSynByType_DS$type <- factor(colSynByType_DS$type,levels= typeOrder)
+colSynByType_DS$label <- "columnar"
+colSynByType_DS$direction <- "downstream"
+```
+-tangential
+```{r}
+tanTypes <- c("P1-9", "Delta7", "P6-8P9", "LPsP", "SpsP")
+
+#Get the location of their synapses
+tanSynLocs <- neuprint_get_roiInfo(getTypesTable(tanTypes)$bodyid) 
+
+# Restrict those locations to PB glomeruli
+tanSynLocs <- tanSynLocs[,c(1, which(grepl("PB\\(",colnames(tanSynLocs))))] %>% mutate(type = neuprint_get_meta(bodyid)$type)
+tanSynLocs[is.na(tanSynLocs)] <- 0
+
+# Group by type
+tanSynByType <- tanSynLocs %>% group_by(type) %>% summarize_all(sum)
+tanSynByType_US <- tanSynByType[,c(1, which(grepl("upstream",colnames(tanSynByType))))] %>%
+  melt(id = "type",variable.name="PBGlom",value.name = "syns")
+tanSynByType_US$PBGlom <- as.character(regmatches(as.character(tanSynByType_US$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                                 as.character(tanSynByType_US$PBGlom))))
+tanSynByType_US$PBGlom <- factor(tanSynByType_US$PBGlom,levels= PBGlomOrder)
+tanSynByType_US$label <- "tangential"
+tanSynByType_US$direction <- "upstream"
+                                                                                                                                                
+tanSynByType_DS <- tanSynByType[,c(1, which(grepl("downstream",colnames(tanSynByType))))] %>%
+  melt(id = "type",variable.name="PBGlom",value.name = "syns")
+tanSynByType_DS$PBGlom <- as.character(regmatches(as.character(tanSynByType_DS$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
+                                                                                                 as.character(tanSynByType_DS$PBGlom))))
+tanSynByType_DS$PBGlom <- factor(tanSynByType_DS$PBGlom,levels= PBGlomOrder)
+tanSynByType_DS$label <- "tangential"
+tanSynByType_DS$direction <- "downstream"
+```
+
+Combine the plots in figure 1
+```{r}
+synsByType <- rbind(
+  rbind(colSynByType_US,colSynByType_DS),
+  rbind(tanSynByType_US,tanSynByType_DS)
+)
+
+gPBGloms <- ggplot(synsByType) + geom_tile(aes(x = PBGlom,y=type, fill=log10(syns+1))) + 
+  facet_grid(rows = vars(label), cols = vars(direction), scale="free",space="free") +
+  scale_fill_viridis_c(option = "B", direction = -1, limits=c(0, 5)) + theme_cowplot()
+  #scale_fill_gradient(low="white", high="black") 
+
+gPBGloms <- gPBGloms +
+  theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      strip.text.x = element_text(size = 8),
+      strip.text.y = element_text(size = 8),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBOverview_1.pdf", width = unit(6,"in"), height = unit(6,"in"))
+plot_grid(gOutline, gPBGloms,
+          labels = c('A','B'), label_size = 12,ncol=1,
+          rel_heights = c(1,5))
+dev.off()
+```
+
+############################################################
+Look at inputs
+############################################################
+
+Get the connection matrix between the EPGs, EPGts, D7s, and IbSpsPs
+```{r}
+EPGD7ConTab <- getConnectionTable(
+  c(unique(neuprint_search("EPG.*")$bodyid),
+    unique(neuprint_search("IbSpsP.*")$bodyid),
+    unique(neuprint_search("Delta7.*")$bodyid)),
+  "POST",
+  "PB")
+EPGD7ConTab <- EPGD7ConTab %>% filter(type.to == "Delta7" | type.to == "EPG" | type.to == "EPGt" | type.to == "IbSpsP")
+
+EPGD7ConTab$name.to <- factor(EPGD7ConTab$name.to,
+        levels = glomSort(EPGD7ConTab$name.to))
+
+EPGD7ConTab$nameid <- PBRename(EPGD7ConTab$name.from,EPGD7ConTab$from)
+EPGD7ConTab$partnerid <- PBRename(EPGD7ConTab$name.to,EPGD7ConTab$to)
+
+conmatPlot <- ggplot(EPGD7ConTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(EPGD7ConTab$ROIweight),
+                       limits=c(0,max(EPGD7ConTab$ROIweight))) +
+  geom_tile(aes(partnerid,nameid,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+offset <- 0.5
+types <- EPGD7ConTab$type.from %>% unique()
+for (t in 1:length(types)){
+  numNrons <- nrow(EPGD7ConTab %>% filter(type.from == types[t]) %>% select(nameid) %>% unique())
+  offset <- offset + numNrons
+  conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+types <- EPGD7ConTab$type.to %>% unique() %>% sort()
+for (t in 1:length(types)){
+  offset <- offset + nrow(EPGD7ConTab %>% filter(type.to == types[t]) %>% select(partnerid) %>% unique())
+  conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
+}
+```
+
+Propagate an E-PG bump through the Delta7s
+
+Plot the EPG input from D7s given a von Mises or Impulse input profile
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Transform the bump from EB coordinates to PB coordinates
+vMOut <- EPGToD7Transform("EPG",actProfvM)
+
+# Get the profile stats
+D7OutputShape_stats_vM <- D7ShapeMeanSD(vMOut)
+  
+# Fit a cosine to the data
+fit_vM <- D7CosFit(D7OutputShape_stats_vM) 
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+impOut <- EPGToD7Transform("EPG",actProfImp)
+
+# Get the profile stats
+D7OutputShape_stats_imp <- D7ShapeMeanSD(impOut)
+  
+# Fit a cosine to the data
+fit_imp <- D7CosFit(D7OutputShape_stats_imp) 
+
+# Plot
+PBEPGToD7Prof_vM <- PBActPlot(D7OutputShape_stats_vM,fit_vM)
+PBEPGToD7Prof_vM <- PBEPGToD7Prof_vM + ggtitle('von Mises E-PG input -> D7 -> E-PG') + theme_cowplot() +
+  theme(legend.justification = c(0, 1), legend.position = c(0.1, 1))
+
+# Plot
+PBEPGToD7Prof_imp <- PBActPlot(D7OutputShape_stats_imp,fit_imp)
+PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + ggtitle('impulse E-PG input -> D7 -> E-PG') + theme_cowplot() +
+  theme(legend.justification = c(0, 1), legend.position = c(0.1, 1))
+
+```
+
+Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Specify the search strings
+PBTps <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+           "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv")
+PBTpNames <- c("EPG","PEN1","PEN2","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv")
+allvMDev <- c()
+allimpDev <- c()
+for (tp in 1:length(PBTps)){
+  # Get the von Mises profiles
+  vMOut <- EPGToD7Transform(PBTps[tp],actProfvM)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allvMDev <- append(allvMDev,deviance(fit))
+  
+  # Get the impulse profiles
+  impOut <- EPGToD7Transform(PBTps[tp],actProfImp)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allimpDev <- append(allimpDev,deviance(fit))
+}
+
+vM_stats <- data.frame(type = PBTpNames, resid = allvMDev, input = "von Mises")
+imp_stats <- data.frame(type = PBTpNames, resid = allimpDev, input = "impulse")
+
+gStats_vM <- ggplot(vM_stats,aes(x=as.factor(type),y=resid)) + geom_point(size=4) +
+  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.1)) + theme_minimal_grid() +
+  xlab('neuron type') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(gStats_vM)
+
+gStats_imp <- ggplot(imp_stats,aes(x=as.factor(type),y=resid)) + geom_point(size=4) +
+  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.3)) + theme_minimal_grid() +
+  xlab('neuron type') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(gStats_imp)
+
+```
+
+Summarize everything in two graphs (impulse in SI)
+```{r}
+PBEPGToD7Prof_vM <- PBEPGToD7Prof_vM + 
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz),
+        plot.title = element_text(size = pltTit))
+gStats_vM <- gStats_vM + 
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+conmatPlot <- conmatPlot +
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+
+p_vM <- plot_grid(PBEPGToD7Prof_vM, gStats_vM, labels = c('B','C'), label_size = 12,ncol=1)
+pg_vM <- plot_grid(conmatPlot, p_vM, labels = c('A',''),label_size = 12,ncol=2,rel_widths = c(2,1))
+
+PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + 
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz),
+        plot.title = element_text(size = pltTit))
+gStats_imp <- gStats_imp + 
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+pg_imp <- plot_grid(PBEPGToD7Prof_imp, gStats_imp, labels = c('A', 'B'), label_size = 12,ncol=1,rel_widths = c(1.5,1))
+```
+
+Plot the above together
+```{r}
+pg_vM <- plot_grid(conmatPlot, p_vM, labels = c('A',''),label_size = 12,ncol=2,rel_widths = c(2,1))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBCosine.pdf", width = unit(8,"in"), height = unit(4,"in"))
+print(pg_vM)
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBCosine-SI.pdf", width = unit(3,"in"), height = unit(4,"in"))
+print(pg_imp)
+dev.off()
+```
+
+Make a network diagram with the E-PGs, D7s, and IbPsPs in the top layer and the PEs, PFs in the second layer
+
+Get the connection tables
+```{r}
+nronTypes_ED <- c("EPG","Delta7",
+               "PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3")
+nronTypes_IS <- c("IbSpsP","SpsP",
+               "PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3")
+ROI = "PB"
+  
+# Get the connection tables
+conTab_ED <- getConnectionTable(getTypesTable(nronTypes_ED)$bodyid,
+                             "POST",ROI)
+conTab_IS <- getConnectionTable(getTypesTable(nronTypes_IS)$bodyid,
+                             "POST",ROI)
+
+typeToType_Clean_ED <- getTypeToTypeTable(conTab_ED)
+typeToType_Clean_ED <- typeToType_Clean_ED %>% filter(type.to %in% nronTypes_ED)
+typeToType_Clean_IS <- getTypeToTypeTable(conTab_IS)
+typeToType_Clean_IS <- typeToType_Clean_IS %>% filter(type.to %in% nronTypes_IS)
+```
+
+Plot it
+```{r}
+gOut_ED <- graphConTab(typeToType_Clean_ED,xyLookupTable(),FALSE,FALSE)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBGraph1.pdf", width = unit(8,"in"), height = unit(4,"in"))
+print(gOut_ED)
+dev.off()
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBGraph2.pdf", width = unit(8,"in"), height = unit(4,"in"))
+gOut_IS <- graphConTab(typeToType_Clean_IS,xyLookupTable(),FALSE,FALSE)
+print(gOut_IS)
+dev.off()
+
+```
+
+Plot the IbPsP inputs
+```{r}
+IbSpsPs <- neuprint_search("IbSpsP.*")$bodyid
+USNronsIB <- getConnectionTable(IbSpsPs,"PRE","IB") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsSPS <- getConnectionTable(IbSpsPs,"PRE","SPS(R)") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsVMNP <- getConnectionTable(IbSpsPs,"PRE","VMNP") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsINP <- getConnectionTable(IbSpsPs,"PRE","INP") %>% filter(ROIweight > 3) %>% 
+  select(from) %>% unique() %>% unlist() %>% as.numeric()
+USNronsAll <- unique(c(USNronsIB,USNronsSPS,USNronsVMNP,USNronsINP))
+
+USSkelDat <- neuprint_read_neurons(USNronsAll)
+ISkelDat <- neuprint_read_neurons(IbSpsPs)
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBIbSpsPInputs_XZ.pdf", width = unit(8,"in"), height = unit(4,"in"))
+plot(USSkelDat,WithNodes=FALSE,PlotAxes="XZ",axes=FALSE)
+plot(ISkelDat,WithNodes=FALSE,PlotAxes="XZ",axes=FALSE,add=TRUE,col="black")
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBIbSpsPInputs_XY.pdf", width = unit(8,"in"), height = unit(4,"in"))
+plot(USSkelDat,WithNodes=FALSE,PlotAxes="XY",axes=FALSE)
+p_XY <- plot(ISkelDat,WithNodes=FALSE,PlotAxes="XY",axes=FALSE,add=TRUE,col="black")
+dev.off()
+
+```
+ 
+Compare EPG and EPGt connectivity
+```{r}
+# Get the connection table
+EPG_CT <- rbind(getConnectionTable(getBodyIdsForList(c("EPG")),"POST","CX"),
+                getConnectionTable(getBodyIdsForList(c("EPG")),"PRE","CX"))
+
+# Convert it to type-to-type
+EPG_CT_T2T <- getTypeToTypeTable(EPG_CT)
+
+# Get the neuron types
+preTypes <- EPG_CT_T2T %>% filter(type.from != "EPG" & type.from != "EPGt") %>% select(type.from) %>% unique() %>% unlist() %>% as.character()
+postTypes <- EPG_CT_T2T %>% filter(type.to != "EPG" & type.to != "EPGt") %>% select(type.to) %>% unique() %>% unlist() %>% as.character()
+allTypes <- c(preTypes,postTypes) %>% unique()
+allTypes <- allTypes[1:(length(allTypes)-1)]
+
+# Sort them
+PBNrons <- c("Delta7","SIFamide","SpsP","LPsP","P1-9","P6-8P9","IbSpsP","PEG","PEN_a(PEN1)","PEN_b(PEN2)",
+             "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3",
+             "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv")
+allTypes <- c(PBNrons, sort(allTypes[which(!(allTypes %in% PBNrons))]))
+
+# Create a lookup table with position and color
+angs <- seq(-pi,pi,length.out=(length(allTypes)+1))
+angs <- angs[1:(length(angs)-1)]
+xyLookup <- data.frame(type = allTypes, x = cos(angs), y = sin(angs), xTxt = 1.1*cos(angs), yTxt = 1.1*sin(angs))
+xyLookup_EPG <- rbind(xyLookup,
+                  data.frame(type = "EPG", x = 0, y = 0, xTxt = 0, yTxt = 0.1))
+xyLookup_EPGt <- rbind(xyLookup,
+                  data.frame(type = "EPGt", x = 0, y = 0, xTxt = 0, yTxt = 0.1))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPG,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPGt,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+```
+
+Look at P1-9 and LPsP partners
+```{r}
+# Get the connection tables
+Mod_CT <- rbind(getConnectionTable(getBodyIdsForList(c("P1-9","LPsP")),"POST","PB") %>%
+                  filter(type.to != "P1-9" & type.to != "LPsP"),
+                getConnectionTable(getBodyIdsForList(c("P1-9","LPsP")),"PRE","PB"))
+
+# Convert it to type-to-type
+Mod_CT_T2T <- getTypeToTypeTable(Mod_CT)
+
+# Combine the two
+CT_T2T <- rbind(P19_CT_T2T,LPsP_CT_T2T)
+
+# Plot them
+nronTyps <- c(Mod_CT_T2T$type.to, Mod_CT_T2T$type.from) %>% unique()
+nronGps <- list(c("P1-9","LPsP"),nronTyps[which(!(nronTyps %in% c("P1-9","LPsP")))])
+  
+xyLookup <- data.frame(type = c(), x = c(), y = c(), xTxt = c(), yTxt = c())
+for (g in 1:length(nronGps)){
+  types <-  nronGps[[g]]
+  
+  xs <- numeric(length(types))
+  ys <- numeric(length(types))
+  if (g > 1){
+    angs <- seq(-pi/3,pi/3,length.out=length(types))
+    xsTxt <- xs + 1.1*sin(angs)
+    xs <- xs + sin(angs)
+    ysTxt <- ys - 1.1*cos(angs)
+    ys <- ys - cos(angs)
+  } else {
+    xs <- xs + c(-0.25,0.25)
+    xsTxt <- xs
+    ysTxt <- ys + 0.1
+  }
+  
+  typeLookup <- data.frame(type = types, x = xs, y = ys, xTxt = xsTxt, yTxt = ysTxt)
+  xyLookup <- rbind(xyLookup,typeLookup)
+}
+  
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\ModConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(Mod_CT_T2T,xyLookup,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+```
+
+Compare P6-8P9 and D7 connectivity
+```{r}
+# Get the connection table
+P68_CT_Post <- rbind(getConnectionTable(getBodyIdsForList(c("P6-8P9","Delta7")),"POST","PB")  %>%
+                  filter(type.to != "P6-8P9" & type.to != "Delta7"),
+                getConnectionTable(getBodyIdsForList(c("P6-8P9","Delta7")),"PRE","PB"))
+
+# Convert it to type-to-type
+P68_CT_T2T <- getTypeToTypeTable(P68_CT)
+
+# Get the neuron types
+preTypes1 <- P68_CT_T2T %>% filter(type.from != "P6-8P9" & type.from != "Delta7" & type.to == "Delta7") %>%
+  select(type.from) %>% unique() %>% unlist() %>% as.character()
+preTypes2 <- P68_CT_T2T %>% filter(type.from != "P6-8P9" & type.from != "Delta7" & type.to == "P6-8P9") %>%
+  select(type.from) %>% unique() %>% unlist() %>% as.character()
+preTypes <- c(preTypes1[which(!(preTypes1 %in% preTypes2))] %>% sort(),
+              preTypes2 %>% sort())
+
+postTypes <- P68_CT_T2T %>% filter(type.to != "P6-8P9" & type.to != "Delta7") %>%
+  select(type.to) %>% unique() %>% unlist() %>% as.character() %>% sort()
+allTypes <- c(preTypes,postTypes) %>% unique() %>% sort()
+
+# Create a lookup table with position and color
+xyLookup <- data.frame(type = preTypes,
+                       x = seq(-1,1,length.out = length(preTypes)), y = 0.5, 
+                       xTxt = seq(-1,1,length.out = length(preTypes)), yTxt = 0.6)
+xyLookup <- rbind(xyLookup,
+                  data.frame(type = c("Delta7", "P6-8P9"),
+                             x = c(-0.25, 0.25), y = 0, 
+                             xTxt = c(-0.25, 0.25), yTxt = 0.1))
+xyLookup <- rbind(xyLookup,
+                  data.frame(type = postTypes[which(!(postTypes %in% preTypes))],
+                             x = seq(-1,1,length.out = length(postTypes[which(!(postTypes %in% preTypes))])), y = -0.5,
+                             xTxt = seq(-1,1,length.out = length(postTypes[which(!(postTypes %in% preTypes))])), yTxt = -0.6))
+
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\D7P68P9Connectivity.pdf", width = unit(6,"in"), height = unit(6,"in"))
+graphConTab(P68_CT_T2T,xyLookup,sTCols,FALSE,TRUE) + 
+  theme(legend.text = element_text(size = legSz),
+        legend.title = element_text(size = legTitSz))
+dev.off()
+```

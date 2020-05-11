@@ -133,14 +133,20 @@ PBpreNpost <- PBpreNpostRatios %>% group_by(type) %>%
             diffSD = sd(prePostDiff),
             relMeanPre = mean(preRelative),
             relSDPre = sd(preRelative),
+            relSEMPre = sd(preRelative)/sqrt(length(preRelative)),
             relMeanPost = mean(postRelative),
-            relSDPost = sd(postRelative))
+            relSDPost = sd(postRelative),
+            relSEMPost = sd(postRelative)/sqrt(length(postRelative)))
 
 PBpreNpost['classification'] = 'inner'
 PBpreNpost[which(PBpreNpost$diffMean > 0.15),]$classification = 'input'
 PBpreNpost[which(PBpreNpost$diffMean < -0.12),]$classification = 'output'
 PBpreNpost$classification <- factor(PBpreNpost$classification, levels = c('input','inner','output'))
 PBpreNpost <- PBpreNpost[order(PBpreNpost$diffMean),]
+
+PBpreNpost$superType = PBpreNpost$type %>% as.character() %>% supertype() %>% as.factor()
+
+PBpreNpost$label = PBpreNpost$type %>% as.character()
 
 ggplot(PBpreNpost, aes(x=relMeanPre, y=relMeanPost,color=classification,label=type)) +
   geom_point(size=6) +
@@ -156,6 +162,23 @@ ggplot(PBpreNpost, aes(x=relMeanPre, y=relMeanPost,color=classification,label=ty
 ggsave("PBInputsAndOutputsMean2D.svg", plot = last_plot(), device='svg', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+
+
+ggplot(PBpreNpost, aes(x=relMeanPre, y=relMeanPost)) +
+  geom_abline(intercept = 0, slope = 1, color="darkgray", linetype="dashed", size=1) +
+  geom_errorbar(aes(ymin=relMeanPost-relSEMPost, ymax=relMeanPost+relSEMPost,
+                    color=superType),
+                width=.02, position=position_dodge(0.05),alpha=0.5) +
+  geom_errorbarh(aes(xmin=relMeanPre-relSEMPre, xmax=relMeanPre+relSEMPre,
+                     color=superType),
+                height=.02, position=position_dodge(0.05),alpha=0.5) +
+  geom_point(size=8,aes(color=superType),alpha=0.5) +
+  geom_text(aes(label=label,color = superType,alpha=0.5),hjust=-0.2, vjust=-0.2,size = 4,show.legend = FALSE) +
+  theme_classic() + xlab('pre ratio') + ylab('post ratio') + 
+  coord_fixed(ratio =1 ,xlim=c(0, 1.1),ylim=c(0, 1.1),expand=FALSE)  + 
+  theme(panel.grid.major = element_line(colour = "lightgray",linetype="dashed"),text=element_text(size=18))
+
+
 
 dodge <- position_dodge(width = 0.9)
 limits <- aes(ymax = PBpreNpost$diffMean + PBpreNpost$diffSD,
