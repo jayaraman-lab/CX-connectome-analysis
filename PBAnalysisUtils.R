@@ -277,7 +277,7 @@ xyLookupTable <- function(){
 }
 
 # Create a function for plotting a graph of PB connections
-graphConTab <- function(conTab,xyLookup,sTCols,textRepel,guideOnOff){
+graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Get the table of nodes (types)
   nodes = data.frame(name = xyLookup$type)
@@ -288,14 +288,17 @@ graphConTab <- function(conTab,xyLookup,sTCols,textRepel,guideOnOff){
   nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
   
   # Assign colors to the supertypes
-  
+  pal <- supertype2Palette()
   if (guideOnOff){
-    sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype)
+    sTScale <- scale_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks)
+  #  sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype)
   } else {
-    sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
+    sTScale <- scale_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks,guide = FALSE)
+  #  sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
   }
   
-  sTScale_edge <- scale_edge_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
+  #sTScale_edge <- scale_edge_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
+  sTScale_edge <- scale_edge_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks,guide = FALSE)
   
   # Get the edges from the connection table
   edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%

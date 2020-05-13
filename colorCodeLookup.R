@@ -91,7 +91,7 @@ colorValueLookup = data.frame(
 )
 
 supertype2Palette <- function(){
-  CXTypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types042020",
+  CXTypes <- supertype(read_csv("C:/Users/turnerevansd/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types042020",
                                 col_types=cols(n.type = col_character())) %>% rename(databaseType=n.type))
   s2 <- unique(CXTypes$supertype2)
   pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,32,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36)]
