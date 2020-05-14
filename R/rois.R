@@ -20,7 +20,7 @@ getNeuronsInRoiTable <- function(slctROI,minTypePercentage=0.5) {
   ## Join to the full table of type members (and fill with zero where the extra instances do not
   ## innervate)
   roi_Innervate <- left_join(all_neurons,roi_Innervate,by=c("bodyid","pre","post","voxels"))
-  roi_Innervate <- roi_Innervate %>% select(-c(voxels,cellBodyFiber)) %>%
+  roi_Innervate <- roi_Innervate %>% select(-c(voxels)) %>% #,cellBodyFiber
     replace_na(list(ROI_pre = 0,ROI_post = 0,originalInstance=FALSE)) %>%
     mutate(databaseType = type) ## Convenience column for when types are changed
 

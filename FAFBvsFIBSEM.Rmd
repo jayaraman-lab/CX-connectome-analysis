@@ -21,7 +21,7 @@ options(nat.plotengine = 'rgl')
 
 Connect to neuprint
 ```{r}
-neuprint_l'ogin()
+neuprint_login()
 ```
 
 Function to load the FAFB data in a datframe
@@ -177,11 +177,11 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
@@ -196,7 +196,58 @@ FIBSEM_PB_Mat[is.na(FIBSEM_PB_Mat)] <- 0
 FIBSEM_PB_Mat <- FIBSEM_PB_Mat %>% melt()
 colnames(FIBSEM_PB_Mat) <- c("nameid.to","nameid.from","ROIweight")
 
-gFIBSEM <- ggplot(FIBSEM_PB_Mat) + 
+FIBSEMNames <- FIBSEM_PB_Mat$nameid.from %>% as.character() %>% append(FIBSEM_PB_Mat$nameid.to %>% as.character()) %>% unique() %>% sort()
+newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
+                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
+                    "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
+                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
+                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
+                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
+                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
+
+nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
+FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
+FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
+
+nronsToAdd <-  c("EPG-6La","EPG-6Lb","EPG-6Lc")
+FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
+for (nPre in 1:length(nronsToAdd)){
+  for (nPost in 1:length(nronsToAdd)){
+    if (nrow(FIBSEM_PB %>%
+             filter(as.character(nameid.from) == nronsToAdd[nPre] &
+                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
+      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
+  }
+}
+FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
+FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
+FIBSEM_PB <- melt(FIBSEM_PB)
+colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
+
+PBNameOrder <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc",
+                 "EPG-5La","EPG-5Lb","EPG-5Lc",
+                 "EPG-6Ra","EPG-6Rb","EPG-6Rc",
+                 "EPG-6La","EPG-6Lb","EPG-6Lc",
+                 "PEG-5R","PEG-5L","PEG-6R","PEG-6L",
+                 "PEN1-5R","PEN1-5L",
+                 "PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb",
+                 "PEN1-7R","PEN1-7L",
+                 "PEN2-5R","PEN2-5L",
+                 "PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb",
+                 "PEN2-7R", "PEN2-7L",
+                 "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
+                 "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
+                 "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
+                 "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
+                 "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le")
+
+FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBNameOrder)
+FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBNameOrder)
+
+gFIBSEM <- ggplot(FIBSEM_PB) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
@@ -212,11 +263,11 @@ Downselect the FIBSEM neurons for a direct comparison
 ```{r}
 DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
                   "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
                   "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 numNrons <-  c(2,2,1,2,2,1,1)
 
 FIBSEM_PB_Cut <- FIBSEM_PB_Mat
@@ -230,15 +281,32 @@ for (ds in 1:length(DSneuronList)){
 }
 
 FIBSEMNames <- FIBSEM_PB_Cut$nameid.from %>% as.character() %>% append(FIBSEM_PB_Cut$nameid.to %>% as.character()) %>% unique()
-newFIBSEMNames <- c("Delta7-7R2L","Delta7-6R3La","Delta7-6R3Lb","Delta7-5R4La","Delta7-5R4Lb","Delta7-2R7L","Delta7-1R9R8L",
-                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb",
-                    "PEG-5L", "PEG-6L","PEG-5R","PEG-6R",
-                    "PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R")
+newFIBSEMNames <- c("Delta7-1R9R8L","Delta7-2R7L","Delta7-5R4La","Delta7-5R4Lb","Delta7-6R3La","Delta7-6R3Lb","Delta7-7R2L",
+                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb",
+                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
 
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_PB_Cut$nameid.from <- sapply(FIBSEM_PB_Cut$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 FIBSEM_PB_Cut$nameid.to <- sapply(FIBSEM_PB_Cut$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
+
+nronsToAdd <-  c("EPG-6La","EPG-6Lb")
+FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% select(nameid.from, nameid.to, ROIweight)
+for (nPre in 1:length(nronsToAdd)){
+  for (nPost in 1:length(nronsToAdd)){
+    if (nrow(FIBSEM_PB_Cut %>%
+             filter(as.character(nameid.from) == nronsToAdd[nPre] &
+                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
+      FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
+  }
+}
+FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% dcast(nameid.from~nameid.to)
+FIBSEM_PB_Cut[is.na(FIBSEM_PB_Cut)] <- 0
+FIBSEM_PB_Cut <- melt(FIBSEM_PB_Cut)
+colnames(FIBSEM_PB_Cut) <- c("nameid.from","nameid.to","ROIweight")
+FIBSEM_PB_Cut$nameid.from <- factor(FIBSEM_PB_Cut$nameid.from, levels = newFIBSEMNames %>% sort())
+FIBSEM_PB_Cut$nameid.to <- factor(FIBSEM_PB_Cut$nameid.to, levels = newFIBSEMNames %>% sort())
 
 gFIBSEM_DS <- ggplot(FIBSEM_PB_Cut) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
@@ -341,28 +409,28 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
               "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
 FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
+                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
                     "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
-                    "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc")
+                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
+                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
+                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc")
 PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
               "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
               "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
+              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
               "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -416,8 +484,8 @@ FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FI
 FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-5R", "PEN1-6Ra","PEN1-6Rb")
+newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-5L", "PEN1-6La","PEN1-6Lb")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -469,33 +537,33 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
 FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
+                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
                     "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
-                    "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "PEG-5L", "PEG-6L","PEG-5R", "PEG-6R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R")
+                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
+                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
+                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEG-5R", "PEG-6R","PEG-5L", "PEG-6L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
               "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
               "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
+              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
               "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
               "PEN2-5R","PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb","PEN2-7R","PEN2-7L", 
               "PEG-5R","PEG-5L","PEG-6R","PEG-6L")
@@ -517,13 +585,13 @@ colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
 FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBlevels)
 FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBlevels)
 
-FIBSEM_PB <- FIBSEM_PB %>% filter(!grepl("Delta7",nameid.to))
+FIBSEM_PB <- FIBSEM_PB %>% filter(!grepl("Delta7",nameid.to) & !grepl("EPG",nameid.to))
 
 gFIBSEM <- ggplot(FIBSEM_PB) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
-  geom_hline(yintercept = 12.5) + geom_vline(xintercept = 12.5) + geom_vline(xintercept = 20.5)
+  geom_hline(yintercept = 12.5) + geom_vline(xintercept = 8.5)
 
 print(gFIBSEM)
 
@@ -544,32 +612,32 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L3R6",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L4R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-              "Delta7\\\\\\\\(PB15\\\\\\\\)_L8")
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
 FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
 FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
 FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
+                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
                     "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
-                    "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R")
+                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
+                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
+                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
 PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
               "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld",
+              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
               "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc",
+              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
               "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
               "PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
  
@@ -595,7 +663,7 @@ FIBSEM_PB <- FIBSEM_PB %>% filter(!grepl("Delta7",nameid.to) & !grepl("EPG",name
 
 gFIBSEM <- ggplot(FIBSEM_PB) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
+  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =20, limits=c(0,40)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
   geom_hline(yintercept = 12.5)
 
@@ -630,7 +698,7 @@ FAFB_EB_df$nameid <- factor(FAFB_EB_df$nameid, levels = EBlevels)
 FAFB_EB_df$partnerid <- sapply(FAFB_EB_df$partnerid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
 FAFB_EB_df$partnerid <- factor(FAFB_EB_df$partnerid, levels = EBlevels)
 
-gFAFB <- ggplot(FAFB_EB_df  %>% filter(weight > synapseCutOff)) + 
+gFAFB <- ggplot(FAFB_EB_df  %>% filter(!grepl("R4m",nameid) & !grepl("R4m",partnerid))) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =175/2, limits=c(0,175)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1) +
@@ -660,8 +728,7 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
-              "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
-              "R4d")
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")#"R4d"
 
 FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
 FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
@@ -680,9 +747,8 @@ ggsave("FIBSEM_EB.pdf", plot = gFIBSEM, device='pdf',
 Downselect the FIBSEM neurons for a direct comparison
 ```{r}
 DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
-                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
-                  "R4d")
-numNrons <-  c(2,2,7)
+                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6")#,"R4d")
+numNrons <-  c(2,2)#,7)
 
 FIBSEM_EB_Cut <- FIBSEM_EB
 
@@ -695,11 +761,11 @@ for (ds in 1:length(DSneuronList)){
 }
 
 FIBSEMNames <- FIBSEM_EB_Cut$nameid.from %>% as.character() %>% append(FIBSEM_EB_Cut$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb",
-                    "PEG-5L", "PEG-6L","PEG-5R","PEG-6R",
-                    "PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R",
-                    "R4m-a","R4m-b","R4m-c","R4m-d","R4m-e","R4m-f","R4m-g")
+newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb",
+                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
+#,"R4m-a","R4m-b","R4m-c","R4m-d","R4m-e","R4m-f","R4m-g")
 
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_EB_Cut$nameid.from <- sapply(FIBSEM_EB_Cut$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -720,6 +786,7 @@ print(gFIBSEM_DS)
 
 Compare the two matrices
 ```{r}
+FAFB_EB_df <- FAFB_EB_df %>% filter(!grepl("R4m",nameid) & !grepl("R4m",partnerid))
 FAFB_EB_df_Mat <- FAFB_EB_df %>% dcast(partnerid~nameid)
 FAFB_EB_df_Mat[is.na(FAFB_EB_df_Mat)] <- 0
 rownames(FAFB_EB_df_Mat) <- FAFB_EB_df_Mat$partnerid
@@ -790,15 +857,15 @@ perEB <- perEB[which(perEB$value != 0),]
 diffEB <- diffEB[which(diffEB$value != 0),]
 
 perEB$supergroup.from <- "columnar"
-perEB[which(grepl("R4m",as.character(perEB$Var1))),]$supergroup.from <- "tangential"
+#perEB[which(grepl("R4m",as.character(perEB$Var1))),]$supergroup.from <- "tangential"
 perEB$supergroup.to <- "columnar"
-perEB[which(grepl("R4m",as.character(perEB$Var2))),]$supergroup.to <- "tangential"
+#perEB[which(grepl("R4m",as.character(perEB$Var2))),]$supergroup.to <- "tangential"
 perEB <- perEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
 
 diffEB$supergroup.from <- "columnar"
-diffEB[which(grepl("R4m",as.character(diffEB$Var1))),]$supergroup.from <- "tangential"
+#diffEB[which(grepl("R4m",as.character(diffEB$Var1))),]$supergroup.from <- "tangential"
 diffEB$supergroup.to <- "columnar"
-diffEB[which(grepl("R4m",as.character(diffEB$Var2))),]$supergroup.to <- "tangential"
+#diffEB[which(grepl("R4m",as.character(diffEB$Var2))),]$supergroup.to <- "tangential"
 diffEB <- diffEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
 
 ggplot(perEB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
@@ -822,7 +889,7 @@ FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FI
 FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc")
+newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc")
 EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_EB$nameid.from <- sapply(FIBSEM_EB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -862,8 +929,8 @@ FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FI
 FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R")
+newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
 EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
               "PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
@@ -908,9 +975,9 @@ FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FI
 FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc","EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "PEG-5L", "PEG-6L","PEG-5R", "PEG-6R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R")
+newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
+                    "PEG-5R", "PEG-6R","PEG-5L", "PEG-6L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
 EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
               "PEN2-5R","PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb","PEN2-7R","PEN2-7L",
               "PEG-5L","PEG-5R","PEG-6R","PEG-6L")
@@ -954,7 +1021,7 @@ FAFB_NO_df$partnerid <- factor(FAFB_NO_df$partnerid, levels = newLevels)
 
 gFAFB <- ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,200)) +
+  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,50)) +
   geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
 
 ggsave("FAFB_NO.pdf", plot = last_plot(), device='pdf', 
@@ -981,8 +1048,8 @@ FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FI
 FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_NO$nameid.from %>% as.character() %>% append(FIBSEM_NO$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R")
+newFIBSEMNames <- c("PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
 
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_NO$nameid.from <- sapply(FIBSEM_NO$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -992,7 +1059,7 @@ FIBSEM_NO$nameid.to <- factor(FIBSEM_NO$nameid.to, levels = newLevels)
 
 gFIBSEM <- ggplot(FIBSEM_NO  %>% filter(ROIweight > synapseCutOff)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,200)) +
+  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,50)) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
 
 ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf', 
@@ -1128,7 +1195,7 @@ FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FI
 FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_NO$nameid.from %>% as.character() %>% append(FIBSEM_NO$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R")
+newFIBSEMNames <- c("PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
 NOlevels <- c("PEN1-5R","PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L","PEN1-6La","PEN1-6Lb","PEN1-7L")
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
 FIBSEM_NO$nameid.from <- sapply(FIBSEM_NO$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
@@ -1170,8 +1237,8 @@ FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FI
 FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
 
 FIBSEMNames <- FIBSEM_NO$nameid.from %>% as.character() %>% append(FIBSEM_NO$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L","PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R",
-                    "PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L","PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R")
+newFIBSEMNames <- c("PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
+                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
 newLevels <- c("PEN1-5R","PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L","PEN1-6La","PEN1-6Lb","PEN1-7L",
                "PEN2-5R","PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L","PEN2-6La","PEN2-6Lb","PEN2-7L") %>% as.factor()
 nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)

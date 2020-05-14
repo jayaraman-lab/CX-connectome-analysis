@@ -16,6 +16,7 @@ library(reshape2)
 library(paletteer)
 library(neuprintrExtra)
 library(gridExtra)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
@@ -137,9 +138,9 @@ Show where neurons arborize in PB
 PBGlomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
                  "L1","L2","L3","L4","L5","L6","L7","L8","L9")
 typeOrder <- c("EPGt","EPG","IbSpsP",
-               "PEG","PEN_a(PEN1)","PEN_b(PEN2)",
+               "PEN_a(PEN1)","PEN_b(PEN2)",
                "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
-               "PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+               "PEG","PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
 
 # Get the columnar neurons
 colNrons = neuprint_search(".*_[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}.*") %>% filter(type != "Delta7")
@@ -173,7 +174,7 @@ colSynByType_DS$direction <- "downstream"
 ```
 -tangential
 ```{r}
-tanTypes <- c("P1-9", "Delta7", "P6-8P9", "LPsP", "SpsP")
+tanTypes <- c("LPsP","P1-9", "Delta7", "P6-8P9","SpsP")
 
 #Get the location of their synapses
 tanSynLocs <- neuprint_get_roiInfo(getTypesTable(tanTypes)$bodyid) 
@@ -189,6 +190,7 @@ tanSynByType_US <- tanSynByType[,c(1, which(grepl("upstream",colnames(tanSynByTy
 tanSynByType_US$PBGlom <- as.character(regmatches(as.character(tanSynByType_US$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
                                                                                                  as.character(tanSynByType_US$PBGlom))))
 tanSynByType_US$PBGlom <- factor(tanSynByType_US$PBGlom,levels= PBGlomOrder)
+tanSynByType_US$type <- factor(tanSynByType_US$type,levels= tanTypes)
 tanSynByType_US$label <- "tangential"
 tanSynByType_US$direction <- "upstream"
                                                                                                                                                 
@@ -197,6 +199,7 @@ tanSynByType_DS <- tanSynByType[,c(1, which(grepl("downstream",colnames(tanSynBy
 tanSynByType_DS$PBGlom <- as.character(regmatches(as.character(tanSynByType_DS$PBGlom), gregexpr("[L,R]{1}[1,2,3,4,5,6,7,8,9]{1}",
                                                                                                  as.character(tanSynByType_DS$PBGlom))))
 tanSynByType_DS$PBGlom <- factor(tanSynByType_DS$PBGlom,levels= PBGlomOrder)
+tanSynByType_DS$type <- factor(tanSynByType_DS$type,levels= tanTypes)
 tanSynByType_DS$label <- "tangential"
 tanSynByType_DS$direction <- "downstream"
 ```
@@ -210,8 +213,7 @@ synsByType <- rbind(
 
 gPBGloms <- ggplot(synsByType) + geom_tile(aes(x = PBGlom,y=type, fill=log10(syns+1))) + 
   facet_grid(rows = vars(label), cols = vars(direction), scale="free",space="free") +
-  scale_fill_viridis_c(option = "B", direction = -1, limits=c(0, 5)) + theme_cowplot()
-  #scale_fill_gradient(low="white", high="black") 
+  scale_fill_paletteer_c("viridis::magma", direction = -1, limits=c(0, 5)) + theme_cowplot()
 
 gPBGloms <- gPBGloms +
   theme(axis.title = element_text(size = axLabSz), 
@@ -219,7 +221,11 @@ gPBGloms <- gPBGloms +
       strip.text.x = element_text(size = 8),
       strip.text.y = element_text(size = 8),
       legend.text = element_text(size = legSz),
-      legend.title = element_text(size = legTitSz))
+      legend.title = element_text(size = legTitSz)) + 
+  geom_hline(yintercept = 2.5, color = "white") +
+  geom_hline(yintercept = 3.5, color = "white") +
+  geom_hline(yintercept = 15.5, color = "white") +
+  geom_hline(yintercept = 17.5, color = "white")
 
 pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBOverview_1.pdf", width = unit(6,"in"), height = unit(6,"in"))
 plot_grid(gOutline, gPBGloms,
@@ -524,17 +530,17 @@ xyLookup_EPG <- rbind(xyLookup,
 xyLookup_EPGt <- rbind(xyLookup,
                   data.frame(type = "EPGt", x = 0, y = 0, xTxt = 0, yTxt = 0.1))
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
-graphConTab(EPG_CT_T2T,xyLookup_EPG,sTCols,FALSE,TRUE) + 
+#pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPG,FALSE,TRUE) + 
   theme(legend.text = element_text(size = legSz),
         legend.title = element_text(size = legTitSz))
-dev.off()
+#dev.off()
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
-graphConTab(EPG_CT_T2T,xyLookup_EPGt,sTCols,FALSE,TRUE) + 
+#pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtConnectivity.pdf", width = unit(5,"in"), height = unit(6,"in"))
+graphConTab(EPG_CT_T2T,xyLookup_EPGt,FALSE,TRUE) + 
   theme(legend.text = element_text(size = legSz),
         legend.title = element_text(size = legTitSz))
-dev.off()
+#dev.off()
 ```
 
 Look at P1-9 and LPsP partners
