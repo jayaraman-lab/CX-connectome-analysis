@@ -13,6 +13,8 @@ library(ggraph)
 library(gridExtra)
 library(paletteer)
 library(reshape2)
+library(combinat)
+library(cowplot)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
@@ -24,7 +26,18 @@ Connect to neuprint
 neuprint_login()
 ```
 
-Function to load the FAFB data in a datframe
+Function to plot connectivity matrices
+```{r}
+conMatPlot <- function(conMat,maxCts){
+  g <- ggplot(conMat) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =0.5*maxCts, limits=c(0,maxCts)) +
+    geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
+  return(g)
+}
+```
+
+Function to load the FAFB data in a dataframe
 ```{r}
 FAFBLoad <- function(region){
   #' Get data frame of FAFB data in a given region
@@ -36,9 +49,17 @@ FAFBLoad <- function(region){
     '\\\\dm11\\jayaramanlab\\Kris\\Catmaid\\connectivity_matrices\\matrix_',region,'_despiked.txt')
     , header=TRUE, sep ="")
   
-  # Get out the names of the neurons within the dataset
+  # Get out the names of the neurons within the dataset and rename where appropriate
   nrons = rownames(FAFBDat)
-  
+  nrons <- gsub("D7-","Delta7-",nrons)
+  nrons[which(nrons == "Ra")] <- "R4d-a"
+  nrons[which(nrons == "Rb")] <- "R4d-b"
+  nrons[which(nrons == "Rc")] <- "R4d-c"
+  nrons[which(nrons == "Rd")] <- "R4d-d"
+  nrons[which(nrons == "Re")] <- "R4d-e"
+  nrons[which(nrons == "Rf")] <- "R4d-f"
+  nrons[which(nrons == "Rg")] <- "R4d-g"
+
   # Create nameids and partnerids based off of the constituent neurons
   nameids = c()
   partnerids = c()
@@ -51,111 +72,285 @@ FAFBLoad <- function(region){
   
   # Populate a dataframe from the weight matrix
   colNames = names(FAFBDat)
-  FAFB_df = data.frame(nameid = nameids,partnerid = partnerids, weight = integer(length(nrons)))
+  colNames <- gsub("\\.","-",colNames)
+  colNames <- gsub("D7-","Delta7-",colNames)
+  colNames[which(colNames == "Ra")] <- "R4d-a"
+  colNames[which(colNames == "Rb")] <- "R4d-b"
+  colNames[which(colNames == "Rc")] <- "R4d-c"
+  colNames[which(colNames == "Rd")] <- "R4d-d"
+  colNames[which(colNames == "Re")] <- "R4d-e"
+  colNames[which(colNames == "Rf")] <- "R4d-f"
+  colNames[which(colNames == "Rg")] <- "R4d-g"
+  FAFB_df = data.frame(nameid.from = nameids,nameid.to = partnerids, ROIweight = integer(length(nrons)))
   for (i in 1:length(colNames)){
     for (j in 1:length(nrons)){
-      FAFB_df$weight[which(FAFB_df$nameid == str_replace(colNames[i],'[.]','-') & FAFB_df$partnerid == nrons[j])] <- FAFBDat[j,i]
+      FAFB_df$ROIweight[which(FAFB_df$nameid.to == colNames[i] & FAFB_df$nameid.from == nrons[j])] <- FAFBDat[j,i]
     }
   }
-  
-  # Alter the glom names to match the FIBSEM data
-  nronNames = character(length(nrons))
-  for (n in 1:length(nrons)){
-    nmPrts = strsplit(nrons[n],"-")
-    if (grepl("EPG",nmPrts[[1]][1]))
-      nronNames[n] <- paste0("EPG(PB08)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
-    if (grepl("PEG",nmPrts[[1]][1]))
-      nronNames[n] <- paste0("PEG(PB07)",'_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
-    if (grepl("PEN",nmPrts[[1]][1])){
-      if (grepl("1",substring(nmPrts[[1]][1],4,4))){
-        if (nchar(nmPrts[[1]][2]) > 2)
-          nronNames[n] <- paste0("PEN(PB06)",'_a_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
-        else
-          nronNames[n] <- paste0("PEN(PB06)",'_a_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
-      }
-      else {
-        if (nchar(nmPrts[[1]][2]) > 2)
-          nronNames[n] <- paste0("PEN(PB06)",'_b_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1),'_',substr(nmPrts[[1]][2],3,3))
-        else
-          nronNames[n] <- paste0("PEN(PB06)",'_b_',substr(nmPrts[[1]][2],2,2),substr(nmPrts[[1]][2],1,1))
-      }
-    }
-    if (grepl("D7",nmPrts[[1]][1])){
-      if (nchar(nmPrts[[1]][2]) > 4){
-        if (paste0(substr(nmPrts[[1]][2],2,2),
-                   substr(nmPrts[[1]][2],1,1)) == "R1"){
-          nronNames[n] <- paste0("Delta7(PB15)",'_L8_',
-                                 substr(nmPrts[[1]][2],2,2),
-                                 substr(nmPrts[[1]][2],1,1),'_',
-                                 substr(nmPrts[[1]][2],4,4),
-                                 substr(nmPrts[[1]][2],3,3),'_',
-                                 substr(nmPrts[[1]][2],5,5))
-        } else {
-          nronNames[n] <- paste0("Delta7(PB15)",'_',
-                                 substr(nmPrts[[1]][2],4,4),
-                                 substr(nmPrts[[1]][2],3,3),'_',
-                                 substr(nmPrts[[1]][2],2,2),
-                                 substr(nmPrts[[1]][2],1,1),'_',
-                                 substr(nmPrts[[1]][2],5,5))
-        }
-      } else {
-        nronNames[n] <- paste0("Delta7(PB15)",'_',
-                               substr(nmPrts[[1]][2],4,4),
-                               substr(nmPrts[[1]][2],3,3),'_',
-                               substr(nmPrts[[1]][2],2,2),
-                               substr(nmPrts[[1]][2],1,1))
-      }
-        
-    }
-    if (grepl("R",substring(nmPrts[[1]][1],1,1)))
-      nronNames[n] <- paste0('R4m','_',substr(nmPrts[[1]][1],2,2))
-    if (grepl("NO",nmPrts[[1]][1]))
-      nronNames[n] <- "GLN"
-    if (grepl("GE",nmPrts[[1]][1]))
-      nronNames[n] <- "EQ5"
-  }
-  
-  # Replace the names in the dataframe
-  # Create nameids and partnerids based off of the constituent neurons
-  nameids_New = nameids
-  partnerids_New = partnerids
-  for (n in 1:length(nrons)){
-    nameids_New[which(grepl(nrons[n],nameids_New))] <- nronNames[n]
-    partnerids_New[which(grepl(nrons[n],partnerids_New))] <- nronNames[n]
-  }
-  FAFB_df$nameid <- factor(nameids_New,levels=sort(unique(nameids_New)))
-  FAFB_df$partnerid <- factor(partnerids_New,levels=sort(unique(partnerids_New)))
   
   return(FAFB_df)
 }
   
 ```
 
-Compare the FAFB data to the FIBSEM data - PB
+Function to rename FIBSEM neurons
+```{r}
+FIBSEMRename <- function(nameids){
+  #' Rename FIBSEM neurons to match the FIBSEM names
+  #' @return Returns a renamed vector of neurons
+  #' @param nameids: FIBSEM names as returned from neurprintr
+  #' @param newNameids: A vector of renamed neuron names
+  
+  newNameids <- nameids
+  newNameids <- gsub("\\([^\\)]+\\)","",newNameids)
+  newNameids <- gsub("_L_","_",newNameids)
+  newNameids <- gsub("_R_","_",newNameids)
+  newNameids <- gsub("_a_","1_",newNameids)
+  newNameids <- gsub("_b_","2_",newNameids)
+  newNameids <- gsub("_","-",newNameids)
+  
+  glomNames <- sapply(newNameids, function(n){strsplit(n,'-')[[1]][2]}) %>% as.character()
+  for (g in 1:length(glomNames)){
+    if (nchar(glomNames[g]) == 2){
+      if (substr(glomNames[g],1,1) == "R"){
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"L")
+      } else {
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"R")
+      }
+    }
+    if (nchar(glomNames[g]) == 4){
+      if (substr(glomNames[g],1,1) == "R"){
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"L",
+                               substr(glomNames[g],4,4),"R")
+      } else {
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"R",
+                               substr(glomNames[g],4,4),"L")
+      }
+    }
+    if (nchar(glomNames[g]) == 6){
+      if (substr(glomNames[g],1,1) == "R"){
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"L",
+                               substr(glomNames[g],4,4),"L",
+                               substr(glomNames[g],6,6),"R")
+      } else {
+        glomNames[g] <- paste0(substr(glomNames[g],2,2),"R",
+                               substr(glomNames[g],4,4),"R",
+                               substr(glomNames[g],6,6),"L")
+      }
+    }
+    newNameids[g] <- paste(strsplit(newNameids[g],'-')[[1]][1],glomNames[g],strsplit(newNameids[g],'-')[[1]][3],sep='-');
+  }
+  
+  names <- sapply(newNameids, function(n) paste(strsplit(n,'-')[[1]][1],strsplit(n,'-')[[1]][2],sep='-')) %>%
+    as.character() %>% unique() %>% sort()
+  for (n in 1:length(names)){
+    nronLocs <- which(grepl(names[n], newNameids))
+    if (length(nronLocs) > 1){
+      newNameids[nronLocs] <-paste0(names[n],letters[1:length(nronLocs)])
+    } else {
+      newNameids[nronLocs] <-names[n]
+    }
+  }
+  
+  return(newNameids)
+}
+```
+
+Function to load the FIBSEM data
+```{r}
+FIBSEMLoad <- function(neuronList,region){
+  #' Get data frame of FIBSEM data in a given region
+  #' @return Returns a data frame of the FIBSEM data in the specified region
+  #' @param region: The chosen ROI
+  #' @param neuronList: A list of neuron names to pull
+  
+  # Get bodyids associated with the neurons
+  bIDs <- getBodyIdsForList(neuronList)$bodyid
+  bNames <- neuprint_get_meta(bIDs)$name
+  
+  # Pull the data for the given set of neurons
+  FIBSEMDat = getConnectionTable(bIDs, "POST", region) %>%
+    filter(to %in% bIDs) %>% select(name.from,from,name.to,to,ROIweight)
+  
+  # Fill in zeros where no values exist
+  for (f in 1:length(bIDs)){
+    for (t in 1:length(bIDs)){
+      if (length(which(FIBSEMDat$from == bIDs[f] & FIBSEMDat$to == bIDs[t])) == 0){
+        FIBSEMDat <- rbind(FIBSEMDat,
+                           data.frame(name.from = bNames[f], from = bIDs[f],
+                                      name.to = bNames[t], to = bIDs[t],
+                                      ROIweight = 0))
+      }
+    }
+  }
+  
+  # Establish unique names for each neuron that are consistent with the FAFB names
+  FIBSEMDat$nameid.from <- paste(as.character(FIBSEMDat$name.from), as.character(FIBSEMDat$from), sep = "_")
+  FIBSEMDat$nameid.to <- paste(as.character(FIBSEMDat$name.to), as.character(FIBSEMDat$to), sep = "_")
+  
+  
+  oldNameIds <- c(FIBSEMDat$nameid.from,FIBSEMDat$nameid.to) %>% unique() 
+  newNameIds <- FIBSEMRename(oldNameIds)
+  FIBSEMDat$nameid.from <- sapply(FIBSEMDat$nameid.from,
+                                  function(n){newNameIds[which(oldNameIds == n)] })
+  FIBSEMDat$nameid.to <- sapply(FIBSEMDat$nameid.to,
+                                  function(n){newNameIds[which(oldNameIds == n)] })
+  FIBSEMDat <- FAFBSort(FIBSEMDat,region)
+  
+  return(FIBSEMDat %>% select(nameid.from, nameid.to, ROIweight))
+}
+```
+
+Function to sort the FIBSEM data to match the FAFB data
+```{r}
+FAFBSort <- function(FIBSEMDat,region){
+  #' Sort the names of the neurons in a FIBSEM connectivity matrix to match the FAFB data
+  #' @return Returns a data frame of the FIBSEM data with the names sorted to match the FAFB data
+  #' @param region: The chosen ROI
+  #' @param FIBSEMDat: A FIBSEM dataframe that holds the connectivity data
+  
+  if (region == "PB"){
+    nameOrder <- c("Delta7-1R9R8L","Delta7-2R7L","Delta7-5R4L","Delta7-6R3L","Delta7-7R2L",
+                   "EPG-5L","EPG-5R","EPG-6L","EPG-6R",
+                   "PEG-5L","PEG-5R","PEG-6L","PEG-6R",
+                   "PEN1-5L","PEN1-5R","PEN1-6L","PEN1-6R","PEN1-7L","PEN1-7R",
+                   "PEN2-5L","PEN2-5R","PEN2-6L","PEN2-6R","PEN2-7L", "PEN2-7R")
+  }
+  if (region == "PB-subset"){
+    nameOrder <- c("EPG-5R","EPG-5L","EPG-6R","EPG-6L",
+                   "Delta7-5R4L","Delta7-6R3L","Delta7-7R2L","Delta7-2R7L","Delta7-1R9R8L",
+                   "PEN1-5R","PEN1-5L","PEN1-6R","PEN1-6L","PEN1-7R","PEN1-7L",
+                   "PEN2-5R","PEN2-5L","PEN2-6R","PEN2-6L","PEN2-7R", "PEN2-7L",
+                   "PEG-5R","PEG-5L","PEG-6R","PEG-6L")
+  }
+  if (region == "EB"){
+    nameOrder <- c("EPG-5R","EPG-5L","EPG-6R","EPG-6L",
+                   "PEN1-5R","PEN1-5L","PEN1-6R","PEN1-6L","PEN1-7R","PEN1-7L",
+                   "PEN2-5R","PEN2-5L","PEN2-6R","PEN2-6L","PEN2-7R", "PEN2-7L",
+                   "PEG-5R","PEG-5L","PEG-6R","PEG-6L",
+                   "R4d")
+  }
+  if (region == "NO"){
+    nameOrder <- c("PEN1-5R","PEN1-6R","PEN1-7R","PEN1-5L","PEN1-6L","PEN1-7L",
+                   "PEN2-5R","PEN2-6R","PEN2-7R","PEN2-5L","PEN2-6L","PEN2-7L")
+  }
+  
+  names <- c(FIBSEMDat$nameid.from %>% as.character(),FIBSEMDat$nameid.to %>% as.character()) %>% unique()
+  nameLevels <- c()
+  for (n in 1:length(nameOrder)){
+    nameLevels <- c(nameLevels,
+                   sort(names[which(grepl(nameOrder[n],names))]))
+  }
+  
+  FIBSEMDat$nameid.from <- factor(FIBSEMDat$nameid.from, levels = nameLevels)
+  FIBSEMDat$nameid.to <- factor(FIBSEMDat$nameid.to, levels = nameLevels)
+  
+  return(FIBSEMDat)
+}
+```
+
+Function to downselect neurons of interest
+```{r}
+FIBSEMDownSel <- function(FIBSEMDat, names, nums){
+  #' Remove randomly selected neurons of a given name from a dataframe
+  #' @return Returns a downselected data frame of the FIBSEM data
+  #' @param FIBSEMDat: A FIBSEM dataframe that holds the connectivity data
+  #' @param names: A list of names of neurons to downselect
+  #' @param nums: The number of neurons to keep from each named neuron group
+  
+  nronNames <- c(FIBSEMDat$nameid.to %>% as.character(),FIBSEMDat$nameid.from%>% as.character()) %>% unique()
+  
+  for (n in 1:length(names)){
+    nronsNow <- nronNames[which(grepl(names[n],nronNames))]
+    nronsToExclude <- sample(nronsNow,length(nronsNow)-nums[n])
+    FIBSEMDat <- FIBSEMDat[which(!(FIBSEMDat$nameid.from %in% nronsToExclude) & !(FIBSEMDat$nameid.to %in% nronsToExclude)),]
+  }
+  return(FIBSEMDat)
+}
+```
+
+Function to compare the FAFB and FIBSEM data
+```{r}
+datComp <- function(FAFBDat,FIBSEMDat){
+  #' For a FAFB and a FIBSEM dataframe (that feature comprable neurons), find 
+  #' 1) all instances where one dataset has connections that are are absent in the other
+  #' 2) Where both datasets show a connection between neurons, compare the synapse counts by calculating: 
+  #' (# of FAFB synapses - # of FIBSEM synapses) / (# of FAFB synapses + # of FIBSEM synapses).
+  #' @return Returns a dataframe holding the metrics for comparison
+  #' @param FIBSEMDat: A FIBSEM dataframe that holds the connectivity data
+  #' @param names: A list of names of neurons to downselect
+  #' @param nums: The number of neurons to keep from each named neuron group
+  
+  # Convert the dataframes to matrices
+  FAFBMat <- FAFBDat %>% dcast(nameid.from~nameid.to)
+  rownames(FAFBMat) <- FAFBMat$nameid.from
+  FAFBMat <- FAFBMat[,2:ncol(FAFBMat)] %>% data.matrix
+
+  FIBSEMMat <- FIBSEMDat %>% dcast(nameid.from~nameid.to)
+  rownames(FIBSEMMat) <- FIBSEMMat$nameid.from
+  FIBSEMMat <- FIBSEMMat[,2:ncol(FIBSEMMat)] %>% data.matrix
+
+  # Find the sum and difference of the two matrices
+  matDiff <- FAFBMat - FIBSEMMat
+  matSum <- FAFBMat + FIBSEMMat
+
+  # Calculate the two metrics
+  perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+  diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+  equalMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
+  for (r in 1:nrow(perMat)){
+    for (c in 1:ncol(perMat)){
+      if (FAFBMat[r,c] == 0){
+        diffMat[r,c] <- -FIBSEMMat[r,c]
+        next
+      }
+      if (FIBSEMMat[r,c] == 0){
+        diffMat[r,c] <- FAFBMat[r,c]
+        next
+      }
+      if (matSum[r,c] > 0)
+        perMat[r,c] <- matDiff[r,c]/matSum[r,c]
+      }
+      if (FAFBMat[r,c] == FIBSEMMat[r,c]){
+        equalMat[r,c] <- FAFBMat[r,c]
+      }
+  }
+  
+  # Name the rows and columns appropriately
+  rownames(perMat) <- rownames(FAFBMat)
+  rownames(diffMat) <- rownames(FAFBMat)
+  rownames(equalMat) <- rownames(FAFBMat)
+  colnames(perMat) <- colnames(FAFBMat)
+  colnames(diffMat) <- colnames(FAFBMat)
+  colnames(equalMat) <- colnames(FAFBMat)
+  
+  # Convert everything to a dataframe
+  perMat <- melt(perMat,value.name="per",varnames=c("nameid.from","nameid.to"))
+  diffMat <- melt(diffMat,value.name="diff",varnames=c("nameid.from","nameid.to"))
+  equalMat <- melt(equalMat,value.name="equal",varnames=c("nameid.from","nameid.to"))
+  metrics <- perMat
+  metrics$diff <- diffMat$diff
+  metrics$equal <- equalMat$equal
+  
+  return(metrics)
+}
+```
+
+
+
+
+Get the FAFB data in the PB
 ```{r}
 FAFB_PB_df <-FAFBLoad("PB")
-FAFB_PB_df <- FAFB_PB_df %>% filter(grepl("EPG",partnerid) | grepl("Delta7",partnerid))
+FAFB_PB_df <- FAFB_PB_df %>% filter(grepl("EPG",nameid.from) | grepl("Delta7",nameid.from))
 
-FAFBNames <- FAFB_PB_df$nameid %>% as.character() %>% append(FAFB_PB_df$partnerid %>% as.character()) %>% unique()
-newFAFBNames <- c("PEN1-5R", "PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb", "PEN1-7R", "PEN1-7L",
-                  "PEN2-5R", "PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb", "PEN2-7R", "PEN2-7L",
-                  "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6La","EPG-6Lb",
-                  "PEG-5R", "PEG-5L","PEG-6R","PEG-6L",
-                  "Delta7-5R4La","Delta7-5R4Lb","Delta7-6R3La","Delta7-6R3Lb","Delta7-7R2L","Delta7-2R7L","Delta7-1R9R8L")
-nameLU_FAFB <- data.frame(oldName = FAFBNames, newName = newFAFBNames)
-FAFB_PB_df$nameid <- sapply(FAFB_PB_df$nameid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-FAFB_PB_df$partnerid <- sapply(FAFB_PB_df$partnerid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-
-gFAFB <- ggplot(FAFB_PB_df) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1) + ggtitle("FAFB data")
+gFAFB <- conMatPlot(FAFB_PB_df,150) + ggtitle("FAFB data")
 
 print(gFAFB)
+```
 
-#ggsave("FAFB_PB.pdf", plot = gFAFB, device='pdf', 
-#       path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp",
-#       scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+Get the FIBSEM data in the PB
+```{r}
 
 neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
@@ -183,74 +378,9 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
-FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
-FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
-FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB") %>% filter(grepl("Delta7",nameid.from) | grepl("EPG",nameid.from))
 
-L6EPGs <- paste(getBodyIdsForList("EPG\\\\\\\\(PB08\\\\\\\\)_L6")$name, getBodyIdsForList("EPG\\\\\\\\(PB08\\\\\\\\)_L6")$bodyid, sep="_")
-FIBSEM_PB_Mat <- FIBSEM_PB %>% select(nameid.from,nameid.to,ROIweight)
-FIBSEM_PB_Mat <-rbind(FIBSEM_PB_Mat,
-                      data.frame(nameid.from = L6EPGs, nameid.to = L6EPGs, ROIweight = 0))
-FIBSEM_PB_Mat <- FIBSEM_PB_Mat %>% dcast(nameid.to~nameid.from)
-FIBSEM_PB_Mat[is.na(FIBSEM_PB_Mat)] <- 0
-FIBSEM_PB_Mat <- FIBSEM_PB_Mat %>% melt()
-colnames(FIBSEM_PB_Mat) <- c("nameid.to","nameid.from","ROIweight")
-
-FIBSEMNames <- FIBSEM_PB_Mat$nameid.from %>% as.character() %>% append(FIBSEM_PB_Mat$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-                    "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
-                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                    "EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
-
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-
-nronsToAdd <-  c("EPG-6La","EPG-6Lb","EPG-6Lc")
-FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAdd)){
-  for (nPost in 1:length(nronsToAdd)){
-    if (nrow(FIBSEM_PB %>%
-             filter(as.character(nameid.from) == nronsToAdd[nPre] &
-                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
-      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
-FIBSEM_PB <- melt(FIBSEM_PB)
-colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
-
-PBNameOrder <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc",
-                 "EPG-5La","EPG-5Lb","EPG-5Lc",
-                 "EPG-6Ra","EPG-6Rb","EPG-6Rc",
-                 "EPG-6La","EPG-6Lb","EPG-6Lc",
-                 "PEG-5R","PEG-5L","PEG-6R","PEG-6L",
-                 "PEN1-5R","PEN1-5L",
-                 "PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb",
-                 "PEN1-7R","PEN1-7L",
-                 "PEN2-5R","PEN2-5L",
-                 "PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb",
-                 "PEN2-7R", "PEN2-7L",
-                 "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                 "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-                 "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
-                 "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-                 "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le")
-
-FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBNameOrder)
-FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBNameOrder)
-
-gFIBSEM <- ggplot(FIBSEM_PB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
+gFIBSEM <-conMatPlot(FIBSEM_PB,150)
 
 print(gFIBSEM)
 
@@ -261,57 +391,18 @@ ggsave("FIBSEM_PB.pdf", plot = gFIBSEM, device='pdf',
 
 Downselect the FIBSEM neurons for a direct comparison
 ```{r}
-DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
-                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
-                  "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
+DSneuronList <- c("EPG-6R",
+                  "EPG-6L",
+                  "Delta7-7R",
+                  "Delta7-6R",
+                  "Delta7-5R",
+                  "Delta7-2R",
+                  "Delta7-1R")
 numNrons <-  c(2,2,1,2,2,1,1)
 
-FIBSEM_PB_Cut <- FIBSEM_PB_Mat
+FIBSEM_PB_Cut <- FIBSEMDownSel(FIBSEM_PB, DSneuronList, numNrons)
 
-for (ds in 1:length(DSneuronList)){
-  bodyids2cut <- getBodyIdsForList(DSneuronList[ds])$bodyid
-  bodyids2cut <- bodyids2cut %>% sample(length(bodyids2cut)-numNrons[ds])
-  nameids2cut <- paste(neuprint_get_meta(bodyids2cut)$name,bodyids2cut,sep='_')
-  FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% 
-    filter(!(nameid.from %in% nameids2cut) & !(nameid.to %in% nameids2cut))
-}
-
-FIBSEMNames <- FIBSEM_PB_Cut$nameid.from %>% as.character() %>% append(FIBSEM_PB_Cut$nameid.to %>% as.character()) %>% unique()
-newFIBSEMNames <- c("Delta7-1R9R8L","Delta7-2R7L","Delta7-5R4La","Delta7-5R4Lb","Delta7-6R3La","Delta7-6R3Lb","Delta7-7R2L",
-                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb",
-                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
-
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB_Cut$nameid.from <- sapply(FIBSEM_PB_Cut$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB_Cut$nameid.to <- sapply(FIBSEM_PB_Cut$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-
-nronsToAdd <-  c("EPG-6La","EPG-6Lb")
-FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAdd)){
-  for (nPost in 1:length(nronsToAdd)){
-    if (nrow(FIBSEM_PB_Cut %>%
-             filter(as.character(nameid.from) == nronsToAdd[nPre] &
-                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
-      FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB_Cut <- FIBSEM_PB_Cut %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB_Cut[is.na(FIBSEM_PB_Cut)] <- 0
-FIBSEM_PB_Cut <- melt(FIBSEM_PB_Cut)
-colnames(FIBSEM_PB_Cut) <- c("nameid.from","nameid.to","ROIweight")
-FIBSEM_PB_Cut$nameid.from <- factor(FIBSEM_PB_Cut$nameid.from, levels = newFIBSEMNames %>% sort())
-FIBSEM_PB_Cut$nameid.to <- factor(FIBSEM_PB_Cut$nameid.to, levels = newFIBSEMNames %>% sort())
-
-gFIBSEM_DS <- ggplot(FIBSEM_PB_Cut) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) + ggtitle("select FIBSEM data")
+gFIBSEM_DS <-conMatPlot(FIBSEM_PB_Cut,150) + ggtitle("select FIBSEM data")
 
 print(gFAFB)
 print(gFIBSEM_DS)
@@ -319,87 +410,27 @@ print(gFIBSEM_DS)
 
 Compare the two matrices
 ```{r}
-FAFB_PB_df_Mat <- FAFB_PB_df %>% dcast(partnerid~nameid)
-rownames(FAFB_PB_df_Mat) <- FAFB_PB_df_Mat$partnerid
-FAFB_PB_df_Mat <- FAFB_PB_df_Mat[,2:ncol(FAFB_PB_df_Mat)] %>% data.matrix
+PBComp <- datComp(FAFB_PB_df,FIBSEM_PB_Cut)
 
-FIBSEM_PB_Cut_Mat <- FIBSEM_PB_Cut %>% dcast(nameid.from~nameid.to)
-rownames(FIBSEM_PB_Cut_Mat) <- FIBSEM_PB_Cut_Mat$partnerid
-FIBSEM_PB_Cut_Mat <- FIBSEM_PB_Cut_Mat[,2:ncol(FIBSEM_PB_Cut_Mat)] %>% data.matrix
-
-matDiff <- FAFB_PB_df_Mat - FIBSEM_PB_Cut_Mat
-matSum <- FAFB_PB_df_Mat + FIBSEM_PB_Cut_Mat
-
-perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-for (r in 1:nrow(perMat)){
-  for (c in 1:ncol(perMat)){
-    if (FAFB_PB_df_Mat[r,c] == 0){
-      diffMat[r,c] <- -FIBSEM_PB_Cut_Mat[r,c]
-      next
-    }
-    if (FIBSEM_PB_Cut_Mat[r,c] == 0){
-      diffMat[r,c] <- FAFB_PB_df_Mat[r,c]
-      next
-    }
-    if (matSum[r,c] > 0)
-      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
-  }
-}
-
-rownames(perMat) <- FAFB_PB_df$partnerid %>% as.character() %>% unique() %>% sort()
-rownames(diffMat) <- FAFB_PB_df$partnerid %>% as.character() %>% unique() %>% sort()
-colnames(perMat) <- FAFB_PB_df$nameid %>% as.character() %>% unique() %>% sort()
-colnames(diffMat) <- FAFB_PB_df$nameid %>% as.character() %>% unique() %>% sort()
-
-gPer <- ggplot(melt(perMat)) + 
+gPer <- ggplot(PBComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
+  geom_tile(aes(nameid.to,nameid.from,fill=per))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
 
-gDiff <- ggplot(melt(diffMat)) + 
+gDiff <- ggplot(PBComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-30,30)) +
+  geom_tile(aes(nameid.to,nameid.from,fill=diff))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
 
 print(gPer)
 print(gDiff)
 ```
 
-Plot a summary statistic for the per and diff metrics
-```{r}
-perPB <- melt(perMat)
-diffPB <- melt(diffMat)
-
-perPB <- perPB[which(perPB$value != 0),]
-diffPB <- diffPB[which(diffPB$value != 0),]
-
-perPB$supergroup.from <- "columnar"
-perPB[which(grepl("Delta7",as.character(perPB$Var1))),]$supergroup.from <- "tangential"
-perPB$supergroup.to <- "columnar"
-perPB[which(grepl("Delta7",as.character(perPB$Var2))),]$supergroup.to <- "tangential"
-perPB <- perPB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-diffPB$supergroup.from <- "columnar"
-diffPB[which(grepl("Delta7",as.character(diffPB$Var1))),]$supergroup.from <- "tangential"
-diffPB$supergroup.to <- "columnar"
-diffPB[which(grepl("Delta7",as.character(diffPB$Var2))),]$supergroup.to <- "tangential"
-diffPB <- diffPB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-ggplot(perPB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
-
-ggplot(diffPB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
-```
-
 Put them all on one plot and compare
 ```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBComp.pdf", width = 20, height = 20)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBComp_test.pdf", width = 20, height = 20)
 print(grid.arrange(gFAFB,gFIBSEM_DS,gPer,gDiff,
-                   layout_matrix = rbind(c(3,1),c(4,5))))
+                   layout_matrix = rbind(c(1,2),c(3,4))))
 dev.off()
 ```
 
@@ -415,53 +446,15 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
-FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
-FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
-FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB")
+FIBSEM_PB <- FAFBSort(FIBSEM_PB,"PB-subset")
 
-FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-                    "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
-                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc")
-PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-              "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-              "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-
-nronsToAdd <-  c("EPG-6La","EPG-6Lb","EPG-6Lc")
-FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAdd)){
-  for (nPost in 1:length(nronsToAdd)){
-    if (nrow(FIBSEM_PB %>%
-             filter(as.character(nameid.from) == nronsToAdd[nPre] &
-                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
-      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
-FIBSEM_PB <- melt(FIBSEM_PB)
-colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
-FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBlevels)
-FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBlevels)
-
-gFIBSEM <- ggplot(FIBSEM_PB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =30, limits=c(0,60)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_PB,60) +
   geom_hline(yintercept = 12.5) + geom_vline(xintercept = 12.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7s_FIBSEM.pdf", width = 10, height = 10)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7s_FIBSEM_test.pdf", width = 10, height = 10)
 print(gFIBSEM)
 dev.off()
 ```
@@ -479,44 +472,15 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7")
 
-FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
-FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
-FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB")
+FIBSEM_PB <- FAFBSort(FIBSEM_PB,"PB-subset")
 
-FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-5L", "PEN1-6La","PEN1-6Lb")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-
-nronsToAdd <-  c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
-FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAdd)){
-  for (nPost in 1:length(nronsToAdd)){
-    if (nrow(FIBSEM_PB %>%
-             filter(as.character(nameid.from) == nronsToAdd[nPre] &
-                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
-      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
-FIBSEM_PB <- melt(FIBSEM_PB)
-colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
-FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = nronsToAdd)
-FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = nronsToAdd)
-
-gFIBSEM <- ggplot(FIBSEM_PB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =20, limits=c(0,40)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_PB,40) +
   geom_hline(yintercept = 12.5) + geom_vline(xintercept = 12.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsPEN1s_FIBSEM.pdf", width = 5, height = 5)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsPEN1s_FIBSEM_test.pdf", width = 5, height = 5)
 print(gFIBSEM)
 dev.off()
 ```
@@ -543,59 +507,17 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
-FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
-FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
-FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB") %>% 
+  filter(grepl("Delta7",nameid.from) | grepl("EPG",nameid.from)) %>%
+  filter(!grepl("Delta7",nameid.to) & !grepl("EPG",nameid.to))
+FIBSEM_PB <- FAFBSort(FIBSEM_PB,"PB-subset")
 
-FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-                    "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
-                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEG-5R", "PEG-6R","PEG-5L", "PEG-6L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-              "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-              "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-              "PEN2-5R","PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb","PEN2-7R","PEN2-7L", 
-              "PEG-5R","PEG-5L","PEG-6R","PEG-6L")
-                    
-nronsToAdd <-  c("EPG-6La","EPG-6Lb","EPG-6Lc")
-FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAdd)){
-  for (nPost in 1:length(nronsToAdd)){
-    if (nrow(FIBSEM_PB %>%
-             filter(as.character(nameid.from) == nronsToAdd[nPre] &
-                    as.character(nameid.to) == nronsToAdd[nPost])) == 0)
-      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAdd[nPre], nameid.to = nronsToAdd[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
-FIBSEM_PB <- melt(FIBSEM_PB)
-colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
-FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBlevels)
-FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBlevels)
-
-FIBSEM_PB <- FIBSEM_PB %>% filter(!grepl("Delta7",nameid.to) & !grepl("EPG",nameid.to))
-
-gFIBSEM <- ggplot(FIBSEM_PB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =75, limits=c(0,150)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_PB,150) +
   geom_hline(yintercept = 12.5) + geom_vline(xintercept = 8.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7sPEN2sPEGs_FIBSEM.pdf", width = 10, height = 10)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7sPEN2sPEGs_FIBSEM_test.pdf", width = 10, height = 10)
 print(gFIBSEM)
 dev.off()
 ```
@@ -618,97 +540,40 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
               "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
 
-FIBSEM_PB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "PB")
-FIBSEM_PB$nameid.from = paste(as.character(FIBSEM_PB$name.from), as.character(FIBSEM_PB$from), sep = "_")
-FIBSEM_PB$nameid.to = paste(as.character(FIBSEM_PB$name.to), as.character(FIBSEM_PB$to), sep = "_")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB") %>% 
+  filter(grepl("Delta7",nameid.from) | grepl("EPG",nameid.from)) %>%
+  filter(!grepl("Delta7",nameid.to) & !grepl("EPG",nameid.to))
+FIBSEM_PB <- FAFBSort(FIBSEM_PB,"PB-subset")
 
-FIBSEMNames <- FIBSEM_PB$nameid.from %>% as.character() %>% append(FIBSEM_PB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-                    "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-                    "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-                    "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-                    "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc",
-                    "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_PB$nameid.from <- sapply(FIBSEM_PB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_PB$nameid.to <- sapply(FIBSEM_PB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-PBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "Delta7-5R4La","Delta7-5R4Lb","Delta7-5R4Lc","Delta7-5R4Ld","Delta7-5R4Le",
-              "Delta7-6R3La","Delta7-6R3Lb","Delta7-6R3Lc","Delta7-6R3Ld","Delta7-6R3Le",
-              "Delta7-7R2La","Delta7-7R2Lb","Delta7-7R2Lc","Delta7-7R2Ld","Delta7-7R2Le",
-              "Delta7-2R7La","Delta7-2R7Lb","Delta7-2R7Lc","Delta7-2R7Ld","Delta7-2R7Le",
-              "Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le",
-              "PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
- 
-nronsToAddPre <-  c("Delta7-1R9R8La","Delta7-1R9R8Lb","Delta7-1R9R8Lc","Delta7-1R9R8Ld","Delta7-1R9R8Le")
-nronsToAddPost <- c("PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
-FIBSEM_PB <- FIBSEM_PB %>% select(nameid.from, nameid.to, ROIweight)
-for (nPre in 1:length(nronsToAddPre)){
-  for (nPost in 1:length(nronsToAddPost)){
-    if (nrow(FIBSEM_PB %>%
-             filter(as.character(nameid.from) == nronsToAddPre[nPre] &
-                    as.character(nameid.to) == nronsToAddPost[nPost])) == 0)
-      FIBSEM_PB <- FIBSEM_PB %>% rbind(data.frame(nameid.from = nronsToAddPre[nPre], nameid.to = nronsToAddPost[nPost], ROIweight = 0))
-  }
-}
-FIBSEM_PB <- FIBSEM_PB %>% dcast(nameid.from~nameid.to)
-FIBSEM_PB[is.na(FIBSEM_PB)] <- 0
-FIBSEM_PB <- melt(FIBSEM_PB)
-colnames(FIBSEM_PB) <- c("nameid.from","nameid.to","ROIweight")
-FIBSEM_PB$nameid.from <- factor(FIBSEM_PB$nameid.from, levels = PBlevels)
-FIBSEM_PB$nameid.to <- factor(FIBSEM_PB$nameid.to, levels = PBlevels)
-
-FIBSEM_PB <- FIBSEM_PB %>% filter(!grepl("Delta7",nameid.to) & !grepl("EPG",nameid.to))
-
-gFIBSEM <- ggplot(FIBSEM_PB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =20, limits=c(0,40)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_PB,40) +
   geom_hline(yintercept = 12.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7sPEN1s_FIBSEM.pdf", width = 10, height = 10)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\PBEPGsD7sPEN1s_FIBSEM_test.pdf", width = 10, height = 10)
 print(gFIBSEM)
 dev.off()
 ```
 
 Compare the FAFB data to the FIBSEM data - EB
 ```{r}
+FAFB_EB_df <-FAFBLoad("EB") %>%
+  filter(nameid.to != "GE-r1" & nameid.from != "GE-r1") %>%
+  filter(!grepl("R4d",nameid.to) & !grepl("R4d",nameid.from))
+FAFB_EB_df <-FAFBSort(FAFB_EB_df,"EB")
 
-synapseCutOff = 0
+gFAFB <- conMatPlot(FAFB_EB_df,150) + geom_hline(yintercept = 10.5) + geom_hline(yintercept = 18.5) + geom_hline(yintercept = 26.5) + geom_hline(yintercept = 30.5) + 
+  geom_vline(xintercept = 10.5) + geom_vline(xintercept = 18.5) + geom_vline(xintercept = 26.5) + geom_vline(xintercept = 30.5) +
+  ggtitle("FAFB data")
 
-FAFB_EB_df <-FAFBLoad("EB") %>% filter(nameid != "EQ5" & partnerid != "EQ5")
+print(gFAFB)
 
-FAFBNames <- FAFB_EB_df$nameid %>% as.character() %>% append(FAFB_EB_df$partnerid %>% as.character()) %>% unique()
-newFAFBNames <- c("PEN1-5R", "PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb", "PEN1-7R", "PEN1-7L",
-                  "PEN2-5R", "PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb", "PEN2-7R", "PEN2-7L",
-                  "EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6La","EPG-6Lb",
-                  "PEG-5R", "PEG-5L","PEG-6R","PEG-6L",
-                  "R4m-a","R4m-b","R4m-c","R4m-d","R4m-e","R4m-f","R4m-g")
-EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6La","EPG-6Lb",
-              "PEN1-5R", "PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb", "PEN1-7R", "PEN1-7L",
-              "PEN2-5R", "PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb", "PEN2-7R", "PEN2-7L",
-              "PEG-5R", "PEG-5L","PEG-6R","PEG-6L",
-              "R4m-a","R4m-b","R4m-c","R4m-d","R4m-e","R4m-f","R4m-g")
-nameLU_FAFB <- data.frame(oldName = FAFBNames, newName = newFAFBNames)
-FAFB_EB_df$nameid <- sapply(FAFB_EB_df$nameid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-FAFB_EB_df$nameid <- factor(FAFB_EB_df$nameid, levels = EBlevels)
-FAFB_EB_df$partnerid <- sapply(FAFB_EB_df$partnerid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-FAFB_EB_df$partnerid <- factor(FAFB_EB_df$partnerid, levels = EBlevels)
-
-gFAFB <- ggplot(FAFB_EB_df  %>% filter(!grepl("R4m",nameid) & !grepl("R4m",partnerid))) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =175/2, limits=c(0,175)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1) +
-  geom_hline(yintercept = 10.5) + geom_hline(yintercept = 18.5) + geom_hline(yintercept = 26.5) + geom_hline(yintercept = 30.5) + 
-  geom_vline(xintercept = 10.5) + geom_vline(xintercept = 18.5) + geom_vline(xintercept = 26.5) + geom_vline(xintercept = 30.5)
-
-ggsave("FAFB_EB.pdf", plot = gFAFB, device='pdf', 
+ggsave("FAFB_EB_test.pdf", plot = gFAFB, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
+```
 
+```{r}
 neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
@@ -730,53 +595,26 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L6")#"R4d"
 
-FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
-FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
-FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
+FIBSEM_EB <- FIBSEMLoad(neuronList,"EB")
 
-gFIBSEM <- ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =175/2, limits=c(0,175)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
+gFIBSEM <-conMatPlot(FIBSEM_EB,175)
 
-ggsave("FIBSEM_EB.pdf", plot = gFIBSEM, device='pdf', 
+print(gFIBSEM)
+
+ggsave("FIBSEM_EB_test.pdf", plot = gFIBSEM, device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
 Downselect the FIBSEM neurons for a direct comparison
 ```{r}
-DSneuronList <- c("EPG\\\\\\\\(PB08\\\\\\\\)_R6",
-                  "EPG\\\\\\\\(PB08\\\\\\\\)_L6")#,"R4d")
+DSneuronList <- c("EPG-6R",
+                  "EPG-6L")
 numNrons <-  c(2,2)#,7)
 
-FIBSEM_EB_Cut <- FIBSEM_EB
+FIBSEM_EB_Cut <- FIBSEMDownSel(FIBSEM_EB, DSneuronList, numNrons)
 
-for (ds in 1:length(DSneuronList)){
-  bodyids2cut <- getBodyIdsForList(DSneuronList[ds])$bodyid
-  bodyids2cut <- bodyids2cut %>% sample(length(bodyids2cut)-numNrons[ds])
-  nameids2cut <- paste(neuprint_get_meta(bodyids2cut)$name,bodyids2cut,sep='_')
-  FIBSEM_EB_Cut <- FIBSEM_EB_Cut %>% 
-    filter(!(nameid.from %in% nameids2cut) & !(nameid.to %in% nameids2cut))
-}
-
-FIBSEMNames <- FIBSEM_EB_Cut$nameid.from %>% as.character() %>% append(FIBSEM_EB_Cut$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb",
-                    "PEG-5R", "PEG-6R","PEG-5L","PEG-6L",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
-#,"R4m-a","R4m-b","R4m-c","R4m-d","R4m-e","R4m-f","R4m-g")
-
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_EB_Cut$nameid.from <- sapply(FIBSEM_EB_Cut$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB_Cut$nameid.from <- factor(FIBSEM_EB_Cut$nameid.from, levels = EBlevels)
-FIBSEM_EB_Cut$nameid.to <- sapply(FIBSEM_EB_Cut$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB_Cut$nameid.to <- factor(FIBSEM_EB_Cut$nameid.to, levels = EBlevels)
-
-gFIBSEM_DS <- ggplot(FIBSEM_EB_Cut) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =175/2, limits=c(0,175)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) + ggtitle("select FIBSEM data") +
+gFIBSEM_DS <-conMatPlot(FIBSEM_EB_Cut,150) + ggtitle("select FIBSEM data") +
   geom_hline(yintercept = 10.5) + geom_hline(yintercept = 18.5) + geom_hline(yintercept = 26.5) + geom_hline(yintercept = 30.5) + 
   geom_vline(xintercept = 10.5) + geom_vline(xintercept = 18.5) + geom_vline(xintercept = 26.5) + geom_vline(xintercept = 30.5)
 
@@ -786,53 +624,21 @@ print(gFIBSEM_DS)
 
 Compare the two matrices
 ```{r}
-FAFB_EB_df <- FAFB_EB_df %>% filter(!grepl("R4m",nameid) & !grepl("R4m",partnerid))
-FAFB_EB_df_Mat <- FAFB_EB_df %>% dcast(partnerid~nameid)
-FAFB_EB_df_Mat[is.na(FAFB_EB_df_Mat)] <- 0
-rownames(FAFB_EB_df_Mat) <- FAFB_EB_df_Mat$partnerid
-FAFB_EB_df_Mat <- FAFB_EB_df_Mat[,2:ncol(FAFB_EB_df_Mat)] %>% data.matrix
+EBComp <- datComp(FAFB_EB_df %>% 
+                    filter(!grepl("R4d",nameid.from) & !grepl("R4d",nameid.to)),
+                  FIBSEM_EB_Cut)
 
-FIBSEM_EB_Cut_Mat <- FIBSEM_EB_Cut %>% select(nameid.from,nameid.to,ROIweight) %>% dcast(nameid.from~nameid.to)
-FIBSEM_EB_Cut_Mat[is.na(FIBSEM_EB_Cut_Mat)] <- 0 
-rownames(FIBSEM_EB_Cut_Mat) <- FIBSEM_EB_Cut_Mat$partnerid
-FIBSEM_EB_Cut_Mat <- FIBSEM_EB_Cut_Mat[,2:ncol(FIBSEM_EB_Cut_Mat)] %>% data.matrix
-
-matDiff <- FAFB_EB_df_Mat - FIBSEM_EB_Cut_Mat
-matSum <- FAFB_EB_df_Mat + FIBSEM_EB_Cut_Mat
-
-perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-for (r in 1:nrow(perMat)){
-  for (c in 1:ncol(perMat)){
-    if (FAFB_EB_df_Mat[r,c] == 0){
-      diffMat[r,c] <- -FIBSEM_EB_Cut_Mat[r,c]
-      next
-    }
-    if (FIBSEM_EB_Cut_Mat[r,c] == 0){
-      diffMat[r,c] <- FAFB_EB_df_Mat[r,c]
-      next
-    }
-    if (matSum[r,c] > 0)
-      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
-  }
-}
-
-rownames(perMat) <- FAFB_EB_df$partnerid %>% as.character() %>% unique() %>% sort()
-rownames(diffMat) <- FAFB_EB_df$partnerid %>% as.character() %>% unique() %>% sort()
-colnames(perMat) <- FAFB_EB_df$nameid %>% as.character() %>% unique() %>% sort()
-colnames(diffMat) <- FAFB_EB_df$nameid %>% as.character() %>% unique() %>% sort()
-
-gPer <- ggplot(melt(perMat)) + 
+gPer <- ggplot(EBComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses") +
+  geom_tile(aes(nameid.to,nameid.from,fill=per))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses") +
   geom_hline(yintercept = 10.5) + geom_hline(yintercept = 18.5) + geom_hline(yintercept = 26.5) + geom_hline(yintercept = 30.5) + 
   geom_vline(xintercept = 10.5) + geom_vline(xintercept = 18.5) + geom_vline(xintercept = 26.5) + geom_vline(xintercept = 30.5)
 
-gDiff <- ggplot(melt(diffMat)) + 
+gDiff <- ggplot(EBComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset") +
+  geom_tile(aes(nameid.to,nameid.from,fill=diff))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset") +
   geom_hline(yintercept = 10.5) + geom_hline(yintercept = 18.5) + geom_hline(yintercept = 26.5) + geom_hline(yintercept = 30.5) + 
   geom_vline(xintercept = 10.5) + geom_vline(xintercept = 18.5) + geom_vline(xintercept = 26.5) + geom_vline(xintercept = 30.5)
 
@@ -842,40 +648,13 @@ print(gDiff)
 
 Put them all on one plot and compare
 ```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBComp.pdf", width = 20, height = 20)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBComp_test.pdf", width = 20, height = 20)
 print(grid.arrange(gFAFB,gFIBSEM_DS,gPer,gDiff,
-                   layout_matrix = rbind(c(3,1),c(4,5))))
+                   layout_matrix = rbind(c(1,2),c(3,4))))
 dev.off()
 ```
 
-Plot a summary statistic for the per and diff metrics
-```{r}
-perEB <- melt(perMat)
-diffEB <- melt(diffMat)
 
-perEB <- perEB[which(perEB$value != 0),]
-diffEB <- diffEB[which(diffEB$value != 0),]
-
-perEB$supergroup.from <- "columnar"
-#perEB[which(grepl("R4m",as.character(perEB$Var1))),]$supergroup.from <- "tangential"
-perEB$supergroup.to <- "columnar"
-#perEB[which(grepl("R4m",as.character(perEB$Var2))),]$supergroup.to <- "tangential"
-perEB <- perEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-diffEB$supergroup.from <- "columnar"
-#diffEB[which(grepl("R4m",as.character(diffEB$Var1))),]$supergroup.from <- "tangential"
-diffEB$supergroup.to <- "columnar"
-#diffEB[which(grepl("R4m",as.character(diffEB$Var2))),]$supergroup.to <- "tangential"
-diffEB <- diffEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-ggplot(perEB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
-
-ggplot(diffEB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
-```
 
 Just plot EPG to EPG connections in the EB
 ```{r}
@@ -884,29 +663,15 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
               "EPG\\\\\\\\(PB08\\\\\\\\)_L6")
 
-FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
-FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
-FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
+FIBSEM_EB <- FIBSEMLoad(neuronList,"EB")
 
-FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc")
-EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_EB$nameid.from <- sapply(FIBSEM_EB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.from <- factor(FIBSEM_EB$nameid.from, levels = EBlevels)
-FIBSEM_EB$nameid.to <- sapply(FIBSEM_EB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.to <- factor(FIBSEM_EB$nameid.to, levels = EBlevels)
-
-gFIBSEM <- ggplot(FIBSEM_EB  %>% filter(ROIweight > synapseCutOff)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =50, limits=c(0,100)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_EB,100) +
   geom_hline(yintercept = 6.5) + geom_hline(yintercept = 9.5) + 
   geom_vline(xintercept = 6.5) + geom_vline(xintercept = 9.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGs_FIBSEM.pdf", width = 5, height = 5)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGs_FIBSEM_test.pdf", width = 5, height = 5)
 print(gFIBSEM)
 dev.off()
 ```
@@ -924,31 +689,15 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7")
 
-FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
-FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
-FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
+FIBSEM_EB <- FIBSEMLoad(neuronList,"EB")
 
-FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
-EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "PEN1-5R","PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb","PEN1-7R","PEN1-7L")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_EB$nameid.from <- sapply(FIBSEM_EB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.from <- factor(FIBSEM_EB$nameid.from, levels = EBlevels)
-FIBSEM_EB$nameid.to <- sapply(FIBSEM_EB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.to <- factor(FIBSEM_EB$nameid.to, levels = EBlevels)
-
-gFIBSEM <- ggplot(FIBSEM_EB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,120)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_EB,120) +
   geom_hline(yintercept = 12.5) + 
   geom_vline(xintercept = 12.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGsPEN1s_FIBSEM.pdf", width = 5, height = 5)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGsPEN1s_FIBSEM_test.pdf", width = 5, height = 5)
 print(gFIBSEM)
 dev.off()
 ```
@@ -970,65 +719,39 @@ neuronList = c("EPG\\\\\\\\(PB08\\\\\\\\)_R5",
               "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
               "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
 
-FIBSEM_EB = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "EB")
-FIBSEM_EB$nameid.from = paste(as.character(FIBSEM_EB$name.from), as.character(FIBSEM_EB$from), sep = "_")
-FIBSEM_EB$nameid.to = paste(as.character(FIBSEM_EB$name.to), as.character(FIBSEM_EB$to), sep = "_")
+FIBSEM_EB <- FIBSEMLoad(neuronList,"EB")
 
-FIBSEMNames <- FIBSEM_EB$nameid.from %>% as.character() %>% append(FIBSEM_EB$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6La","EPG-6Lb","EPG-6Lc",
-                    "PEG-5R", "PEG-6R","PEG-5L", "PEG-6L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
-EBlevels <- c("EPG-5Ra","EPG-5Rb","EPG-5Rc","EPG-5La","EPG-5Lb","EPG-5Lc","EPG-6Ra","EPG-6Rb","EPG-6Rc","EPG-6La","EPG-6Lb","EPG-6Lc",
-              "PEN2-5R","PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb","PEN2-7R","PEN2-7L",
-              "PEG-5L","PEG-5R","PEG-6R","PEG-6L")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_EB$nameid.from <- sapply(FIBSEM_EB$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.from <- factor(FIBSEM_EB$nameid.from, levels = EBlevels)
-FIBSEM_EB$nameid.to <- sapply(FIBSEM_EB$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_EB$nameid.to <- factor(FIBSEM_EB$nameid.to, levels = EBlevels)
-
-gFIBSEM <- ggplot(FIBSEM_EB) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =50, limits=c(0,100)) +
+gFIBSEM <-conMatPlot(FIBSEM_EB,100) +
   geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
   geom_hline(yintercept = 12.5) + geom_hline(yintercept = 20.5) +
   geom_vline(xintercept = 12.5) + geom_vline(xintercept = 20.5)
 
 print(gFIBSEM)
 
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGsPEN2sPEGs_FIBSEM.pdf", width = 5, height = 5)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\EBEPGsPEN2sPEGs_FIBSEM_test.pdf", width = 5, height = 5)
 print(gFIBSEM)
 dev.off()
 ```
 
 Compare the FAFB data to the FIBSEM data - NO
 ```{r}
+FAFB_NO_df <-FAFBLoad("NO") %>% filter(nameid.from != "NO-LAL-G" & nameid.to != "NO-LAL-G")
+FAFB_NO_df <- FAFBSort(FAFB_NO_df,"NO")
 
-synapseCutOff = 0
-
-FAFB_NO_df <-FAFBLoad("NO") %>% filter(nameid != "GLN" & partnerid != "GLN")
-
-FAFBNames <- FAFB_NO_df$nameid %>% as.character() %>% append(FAFB_NO_df$partnerid %>% as.character()) %>% unique()
-newFAFBNames <- c("PEN1-5R", "PEN1-5L","PEN1-6Ra","PEN1-6Rb","PEN1-6La","PEN1-6Lb", "PEN1-7R", "PEN1-7L",
-                  "PEN2-5R", "PEN2-5L","PEN2-6Ra","PEN2-6Rb","PEN2-6La","PEN2-6Lb", "PEN2-7R", "PEN2-7L")
-newLevels <- c("PEN1-5R","PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L","PEN1-6La","PEN1-6Lb","PEN1-7L",
-               "PEN2-5R","PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L","PEN2-6La","PEN2-6Lb","PEN2-7L") %>% as.factor()
-nameLU_FAFB <- data.frame(oldName = FAFBNames, newName = newFAFBNames)
-FAFB_NO_df$nameid <- sapply(FAFB_NO_df$nameid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-FAFB_NO_df$nameid <- factor(FAFB_NO_df$nameid, levels = newLevels)
-FAFB_NO_df$partnerid <- sapply(FAFB_NO_df$partnerid, function(x) nameLU_FAFB$newName[match(as.character(x), nameLU_FAFB$oldName)])
-FAFB_NO_df$partnerid <- factor(FAFB_NO_df$partnerid, levels = newLevels)
-
-gFAFB <- ggplot(FAFB_NO_df  %>% filter(weight > synapseCutOff)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,50)) +
-  geom_tile(aes(nameid,partnerid,fill=weight))+coord_fixed(ratio=1)
+gFAFB <- conMatPlot(FAFB_NO_df,50) +
+  ggtitle("FAFB data")  +
+  geom_hline(yintercept = 8.5) + geom_vline(xintercept = 8.5) +
+  geom_hline(yintercept = 16.5) + geom_vline(xintercept = 16.5)
 
 ggsave("FAFB_NO.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
        scale = 1.5, width = 20, height = 15, units ="cm", dpi = 600, limitsize = TRUE)
 
-neuronListPost = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+print(gFAFB)
+```
+
+```{r}
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
@@ -1041,26 +764,18 @@ neuronListPost = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
               "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7")
 
-neuronListPre = append(neuronListPost,"GLN\\\\\\\\(LAL-NO1\\\\\\\\)\\\\\\\\(AVM08\\\\\\\\)_L")
+FIBSEM_NO <- FIBSEMLoad(neuronList,"NO") %>% filter(!is.na(nameid.from) & !is.na(nameid.to))
 
-FIBSEM_NO = getConnectionTable_forSubset(getBodyIdsForList(neuronListPre)$bodyid, getBodyIdsForList(neuronListPost)$bodyid, "NO")
-FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FIBSEM_NO$from), sep = "_")
-FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
+gFIBSEM <-conMatPlot(FIBSEM_NO,50) +
+  geom_hline(yintercept = 8.5) + geom_vline(xintercept = 8.5) + 
+  geom_hline(yintercept = 16.5) + geom_vline(xintercept = 16.5)
 
-FIBSEMNames <- FIBSEM_NO$nameid.from %>% as.character() %>% append(FIBSEM_NO$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L",
-                    "PEN2-5R", "PEN2-6Ra","PEN2-6Rb","PEN2-7R","PEN2-5L", "PEN2-6La","PEN2-6Lb","PEN2-7L")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\NOPENs_FIBSEM.pdf", width = 5, height = 5)
+print(gFIBSEM)
 
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_NO$nameid.from <- sapply(FIBSEM_NO$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_NO$nameid.from <- factor(FIBSEM_NO$nameid.from, levels = newLevels)
-FIBSEM_NO$nameid.to <- sapply(FIBSEM_NO$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_NO$nameid.to <- factor(FIBSEM_NO$nameid.to, levels = newLevels)
-
-gFIBSEM <- ggplot(FIBSEM_NO  %>% filter(ROIweight > synapseCutOff)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =60, limits=c(0,50)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1)
+gFIBSEM <- gFIBSEM + ggtitle("FIBSEM data") +
+  geom_hline(yintercept = 8.5) + geom_vline(xintercept = 8.5) + 
+  geom_hline(yintercept = 16.5) + geom_vline(xintercept = 16.5)
 
 ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf', 
        path = "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Overview\\FAFBComp\\",
@@ -1069,50 +784,21 @@ ggsave("FIBSEM_NO.pdf", plot = last_plot(), device='pdf',
 
 Compare the two matrices
 ```{r}
-FAFB_NO_df_Mat <- FAFB_NO_df %>% dcast(partnerid~nameid)
-FAFB_NO_df_Mat[is.na(FAFB_NO_df_Mat)] <- 0
-rownames(FAFB_NO_df_Mat) <- FAFB_NO_df_Mat$partnerid
-FAFB_NO_df_Mat <- FAFB_NO_df_Mat[,2:ncol(FAFB_NO_df_Mat)] %>% data.matrix
+NOComp <- datComp(FAFB_NO_df,FIBSEM_NO)
 
-FIBSEM_NO_Cut_Mat <- FIBSEM_NO %>% select(nameid.from,nameid.to,ROIweight) %>% dcast(nameid.from~nameid.to)
-FIBSEM_NO_Cut_Mat[is.na(FIBSEM_NO_Cut_Mat)] <- 0 
-rownames(FIBSEM_NO_Cut_Mat) <- FIBSEM_NO_Cut_Mat$partnerid
-FIBSEM_NO_Cut_Mat <- FIBSEM_NO_Cut_Mat[,2:ncol(FIBSEM_NO_Cut_Mat)] %>% data.matrix
-
-matDiff <- FAFB_NO_df_Mat - FIBSEM_NO_Cut_Mat
-matSum <- FAFB_NO_df_Mat + FIBSEM_NO_Cut_Mat
-
-perMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-diffMat <- matrix(0L,nrow=nrow(matDiff),ncol=ncol(matDiff))
-for (r in 1:nrow(perMat)){
-  for (c in 1:ncol(perMat)){
-    if (FAFB_NO_df_Mat[r,c] == 0){
-      diffMat[r,c] <- -FIBSEM_NO_Cut_Mat[r,c]
-      next
-    }
-    if (FIBSEM_NO_Cut_Mat[r,c] == 0){
-      diffMat[r,c] <- FAFB_NO_df_Mat[r,c]
-      next
-    }
-    if (matSum[r,c] > 0)
-      perMat[r,c] <- matDiff[r,c]/matSum[r,c]
-  }
-}
-
-rownames(perMat) <- FAFB_NO_df$partnerid %>% as.character() %>% unique() %>% sort()
-rownames(diffMat) <- FAFB_NO_df$partnerid %>% as.character() %>% unique() %>% sort()
-colnames(perMat) <- FAFB_NO_df$nameid %>% as.character() %>% unique() %>% sort()
-colnames(diffMat) <- FAFB_NO_df$nameid %>% as.character() %>% unique() %>% sort()
-
-gPer <- ggplot(melt(perMat)) + 
+gPer <- ggplot(NOComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-1,1)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses")
+  geom_tile(aes(nameid.to,nameid.from,fill=per))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("diff/sum when both have synapses") +
+  geom_hline(yintercept = 8.5) + geom_vline(xintercept = 8.5) + 
+  geom_hline(yintercept = 16.5) + geom_vline(xintercept = 16.5)
 
-gDiff <- ggplot(melt(diffMat)) + 
+gDiff <- ggplot(NOComp) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", midpoint =0, limits=c(-45,45)) +
-  geom_tile(aes(Var2,Var1,fill=value))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset")
+  geom_tile(aes(nameid.to,nameid.from,fill=diff))+coord_fixed(ratio=1,expand=FALSE) + ggtitle("synapses for only one dataset") +
+  geom_hline(yintercept = 8.5) + geom_vline(xintercept = 8.5) + 
+  geom_hline(yintercept = 16.5) + geom_vline(xintercept = 16.5)
 
 print(gPer)
 print(gDiff)
@@ -1120,65 +806,10 @@ print(gDiff)
 
 Put them all on one plot and compare
 ```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\NOComp.pdf", width = 20, height = 20)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\NOComp_test.pdf", width = 20, height = 20)
 print(grid.arrange(gFAFB,gFIBSEM,gPer,gDiff,
-                   layout_matrix = rbind(c(3,1),c(4,5))))
+                   layout_matrix = rbind(c(1,2),c(3,4))))
 dev.off()
-```
-
-Plot a summary statistic for the per and diff metrics
-```{r}
-perNO <- melt(perMat)
-diffNO <- melt(diffMat)
-
-perNO <- perEB[which(perNO$value != 0),]
-diffNO <- diffEB[which(diffNO$value != 0),]
-
-perNO$supergroup.from <- "columnar"
-perNO$supergroup.to <- "columnar"
-perNO <- perNO %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-diffNO$supergroup.from <- "columnar"
-diffNO$supergroup.to <- "columnar"
-diffNO <- diffNO %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
-
-ggplot(perNO) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
-
-ggplot(diffNO) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
-  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
-  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
-```
-
-Plot the FIBSEM vs. FAFB comparison statistics for the PB, EB, and NO data
-```{r}
-dodge = position_dodge(width=0.25)
-
-perPB$ROI <- "PB"
-perEB$ROI <- "EB"
-perNO$ROI <- "NO"
-
-perAll <- rbind(perPB,rbind(perEB,perNO))
-
-gPer <- ggplot(perAll) + geom_point(aes(x = as.factor(connType), y = value, color=ROI),size=3,alpha=0.1,position=dodge) + 
-  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
-  ylab('(FAFB cts - FIBSEM cts)/(total cts)') + theme(axis.title.x = element_blank())
-
-diffPB$ROI <- "PB"
-diffEB$ROI <- "EB"
-diffNO$ROI <- "NO"
-
-diffAll <- rbind(diffPB,rbind(diffEB,diffNO))
-
-gDiff <- ggplot(diffAll) + geom_point(aes(x = as.factor(connType), y = value, color=ROI),size=3,alpha=0.1,position=dodge) + 
-  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
-  ylab('FIBSEM cts          FAFB cts') + theme(axis.title.x = element_blank()) + ggtitle("synapses in one dataset but not the other")
-
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\SummaryStatistics.pdf", width = 8, height = 8)
-print(grid.arrange(gPer, gDiff, nrow = 2))
-dev.off()
-
 ```
 
 Just plot PEN1 connections in the NO
@@ -1190,23 +821,9 @@ neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
               "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7")
 
-FIBSEM_NO = getConnectionTable_forSubset(getBodyIdsForList(neuronList)$bodyid, getBodyIdsForList(neuronList)$bodyid, "NO")
-FIBSEM_NO$nameid.from = paste(as.character(FIBSEM_NO$name.from), as.character(FIBSEM_NO$from), sep = "_")
-FIBSEM_NO$nameid.to = paste(as.character(FIBSEM_NO$name.to), as.character(FIBSEM_NO$to), sep = "_")
+FIBSEM_NO <- FIBSEMLoad(neuronList,"NO")
 
-FIBSEMNames <- FIBSEM_NO$nameid.from %>% as.character() %>% append(FIBSEM_NO$nameid.to %>% as.character()) %>% unique() %>% sort()
-newFIBSEMNames <- c("PEN1-5R", "PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L", "PEN1-6La","PEN1-6Lb","PEN1-7L")
-NOlevels <- c("PEN1-5R","PEN1-6Ra","PEN1-6Rb","PEN1-7R","PEN1-5L","PEN1-6La","PEN1-6Lb","PEN1-7L")
-nameLU_FIBSEM <- data.frame(oldName = FIBSEMNames, newName = newFIBSEMNames)
-FIBSEM_NO$nameid.from <- sapply(FIBSEM_NO$nameid.from, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_NO$nameid.from <- factor(FIBSEM_NO$nameid.from, levels = NOlevels)
-FIBSEM_NO$nameid.to <- sapply(FIBSEM_NO$nameid.to, function(x) nameLU_FIBSEM$newName[match(as.character(x), nameLU_FIBSEM$oldName)])
-FIBSEM_NO$nameid.to <- factor(FIBSEM_NO$nameid.to, levels = NOlevels)
-
-gFIBSEM <- ggplot(FIBSEM_NO) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="#ff694a", high="#6b000d", midpoint =25, limits=c(0,50)) +
-  geom_tile(aes(nameid.to,nameid.from,fill=ROIweight))+coord_fixed(ratio=1) +
+gFIBSEM <-conMatPlot(FIBSEM_NO,50) +
   geom_hline(yintercept = 4.5) + 
   geom_vline(xintercept = 4.5)
 
@@ -1216,6 +833,327 @@ pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\Revision
 print(gFIBSEM)
 dev.off()
 ```
+
+
+
+Function to find the names and numbers 
+```{r}
+namesAndNums <- function(df){
+  
+  names <- c(df$nameid.from %>% as.character(),df$nameid.to %>% as.character()) %>% unique()
+  uniqueNames <- c(names[which(substr(names,nchar(names),nchar(names))=="L")],
+                   names[which(substr(names,nchar(names),nchar(names))=="R")])
+  otherNames <- names[which(substr(names,nchar(names),nchar(names))!="L" &
+                              substr(names,nchar(names),nchar(names)) !="R")]
+  otherNames <- substr(otherNames,1,nchar(otherNames)-1) %>% unique()
+  allNames <- c(uniqueNames,otherNames) %>% sort()
+  nameNums <- sapply(allNames, function(n){length(which(grepl(n,names)))}) %>% as.numeric()
+  nameMatch <- data.frame(name=allNames, num=nameNums)
+  
+  return(nameMatch)
+}
+```
+
+Function to return ...
+```{r}
+permuteComp <- function(FAFBDat, FIBSEMDat,region,maxIter){
+  # Find the neuron names and the number of each name from the FAFB data
+  FAFBNames <- c(FAFBDat$nameid.from,FAFBDat$nameid.to) %>% unique()
+  uniqueNames <- c(FAFBNames[which(substr(FAFBNames,nchar(FAFBNames),nchar(FAFBNames))=="L")],
+                 FAFBNames[which(substr(FAFBNames,nchar(FAFBNames),nchar(FAFBNames))=="R")])
+  otherNames <- FAFBNames[which(substr(FAFBNames,nchar(FAFBNames),nchar(FAFBNames))!="L" &
+                              substr(FAFBNames,nchar(FAFBNames),nchar(FAFBNames)) !="R")]
+  otherNames <- substr(otherNames,1,nchar(otherNames)-1) %>% unique()
+  allNames <- c(uniqueNames,otherNames)
+  nameNums <- sapply(allNames, function(n){length(which(grepl(n,FAFBNames)))}) %>% as.numeric()
+  nameMatch <- data.frame(name=allNames, num=nameNums)
+  
+  # Find the neuron names and the number of each name for each dataset
+  nameMatch <- namesAndNums(FAFBDat)
+  colnames(nameMatch) <- c("name","num_FAFB")
+  nameMatch$num_FIBSEM <- namesAndNums(FIBSEMDat)$num
+  nameMatch <- nameMatch %>% mutate(diff = num_FIBSEM - num_FAFB)
+  nameMatch <- nameMatch[which(nameMatch$num_FIBSEM != 1),]
+  nameMatch <- nameMatch %>% mutate(possibleCombs = factorial(num_FIBSEM)/factorial(num_FIBSEM-num_FAFB))
+  totalCombs <- prod(nameMatch$possibleCombs)
+  
+  allMetrics <- data.frame(nameid.from <- c(), nameid.to <- c(),
+                           per <- c(), diff <- c(), equal <- c(),
+                           iteration <- c())
+  
+  FAFBDat <- FAFBSort(FAFBDat,region)
+  if (totalCombs > maxIter){
+    for (it in 1:maxIter){
+      # Downselect the FIBSEM data
+      FIBSEMDat_Cut <- FIBSEMDownSel(FIBSEMDat, nameMatch$name, nameMatch$num_FAFB)
+      
+      # Convert data to a matrix
+      FIBSEMMat <- FIBSEMDat_Cut %>% dcast(nameid.from~nameid.to)
+      rownames(FIBSEMMat) <- FIBSEMMat$nameid.from
+      FIBSEMMat <- FIBSEMMat[,2:ncol(FIBSEMMat)] %>% data.matrix
+      
+      # Shuffle the rows of the matrix for the appropraite rows/columns
+      FIBSEMMatShuf <- FIBSEMMat
+      for (n in 1:nrow(nameMatch)){
+        rows <- which(grepl(nameMatch$name[n],rownames(FIBSEMMat)))
+        if (length(rows) > 1){
+          FIBSEMMatShuf[sample(rows),]=FIBSEMMatShuf[rows,] %>% as.numeric()
+        }
+        cols <- which(grepl(nameMatch$name[n],colnames(FIBSEMMat)))
+        if (length(cols) > 1){
+          FIBSEMMatShuf[,sample(cols)]=FIBSEMMatShuf[,cols] %>% as.numeric()
+        }
+      }
+      
+      # Convert the data back to a dataframe
+      FIBSEMDat_Cut_Shuf <- melt(FIBSEMMatShuf,value.name="ROIweight",varnames=c("nameid.from","nameid.to"))
+      FIBSEMDat_Cut_Shuf <- FAFBSort(FIBSEMDat_Cut_Shuf,region)
+      
+      # Calculate the metrics
+      metrics <- datComp(FAFBDat,FIBSEMDat_Cut_Shuf)
+      metrics$iteration <- it
+      
+      allMetrics <- rbind(allMetrics,metrics)
+    }
+  } else {
+    # Get the names of all of the FIBSEM neurons
+    FIBSEMNames <- c(FIBSEMDat$nameid.from %>% as.character(),FIBSEMDat$nameid.to %>% as.character()) %>% unique()
+    
+    # Find the possible permuations for each name
+    members <- list()
+    for (n in 1:length(nameMatch$name)){
+      posCombs <- combn(FIBSEMNames[which(grepl(nameMatch$name[n],FIBSEMNames))],nameMatch$num_FAFB)
+      if (is.null(ncol(posCombs))){
+        members[[n]] <- permn(posCombs)
+      } else {
+        permList <- list()
+        for (c in 1:ncol(posCombs)){
+          permList <- c(permList,permn(posCombs[,c]))
+        }
+        members[[n]] <- permList
+      }
+    }
+    nameMatch$members <- members
+    
+    # Convert data to a matrix
+    FIBSEMMat <- FIBSEMDat %>% dcast(nameid.from~nameid.to)
+    rownames(FIBSEMMat) <- FIBSEMMat$nameid.from
+    FIBSEMMat <- FIBSEMMat[,2:ncol(FIBSEMMat)] %>% data.matrix
+    rowNamesOrig <- rownames(FIBSEMMat)
+    colNamesOrig <- colnames(FIBSEMMat)
+    
+    # Step through the permutations
+    for (it in 1:totalCombs){
+      
+      # Make a new FIBSEM data matrix
+      FIBSEMMatPerm <- FIBSEMMat
+      
+      # Initialize new row and column names
+      rowNamesPerm <- rowNamesOrig
+      colNamesPerm <- colNamesOrig
+      
+      # Modify the row and column names according to the current permutation 
+      fact <- 1
+      order <- c()
+      step <- 1
+      while(step <= nrow(nameMatch)){
+        orderNow <- nameMatch$members[[step]][1+((ceiling(it/fact)-1) %% nameMatch$num_FAFB[step])][[1]]
+        rowIds <- which(grepl(nameMatch$name[step],rowNamesPerm))
+        colIds <- which(grepl(nameMatch$name[step],colNamesPerm))
+        if (length(rowIds)>0) {
+          rowNamesPerm[rowIds] <- orderNow
+        }
+        if (length(colIds)>0) {
+          colNamesPerm[colIds] <- orderNow
+        }
+        fact <- fact * nameMatch$num_FAFB[step]
+        step <- step+1
+      }
+      
+      # Assign the new row and column names to the matrix
+      rownames(FIBSEMMatPerm) <- rowNamesPerm
+      colnames(FIBSEMMatPerm) <- colNamesPerm
+      
+      # Convert the data back to a dataframe
+      FIBSEMDat_Perm <- melt(FIBSEMMatPerm,value.name="ROIweight",varnames=c("nameid.from","nameid.to"))
+      FIBSEMDat_Perm <- FAFBSort(FIBSEMDat_Perm,region)
+      
+      # Calculate the metrics
+      metrics <- datComp(FAFBDat,FIBSEMDat_Perm)
+      metrics$iteration <- it
+      
+      allMetrics <- rbind(allMetrics,metrics)
+    }
+  }
+  return(allMetrics)
+}
+```
+
+Find the difference in connections between neurons in the PB
+```{r}
+
+# Pull the FAFB data
+FAFB_PB_df <-FAFBLoad("PB")
+FAFB_PB_df <- FAFB_PB_df %>% filter(grepl("EPG",nameid.from) | grepl("Delta7",nameid.from))
+
+# Pull the FIBSEM data
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L7R2",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L6R3",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L5R4",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L2R7",
+              "Delta7\\\\\\\\(PB15\\\\\\\\)_L1")
+FIBSEM_PB <- FIBSEMLoad(neuronList,"PB") %>% filter(grepl("Delta7",nameid.from) | grepl("EPG",nameid.from))
+
+allMetrics_PB <- permuteComp(FAFB_PB_df, FIBSEM_PB,"PB",200)
+```
+
+Find the difference in connections between neurons in the EB
+```{r}
+
+# Pull the FAFB data
+FAFB_EB_df <-FAFBLoad("EB")
+FAFB_EB_df <- FAFB_EB_df %>% filter(!grepl("GE-r1",nameid.from) & !grepl("GE-r1",nameid.to)) %>%
+  filter(!grepl("R4d",nameid.from) & !grepl("R4d",nameid.to))
+
+# Pull the FIBSEM data
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L5",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_R6",
+              "EPG\\\\\\\\(PB08\\\\\\\\)_L6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L5",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_R6",
+              "PEG\\\\\\\\(PB07\\\\\\\\)_L6")
+FIBSEM_EB <- FIBSEMLoad(neuronList,"EB")
+
+allMetrics_EB <- permuteComp(FAFB_EB_df, FIBSEM_EB,"EB",200)
+
+				  
+## Need to find 0 values
+```
+
+Find the difference in connections between neurons in the NO
+```{r}
+
+# Pull the FAFB data
+FAFB_NO_df <-FAFBLoad("NO")
+FAFB_NO_df <- FAFB_NO_df %>% filter(!grepl("NO-LAL-G",nameid.from) & !grepl("NO-LAL-G",nameid.to))
+
+
+# Pull the FIBSEM data
+neuronList = c("PEN_a\\\\\\\\(PB06a\\\\\\\\)_R5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L5",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L6",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_R7",
+              "PEN_a\\\\\\\\(PB06a\\\\\\\\)_L7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L5",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L6",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_R7",
+              "PEN_b\\\\\\\\(PB06b\\\\\\\\)_L7")
+FIBSEM_NO <- FIBSEMLoad(neuronList,"NO")
+
+allMetrics_NO <- permuteComp(FAFB_NO_df, FIBSEM_NO,"NO",200)
+
+```
+
+Plot the different metrics
+```{r}
+
+# Plot the differences
+allDiffs <- data.frame(d = allMetrics_EB %>% filter(diff != 0) %>% select(diff),
+                       region = "EB")
+allDiffs <- rbind(allDiffs,
+                  data.frame(d = allMetrics_PB %>% filter(diff != 0) %>% select(diff),
+                             region = "PB"))
+allDiffs <- rbind(allDiffs,
+                  data.frame(d = allMetrics_NO %>% filter(diff != 0) %>% select(diff),
+                             region = "NO"))
+allDiffs$region <- factor(allDiffs$region, levels = c("PB","EB","NO"))
+diffPlot <- ggplot(allDiffs,aes(x=region,y=diff,fill=region)) + geom_violin() +
+  theme_minimal_hgrid() + ylab('FIBSEM cts       FAFB cts') +
+  theme(axis.title = element_text(size = 8), 
+      axis.text = element_text(size = 6),
+      legend.text = element_text(size = 6),
+      legend.title = element_text(size = 8))
+
+# Plot the ratios
+allPers <- data.frame(per = allMetrics_EB %>% filter(per != 0 | equal !=0 ) %>% select(per),
+                       region = "EB")
+allPers <- rbind(allPers,
+                  data.frame(per = allMetrics_PB %>% filter(per != 0 | equal !=0 ) %>% select(per),
+                             region = "PB"))
+allPers <- rbind(allPers,
+                  data.frame(per = allMetrics_NO %>% filter(per != 0 | equal !=0 ) %>% select(per),
+                             region = "NO"))
+allPers$region <- factor(allPers$region, levels = c("PB","EB","NO"))
+perPlot <- ggplot(allPers,aes(x=region,y=per,fill=region)) + geom_violin() +
+  theme_minimal_hgrid() + ylab('(FAFB cts − FIBSEM cts)/(total cts)') + ylim(-1,1) +
+  theme(axis.title = element_text(size = 8), 
+      axis.text = element_text(size = 6),
+      legend.text = element_text(size = 6),
+      legend.title = element_text(size = 8))
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\FAFBVsFIBSEMComp.pdf", width = unit(8,"in"), height = unit(11,"in"))
+plot_grid(gFAFB,gFIBSEM,gPer,gDiff,perPlot, diffPlot, 
+          labels = c('A','B','C','D','E','F'), label_size = 8,
+          ncol=2,
+          rel_heights = c(1,1,0.5))
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 All PEN FIBSEM data - NO
 ```{r}
@@ -1453,3 +1391,116 @@ print(grid.arrange(conTabPlt_PB,conTabPlt_EB,conTabPlt_NO,nrow=1))
 dev.off()
 ```
  
+ Plot a summary statistic for the per and diff metrics
+```{r}
+perPB <- melt(perMat)
+diffPB <- melt(diffMat)
+
+perPB <- perPB[which(perPB$value != 0),]
+diffPB <- diffPB[which(diffPB$value != 0),]
+
+perPB$supergroup.from <- "columnar"
+perPB[which(grepl("Delta7",as.character(perPB$Var1))),]$supergroup.from <- "tangential"
+perPB$supergroup.to <- "columnar"
+perPB[which(grepl("Delta7",as.character(perPB$Var2))),]$supergroup.to <- "tangential"
+perPB <- perPB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+diffPB$supergroup.from <- "columnar"
+diffPB[which(grepl("Delta7",as.character(diffPB$Var1))),]$supergroup.from <- "tangential"
+diffPB$supergroup.to <- "columnar"
+diffPB[which(grepl("Delta7",as.character(diffPB$Var2))),]$supergroup.to <- "tangential"
+diffPB <- diffPB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+ggplot(perPB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
+
+ggplot(diffPB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
+```
+
+Plot a summary statistic for the per and diff metrics
+```{r}
+perEB <- melt(perMat)
+diffEB <- melt(diffMat)
+
+perEB <- perEB[which(perEB$value != 0),]
+diffEB <- diffEB[which(diffEB$value != 0),]
+
+perEB$supergroup.from <- "columnar"
+#perEB[which(grepl("R4m",as.character(perEB$Var1))),]$supergroup.from <- "tangential"
+perEB$supergroup.to <- "columnar"
+#perEB[which(grepl("R4m",as.character(perEB$Var2))),]$supergroup.to <- "tangential"
+perEB <- perEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+diffEB$supergroup.from <- "columnar"
+#diffEB[which(grepl("R4m",as.character(diffEB$Var1))),]$supergroup.from <- "tangential"
+diffEB$supergroup.to <- "columnar"
+#diffEB[which(grepl("R4m",as.character(diffEB$Var2))),]$supergroup.to <- "tangential"
+diffEB <- diffEB %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+ggplot(perEB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
+
+ggplot(diffEB) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
+```
+
+Plot a summary statistic for the per and diff metrics
+```{r}
+perNO <- melt(perMat)
+diffNO <- melt(diffMat)
+
+perNO <- perEB[which(perNO$value != 0),]
+diffNO <- diffEB[which(diffNO$value != 0),]
+
+perNO$supergroup.from <- "columnar"
+perNO$supergroup.to <- "columnar"
+perNO <- perNO %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+diffNO$supergroup.from <- "columnar"
+diffNO$supergroup.to <- "columnar"
+diffNO <- diffNO %>% mutate(connType = paste(supergroup.from, supergroup.to, sep="->"))
+
+ggplot(perNO) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('(FAFB cts - FIBSEM cts)/(total cts)')
+
+ggplot(diffNO) + geom_point(aes(x = as.factor(connType), y = value),size=4,alpha=0.25) + 
+  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
+  xlab('partners') + ylab('FIBSEM cts  FAFB cts')
+```
+
+
+Plot the FIBSEM vs. FAFB comparison statistics for the PB, EB, and NO data
+```{r}
+dodge = position_dodge(width=0.25)
+
+perPB$ROI <- "PB"
+perEB$ROI <- "EB"
+perNO$ROI <- "NO"
+
+perAll <- rbind(perPB,rbind(perEB,perNO))
+
+gPer <- ggplot(perAll) + geom_point(aes(x = as.factor(connType), y = value, color=ROI),size=3,alpha=0.1,position=dodge) + 
+  theme_classic() + ylim(-1,1) + geom_hline(yintercept = 0) +
+  ylab('(FAFB cts - FIBSEM cts)/(total cts)') + theme(axis.title.x = element_blank())
+
+diffPB$ROI <- "PB"
+diffEB$ROI <- "EB"
+diffNO$ROI <- "NO"
+
+diffAll <- rbind(diffPB,rbind(diffEB,diffNO))
+
+gDiff <- ggplot(diffAll) + geom_point(aes(x = as.factor(connType), y = value, color=ROI),size=3,alpha=0.1,position=dodge) + 
+  theme_classic() + ylim(-30,30) + geom_hline(yintercept = 0) +
+  ylab('FIBSEM cts          FAFB cts') + theme(axis.title.x = element_blank()) + ggtitle("synapses in one dataset but not the other")
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\2019_EMPaper\\Manuscript\\RevisionForNeuron\\Figures\\FIBSEMComp\\SummaryStatistics.pdf", width = 8, height = 8)
+print(grid.arrange(gPer, gDiff, nrow = 2))
+dev.off()
+
+```
