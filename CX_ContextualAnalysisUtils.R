@@ -43,11 +43,11 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
-                       strength=0.5,
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.25,
+                       strength=1,
                        arrow = arrow(length = unit(1, "cm")),
                        end_cap = circle(1, 'cm')) + 
-    geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
+    geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.25) +
     geom_node_point(aes(color=superType),size=8) + 
     sTScale_edge +
     sTScale +
@@ -120,5 +120,39 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
     coord_fixed(ratio = 1,clip="off")
   
   return(gg)
+}
+
+plotOutputCorrMat <- function(){
+  # Get the FBt downstream partners
+  FBTypes <- neuprint_search("FB.*")$type %>% unique()
+  FBTypes <- FBTypes[which(!is.na(FBTypes))]
+  # Pull the connection table of postsynaptic partners for the FB tangential cells
+  FBConnTab <- getConnectionTable(getTypesTable(FBTypes)$bodyid,"POST","FB")
+  # Convert the connection table to a type to type table
+  FBCT_T2T <- getTypeToTypeTable(FBConnTab)
+  # Cluster the FB tangential cells by common inputs
+  library(reshape2)
+  # Select only the relevant columns
+  Data4Clust <- FBCT_T2T %>% select(type.from,type.to,weightRelative)
+  # Recast it into a matrix
+  Data4Clust <- dcast(Data4Clust,type.from~type.to)
+  Data4Clust[is.na(Data4Clust)] <- 0
+  rownames(Data4Clust) <- Data4Clust$type.from
+  Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))
+  # Calculate the dissimilarity matrix
+  Data4Clust <- scale(Data4Clust)
+  d <- dist(Data4Clust, method = "euclidean")
+  # Perform hierarchical clustering
+  hc <- hclust(d, method = "ward.D2" )
+  # Order the FB tangential cells according to their clustering
+  FBCT_T2T$type.from <- factor(FBCT_T2T$type.from, levels = hc$labels[hc$order])
+  # Pull out the reordered matrix
+  Data4Corr <- dcast(FBCT_T2T %>% select(type.from,type.to,weightRelative),type.from~type.to)
+  Data4Corr[is.na(Data4Corr)] <- 0
+  rownames(Data4Corr) <- Data4Corr$type.from
+  Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1))
+  # Plot the correlation matrix
+  library(corrplot)
+  corrplot(cor(Data4Clust))  
 }
 
