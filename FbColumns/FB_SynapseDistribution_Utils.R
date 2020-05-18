@@ -228,14 +228,22 @@ Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT, ID){
     geom_point(data=Temp_Dist, aes(x=X,y=Z, color= FBcol),size=2 ) +
     theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
     scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
-      panel.background = element_rect(fill = "transparent"), # bg of the panel
+      panel.background = element_rect(fill = "transparent", color = NA), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
       panel.grid.minor = element_blank(), # get rid of minor grid
-      legend.background = element_rect(fill = "transparent"), # get rid of legend bg
-      legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
-    )
+      legend.background = element_rect(fill = "transparent", color = NA), # get rid of legend bg
+      legend.box.background = element_rect(fill = "transparent", color = NA), # get rid of legend panel bg
+      panel.border = element_rect( fill = NULL,
+                                   colour = NULL,
+                                   size = NULL,
+                                   linetype = NULL,
+                                   color = NULL,
+                                   inherit.blank = TRUE)
+    ) 
+                     
   
+
   
   if (PLOT==TRUE){
   ggsave(paste(DIR, PlotName, "_L", as.character(LayerToPlot) , ".png",sep=""), plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
