@@ -1,3 +1,64 @@
+# Order glomeruli according to their location in the PB
+PBGlomSort <- function(gloms){
+  sortedGloms = append(
+    sort(
+      as.character(gloms[which(grepl("L",gloms))]),
+      decreasing = TRUE),
+    sort(
+      as.character(gloms[which(grepl("R",gloms))]),
+      decreasing = FALSE))
+  
+  return(sortedGloms)
+}
+
+# Order neuron names accordin to their glomeruli
+glomSort <- function(names){
+  sortedNames = unique(append(
+    sort(
+      as.character(names[which(grepl("_L",names))]),
+      decreasing = TRUE),
+    sort(
+      as.character(names[which(grepl("_R",names))]),
+      decreasing = FALSE))
+  )
+  return(sortedNames)
+}
+
+# Give each PB neuron in a data frame a succinct, unique name
+PBRename <- function(name,id){
+  
+  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
+  name = paste0(name %>% as.character() %>% sapply(function(n){strsplit(n,"\\(")[[1]][1]}) %>% as.character(),
+                name %>% as.character() %>% sapply(function(n){strsplit(n,"\\)")[[1]][2]}) %>% as.character())
+  nameid = paste(name, as.character(id), sep='-')
+  
+  # Extract the unique names and types
+  allNames = nameid %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  
+  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
+  newNames = c()
+  for (tp in 1:length(types)){
+    nmOrder <- allNames[which(grepl(paste0(types[tp],"_"),allNames))] %>% glomSort()
+    nms <- nmOrder %>% sapply(function(n){strsplit(n,"-")[[1]][1]}) %>% unique()
+    for (n in 1:length(nms)){
+      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
+      nmsNow <- paste(nmsNow %>% sapply(function(x){strsplit(x,"-")[[1]][1]}),seq(1:length(nmsNow)),sep='-')
+      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
+    }
+    newNames = append(newNames,nmOrder)
+  }
+  # Create a lookup table between the old and new names
+  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
+  
+  # Swap in the new names
+  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
+    factor(levels = nmSwap$newNm)
+  
+  return(nameid)
+}
+
 #Generate a von Mises activity profile
 vonMisesProf <- function(){
   # Make a bump with a von Mises profile
@@ -32,35 +93,22 @@ WMFromConTab <- function(conTab, preids, postids){
   return(justWeights)
 }
 
-# Order glomeruli according to their location in the PB
-PBGlomSort <- function(gloms){
-  sortedGloms = append(
-    sort(
-      as.character(gloms[which(grepl("L",gloms))]),
-      decreasing = TRUE),
-    sort(
-      as.character(gloms[which(grepl("R",gloms))]),
-      decreasing = FALSE))
-  
-  return(sortedGloms)
-}
-
 # Get the EPG to PB-X type transform matrix
 EPGToD7Mat <- function(PBNronTypeStr){
   
   # Get the EPG to D7 connections
-  EPG_2_Delta7 <- getConnectionTable_forSubset(
-    unique(neuprint_search("EPG\\\\\\\\(.*")$bodyid),
-    unique(neuprint_search("Delta7.*")$bodyid),
-    "PB")
+  EPG_2_Delta7 <- getConnectionTable(
+    unique(neuprint_search("EPG.*")$bodyid),
+    "POST",
+    "PB") %>% filter(type.from == "EPG" & type.to == "Delta7")
   EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
   EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
   
   # Get the D7 to EPG connections weight matrix
-  Delta7_2_PBTp <- getConnectionTable_forSubset(
+  Delta7_2_PBTp <- getConnectionTable(
     unique(neuprint_search("Delta7.*")$bodyid),
-    unique(neuprint_search(PBNronTypeStr)$bodyid),
-    "PB")
+    "POST",
+    "PB") %>% filter(type.from == "Delta7" & type.to == PBNronTypeStr)
   Delta7_2_PBTp$nameid = paste(as.character(Delta7_2_PBTp$name.from), as.character(Delta7_2_PBTp$from), sep = "_")
   Delta7_2_PBTp$partnerid = paste(as.character(Delta7_2_PBTp$name.to), as.character(Delta7_2_PBTp$to), sep = "_")
   
@@ -167,7 +215,7 @@ D7ShapeMeanSD <- function(inputAll){
   return(D7OutputShape_stats)
 }
 
-# Fit a cosine to the D7 outpur profile
+# Fit a cosine to the D7 output profile
 D7CosFit <- function(D7OutputShape_stats){
   df = data.frame(pts = c(1:nrow(D7OutputShape_stats)), weight = D7OutputShape_stats$mean)
   fit <- nls(weight ~ (C1 * cos(C2*(pts-theta))+C3), data=df, algorithm="port",
@@ -187,10 +235,96 @@ PBActPlot <- function(D7OutputShape_stats,fit){
   PBEPGToD7Prof <- ggplot() + 
     geom_line(data = D7OutputShape_stats, aes(x=glom,y=mean-sd,group=1),color="gray") +
     geom_line(data = D7OutputShape_stats, aes(x=glom,y=mean+sd,group=1),color="gray") +
-    geom_line(data = D7OutputShape_stats, aes(x=glom,y=mean,group=1),color="black") +
-    geom_line(data = dffit, aes(x=glom,y=wMean,group=1),color="red",linetype='dotted') +
-    theme_classic() + coord_cartesian(ylim=c(0,1),expand=FALSE) +
-    xlab('PB glom.') + ylab('activity')
+    geom_line(data = D7OutputShape_stats, aes(x=glom,y=mean,group=1,color="black")) +
+    geom_line(data = dffit, aes(x=glom,y=wMean,group=1,color="red"),size=0.5) +
+    coord_cartesian(ylim=c(0,1),expand=FALSE) +
+    xlab('PB glom.') + ylab('activity') +
+    scale_colour_manual(name = NULL, 
+                        values =c('black'='black','red'='red'), labels = c('mean profile','cosine fit'))
   
   return(PBEPGToD7Prof)
+}
+
+# Build an xyLookup table for plotting a PB connectivity graph
+xyLookupTable <- function(){
+  nronGps <- list(c("EPG","Delta7","IbSpsP","SpsP"),
+                  c("PEN_a(PEN1)","PEN_b(PEN2)","PEG","PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3",
+                    "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv"))
+  
+  xyLookup <- data.frame(type = c(), x = c(), y = c(), xTxt = c(), yTxt = c())
+  for (g in 1:length(nronGps)){
+    types <-  nronGps[[g]]
+    
+    xs <- numeric(length(types))
+    ys <- numeric(length(types))
+    if (g > 1){
+      angs <- seq(-pi/3,pi/3,length.out=length(types))
+      xsTxt <- xs + 1.1*sin(angs)
+      xs <- xs + sin(angs)
+      ysTxt <- ys - 1.1*cos(angs)
+      ys <- ys - cos(angs)
+    } else {
+      xs <- xs + c(-0.25,0.25,-0.25,0.25)
+      xsTxt <- xs
+      ysTxt <- ys + 0.1
+    }
+    
+    typeLookup <- data.frame(type = types, x = xs, y = ys, xTxt = xsTxt, yTxt = ysTxt)
+    xyLookup <- rbind(xyLookup,typeLookup)
+  }
+  return(xyLookup)
+  #ggplot(xyLookup,aes(x=x,y=y)) + geom_point() + scale_y_reverse() + geom_text(aes(label=type),hjust=1, vjust=1,size=3)
+}
+
+# Create a function for plotting a graph of PB connections
+graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
+  
+  # Get the table of nodes (types)
+  nodes = data.frame(name = xyLookup$type)
+  nodes$superType <- nodes$name %>% as.character %>% supertype()
+  
+  # Position the nodes according to the lookup table
+  nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+  nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+  
+  # Assign colors to the supertypes
+  pal <- supertype2Palette()
+  if (guideOnOff){
+    sTScale <- scale_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks)
+  #  sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype)
+  } else {
+    sTScale <- scale_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks,guide = FALSE)
+  #  sTScale <- scale_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
+  }
+  
+  #sTScale_edge <- scale_edge_colour_manual(values = sTCols$color, drop=TRUE,limits = sTCols$supertype,guide = FALSE)
+  sTScale_edge <- scale_edge_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks,guide = FALSE)
+  
+  # Get the edges from the connection table
+  edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
+    mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+           from = sapply(type.from, function(f) which(f == nodes$name)))
+  edges$superType <- edges$type.from %>% as.character %>% supertype()
+  
+  # Plot the network
+  graph <- tbl_graph(nodes,edges)
+  
+  gg <-
+    ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+                       strength=0.2,
+                       #arrow = arrow(length = unit(0.5, "cm")),
+                       end_cap = circle(0.5, 'cm')) + 
+    #geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
+    geom_node_point(aes(color=superType),size=4) + 
+    sTScale_edge +
+    sTScale +
+    geom_node_text(aes(x = xyLookup$xTxt, y = xyLookup$yTxt, label=name),size=3,repel = textRepel) +
+    theme_classic() + theme(legend.text=element_text(size=6),legend.title=element_text(size=8),
+                            axis.line=element_blank(),axis.text.x=element_blank(),
+                            axis.text.y=element_blank(),axis.ticks=element_blank(),
+                            axis.title.x=element_blank(),axis.title.y=element_blank(),) + 
+    coord_fixed(ratio = 1,clip="off")
+  
+  return(gg)
 }
