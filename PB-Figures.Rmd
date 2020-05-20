@@ -323,6 +323,108 @@ PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + ggtitle('impulse E-PG input -> D7 -> E-
 
 ```
 
+Plot a von Mises profile in the EPGs
+```{r}
+# Create a von Mises profile in the EPGs
+gloms = c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+
+# Get the EPG to D7 connections
+EPG_2_Delta7 <- getConnectionTable(
+  unique(neuprint_search("EPG.*")$bodyid),
+  "POST",
+  "PB") %>% filter(type.from == "EPG" & type.to == "Delta7")
+EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
+EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
+
+# Get the EPG activity given the assumed profile
+allEPGids <- EPG_2_Delta7$nameid %>% unique()
+allD7ids <- EPG_2_Delta7$partnerid %>% unique()
+allEPGGloms = strsplit(allEPGids,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+EPGact = numeric(length(allEPGids))
+for (EPG in 1:length(allEPGids)){
+  EPGact[EPG] <- actProfvM[which(actProfvM$glom == allEPGGloms[EPG]),]$act
+}
+EPGProf <- data.frame(nameid = PBRename(EPG_2_Delta7$name.from,EPG_2_Delta7$from) %>% unique(), act = EPGact, glom = allEPGGloms)
+EPGProf$glom <- factor(EPGProf$glom, levels = gloms)
+
+g_EPGact_in_PB <- ggplot(EPGProf) + geom_bar(aes(x = nameid, weight = act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity') + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+
+# Convert this to a Delta 7 activity profile
+justWeights_EPG_2_D7 <- WMFromConTab(EPG_2_Delta7,allEPGids,allD7ids)
+D7outAct <- as.vector(EPGact %*% justWeights_EPG_2_D7)
+D7outAct <- (D7outAct - min(D7outAct))/(max(D7outAct)-min(D7outAct))
+allD7Gloms = strsplit(allD7ids,"_") %>% lapply(function(x){tail(x,3)[1]}) %>% unlist()
+D7act <- data.frame(nameid = PBRename(EPG_2_Delta7$name.to,EPG_2_Delta7$to) %>% unique(), act= D7outAct, glom = allD7Gloms)
+
+g_D7act <- ggplot(D7act) + geom_bar(aes(x=nameid, weight=act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + 
+  xlab('D7 neuron') + ylab('normalized activity') + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+
+# Convert back to an E-PG activity profile
+transMat <- EPGToD7Mat("EPG")
+allEPGidsIn = rownames(transMat)
+allEPGGlomsIn = strsplit(allEPGidsIn,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+allEPGidsOut = colnames(transMat)
+allEPGGlomsOut = strsplit(allEPGidsOut,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+
+EPGactIn = numeric(length(allEPGidsIn))
+for (EPG in 1:length(allEPGidsIn)){
+  EPGactIn[EPG] <- actProfvM[which(actProfvM$glom == allEPGGlomsIn[EPG]),]$act
+}
+
+EPGOutAct <- as.vector(EPGactIn %*% transMat)
+EPGOutAct <- (EPGOutAct - min(EPGOutAct))/(max(EPGOutAct)-min(EPGOutAct))
+EPGinput <- data.frame(nameid = allEPGidsOut, act = EPGOutAct, glom = allEPGGlomsOut)
+EPGinput$glom <- factor(EPGinput$glom, levels = PBGlomOrder)
+
+# Rename the EPGs
+allNames = paste0(EPGinput$nameid %>% as.character() %>% sapply(function(n){strsplit(n,"\\(")[[1]][1]}) %>% as.character(),
+              EPGinput$nameid %>% as.character() %>% sapply(function(n){strsplit(n,"\\)")[[1]][2]}) %>% as.character())
+nms <- allNames %>% sapply(function(n){paste(strsplit(n,"_")[[1]][1], strsplit(n,"_")[[1]][2],sep='_')}) %>% unique()
+for (n in 1:length(nms)){
+  nmsNow <- allNames[which(grepl(nms[n],allNames))]
+  nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
+  allNames[which(grepl(nms[n],allNames))] <- nmsNow
+}
+EPGinput$nameid <- factor(allNames,levels = glomSort(allNames))
+
+g_EPGinAct <- ggplot(EPGinput) + geom_bar(aes(x=nameid, weight=act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + 
+  xlab('EPG neuron') + ylab('normalized activity')
+
+df = data.frame(pts = c(1:nrow(EPGinput)), weight = EPGinput$act)
+fit <- nls(weight ~ (C1 * cos(C2*(pts-theta))+C3), data=df, algorithm="port",
+           start = list(C1=0.4, C2=0.3, theta=0.5, C3=0.4),
+           lower = list(C1=0, C2=0, theta=0, C3=-1),
+           upper = list(C1=2, C2=2, theta=20, C3=1))
+dffit <- data.frame(nameid = EPGinput$nameid)
+dffit$wMean <-  predict(fit, newdata=dffit)
+g_EPGinAct <-g_EPGinAct + geom_line(data = dffit, aes(x=nameid,y=wMean,group=1,color="red"),size=0.5)  + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.position = "None")
+print(g_EPGinAct)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\ActivityThroughPB.pdf", width = unit(3,"in"), height = unit(6,"in"))
+plot_grid(g_EPGact_in_EB,g_EPGact_in_PB,g_D7act,g_EPGinAct,align="v",ncol=1,rel_heights = c(0.8,1,1.2,1))
+dev.off()
+```
+
 Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
 ```{r}
 # Use a von Mises bump profile
