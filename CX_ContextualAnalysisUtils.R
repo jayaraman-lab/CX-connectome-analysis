@@ -161,3 +161,34 @@ plotOutputCorrMat <- function(){
   corrplot(cor(Data4Corr)) # plot the correlation matrix grouped by columns of the input matrix
 }
 
+# From DanTE: Function to plot a dendrogram
+dendPlot <- function(hc,rotate){
+  library(ggdendro)
+  # Pull of the data
+  dend <- as.dendrogram(hc)
+  dend_data <- dendro_data(dend, type = "rectangle")
+  # Add a supertype category
+  HClabels <- dend_data$labels
+  HClabels$supertype <- HClabels$label %>% as.character() %>% supertype() %>% as.factor()
+  p <- ggplot(dend_data$segments)
+  if (rotate){
+    p <- p + geom_segment(aes(x = y, y = x, xend = yend, yend = xend)) +
+      geom_text(data = HClabels, aes(y, x, label = label,color=supertype),
+                hjust = 1, size = 1)
+  } else {
+    p <- p + geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+      geom_text(data = HClabels, aes(x, y, label = label,color=supertype),
+                hjust = 1, angle = 90, size = 1)
+  }
+  p <- p + theme_classic() +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line=element_blank())
+  return(p)
+}
+
+

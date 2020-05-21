@@ -375,35 +375,37 @@ dev.off()
 
 ```
 
-########### ran well up to here ################
-
-### put a break here
-
 ```{r}
 # Calculate the dissimilarity matrix
 Data4Clust <- t(Data4Clust) # transpose Data4Clust back so rows are type.from, columns are type.to
-Data4Clust <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
-d <- dist(t(Data4Clust), method = "euclidean") # compute the distance matrix between type.to
+Data4ClustSc <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
+d <- dist(t(Data4ClustSc), method = "euclidean") # compute the distance matrix between rows (type.to)
 # Perform hierarchical clustering
 hc <- hclust(d, method = "ward.D2" )
-
-
-
-
+dend1 <- as.dendrogram(hc)
+postscript(file = paste(PlotDir,"ClusterByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=36,height=24)
+plot(dend1,lab.cex=0.25)
+dev.off()
 
 ```
 
 ```{r}
-# Order the secondary targets according to their clustering
+# Order the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab according to the clustering of the inputs to the tertiary targets
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from <- factor(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from, levels = hc$labels[hc$order])
-# Pull out the reordered matrix
-Data4Corr <- dcast(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc %>% select(type.from,type.to,weightRelative),type.from~type.to)
-Data4Corr[is.na(Data4Corr)] <- 0
-rownames(Data4Corr) <- Data4Corr$type.from
-Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1))
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to <- factor(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to, levels = hc$labels[hc$order], ordered=TRUE)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc <- arrange(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc,type.to)
+
+# Plot and save the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc based on the connectionMeasure of "weightRelative"
+plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc <- plotConnectivityMatrix(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc,byGroup="type",connectionMeasure="weightRelative")
+print(plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc)
+ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTable_weightRelative_clusterByTo.eps", plot=plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc, device="eps", path=PlotDir, scale=1, 
+       width=24, height=16, units="in", dpi=300, limitsize=FALSE)
 
 ```
+
+########### ran well up to here ################
+
+### put a break here
 
 
 Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences). 
