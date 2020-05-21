@@ -6,13 +6,15 @@ output: html_notebook
 ```{r message=FALSE, warning=FALSE}
 library(neuprintr)
 library(tidyverse)
+library(cowplot)
+library(patchwork)
 library(neuprintrExtra)
 ```
 
 ## Building the outputs neuron bag
 Building connection table.
 ```{r}
-outputBag <- create_neuronBag("FC[1|2].*|FS.*|^FR.*|ExR5.*|ExR7.*|ExR8.*|PFL.*|PFR_b.*|EL.*|EPG.*|PEG.*|PFG.*",verbose=TRUE)
+outputBag <- create_neuronBag("FC[1|2].*|FS.*|^FR.*|ExR[2|3|5|7|8].*|PFL.*|PFR.*|EL.*|EPG.*|PEG.*|PFG.*",verbose=TRUE)
 ```
 
 ### Renaming
@@ -21,7 +23,7 @@ outputBag <- cxRetyping(outputBag)
 ```
 Consider only "right side" neurons
 ```{r}
-reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R" | type == "ExR5_R" | type =="PFGs_R")
+reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R" | type == "ExR5_R" | type == "ExR2_R" | type == "ExR3_R")
 ```
 
 ## What do their respective innervation patterns look like ?
@@ -32,17 +34,17 @@ roisOut <- roisOut %>% filter(!(level2 %in% c("ATL(L)","ICL(L)")))
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 ```
 ```{r}
-outputsByRoi <- getROISummary(reducedBag,filter=FALSE)
+outputsByRoi <- getROISummary(reducedBag,threshold = 20)
 ```
 
 
 ```{r}
-outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE)
+outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE,theme = theme_minimal_grid(),showCount = T)
 outputsInnervation_L
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,width=14,height=8)
+save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,ncol=2,nrow=2)
 ```
 
 ## Who are those neurons they talk to?
@@ -55,14 +57,14 @@ allOuts <- reducedBag$outputsTableRef %>% filter(type %in% allOutsTable$type.to)
 
 
 ```{r}
-outputsInOutBag <- create_neuronBag(allOuts,selfRef = TRUE,verbose=TRUE)
+outputsInOutBag <- create_neuronBag(allOuts,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,synThresh=0)
 ```
 
 ```{r}
 outputsInOutBag <- cxRetyping(outputsInOutBag)
 ```
 
-Look at those targets at a "global" output region level
+Look at those targets at a "global" output region level?
 ```{r}
 outputsOverview <- combineRois(outputsInOutBag,c("VLNP(R)","SNP(R)","VMNP(R)","INP","LX(R)","LX(L)"),"Output regions",singleNeuronThreshold=0.001)
 ## One cleans up anything not getting significant CX input
@@ -87,7 +89,7 @@ inputs_toOutputs <- replace_na(inputs_toOutputs,list("customSupertype" = "Other"
 inputs_toOutputsMat <- connectivityMatrix(connObj = inputs_toOutputs,slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to")
 ```
 ```{r}
-CXtoOutputs <- filter(inputs_toOutputs,customSupertype !="Other") %>% group_by(type.to,databaseType.to) %>% summarize(totalCX = sum(weightRelative)) %>% ungroup() %>% filter(!(databaseType.to %in% CXtypes$databaseType)) %>% arrange(desc(totalCX))
+CXtoOutputs <- filter(inputs_toOutputs,customSupertype !="Other") %>% group_by(type.to,databaseType.to) %>% summarize(totalCX = sum(knownWeightRelative)) %>% ungroup() %>% filter(!(databaseType.to %in% CXtypes$databaseType)) %>% arrange(desc(totalCX))
 ```
 
 ```{r}

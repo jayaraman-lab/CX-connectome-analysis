@@ -1,0 +1,78 @@
+---
+title: "Are tangential neurons really tangential, and other FB structures"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+```
+
+```{r}
+source("cancorUtils.R")
+```
+
+### Tangential neurons, dim reduction
+```{r}
+tangentialBag <- create_neuronBag("^FB.*",verbose=TRUE,by.roi=TRUE,slctROI=unique(filter(selectRoiSet(),grepl("Central|Right",side2))$roi),computeKnownRatio=T)
+```
+
+```{r}
+tangentialBag <- cxRetyping(tangentialBag)
+```
+```{r}
+unique(tangentialBag$inputs$roi)
+```
+
+
+```{r}
+FBTangOut <- filter(tangentialBag$outputs,roi=="FB")
+tangentialOutCXRegions <- combineRois(tangentialBag,rois=c("ATL(R)","CRE(R)","EPA(R)","ICL(R)","LAL(R)","MB(R)","PLP(R)","SCL(R)","SIP(R)","SLP(R)","SMP(R)","SMP(R)","SPS(R)","VES(R)","WED(R)","AOTU(R)"),newRoi = "outCX")
+FBTangInput <- filter(tangentialOutCXRegions$inputs,type.to %in% FBTangOut$type.from)
+FBTangOut <- filter(FBTangOut,type.from %in% FBTangInput$type.to)
+```
+```{r}
+ccaTang <- cancorInputOutput(FBTangInput,FBTangOut)
+```
+
+
+
+### Columnar assessments
+Consider neurons with a columnar structure, and look at their inputs after splitting them by column
+```{r}
+FBColumnarBag <- create_neuronBag("^FC[1|2].*|^FS.*|^FR.*|^PFL.*|^PFR.*|^PFG.*|^PFN.*|^hDelta.*|vDelta.*",verbose=TRUE,slctROI="FB",computeKnownRatio=T)
+```
+
+
+
+Need to split both by side and by column.
+```{r}
+### First normal CX lateralization
+FBColumnarBagSplit <- cxRetyping(FBColumnarBag)
+### Then rename by column
+for (i in 0:14){
+  FBColumnarBagSplit <- redefineTypeByName(FBColumnarBagSplit,pattern=paste0("_C",i,"(_irreg|_L|_R|a|b)?(_small)?$"),nameModifiers = c(paste0("_C",i),""),redefinePartners = TRUE)
+  #FBCBagSplit <- redefineTypeByName(FBCBagSplit,pattern=paste0("_C",i,"a$"),nameModifiers = c(paste0("_C",i,"a"),""),redefinePartners = TRUE)
+  #FBCBagSplit <- redefineTypeByName(FBCBagSplit,pattern=paste0("_C",i,"b$"),nameModifiers = c(paste0("_C",i,"b"),""),redefinePartners = TRUE)
+}
+```
+```{r}
+Tang2PFN <- ggplot(filter(FBColumnarBagSplit$inputs,supertype.from2=="FBt",supertype.to2=="PFN"),aes(x=type.to,fill=type.from,y=knownWeightRelative)) + geom_bar(stat="identity") + facet_wrap(.~databaseType.to,scales = "free") + paletteer::scale_fill_paletteer_d("Polychrome::palette36") + theme_minimal_hgrid()+ theme(axis.text.x=element_text(angle=90,hjust = 0.5)) 
+Tang2PFN
+```
+
+```{r}
+Tang2PFL <- ggplot(filter(FBColumnarBagSplit$inputs,supertype.from2=="FBt",supertype.to2=="PFL"),aes(x=type.to,fill=type.from,y=knownWeightRelative)) + geom_bar(stat="identity") + facet_wrap(.~databaseType.to,scales = "free") + paletteer::scale_fill_paletteer_d("Polychrome::palette36") + theme_minimal_hgrid()+ theme(axis.text.x=element_text(angle=90,hjust = 0.5)) 
+Tang2PFL
+```
+
+
+```{r}
+Tang2FC <- ggplot(filter(FBColumnarBagSplit$inputs,supertype.from1=="FB2",supertype.to2=="FC"),aes(x=type.to,fill=type.from,y=knownWeightRelative)) + geom_bar(stat="identity") + facet_wrap(.~databaseType.to,scales = "free") + paletteer::scale_fill_paletteer_d("Polychrome::palette36") + theme_minimal_hgrid()+ theme(axis.text.x=element_text(angle=90,hjust = 0.5)) 
+Tang2FC
+```
+
+
