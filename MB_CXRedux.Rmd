@@ -59,11 +59,22 @@ MBON_Names <- neuprint_search("MBON.*")
 MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## Keeping the default threshold (3)
 ```
 
-### Selecting CX types as those present in Shin-ya's list.
+### Get MBON targets inside / outside of CX
 ```{r}
-CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types042020") %>% rename(databaseType=n.type))
-MBONCXTargetsL <- unique(MBON_PostConnections$type.to)[unique(MBON_PostConnections$type.to) %in% CXTypes$databaseType]
+# Selecting CX types as those present in Romain's list.
+CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types052220") %>% rename(databaseType=n.type))
+MBON_targets <- unique(MBON_PostConnections$type.to)
+
+# Pick MBON targets in the CX
+MBONCXTargetsL <- MBON_targets[MBON_targets %in% CXTypes$databaseType]
 MBONCXTargets <- getTypesTable(MBONCXTargetsL)
+
+# Pick MBON targets not in the CX
+MBONnonCXTargetsL <- MBON_targets[!(MBON_targets %in% CXTypes$databaseType)]
+MBONnonCXTargetsL <- na.omit(MBONnonCXTargetsL)
+# Exclude MBONs from this list
+MBONnonCXTargetsL <- MBONnonCXTargetsL[!(MBONnonCXTargetsL %in% MBON_Names$type)]
+MBONnonCXTargets <- getTypesTable(MBONnonCXTargetsL)
 ```
 
 ### Creating a relatively high level ROI set
@@ -72,14 +83,11 @@ roisH <- getRoiTree()
 roiSelection <- selectRoiSet(roisH,default_level=1,exceptions=list("CX"=2))
 ```
 
-### Find secondary targets of MBONs
+### Find indirect CX targets of MBONs
 ```{r}
-# Find the postsynaptic partners of all MBON targets
-MBON_2ndaryPostConnections <- getConnectionTable(MBON_PostConnections$to,synapseType = "POST") ## Keeping the default threshold (3)
-# head(MBON_2ndaryPostConnections)
-```
+# Find the postsynaptic partners of MBON non-CX non-MBON targets
+MBON_2ndaryPostConnections <- getConnectionTable(MBONnonCXTargets$bodyid,synapseType = "POST") ## Keeping the default threshold (3)
 
-```{r}
 # Find the MBON secondary targets in the CX
 MBONCX2ndaryTargetsL <- unique(MBON_2ndaryPostConnections$type.to)[unique(MBON_2ndaryPostConnections$type.to) %in% CXTypes$databaseType]
 MBONCX2ndaryTargets <- getTypesTable(MBONCX2ndaryTargetsL)
@@ -99,18 +107,9 @@ MBON2ndaryTargetBagLat <- lateralizeInputOutputList(MBON2ndaryTargetBag)
 
 ### Isolating the MBON primary and secondary inputs to right side neurons in there
 ```{r}
-MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON")& grepl("_R",type.to))
-MBON2ndaryTargetInp <- MBON2ndaryTargetBagLat$inputs %>% filter(grepl("_R",type.to))
+MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to))
+MBON2ndaryTargetInp <- MBON2ndaryTargetBagLat$inputs %>% filter((databaseType.from %in% MBONnonCXTargetsL) & grepl("_R",type.to))
 ```
-
-
-```{r}
-MBON2ndaryCXTargetTypes <- unique(as.vector(MBON2ndaryTargetInp$databaseType.to))
-
-
-```
-
-
 
 ### Combine all input regions into one (to get a "more fair" relative weight). Add a variable, totalMBContribution, that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
 ```{r}
@@ -380,7 +379,7 @@ dev.off()
 Data4Clust <- t(Data4Clust) # transpose Data4Clust back so rows are type.from, columns are type.to
 Data4ClustSc <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
 d <- dist(t(Data4ClustSc), method = "euclidean") # compute the distance matrix between rows (type.to)
-# Perform hierarchical clustering
+# Perform hierarchical clustering and plot the dendrogram
 hc <- hclust(d, method = "ward.D2" )
 dend1 <- as.dendrogram(hc)
 postscript(file = paste(PlotDir,"ClusterByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=36,height=24)
@@ -403,9 +402,46 @@ ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTable_weightRelative_cluster
 
 ```
 
+```{r}
+# Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from)),unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to))))
+numTypes <- length(types)
+numFrom <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from)))
+numTo <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to)))
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTypes-numFrom)), y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTypes-numFrom)))
+
+# Graph the TypeToType ConnTable using the lookupTable
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy$type.to <- as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy$type.to)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy,xyLookup,FALSE,TRUE)
+# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway,xyLookup,FALSE,TRUE)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway + scale_y_reverse()
+print(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway)
+ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_clusterByTo_pathway.svg", plot=StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway, device="svg", path=PlotDir, scale=1, 
+       width=30, height=60, units="in", dpi=300, limitsize=FALSE)
+
+```
+
 ########### ran well up to here ################
 
 ### put a break here
+
+```{r}
+# Run t-SNE on the type.to of StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab
+library(M3C)
+tsne(Data4Clust,perplex=15)
+
+```
+
+```{r}
+MBON2ndaryCXTargetTypes <- unique(as.vector(MBON2ndaryTargetInp$databaseType.to))
+
+
+```
+
+
+
 
 
 Focus on the FB now (the only exception is LCNp which can probably be treated separately) and try to compute a "pathway weight" per CX target type. For every connection, `MBONInfluence` is the product of the relative weight with the total contribution of MBONs to the presynaptic neuron. `pathwaysWeight` is the sum of that over a target type (basically the sum of all its indirect MBON influences). 
