@@ -52,6 +52,12 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 ```
 
+### Creating a relatively high level ROI set
+```{r}
+roisH <- getRoiTree()
+roiSelection <- selectRoiSet(roisH,default_level=1,exceptions=list("CX"=2))
+```
+
 ### Pulling neurons postsynaptic to MBONs
 ```{r}
 MBON_Names <- neuprint_search("MBON.*")
@@ -75,12 +81,6 @@ MBONnonCXTargetsL <- na.omit(MBONnonCXTargetsL)
 # Exclude MBONs from this list
 MBONnonCXTargetsL <- MBONnonCXTargetsL[!(MBONnonCXTargetsL %in% MBON_Names$type)]
 MBONnonCXTargets <- getTypesTable(MBONnonCXTargetsL)
-```
-
-### Creating a relatively high level ROI set
-```{r}
-roisH <- getRoiTree()
-roiSelection <- selectRoiSet(roisH,default_level=1,exceptions=list("CX"=2))
 ```
 
 ### Find indirect CX targets of MBONs
@@ -433,6 +433,72 @@ library(M3C)
 tsne(Data4Clust,perplex=15)
 
 ```
+
+### Check indirect connections from MBONs to the CX
+```{r}
+# Plot neuron to neuron connection matrix from MBONs to non-CX non-MBON targets
+MBON_nonCXnonMBON_ConnTable <- MBON_PostConnections %>% filter(type.to %in% MBONnonCXTargetsL)
+plotMBON_nonCXnonMBON_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_ConnTable,byGroup="id",connectionMeasure="weightRelative")
+print(plotMBON_nonCXnonMBON_ConnTable)
+```
+
+```{r}
+# Plot type to type connection matrix from MBONs to non-CX non-MBON targets
+MBON_nonCXnonMBON_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_ConnTable)
+# Filter the table by weightRelative
+MBON_nonCXnonMBON_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab  %>% filter(weightRelative > 0.01)
+
+plotMBON_nonCXnonMBON_Type2TypeConn <- plotConnectivityMatrix(MBON_nonCXnonMBON_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
+print(plotMBON_nonCXnonMBON_Type2TypeConn)
+```
+
+```{r}
+# Plot neuron to neuron connection matrix from MBON non-CX non-MBON targets to their targets in the CX
+MBON_nonCXnonMBON_2ndaryCX_ConnTable <- MBON_2ndaryPostConnections %>% filter(type.to %in% MBONCX2ndaryTargetsL)
+plotMBON_nonCXnonMBON_2ndaryCX_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_ConnTable,byGroup="id",connectionMeasure="weightRelative")
+print(plotMBON_nonCXnonMBON_2ndaryCX_ConnTable)
+```
+
+```{r}
+# Plot type to type connection matrix from MBON non-CX non-MBON targets to their targets in the CX
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_2ndaryCX_ConnTable)
+# Filter the table by weightRelative
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab  %>% filter(weightRelative > 0.01)
+# Exclude connections to self types
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab %>% filter(type.from != type.to)
+
+plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
+print(plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab)
+```
+
+```{r}
+# Filter MBON_nonCXnonMBON_Type2TypeTab based on type.to with direct connections in the CX
+MBON_nonCXnonMBONwCX2ndT_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab %>% filter(type.to %in% unique(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.from))
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab %>% filter(type.from %in% unique(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab$type.to))
+
+# Plot pathways from MBONs to non-CX non-MBON targets to secondary CX targets
+# Combine tables
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboTab <- bind_rows(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab,MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab, .id = NULL)
+
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab$type.from)), unique(as.vector(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.from)),
+                  unique(as.vector(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.to))))
+numTypes <- length(types)
+numMBONs <- length(unique(as.vector(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab$type.from)))
+numMidNodes <- length(unique(as.vector(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.from)))
+numCXtargets <- length(unique(as.vector(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.to)))
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
+                      y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
+
+# Graph the TypeToType ConnTable using the lookupTable
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath <- graphConTab_old(MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboTab,xyLookup,FALSE,TRUE)
+MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath + scale_y_reverse()
+# print(MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath)
+ggsave("MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath.svg", plot=MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath, device="svg", path=PlotDir, scale=1, 
+       width=30, height=45, units="in", dpi=300, limitsize=FALSE)
+
+```
+
 
 ```{r}
 MBON2ndaryCXTargetTypes <- unique(as.vector(MBON2ndaryTargetInp$databaseType.to))
