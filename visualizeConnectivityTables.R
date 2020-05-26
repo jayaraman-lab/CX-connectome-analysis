@@ -33,6 +33,8 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
     conmatPlot =  conmatPlot + geom_tile(aes(name.to,name.from,fill=plotWeight))
   } else if(byGroup == "id"){
     conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
+  } else if(byGroup == "id_sort"){
+    conmatPlot =  conmatPlot + geom_tile(aes(nameOrder.to,nameOrder.from,fill=plotWeight))
   } else if(byGroup == "type"){
     conmatPlot =  conmatPlot + geom_tile(aes(type.to,type.from,fill=plotWeight))
   } else if(byGroup == "Glom_to_Col"){
@@ -64,6 +66,19 @@ structureMatrixPlotByType = function(conmatPlot){
     theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
           strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) +
     facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both")
+  return(conmatPlot)
+}
+
+structureMatrixPlotByType_lines = function(conmatPlot){
+  conmatPlot = conmatPlot +
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+    theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+          strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+          strip.text.y.left = element_text(angle = 0),
+          strip.text.x.bottom = element_text(angle = 90),
+          strip.background = element_blank(), #remove background for facet labels
+          panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add black border
+          panel.spacing = unit(0.1, "lines")) #remove space between facets
   return(conmatPlot)
 }
 
