@@ -1,0 +1,303 @@
+---
+title: "Tools for analysing connectivity between neurons within a region"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+options(nat.plotengine = 'rgl')
+
+neuprint_login()
+```
+
+```{r, messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("visualizeConnectivityTables.R")
+
+# To be able to use ? for accessing doc strings in custom functions, please install the "docstring" package. Alternatively use docstring(function)
+#library(docstring)
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
+```{r}
+ROI = "BU"
+slctROI ="BU(R)"# "EB"#LAL(-GA)
+
+splitLR = FALSE
+
+saveName = paste0("TB2RN_",slctROI) #RN_TB_ExR #RN_ExR_col_in_
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+useCuratedListPost = FALSE#
+useCuratedListPre = FALSE#
+curatedList = paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",ROI,"/",ROI,"_Types.RData")
+
+#only relevant if one of the above is false:
+useCustomPostSelection = TRUE
+useCustomPreSelection = TRUE#FALSE#
+
+if(!useCustomPostSelection | !useCustomPreSelection){
+  if(splitLR){
+    roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
+  }else{
+    roiTable = getTypesInRoiTable(slctROI,lateralize = FALSE,minTypePercentage = 0.5)
+  }
+}
+```
+
+
+***Selection of neurons***
+```{r}
+# POST
+
+if (useCuratedListPost) {
+  # load list
+  load(curatedList)
+  
+  # select neurons from there
+  postNeuron = get(paste0(ROI,"_Type"))
+  postNeuron <- gsub("\\(.*\\)", "", postNeuron)
+  postName = paste0(ROI, " neurons")
+  
+  postIDs = getBodyIdsForList(postNeuron, field="type")
+  
+} else{
+  if(useCustomPostSelection){
+    postNeuron = c("ER1","ER2","ER3","ER4","ER5","ER6")
+    postNeuron = paste0(postNeuron,".*")
+    #c("R1","R2","R3","R4","R5","R6", "EL","EPG","EPGt","PEG","PEN_a","PEN_b","ExR")
+    #c("R1","R2","R3","R4","R5","R6")
+    #c("EL", "ExR", "PEG","AVM08n","EPG")
+    #c("ExR.*","PDM21a.*","TuBu.*","R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
+    #c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")#
+    #, "ExR","EPG","EL","EPGt","PEG","PEN","PEN") #c("PDM21a.*","TuBu.*", "TuTuB.*")# 
+    # c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*", "ExR.*")
+    postName = paste0("RN in ",slctROI) #RN, columnar and ExR
+    postIDs = getBodyIdsForList(postNeuron)
+  }else{
+    postName = paste0("all in ", ROI)
+    postIDs = roiTable$names
+  }
+}
+
+# PRE
+if (useCuratedListPre) {
+  # load list
+  load(curatedList)
+  
+  # select neurons from there
+  preNeuron = get(paste0(ROI,"_Type"))
+  preNeuron <- gsub("\\(.*\\)", "", preNeuron)
+  preIDs = getBodyIdsForList(preNeuron, field="type")
+  preName = paste0(ROI, "neurons")
+
+} else{
+  if(useCustomPreSelection){
+    preNeuron = c("TuBu.*") # postNeuron #c("TuBu.*")#
+    preName = paste0("TB in ",slctROI) # postName#
+    preIDs = getBodyIdsForList(preNeuron)
+  }else{
+    preName = paste0("all in ", ROI)
+    preIDs = roiTable$names
+  }
+}
+```
+
+### Get connectivity table
+```{r, warning=FALSE}
+myConnections = getConnectionTable(preIDs$bodyid, "POST", slctROI)
+myConnections = myConnections %>% filter(to %in% postIDs$bodyid) 
+  
+write.csv(myConnections, paste0("../neuprintR_analysis_plots/connectivityTable_",saveName,'_byid.csv'), row.names = FALSE)
+```
+
+```{r}
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  myConnections = lateralize_types(myConnections, postfix="to")
+  myConnections = lateralize_types(myConnections, postfix="from")
+  typesTable = lateralize_types(typesTable, postfix="raw")
+}
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+
+#ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.from)) + 
+  #geom_label(aes(label=as.character(type.to)), position = "nudge") + 
+#  geom_point()
+#ggplot(data= myConnectionsT2T, aes(x = n_targets, y = varWeight, color=type.to)) + 
+  #geom_label(aes(label=as.character(type.to)), position = "nudge") + 
+#  geom_point()
+
+```
+
+```{r}
+library(igraph)
+myConnections_nameid = myConnections %>% mutate(typeid.to = paste(type.to, to,sep="_"),
+                                                typeid.from = paste(type.from, from, sep="_"))
+edge_list <- myConnections_nameid[c("from","to","weightRelative")]
+#[c("typeid.from","typeid.to","weightRelative")]
+G <- graph.data.frame(edge_list,directed=TRUE);
+A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative")
+```
+
+
+### Connectivity matrix
+```{r}
+source("visualizeConnectivityTables.R")
+
+plotW = 16#25# 45 # 20
+plotH = 10 #4 #40  #17
+cmax = NULL
+connectionMeasures = c("weightRelative")#,"weight")
+
+for (connectionMeasure in connectionMeasures){
+  
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  #conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "name", connectionMeasure,cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  #conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  #ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byName.pdf', sep=''), 
+  #  plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  #  scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+  print(conMatPlot)
+  ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 2, width = plotW , height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+
+
+```{r}
+# Get these orders from sorting matrix in python (will implement this in R later (see below))
+xcol_order = c("1201615899","1200942353","1139516013","1108459071","1169576040","1108166986","1108485790","1046735096","5812986870","1140189329","1140240894","1077778701","5813013678","1200610109","1171910380","1200273581","1140534972","5813014029","1140872223","1077459090","5813069696","1077778869","1077752379","1141213129","1298804357","5812987236","1015385741","1108152508","1140862679","954679716","1077783627","5812986547","1015700298","5813016915","1139515440","1077434447","1139524692","1046726261","1140517447","1109158650","1233281209","5812986876","1141195327","1169898618","1078443080","1077459077","1201624330","1110868515","1171902272","1232979445","1047426385","1167563540","1171613107","1201961255","1170857299","1200605580","5813065506","1140508414","1229633648","1105839176","1171207096","1078447660","1232983358","1171954356","1110173824","1109478369","5812979232","1171613286","1200290859","1202241942","1110164795","1198257581","1230712894","1322474586","1260327246","5813020409","1167567702","1198931241","1291780675","5812984024","1137219365","1230738237","1261432158","1261768913","1199625952","1261423507","1229288307","1261768880","1261756007","5813053983","1231066732","5813020453","1261768859","1261432168","5813047647","5813048896","5813020568","1292794996","1261427885","1261773286","1262101350","1324430237","1262114112","1261423534","5813020455","1355810793","1261773414","1262105630","1261436508","5813053988","5812979230","1262105637","5813077556","1168249921","1323156554","1230319275","1262114202","1292816565","1262105575","1261423454","1293136062","1292803650","1198943369","1168923315","1229369776","1230742517","1261086756","1167563121","1261419142","1168241257","1260754053","1167895489","1261000309","1261760414","1167295916","1167632513","1261427765","1262114188","1261773304","5812979222","5812979604","1291435776","1261423444","1513674176","1260400286","1261086734","5813050767","1198326456","1292847181","5813053866","1167645442","1292807819","1198693217","1229965474","1261436305","1322811240","1291366237","1106180107","1230738247","1324145475","1230324385","1231066662","1167904437","1137210821","1167300154","1136861363","1199289203","1167891559","1105834722","1261423370","5813020585","1230742552","1230712956","1167645658","1167300194","1292121433","1167896065","1167304403","1261760187","1292466818","5812983734","1047421689","1109163019","1170865953")
+
+ycol_order = c("1230742517","1230742552","1231066662","1291780675","1262114188","1262114112","1262105630","1261768913","5812984024","1261773286","1292794996","1262105637","1292807819","1262105575","1261760414","1262101350","1355810793","1292803650","1291435776","1293136062","1262114202","1324430237","1292816565","5812983734","5813020568","1322811240","1167645658","1261086734","1261756007","1261436508","1261086756","1199289203","1260400286","1261773304","1261423507","1229288307","1261423444","5813053983","5813020585","1261760187","1230319275","1292847181","5812979230","1261419142","1167632513","1199625952","1167304403","1261436305","1261000309","1261423454","5812979222","1167300194","1292121433","1260754053","1198931241","1292466818","1261432168","1261432158","1261423534","1261427765","1260327246","1261768859","1261773414","1167295916","1261768880","1261423370","1323156554","1291366237","1167645442","1136861363","1261427885","1230324385","1167300154","5813050767","1167563121","5813020409","1198326456","1198943369","1198693217","5813047647","1167896065","5813053866","1167895489","1137210821","5813020455","1105834722","5813053988","1513674176","1167567702","1322474586","1167904437","1168241257","1198257581","1106180107","1229965474","1229369776","5813077556","5813048896","1324145475","1137219365","1168923315","1167891559","1168249921","5813013678","1077459077","1077459090","1170857299","1169898618","1171910380","5812987236","1140240894","1200942353","1201615899","1077778701","5813014029","1109163019","1140534972","5813016915","5812986547","1078443080","1078447660","1169576040","1141195327","1109158650","5813069696","1105839176","1170865953","1232983358","5812986876","5813065506","1171613107","1233281209","1202241942","1077783627","1201961255","1077434447","5812986870","1140517447","1200273581","1139516013","1201624330","1298804357","1167563540","1015385741","1140189329","1110868515","1141213129","1108166986","1171954356","1110164795","1171207096","1229633648","1108485790","1171902272","1140862679","1140872223","1110173824","1108152508","1232979445","1109478369","1108459071","1171613286","1139515440","1200605580","954679716","1140508414","5812979232","1077778869","1139524692","1200290859","1077752379","1015700298","1200610109","1046726261","1047421689","1046735096","1047426385","5812979604","1230712956","1230712894","1231066732","5813020453","1230738237","1230738247")
+
+xcol_types = neuprint_get_meta(xcol_order)["type"] %>% mutate(id = xcol_order)
+ycol_types = neuprint_get_meta(ycol_order)["type"] %>% mutate(id = ycol_order)
+
+xcol_filter = subset(xcol_types,  grepl("TuBu", type))
+ycol_filter = subset(ycol_types,  grepl("ER", type))
+```
+
+
+```{r}
+myConTab = myConnections
+myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
+myConTab$nameid.to = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
+    
+x_orderDF = data.frame(xorder = seq(1, length(xcol_filter$id)), xid=as.numeric(xcol_filter$id))
+y_orderDF = data.frame(yorder = seq(1, length(ycol_filter$id)), yid=as.numeric(ycol_filter$id))
+myConTab_order = left_join(myConTab,x_orderDF, by=c("from" ="xid"))
+myConTab_order = left_join(myConTab_order,y_orderDF, by=c("to" = "yid"))
+myConTab_order$nameOrder.to = paste(as.character(myConTab_order$yorder),as.character(myConTab_order$to), sep = "_")
+myConTab_order$nameOrder.from = paste(as.character(myConTab_order$xorder), as.character(myConTab_order$from), sep = "_")
+```
+
+```{r}
+source("visualizeConnectivityTables.R")
+
+conMatPlot = plotConnectivityMatrix(myConTab_order, byGroup = "id_sort", "weightRelative", cmax)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+print(conMatPlot)
+  
+ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID_ordered.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 2, width = 16 , height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+```{r}
+library(reshape2)
+
+myConMat = dcast(myConTab %>% select(c(nameid.to,nameid.from, weightRelative)),nameid.to ~ nameid.from)
+myConMat[is.na(myConMat)] <- 0
+
+myConMat = data.matrix(myConMat)[,-1]
+
+image(myConMat)
+```
+
+```{r}
+cart2pol <- function(x, y)
+{
+  r <- sqrt(x^2 + y^2)
+  t <- atan(y/x)
+
+  c(r,t)
+}
+
+dec = svd(myConMat - mean(myConMat))
+U = dec$u
+s = dec$d
+V = dec$v
+
+rec_thi = seq(1, length(U[,0]))
+rec_thi = cart2pol(U[,0],U[,1])["t"]
+
+rec_thj = seq(1, length(V[,0]))
+rec_thj = cart2pol(V[,0],V[,1])["t"]
+
+idx_i = order(rec_thi)
+idx_j = order(rec_thj)
+
+Mo = myConMat[idx_i,]
+Mo = Mo[,idx_j]
+```
+
+
+```{r}
+
+
+Areordered = A[xcol_order,]
+Areordered = Areordered[,ycol_order]
+
+# filter
+Areordered = Areordered[match(xcol_filter$id,xcol_order),]
+Areordered = Areordered[,match(ycol_filter$id,ycol_order)]
+
+image(Areordered)
+```
+
