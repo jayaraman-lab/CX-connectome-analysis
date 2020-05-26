@@ -31,8 +31,8 @@ Choose ROI and get curated list of neurons
 myROI = "BU(R)"
 #load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("RN_in_", myROI)
-my_types = c("R1","R2","R3","R4","R5","R6")#c("TuBu")# 
+saveName = paste0("TB_in_", myROI)
+my_types = c("TuBu")# c("ER1","ER2","ER3","ER4","ER5","ER6")# #
 my_types = paste0(my_types, ".*")
 cmapName = "colorMap_RingNeurons"#"colorMap_TuBus"#
 
@@ -147,10 +147,11 @@ mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubty
 
 3D plot
 ```{r}
-partnerSubset = getBodyIdsForList(paste0(c("TuBu"),".*")) # "R1", "R2","R3","R4", "R5", "R6""
-data = dataFilt %>% filter(partnerType %in% partnerSubset$type) %>% filter(type %in% c("R4d"))
+partnerSubset = getBodyIdsForList(paste0(c("ER"),".*")) #  "TuBu", "ER"
+focustype = "TuBu06" #"ER5"
+data = dataFilt %>% filter(partnerType %in% partnerSubset$type) %>% filter(type %in% c(focustype))
 
-mycols = paletteer_d("Polychrome::palette36")
+mycols = paletteer_d("Polychrome::palette36")[-2]
 myids = unique(data$id)
 
 nclear3d()
@@ -161,6 +162,45 @@ for (i in seq(length(myids))){
 }
 decorate3d(box=FALSE)
 ```
+
+Plot a slice
+```{r}
+library(gridExtra)
+
+xrange = c(-1500, 1000)
+yrange = c(-500, 1500)
+zrange = c(-800, 400)
+
+toplot_2D = data %>% filter(x >= xrange[1] & x < xrange[2] ) %>%  filter(y >= yrange[1] & y < yrange[2] ) %>% 
+  filter(z >= zrange[1] & z < zrange[2] ) %>% mutate(id = as.character(id)) %>% select(c('x','y','z', 'id'))
+
+colPal = paletteer_d("colRoz::salt_lake")
+  # warm:paletteer_c("grDevices::Heat 2", n=length(unique(toplot_2D$id)))
+  #cool: paletteer_d("colRoz::salt_lake")
+  #polychrome: paletteer_d("Polychrome::palette36")[-2]
+
+xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=1)) + 
+  geom_point(data=toplot_2D %>% group_by(id) %>% summarize_each(mean), aes(x=x, y=y, color=id, size=2)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+  coord_fixed() + theme_classic() + guides(size=FALSE)
+
+# take a slice in z and only plot points from neurons with > nsyn synapses in slice
+nsyn =  40
+xrange_slice = c(-300, 300)
+toplot_slice = toplot_2D %>% filter(x >= xrange_slice[1] & x < xrange_slice[2] )
+idfilt = toplot_slice %>%  count(id) %>% filter(n>=nsyn)
+
+zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z, y=y, color=id, size=1)) + 
+  geom_point(data=toplot_slice %>% filter(id %in% idfilt$id) %>% group_by(id) %>% summarize_each(mean), aes(x=z,y=y, color=id, size=2)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+  coord_fixed() +theme_classic() + guides(size=FALSE)
+
+projPlot <- grid.arrange(xyproj,zyproj, nrow=1)
+
+ggsave(paste("synapseDistributions_",saveName,'_',focustype,'_projection.pdf', sep=''), plot = projPlot, device='pdf',
+        path = "../neuprintR_analysis_plots/", scale = 1, width = 25, height = 8, units ="cm", dpi = 600, useDingbats=FALSE)
+```
+
 
 ```{r}
 synRelDist = dataFilt %>% group_by(id) %>% filter(partnerType %in% partnerSubset$type) %>%
