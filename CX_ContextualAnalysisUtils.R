@@ -4,7 +4,6 @@
 
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
-  
   # Get the table of nodes (types)
   nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
   nodes$superType <- nodes$name %>% as.character %>% supertype()
@@ -20,7 +19,6 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   } else {
     sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
   }
-  
   sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
   
   # Get the edges from the connection table
@@ -40,7 +38,6 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Plot the network
   graph <- tbl_graph(nodes,edges_Mean)
-  
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
     geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.25,
@@ -64,7 +61,6 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
 
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
-  
   # Get the table of nodes (types)
   nodes = data.frame(name = xyLookup$type)
   nodes$superType <- nodes$name %>% as.character %>% supertype()
@@ -99,7 +95,6 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Plot the network
   graph <- tbl_graph(nodes,edges_Mean)
-  
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
     #geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
@@ -123,43 +118,65 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
 }
 
 # Modified example code from DanTE
-plotOutputCorrMat <- function(){
-  # Get the FBt downstream partners
-  FBTypes <- neuprint_search("FB.*")$type %>% unique()
-  FBTypes <- FBTypes[which(!is.na(FBTypes))]
-  # Pull the connection table of postsynaptic partners for the FB tangential cells
-  FBConnTab <- getConnectionTable(getTypesTable(FBTypes)$bodyid,"POST","FB")
-  # Convert the connection table to a type to type table. type.from: FB tangential. type.to: their postsynaptic partners in the FB
-  FBCT_T2T <- getTypeToTypeTable(FBConnTab)
-  
-  # Cluster the FB tangential cells by common inputs
+# Cluster connection matrix by the correlation of the weightRelative connectivity to targets and the inverse (clustering targets based on their inputs)
+plotCorrMatCluster <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   library(reshape2)
   # Select only the relevant columns
-  Data4Clust <- FBCT_T2T %>% select(type.from,type.to,weightRelative)
+  Data4Clust <- Type2TypeConnTab %>% select(type.from,type.to,weightRelative)
+  
   # Recast it into a matrix
-  Data4Clust <- dcast(Data4Clust,type.from~type.to) # converts into a matrix. rows are type.from, columns are type.to (first column is the type.from names), values are weightRelative
-  Data4Clust[is.na(Data4Clust)] <- 0 # populate non-connection with 0
-  rownames(Data4Clust) <- Data4Clust$type.from # set type.from names as rownames
+  Data4Clust <- dcast(Data4Clust,type.from~type.to) # rows are type.from, columns are type.to except the first column has the type.from names, values are weightRelative
+  Data4Clust[is.na(Data4Clust)] <- 0
+  rownames(Data4Clust) <- Data4Clust$type.from
   Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1)) # chop off the first column
   
-  # Calculate the dissimilarity matrix
-  Data4Clust <- scale(Data4Clust) # normalize and center the columns
-  d <- dist(t(Data4Clust), method = "euclidean") # compute distance matrix across the rows of the input matrix, so need to transpose the original matrix to compute aross its columns
-  # Perform hierarchical clustering
-  hc <- hclust(d, method = "ward.D2" ) # can play around a little
+  # Plot the correlation matrix among type.to; Cluster and rearrange the Type2TypeConnTab
+  Type2TypeConnTab_HCbyTo <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,Data4Clust,'type.to')
+
+  # Plot the correlation matrix among type.from; Cluster and rearrange the Type2TypeConnTab
+  Data4Clust <- t(Data4Clust) # transpose Data4Clust to plot correlations between type.from
+  Type2TypeConnTab_HCbyFrom <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,Data4Clust,'type.from')
   
-  # Order the FB tangential cells' targets according to their clustering
-  FBCT_T2T$type.to <- factor(FBCT_T2T$type.to, levels = hc$labels[hc$order]) #factorize type.to according to the hc$order; also rearrange the rows of FBCT_T2T?
-  # Pull out the reordered matrix
-  Data4Corr <- dcast(FBCT_T2T %>% select(type.from,type.to,weightRelative),type.from~type.to)
-  Data4Corr[is.na(Data4Corr)] <- 0
-  rownames(Data4Corr) <- Data4Corr$type.from
-  Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1)) # chop off the first column
-  
-  # Plot the correlation matrix
-  library(corrplot)
-  corrplot(cor(Data4Corr)) # plot the correlation matrix grouped by columns of the input matrix
+  return(list(Type2TypeConnTab_HCbyFrom,Type2TypeConnTab_HCbyTo))
 }
+
+plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,Data4Clust,clusterBy){
+  # Plot the correlation matrix among the clusterBy types
+  library(corrplot)
+  postscript(file = paste(PlotDir,"/",Type2TypeConnTabName,"_corrPlotBy",clusterBy,".eps",sep=""),width=24,height=24)
+  corrplot(cor(Data4Clust), order="hclust", hclust.method="ward.D2", tl.cex=0.25, tl.col="black") # cor computes the correlation matrix between the columns of the input matrix
+  dev.off()
+  
+  # Calculate the dissimilarity matrix based on the clusterBy types
+  Data4ClustSc <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
+  d <- dist(t(Data4ClustSc), method = "euclidean") # compute the distance matrix between rows (clusterBy types)
+  # Perform hierarchical clustering and plot the dendrogram
+  hc <- hclust(d, method = "ward.D2" )
+  dend1 <- as.dendrogram(hc)
+  postscript(file = paste(PlotDir,"/",Type2TypeConnTabName,"_clusterBy",clusterBy,".eps",sep=""),width=36,height=24)
+  plot(dend1,lab.cex=0.25)
+  dev.off()
+  
+  # Order the Type2TypeConnTab according to the clustering of the clusterBy types
+  Type2TypeConnTab_hc <- Type2TypeConnTab
+  Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[,clusterBy], levels = hc$labels[hc$order], ordered=TRUE)
+  Type2TypeConnTab_hc <- arrange(Type2TypeConnTab_hc,clusterBy)
+  
+  # Plot and save the Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative"
+  plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
+  print(plotType2TypeConnTab_hc)
+  ggsave(paste(PlotDir,"/",Type2TypeConnTabName,"_connMat_clusterBy",clusterBy,".eps",sep=""), plot=plotType2TypeConnTab_hc, device="eps", path=PlotDir, scale=1, 
+         width=24, height=16, units="in", dpi=300, limitsize=FALSE)
+  
+  return(Type2TypeConnTab_hc)
+}
+
+
+
+
+
+
+
 
 # From DanTE: Function to plot a dendrogram
 dendPlot <- function(hc,rotate){
