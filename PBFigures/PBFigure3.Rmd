@@ -1,0 +1,336 @@
+---
+title: "PB Figure 3"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(ggnewscale)
+library(gridExtra)
+
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
+```
+
+Specify plotting text sizes
+```{r}
+tickLabSz <- 6
+axLabSz <- 8
+legSz <- 6
+legTitSz <- 8
+pltTit <- 8
+
+theme_set(theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz),
+      plot.title = element_text(size = pltTit)))
+
+```
+
+Get the connection tables from EPGs, D7s, IBSpsP, and SpsP Neurons to other FB types
+```{r}
+nronTypes <- c("EPG","Delta7","IbSpsP","SpsP",
+               "PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3")
+ROI = "PB"
+  
+# Get the connection tables
+conTab <- getConnectionTable(getTypesTable(nronTypes)$bodyid,
+                             "POST",ROI) %>% filter(type.to %in% nronTypes)
+
+conTab$nameid <- PBRename(conTab$name.from,conTab$from)
+conTab$partnerid <- PBRename(conTab$name.to,conTab$to)
+
+conmatPlot <- ggplot(conTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab$weightRelative),
+                       limits=c(0,max(conTab$weightRelative))) +
+  geom_tile(aes(partnerid,nameid,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+print(conmatPlot)
+```
+
+```{r}
+typeToType <- getTypeToTypeTable(conTab)
+
+plt_order = c("Delta7","EPG","IbSpsP", "PEN_a(PEN1)","PEN_b(PEN2)","PEG","PFGs",
+              "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+              "PFL1","PFL2","PFL3","PFR_a","PFR_b","SpsP")
+typeToType$type.from <- factor(typeToType$type.from,levels=plt_order)
+typeToType$type.to <- factor(typeToType$type.to,levels=plt_order)
+
+conmatPlot_T2T <- ggplot(typeToType %>% filter(type.from != "PFR_b")) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(typeToType$weightRelative),
+                       limits=c(0,max(typeToType$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_minimal() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("post-synaptic type") + ylab("pre-synaptic type") +
+  geom_hline(yintercept = 0.5) + geom_hline(yintercept = 3.5) + geom_hline(yintercept = 5.5) +
+  geom_vline(xintercept = 0.5) + geom_vline(xintercept = 3.5) + geom_vline(xintercept = 23.5) 
+
+print(conmatPlot_T2T)
+```
+
+```{r}
+conmatPlot_T2T
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PBTypeToType.pdf',conmatPlot_T2T)
+```
+
+Look at PFNv connectivity in the FB
+```{r}
+nronTypes <- c("PFNv")
+ROI = "CX"
+  
+# Get the connection tables
+conTab_PFNv_PRE <- getConnectionTable(getTypesTable(nronTypes)$bodyid,"PRE",ROI)
+
+typeToType_PFNv_PRE <- getTypeToTypeTable(conTab_PFNv_PRE)
+
+plt_order = c("Delta7","EPG","IbSpsP","LPsP","ExR5","OA-VPM3","FB1H","FB4B","FB4M","PFR_b","LNO2","LNO3","PFNv")
+typeToType_PFNv_PRE$type.from = factor(typeToType_PFNv_PRE$type.from, levels = plt_order)
+
+conmatPlot_PFNv <- ggplot(typeToType_PFNv_PRE %>% filter(type.from != "PFR_b")) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*max(typeToType_PFNv_PRE$weightRelative),
+                       limits=c(0,max(typeToType_PFNv_PRE$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+conmatPlot_PFNv
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PFNvInputs.pdf',conmatPlot_PFNv)
+```
+
+Create a Hanesch plot showing where the IbSpsP neurons get their input
+```{r}
+
+IbSpsPs <- getTypesTable("IbSpsP")
+#IbSpsPs[which(IbSpsPs$cellBodyFiber == 'PDM21'),]$type = "IbSpsP_R"
+#IbSpsPs[which(grepl('_R',IbSpsPs$name)),]$type = "IbSpsP_R"
+#IbSpsPs[which(is.na(IbSpsPs$cellBodyFiber)),]$type = "IbSpsP_L"
+#IbSpsPs[which(grepl('_L',IbSpsPs$name)),]$type = "IbSpsP_L"
+
+ISP_ins <- getROISummary(IbSpsPs)
+
+IbSpsP_in_ROIs <- haneschPlot(ISP_ins)
+
+IbSpsP_in_ROIs
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\IbSpsPIns.pdf',IbSpsP_in_ROIs)
+```
+
+Compare EPG inputs and outputs to EPGt ins and outs
+
+Get the total number of input and output synapses by roi
+```{r}
+EPG_ROIs <- neuprint_get_roiInfo(getTypesTable(c("EPG","EPGt"))$bodyid)
+```
+
+Plot the relative number of input synapses
+```{r}
+EPG_inputROIs <- EPG_ROIs %>% select(bodyid,PB.upstream,EB.upstream,`LAL(R).upstream`)
+EPG_inputROIs[is.na(EPG_inputROIs)] <- 0
+colnames(EPG_inputROIs) <- c("bodyid","PB","EB","LAL")
+EPG_inputROIs <- melt(EPG_inputROIs,id.vars='bodyid',value.name='syns',variable.name = 'ROI')
+EPG_inputROIs <- EPG_inputROIs %>% mutate(type = neuprint_get_meta(bodyid)$type,
+                                          name = neuprint_get_meta(bodyid)$name)
+EPG_inputROIs$nameid <- PBRename(EPG_inputROIs$name,EPG_inputROIs$bodyid)
+EPG_inputROIs$ROI <- factor(EPG_inputROIs$ROI,levels = c("EB","PB","LAL"))
+
+relEPGInputs <- ggplot(EPG_inputROIs,aes(color=as.factor(type),y=syns,x=ROI)) +
+  geom_point(position=position_jitterdodge(dodge.width=0.4),alpha=0.5,size=3) +
+  theme_cowplot() + scale_y_continuous(expand = c(0, 0)) + 
+  ylab("pre-synapses")
+relEPGInputs
+```
+
+Plot the relative number of output synapses
+```{r}
+EPG_outputROIs <- EPG_ROIs %>% select(bodyid,PB.downstream,EB.downstream,`LAL(R).downstream`)
+EPG_outputROIs[is.na(EPG_outputROIs)] <- 0
+colnames(EPG_outputROIs) <- c("bodyid","PB","EB","LAL")
+EPG_outputROIs <- melt(EPG_outputROIs,id.vars='bodyid',value.name='syns',variable.name = 'ROI')
+EPG_outputROIs <- EPG_outputROIs %>% mutate(type = neuprint_get_meta(bodyid)$type,
+                                          name = neuprint_get_meta(bodyid)$name)
+EPG_outputROIs$nameid <- PBRename(EPG_outputROIs$name,EPG_outputROIs$bodyid)
+EPG_outputROIs$ROI <- factor(EPG_outputROIs$ROI,levels = c("EB","PB","LAL"))
+
+relEPGOutputs <- ggplot(EPG_outputROIs,aes(color=as.factor(type),y=syns,x=ROI)) +
+  geom_point(position=position_jitterdodge(dodge.width=0.4),alpha=0.5,size=3) +
+  theme_cowplot() + scale_y_continuous(expand = c(0, 0)) + 
+  ylab("post-synapses")
+relEPGOutputs
+```
+
+Plot the EPGt connection table in the EB
+```{r}
+EPGt_CT_EB <- getConnectionTable(getTypesTable(c("EPGt"))$bodyid,"PRE","EB")
+EPGt_CT_EB$id.from <- PBRename(EPGt_CT_EB$name.from, EPGt_CT_EB$from)
+EPGt_CT_EB$id.to <- PBRename(EPGt_CT_EB$name.to, EPGt_CT_EB$to)
+
+conmatPlot_EPGt_EB <- ggplot(EPGt_CT_EB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(EPGt_CT_EB$weightRelative),
+                       limits=c(0,max(EPGt_CT_EB$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+print(conmatPlot_EPGt_EB)
+```
+
+Compare the EPG and EPGt connections in the PB - inputs
+```{r}
+EPGt_CT_PB_PRE <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"PRE","PB")
+EPGt_CT_PB_PRE <- EPGt_CT_PB_PRE %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+EPGt_T2T_PB_PRE <- getTypeToTypeTable(EPGt_CT_PB_PRE)
+
+T2TPlot_EPGt_PB_PRE <- ggplot(EPGt_T2T_PB_PRE) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(EPGt_T2T_PB_PRE$weightRelative),
+                       limits=c(0,max(EPGt_T2T_PB_PRE$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic type") + ylab("post-synaptic type")
+
+print(T2TPlot_EPGt_PB_PRE)
+```
+
+Compare the EPG and EPGt connections in the PB - outputs
+```{r}
+EPGt_CT_PB_POST <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"POST","PB")
+EPGt_CT_PB_POST <- EPGt_CT_PB_POST %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+EPGt_CT_PB_POST$id.from <- PBRename(EPGt_CT_PB_POST$name.from, EPGt_CT_PB_POST$from)
+EPGt_CT_PB_POST$id.to <- PBRename(EPGt_CT_PB_POST$name.to, EPGt_CT_PB_POST$to)
+
+conmatPlot_EPGt_PB_POST <- ggplot(EPGt_CT_PB_POST %>% filter(type.to %in% c('EPG','PFR_a','PFR_b'))) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(EPGt_CT_PB_POST$weightRelative),
+                       limits=c(0,max(EPGt_CT_PB_POST$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+print(conmatPlot_EPGt_PB_POST)
+
+EPGt_T2T_PB_POST <- getTypeToTypeTable(EPGt_CT_PB_POST,
+                                  pThresh=0.1)
+
+T2TPlot_EPGt_PB_POST <- ggplot(EPGt_T2T_PB_POST) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(EPGt_T2T_PB_POST$weightRelative),
+                       limits=c(0,max(EPGt_T2T_PB_POST$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic type") + ylab("post-synaptic type")
+
+print(T2TPlot_EPGt_PB_POST)
+
+```
+
+Combine the plots
+```{r}
+pdf('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtOverview1.pdf', width = unit(8,"in"), height = unit(6,"in"))
+grid.arrange(relEPGInputs,relEPGOutputs,T2TPlot_EPGt_PB_POST,
+             layout_matrix = rbind(c(1,2),c(3,3)))
+dev.off()
+
+pdf('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGtOverview2.pdf', width = unit(8,"in"), height = unit(8,"in"))
+grid.arrange(T2TPlot_EPGt_PB_PRE,conmatPlot_EPGt_EB,
+             ncol=2,widths=2:3)
+dev.off()
+```
+
+Create a type-to-type table for P1-9, LPsP
+```{r}
+NM_CT_PB_POST <- getConnectionTable(getTypesTable(c("LPsP","P1-9"))$bodyid,"POST","PB")
+NM_CT_PB_POST <- NM_CT_PB_POST %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+NM_T2T_PB_POST <- getTypeToTypeTable(NM_CT_PB_POST)
+
+T2TPlot_NM_PB_POST <- ggplot(NM_T2T_PB_POST) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(NM_T2T_PB_POST$weightRelative),
+                       limits=c(0,max(NM_T2T_PB_POST$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic type") + ylab("post-synaptic type")
+
+print(T2TPlot_NM_PB_POST)
+```
+
+Create a type-to-type table for Delta7, P6-8P9 - POST
+```{r}
+D7vsP68P9_CT_PB_POST <- getConnectionTable(getTypesTable(c("Delta7","P6-8P9"))$bodyid,"POST","PB")
+D7vsP68P9_CT_PB_POST <- D7vsP68P9_CT_PB_POST %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+P68P9_T2T_PB_POST <- getTypeToTypeTable(D7vsP68P9_CT_PB_POST %>% filter(type.from == "P6-8P9"),
+                                        pThresh=1)
+D7_T2T_PB_POST <- getTypeToTypeTable(D7vsP68P9_CT_PB_POST %>% filter(type.from == "Delta7"))
+D7vsP68P9_T2T_PB_POST <- rbind(P68P9_T2T_PB_POST,D7_T2T_PB_POST)
+
+T2TPlot_D7vsP68P9_PB_POST <- ggplot(D7vsP68P9_T2T_PB_POST) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(D7vsP68P9_T2T_PB_POST$weightRelative),
+                       limits=c(0,max(D7vsP68P9_T2T_PB_POST$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic type") + ylab("post-synaptic type")
+
+print(T2TPlot_D7vsP68P9_PB_POST)
+```
+
+Create a type-to-type table for Delta7, P6-8P9 - PRE
+```{r}
+D7vsP68P9_CT_PB_PRE <- getConnectionTable(getTypesTable(c("Delta7","P6-8P9"))$bodyid,"PRE","PB")
+D7vsP68P9_CT_PB_PRE <- D7vsP68P9_CT_PB_PRE %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+P68P9_T2T_PB_PRE <- getTypeToTypeTable(D7vsP68P9_CT_PB_PRE %>% filter(type.to == "P6-8P9"),
+                                        pThresh=1)
+D7_T2T_PB_PRE <- getTypeToTypeTable(D7vsP68P9_CT_PB_PRE %>% filter(type.to == "Delta7"))
+D7vsP68P9_T2T_PB_PRE <- rbind(P68P9_T2T_PB_PRE,D7_T2T_PB_PRE)
+
+T2TPlot_D7vsP68P9_PB_PRE <- ggplot(D7vsP68P9_T2T_PB_PRE) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(D7vsP68P9_T2T_PB_PRE$weightRelative),
+                       limits=c(0,max(D7vsP68P9_T2T_PB_PRE$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("pre-synaptic type") + ylab("post-synaptic type")
+
+print(T2TPlot_D7vsP68P9_PB_PRE)
+```
+
+Combine in one plot
+```{r}
+pdf('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\OtherInsAndOuts.pdf', width = unit(8,"in"), height = unit(8,"in"))
+grid.arrange(T2TPlot_NM_PB_POST,T2TPlot_D7vsP68P9_PB_POST,T2TPlot_D7vsP68P9_PB_PRE,
+             layout_matrix=rbind(c(1,3),c(2,NA)),
+             widths = 3:2)
+dev.off()
+```
+
