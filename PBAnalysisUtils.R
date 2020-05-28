@@ -28,23 +28,27 @@ glomSort <- function(names){
 PBRename <- function(name,id){
   
   # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
-  name = paste0(name %>% as.character() %>% sapply(function(n){strsplit(n,"\\(")[[1]][1]}) %>% as.character(),
-                name %>% as.character() %>% sapply(function(n){strsplit(n,"\\)")[[1]][2]}) %>% as.character())
-  nameid = paste(name, as.character(id), sep='-')
+  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
+  name  <- gsub("PEN_a","PEN1",as.character(name))
+  name  <- gsub("PEN_b","PEN2",as.character(name))
+  nameid <- paste(name, as.character(id), sep='-')
   
   # Extract the unique names and types
   allNames = nameid %>% unique() %>% sort()
+  nameLabels = name %>% unique() %>% sort()
   types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
   types = gsub("([\\(\\)])", "\\\\\\1",types)
   
   # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
   newNames = c()
   for (tp in 1:length(types)){
-    nmOrder <- allNames[which(grepl(paste0(types[tp],"_"),allNames))] %>% glomSort()
-    nms <- nmOrder %>% sapply(function(n){strsplit(n,"-")[[1]][1]}) %>% unique()
+    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
+      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% glomSort()
+    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% glomSort()
+    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
     for (n in 1:length(nms)){
       nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
-      nmsNow <- paste(nmsNow %>% sapply(function(x){strsplit(x,"-")[[1]][1]}),seq(1:length(nmsNow)),sep='-')
+      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
       nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
     }
     newNames = append(newNames,nmOrder)

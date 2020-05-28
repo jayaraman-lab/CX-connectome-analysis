@@ -733,3 +733,53 @@ graphConTab(P68_CT_T2T,xyLookup,sTCols,FALSE,TRUE) +
         legend.title = element_text(size = legTitSz))
 dev.off()
 ```
+
+
+Look at all PB connections
+```{r}
+PBTypes <-c("Delta7","P6-8P9","P1-9","LPsP","SpsP","EPGt","EPG","IbSpsP","PEN_b(PEN2)","PEN_a(PEN1)","PFNv",paste0("PFNp_",c("e","d","c","b","a")),"PFNm_b","PFNm_a","PFNd","PFNa","PEG","PFGs",paste0("PFL",1:3),"PFR_b","PFR_a")
+
+conTab <- getConnectionTable(getTypesTable(PBTypes)$bodyid,"POST","PB")
+conTab <- conTab %>% filter(!is.na(type.to) & !is.na(name.to))
+  
+conTab$name.to <- factor(conTab$name.to,
+        levels = glomSort(conTab$name.to))
+
+conTab$nameid <- PBRename(conTab$name.from,conTab$from)
+conTab$partnerid <- PBRename(conTab$name.to,conTab$to)
+
+conmatPlot_EPG <- ggplot(conTab %>% filter(type.from == "EPG" & type.to != "Delta7")) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab$ROIweight),
+                       limits=c(0,max(conTab$ROIweight))) +
+  geom_tile(aes(partnerid,nameid,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+print(conmatPlot_EPG)
+
+conmatPlot_PFNv <- ggplot(conTab %>% filter(type.from == "PFNv" & type.to != "Delta7")) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab$ROIweight),
+                       limits=c(0,max(conTab$ROIweight))) +
+  geom_tile(aes(partnerid,nameid,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+print(conmatPlot_PFNv)
+
+conmatPlot_Other <- ggplot(conTab %>% filter(!(type.from %in% c('EPG','Delta7','EPGt','IbSpsP','LPsP','SpsP','P6-8P9','P1-9','PFNv')) &
+                                               type.to != "Delta7")) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab$ROIweight),
+                       limits=c(0,max(conTab$ROIweight))) +
+  geom_tile(aes(partnerid,nameid,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+print(conmatPlot_Other)
+```
+
