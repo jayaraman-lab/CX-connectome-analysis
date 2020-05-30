@@ -160,12 +160,12 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   # Order the Type2TypeConnTab according to the clustering of the clusterBy types
   Type2TypeConnTab_hc <- Type2TypeConnTab
   Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[,clusterBy], levels = hc$labels[hc$order], ordered=TRUE)
-  Type2TypeConnTab_hc <- arrange(Type2TypeConnTab_hc,clusterBy)
+  Type2TypeConnTab_hc <- arrange(Type2TypeConnTab_hc,Type2TypeConnTab_hc[,clusterBy])
   
   # Plot and save the Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative"
   plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
   print(plotType2TypeConnTab_hc)
-  ggsave(paste(PlotDir,"/",Type2TypeConnTabName,"_connMat_clusterBy",clusterBy,".eps",sep=""), plot=plotType2TypeConnTab_hc, device="eps", path=PlotDir, scale=1, 
+  ggsave(paste(Type2TypeConnTabName,"_connMat_clusterBy",clusterBy,".eps",sep=""), plot=plotType2TypeConnTab_hc, device="eps", path=PlotDir, scale=1, 
          width=24, height=16, units="in", dpi=300, limitsize=FALSE)
   
   return(Type2TypeConnTab_hc)
