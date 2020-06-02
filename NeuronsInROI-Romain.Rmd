@@ -36,7 +36,7 @@ EBTypesTable <- cxRetyping(EBTypesTable)
 
 
 ```{r}
-EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
+EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 ```
 
 ```{r}
@@ -227,6 +227,11 @@ PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE)
 ```
 
 ```{r}
+PBTypesTableNonLat <- PBTypesTable
+```
+
+
+```{r}
 PBTypesTable <- cxRetyping(PBTypesTable)
 ```
 
@@ -262,8 +267,19 @@ htmlwidgets::saveWidget(interHaneschPB,paste0(haneschSaveFolder,"PB/PBTypes.html
 save_plot(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,nrow=2,ncol=2.5)
 ```
 
+#### PB glomeruli innervation
+
+```{r}
+PBTypesNonLat <- typesInROI(PBTypesTableNonLat,ROI = "PB")
+```
+
+```{r}
+PBSummaryNonLat <- getROISummary(PBTypesTableNonLat,threshold=0) %>% filter(startsWith(roi,"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
+```
+
 ```{r}
 PBRoisDetailed <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
+PBRoisDetailedOnly <- filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
 ```
 ```{r}
 haneschPBLoc <- haneschPlot(PBSummary %>% filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP")),roiSelect = PBRoisDetailed,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_minimal_grid())
@@ -281,6 +297,40 @@ htmlwidgets::saveWidget(interHaneschPBLoc,paste0(haneschSaveFolder,"PB/PBTypesLo
 ```{r}
 save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal.svg"),haneschPBLoc,nrow=1.5,ncol=1.5)
 ```
+
+
+```{r}
+haneschPBLoc2 <- haneschPlot(PBSummaryNonLat %>% filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","EPGt")),roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_minimal_grid(),regionOutlines = F)
+haneschPBLoc2
+```
+
+```{r}
+interHaneschPBLoc2 <- girafe(ggobj = haneschPBLoc2, width_svg=6,height_svg=6
+  )
+```
+
+```{r}
+htmlwidgets::saveWidget(interHaneschPBLoc2,paste0(haneschSaveFolder,"PB/PBTypesLocal2.html"))
+```
+
+```{r}
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal2.svg"),haneschPBLoc2,nrow=1.5,ncol=1.5)
+```
+
+```{r}
+haneschPBColumn <- haneschPlot(PBSummaryNonLat %>% filter(type %in% PBTypesNonLat$type & !(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","SIFamide","EPGt"))),roiSelect = PBRoisDetailedOnly,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_minimal_grid(),regionOutlines = F)
+haneschPBColumn
+```
+
+```{r}
+haneschPBDetails <- haneschPBLoc2 / haneschPBColumn + plot_layout(guides="collect",heights=c(1,4))
+haneschPBDetails
+```
+```{r}
+save_plot(paste0(haneschSaveFolder,"PB/PBDetails.svg"),haneschPBDetails,nrow=3,ncol=1.5)
+save_plot(paste0(haneschSaveFolder,"PB/PBDetails.png"),haneschPBDetails,nrow=3,ncol=1.5)
+```
+
 
 ```{r}
 load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/PB_Types.RData")

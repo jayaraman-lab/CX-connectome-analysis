@@ -7,6 +7,7 @@ output: html_notebook
 library(neuprintr)
 library(tidyverse)
 library(cowplot)
+library(patchwork)
 library(ggiraph)
 library(neuprintrExtra)
 library(paletteer)
@@ -16,35 +17,25 @@ library(paletteer)
 validationFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/"
 ```
 
+## Helper functions
 
-  
+```{r}
+source("validationFunctions.R")
+```
+
 ## FB Column 3 vs the rest of the FB
 
 Collecting info on neurons innervating that volume.
 ```{r}
-FBC3Neurons <- neuprint_bodies_in_ROI("FB-column3",all_segments = FALSE)
-FBC3Info <- neuprint_get_roiInfo(FBC3Neurons$bodyid,all_segments = FALSE)
+FBC3Neurons <- subroiSet("FB-column3","FB")
 ```
 
+Filter for "really in this region": neurons we're confident belong here. At least 200 synapses and 80% of it's FB synapses in Column3. This is because the type to type quantification, which will be slightly different here, cannot do the job (as we want to normalize "types" to the area)
 ```{r}
-FBC3Meta <- neuprint_get_meta(FBC3Neurons$bodyid,all_segments = FALSE) %>% filter(status=="Traced")
+FBC3Real <- FBC3Neurons %>% filter(upstreamRatio > 0.8 & FB.upstream > 200) 
+FBC3RealOut <- FBC3Neurons %>% filter(downstreamRatio > 0.8 & FB.downstream > 200) 
 ```
 
-```{r}
-FBC3Neurons <- left_join(FBC3Meta,FBC3Info %>% select(bodyid,FB.downstream,FB.upstream,!!as.name("FB-column3.downstream"),!!as.name("FB-column3.upstream")),by = "bodyid") %>% filter(!is.na(type))
-FBC3Neurons[is.na(FBC3Neurons)] <- 0
-FBC3Neurons <- rename(FBC3Neurons,C3.d = !!as.name("FB-column3.downstream"),C3.u = !!as.name("FB-column3.upstream")) %>% mutate(C3.ratio = (C3.d + C3.u)/(FB.upstream+FB.downstream),C3.uRatio=C3.u/FB.upstream,C3.dRatio=C3.d/FB.downstream,databaseType=type)
-FBC3Neurons[is.na(FBC3Neurons)] <- 0
-FBC3Neurons <- supertype(FBC3Neurons)
-```
-
-Filter for "really in this region": neurons we're confident belong here. At least 200 synapses and 90% of it's FB synapses in Column3. This is because the type to type quantification, which will be slightly different here, cannot do the job (as we want to normalize "types" to the area)
-```{r}
-FBC3Real <- FBC3Neurons %>% filter(C3.uRatio > 0.8 & FB.upstream > 200) 
-FBC3RealOut <- FBC3Neurons %>% filter(C3.dRatio > 0.8 & FB.downstream > 200) 
-```
-
-Compare raw synapse counts in the FB for comparison. To be done before/after instead.
 ```{r}
 FBCTypes_In <- getTypesTable(unique(FBC3Real$type))
 FBCTypes_Out <- getTypesTable(unique(FBC3RealOut$type))
@@ -70,15 +61,16 @@ FBC3NeuronsBag <- create_neuronBag(unique(c(FBC3Real$type,FBC3RealOut$type)),fix
 
 Redefine types (different renaming for inputs and outputs)
 ```{r}
-FBC3Set <- unique(FBC3Real$name)
-FBC3OutSet <- unique(FBC3RealOut$name)
-FBCXSet <- unique(FBCXReal$name)
-FBCXOutSet <- unique(FBCXRealOut$name)
+FBC3Set <- unique(FBC3Real$bodyid)
+FBC3OutSet <- unique(FBC3RealOut$bodyid)
+FBCXSet <- unique(FBCXReal$bodyid)
+FBCXOutSet <- unique(FBCXRealOut$bodyid)
 retypedBag <- FBC3NeuronsBag
+## Note selecting by bodyid is more rigorous but creates more weirdnesses in the results
 
-retypedBag$inputs_raw <- redefineTypeByName(FBC3NeuronsBag$inputs_raw,postfix="to",sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"))
-retypedBag$names <- redefineTypeByName(FBC3NeuronsBag$names,sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"),postfix = "raw")
-retypedBag$outputs_raw <- redefineTypeByName(retypedBag$outputs_raw,postfix="from",sets=list(FBC3OutSet,FBCXOutSet),nameModifiers=c("_C3","_CX"))
+retypedBag$inputs_raw <- redefineTypeByBodyId(FBC3NeuronsBag$inputs_raw,postfix="to",sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"))
+retypedBag$names <- redefineTypeByBodyId(FBC3NeuronsBag$names,sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"),postfix = "raw")
+retypedBag$outputs_raw <- redefineTypeByBodyId(retypedBag$outputs_raw,postfix="from",sets=list(FBC3OutSet,FBCXOutSet),nameModifiers=c("_C3","_CX"))
 
 retypedBag$inputs <- getTypeToTypeTable(retypedBag$inputs_raw,typesTable=retypedBag$names,oldTable=retypedBag$inputs)
 retypedBag$outputs <-  getTypeToTypeTable(retypedBag$outputs_raw,typesTable=retypedBag$outputsTableRef,oldTable=retypedBag$outputs) 
@@ -88,86 +80,82 @@ retypedBag$outputs <-  getTypeToTypeTable(retypedBag$outputs_raw,typesTable=rety
 FBC3InputComp <- retypedBag$inputs %>% filter(grepl("_C[3|X]",type.to)) %>% 
   mutate(column=substring(str_extract(type.to,"_C[3|X]"),2)) %>%
   group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(weightRelative=sum(knownWeightRelative)) %>%
+  summarize(weightRelative=mean(knownWeightRelative),
+            known_synapses=first(knownTotalROIweight)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
               names_from= "column",
-              values_from = "weightRelative",
-              values_fill=list("weightRelative"=0))
+              values_from = c("weightRelative","known_synapses"),
+              values_fill=list("weightRelative"=0)) %>%
+  rename(C3=weightRelative_C3,
+         CX=weightRelative_CX)
+
+FBC3InputComp <-  group_by(FBC3InputComp,databaseType.to) %>% mutate(known_synapses_C3=mean(known_synapses_C3,na.rm=TRUE),
+                                                                     known_synapses_CX=mean(known_synapses_CX,na.rm=TRUE),
+                                                                     known_synapses_ratio = (known_synapses_C3 - known_synapses_CX)/known_synapses_CX) %>% ungroup()
 ```
 
 ```{r}
 FBC3OutputComp <- retypedBag$outputs %>% filter(grepl("_C[3|X]",type.from)) %>% 
   mutate(column=substring(str_extract(type.from,"_C[3|X]"),2)) %>%
   group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(outputContribution=mean(knownOutputContribution)) %>%
+  summarize(outputContribution=mean(knownOutputContribution),
+            known_synapses=first(knownTotalPreROIweight)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
               names_from= "column",
-              values_from = "outputContribution",
-              values_fill=list("outputContribution"=0))
+              values_from = c("outputContribution","known_synapses"),
+              values_fill=list("outputContribution"=0)) %>%
+  rename(C3=outputContribution_C3,
+         CX=outputContribution_CX)
+
+FBC3OutputComp <-  group_by(FBC3OutputComp,databaseType.from) %>% mutate(known_synapses_C3=mean(known_synapses_C3,na.rm=TRUE),
+                                                                     known_synapses_CX=mean(known_synapses_CX,na.rm=TRUE),
+                                                                     known_synapses_ratio = (known_synapses_C3 - known_synapses_CX)/known_synapses_CX) %>% ungroup()
 ```
+
+```{r}
+FBC3Comp <- bind_rows(mutate(FBC3InputComp,side="Inputs",
+                                           supertype2=supertype.to2,
+                                           databaseType=databaseType.to),
+                      mutate(FBC3OutputComp,side="Outputs",
+                                           supertype2=supertype.from2,
+                                           databaseType=databaseType.from))
+```
+
+```{r}
+synapseDiffC3 <- ggplot(distinct(FBC3Comp,databaseType,side,.keep_all = TRUE),aes(x=supertype2,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter() + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("% difference in synapses to known partner")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+ theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
+synapseDiffC3
+```
+
 
 ```{r}
 inputCor <- cor(FBC3InputComp$C3,FBC3InputComp$CX)
 outputCor <- cor(FBC3OutputComp$C3,FBC3OutputComp$CX)
-```
-
-```{r}
-allTypes <- unique(c(retypedBag$inputs_raw$supertype.from2,retypedBag$outputs_raw$supertype.to2))
-myPal <- typesPalette(allTypes)
+corC3 <- data.frame(cc=c(inputCor,outputCor),side=c("Inputs","Outputs"))
 ```
 
 
-```{r}
-inputPlot <- ggplot(FBC3InputComp,aes(x=C3,y=CX)) + geom_point_interactive(aes(color=supertype.to2,
-                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
-                                                                                              format(C3,digits=3,scientific=FALSE)," in C3, ",
-                                                                                              format(CX,digits=3,scientific=FALSE)," outside C3.")),alpha=0.5)  + 
-  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + xlab("Relative input weight in column 3") + 
-  ylab("Relative input weight in the rest of the FB") + ggtitle(paste0("Receiving in FB. r = ",format(inputCor,digits = 3)))
 
-outputPlot <- ggplot(FBC3OutputComp,aes(x=C3,y=CX)) + geom_point_interactive(aes(color=supertype.from2,
-                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
-                                                                                              format(C3,digits=3,scientific=FALSE)," in C3, ",
-                                                                                              format(CX,digits=3,scientific=FALSE)," outside C3.")),alpha=0.5) +  
-  geom_abline(linetype=2) + theme_minimal()+ scale_color_manual(values=myPal)  + 
-  xlab("Relative output weight in column 3") + ylab("Relative output weight in the rest of the FB") + ggtitle(paste0("Sending in FB. r = ",format(outputCor,digits = 3)))
-FBComp <- plot_grid(inputPlot+ theme(legend.position = "none"),outputPlot+ theme(legend.position = "none"))
-leg <- get_legend(inputPlot + theme(legend.box.margin = margin(0, 0, 0, 12)))
-FBComp <- plot_grid(FBComp,leg, rel_widths = c(3, .4))
+```{r}
+FBComp <- ggplot(FBC3Comp,aes(x=CX,y=C3)) + geom_point(aes(color=supertype2))  + 
+  geom_abline(linetype=2) + theme_minimal_hgrid()  + scale_color_CX_supertype(name="Type") + ylab("Relative weight in column 3") + geom_text(data=corC3,aes(label=paste0("r= ",format(cc,digits=3,scientific = F))), x=0.1, y=0.5) + xlab("Relative weight in the rest of the FB") + facet_grid(.~ side)+theme(panel.border = element_rect(color = "gray 50", fill = NA)) 
+
+
 FBComp
 ```
 
 ```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlot.svg",FBComp,height=5,width=8)
+FBComp / synapseDiffC3 + plot_layout(guides='collect')
 ```
 
 ```{r}
-FBComp_inter <- girafe(ggobj = FBComp, width_svg=7,height_svg=7)
-```
+FBC3QQ <- ggplot(FBC3Comp,aes(sample=C3-CX)) + stat_qq(aes(color=supertype2)) + stat_qq_line(linetype=2) + theme_minimal_grid()+ scale_color_CX_supertype(name="Type")+ ylim(c(-0.2,0.2)) + facet_grid(.~side)+theme(panel.border = element_rect(color = "gray 50", fill = NA)) 
 
-```{r}
-htmlwidgets::saveWidget(FBComp_inter,paste0(validationFolder,"C3CompPlot.html"))
+FBC3QQ
 ```
-
-```{r}
-inputPlotQQ <- ggplot(FBC3InputComp,aes(sample=C3-CX)) + stat_qq(aes(color=supertype.to2,alpha=0.5)) + stat_qq_line(linetype=2) + ggtitle(paste0("Receiving in FB. r = ",format(inputCor,digits = 3))) + theme_minimal()+ scale_color_manual(values=myPal)+ ylim(c(-0.1,0.2))
-
-outputPlotQQ <- ggplot(FBC3OutputComp,aes(sample=C3-CX)) +  stat_qq(aes(color=supertype.from2,alpha=0.5)) + stat_qq_line(linetype=2) +
- theme_minimal()+ scale_color_manual(values=myPal)  + 
- ggtitle(paste0("Sending in FB. r = ",format(outputCor,digits = 3))) + ylim(c(-0.1,0.2))
-FBCompQQ <- plot_grid(inputPlotQQ+ theme(legend.position = "none"),outputPlotQQ+ theme(legend.position = "none"))
-leg <- get_legend(inputPlotQQ + theme(legend.box.margin = margin(0, 0, 0, 12)))
-FBCompQQ <- plot_grid(FBCompQQ,leg, rel_widths = c(3, .4))
-FBCompQQ
-```
-```{r}
-ggsave(paste0(validationFolder,"FBC3CompQQ.svg"))
-```
-
 
 ### Anatomy illustration of FB column 3
 ```{r}
@@ -209,6 +197,18 @@ FBCXExampleAnatomies <- neuprint_read_neurons(filter(FBCXReal,type=="FC2A")$body
 FBCXExampleAnatomies <- bind_rows(list(neuron2polygon(FBCXExampleAnatomies,cl=20),neuron2polygon(FBCXExampleAnatomies,axis=c("x","z"),cl=20)))
 ```
 
+```{r}
+C3Pos <- ggplot() +  geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="#908827")+ coord_fixed() +  scale_y_reverse() + theme_map() +facet_grid(.~proj)
+C3Pos
+```
+```{r}
+C3SI <- C3Pos / (FBComp + synapseDiffC3) + plot_layout(guides='collect',heights = c(1,1)) + plot_annotation(tag_levels = "A")
+C3SI
+```
+
+```{r}
+save_plot(paste0(validationFolder,"SI/FBC3SI.svg"),C3SI,nrow=2.5,ncol=2)
+```
 
 
 ```{r}
@@ -237,196 +237,535 @@ FBC3Panel
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/FBC3.svg",FBC3Panel,height=7,width=17)
 ```
 
-### FBC3 vs FB, figure panel
 
 ## PB glomeruli comparisons
 
- Do not use names, do the exact same kind of criterion as before.
 ```{r}
-PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE,slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
+PBL4Neurons <- subroiSet("PB(L4)","PB") 
+PBR4Neurons <- subroiSet("PB(R4)","PB") 
+PBL3Neurons <- subroiSet("PB(L3)","PB")
+PBR3Neurons <- subroiSet("PB(R3)","PB")
+PBL5Neurons <- subroiSet("PB(L5)","PB")
+PBR5Neurons <- subroiSet("PB(R5)","PB")
+PBL6Neurons <- subroiSet("PB(L6)","PB")
+PBR6Neurons <- subroiSet("PB(R6)","PB")
+PBNeurons <- bind_rows(PBL4Neurons,PBR4Neurons,PBL3Neurons,PBR3Neurons)
+PBNeuronsControl <- bind_rows(PBL6Neurons,PBR6Neurons,PBL5Neurons,PBR5Neurons)
+```
+ 
+ Selecting neurons with strong innervation patterns, in all of 4 considered glomeruli
+```{r}
+PBTargets <- PBNeurons %>% filter(upstreamRatio > 0.8 & PB.upstream>20) %>%
+  mutate(group= "targets") %>% 
+  mutate(previous.type = type, 
+         type = paste(type,str_extract(subregion,"[R|L][3-4]"),sep="_")) %>%
+  group_by(databaseType) %>% mutate(nReg=length(unique(subregion))) %>%
+  filter(nReg == 4)
+
+PBOuts <- PBNeurons %>% filter(downstreamRatio > 0.8 & PB.downstream>20) %>% mutate(group= "outs") %>% mutate(previous.type = type, type = paste(type,str_extract(subregion,"[R|L][3-4]"),sep="_")) %>%
+  group_by(databaseType) %>% mutate(nReg=length(unique(subregion))) %>%
+  filter(nReg == 4)
+
+```
+
+Same thing for control
+```{r}
+PBTargetsControl <- PBNeuronsControl %>% filter(upstreamRatio > 0.8 & PB.upstream>20) %>%
+  mutate(group= "targets") %>% 
+  mutate(previous.type = type, 
+         type = paste(type,str_extract(subregion,"[R|L][5-6]"),sep="_")) %>%
+  group_by(databaseType) %>% mutate(nReg=length(unique(subregion))) %>%
+  filter(nReg == 4)
+
+PBOutsControl <- PBNeuronsControl %>% filter(downstreamRatio > 0.8 & PB.downstream>20) %>% mutate(group= "outs") %>% mutate(previous.type = type, type = paste(type,str_extract(subregion,"[R|L][5-6]"),sep="_")) %>%
+  group_by(databaseType) %>% mutate(nReg=length(unique(subregion))) %>%
+  filter(nReg == 4)
+```
+
+```{r}
+PBTable <- create_neuronBag(unique(PBTargets$databaseType,PBOuts$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
+PBTableControl <- create_neuronBag(unique(PBTargetsControl$databaseType,PBOutsControl$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
 ```
 
 Redefine types (different renaming for inputs and outputs)
 ```{r}
-PBL3 <- PBTypesTable$names %>% filter(grepl("_L3_",name))
-PBL4 <- PBTypesTable$names %>% filter(grepl("_L4_",name))
-PBR3 <- PBTypesTable$names %>% filter(grepl("_R3_",name))
-PBR4 <- PBTypesTable$names %>% filter(grepl("_R4_",name))
+PBreBag <- PBTable
 
-retypedBagPB <- PBTypesTable
+PBreBag$inputs_raw<- redefineTypeByBodyId(PBTable$inputs_raw,postfix="to",sets=lapply(c("PB(R4)","PB(R3)","PB(L4)","PB(L3)"),function(x){filter(PBTargets,subregion == x)$bodyid}),nameModifiers=c("_R4","_R3","_L4","_L3")) %>% filter(type.to %in% PBTargets$type)
+PBreBag$names <- redefineTypeByBodyId(PBTable$names,sets=lapply(c("PB(R4)","PB(R3)","PB(L4)","PB(L3)"),function(x){filter(PBTargets,subregion == x)$bodyid}),nameModifiers=c("_R4","_R3","_L4","_L3"),postfix = "raw") %>% filter(type %in% PBTargets$type)
+PBreBag$outputs_raw <- redefineTypeByBodyId(PBTable$outputs_raw,postfix="from",sets=lapply(c("PB(R4)","PB(R3)","PB(L4)","PB(L3)"),function(x){filter(PBOuts,subregion == x)$bodyid}),nameModifiers=c("_R4","_R3","_L4","_L3")) %>% filter(type.from %in% PBOuts$type)
 
-retypedBagPB$inputs_raw <- redefineTypeByName(retypedBagPB$inputs_raw,postfix="to",sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"))
-retypedBagPB$names <- redefineTypeByName(retypedBagPB$names,sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"),postfix = "raw")
-retypedBagPB$outputs_raw <- redefineTypeByName(retypedBagPB$outputs_raw,postfix="from",sets=list(PBL3$name,PBL4$name,PBR3$name,PBR4$name),nameModifiers=c("_L3","_L4","_R3","_R4"))
-
-retypedBagPB$inputs <- getTypeToTypeTable(retypedBagPB$inputs_raw,typesTable=retypedBagPB$names,oldTable=retypedBagPB$inputs)
-retypedBagPB$outputs <-  getTypeToTypeTable(retypedBagPB$outputs_raw,typesTable=retypedBagPB$outputsTableRef,oldTable=retypedBagPB$outputs) 
+PBreBag$inputs <- getTypeToTypeTable(PBreBag$inputs_raw,typesTable=PBreBag$names,oldTable=PBreBag$inputs)
+PBreBag$outputs <-  getTypeToTypeTable(PBreBag$outputs_raw,typesTable=PBreBag$outputsTableRef,oldTable=PBreBag$outputs) 
 ```
 
 ```{r}
-PB3InputComp <- retypedBagPB$inputs %>% filter(grepl("_[L|R]3",type.to)) %>% 
-  mutate(column=substring(str_extract(type.to,"_[L|R]3"),2)) %>%
-  group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(weightRelative=sum(knownWeightRelative)) %>%
+PBreBagControl <- PBTableControl
+
+PBreBagControl$inputs_raw<- redefineTypeByBodyId(PBTableControl$inputs_raw,postfix="to",sets=lapply(c("PB(R6)","PB(R5)","PB(L6)","PB(L5)"),function(x){filter(PBTargetsControl,subregion == x)$bodyid}),nameModifiers=c("_R6","_R5","_L6","_L5")) %>% filter(type.to %in% PBTargetsControl$type)
+PBreBagControl$names <- redefineTypeByBodyId(PBTableControl$names,sets=lapply(c("PB(R6)","PB(R5)","PB(L6)","PB(L5)"),function(x){filter(PBTargetsControl,subregion == x)$bodyid}),nameModifiers=c("_R6","_R5","_L6","_L5"),postfix = "raw") %>% filter(type %in% PBTargetsControl$type)
+PBreBagControl$outputs_raw <- redefineTypeByBodyId(PBTableControl$outputs_raw,postfix="from",sets=lapply(c("PB(R6)","PB(R5)","PB(L6)","PB(L5)"),function(x){filter(PBOutsControl,subregion == x)$bodyid}),nameModifiers=c("_R6","_R5","_L6","_L5")) %>% filter(type.from %in% PBOutsControl$type)
+
+PBreBagControl$inputs <- getTypeToTypeTable(PBreBagControl$inputs_raw,typesTable=PBreBagControl$names,oldTable=PBreBagControl$inputs)
+PBreBagControl$outputs <-  getTypeToTypeTable(PBreBagControl$outputs_raw,typesTable=PBreBagControl$outputsTableref,oldTable=PBreBagControl$outputs) 
+```
+
+```{r}
+PB3InputComp <- PBreBag$inputs %>% filter(!is.na(databaseType.from)) %>%  
+  mutate(glomerulus = substring(str_extract(type.to,"_[R|L][3-4]"),2)) %>%
+  group_by(databaseType.from,databaseType.to,glomerulus) %>%
+  summarize(weightRelative=mean(knownWeightRelative),
+            known_synapses=first(knownTotalROIweight)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
-              names_from= "column",
-              values_from = "weightRelative",
-              values_fill=list("weightRelative"=0))
+              names_from= glomerulus,
+              values_from = c("weightRelative","known_synapses"),
+              values_fill=list("weightRelative"=0))%>%
+  rename(R3=weightRelative_R3,
+         R4=weightRelative_R4,
+         L3=weightRelative_L3,
+         L4=weightRelative_L4)
+
+PB3InputComp <-  group_by(PB3InputComp,databaseType.to) %>% mutate_at(vars(paste0("known_synapses_",c("R3","L3","R4","L4"))),~mean(.,na.rm=TRUE)) %>%
+                                                                  mutate(known_synapses_ratio3 = (known_synapses_R3 - known_synapses_L3)/known_synapses_L3,
+                                                                        known_synapses_ratio4 = (known_synapses_L4 - known_synapses_R4)/known_synapses_R4) %>% ungroup()
 ```
 
 ```{r}
-PB3OutputComp <- retypedBagPB$outputs %>% filter(grepl("_[L|R]3",type.from)) %>% 
-  mutate(column=substring(str_extract(type.from,"_[L|R]3"),2)) %>%
-  group_by(databaseType.from,databaseType.to,column) %>%
-  summarize(outputContribution=mean(knownOutputContribution)) %>%
+PB3OutputComp <- PBreBag$outputs %>% filter(!is.na(databaseType.to)) %>%  
+  mutate(glomerulus = substring(str_extract(type.from,"_[R|L][3-4]"),2)) %>%
+  group_by(databaseType.from,databaseType.to,glomerulus) %>%
+  summarize(outputContribution=mean(knownOutputContribution),
+            known_synapses=first(knownTotalPreROIweight)) %>%
   ungroup() %>%
   supertype() %>%
   pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
-              names_from= "column",
-              values_from = "outputContribution",
-              values_fill=list("outputContribution"=0))
+              names_from= glomerulus,
+              values_from = c("outputContribution","known_synapses"),
+              values_fill=list("outputContribution"=0))%>%
+  rename(R3=outputContribution_R3,
+         R4=outputContribution_R4,
+         L3=outputContribution_L3,
+         L4=outputContribution_L4)
+
+PB3OutputComp <-  group_by(PB3OutputComp,databaseType.from) %>% mutate_at(vars(paste0("known_synapses_",c("R3","L3","R4","L4"))),~mean(.,na.rm=TRUE)) %>%
+                                                                  mutate(known_synapses_ratio3 = (known_synapses_R3 - known_synapses_L3)/known_synapses_L3,
+                                                                        known_synapses_ratio4 = (known_synapses_L4 - known_synapses_R4)/known_synapses_R4) %>% ungroup()
 ```
 
 ```{r}
-inputCor3 <- cor(PB3InputComp$R3,PB3InputComp$L3)
-outputCor3 <- cor(PB3OutputComp$R3,PB3OutputComp$L3)
+inputCorPB <- cor(c(PB3InputComp$R3,PB3InputComp$L4),c(PB3InputComp$L3,PB3InputComp$R4))
+outputCorPB <- cor(c(PB3OutputComp$R3,PB3OutputComp$L4),c(PB3OutputComp$L3,PB3OutputComp$R4))
+corPB <- data.frame(cc=c(inputCorPB,outputCorPB),side=c("Inputs","Outputs"))
 ```
 
 ```{r}
-allTypesPB <- unique(c(retypedBagPB$inputs_raw$supertype.from2,retypedBagPB$outputs_raw$supertype.to2))
-myPalPB <- typesPalette(allTypesPB)
+PB3Comp <- bind_rows(mutate(PB3InputComp,side="Inputs",
+                                           supertype2=supertype.to2,
+                                           databaseType=databaseType.to),
+                      mutate(PB3OutputComp,side="Outputs",
+                                           supertype2=supertype.from2,
+                                           databaseType=databaseType.from))
+```
+
+
+```{r}
+PBSynapseCountDiff <- ggplot(distinct(PB3Comp,databaseType,side,.keep_all = TRUE),aes(x=supertype2,y=known_synapses_ratio4*100,color=supertype2)) + geom_jitter() + geom_jitter(aes(x=supertype2,y=known_synapses_ratio3*100,color=supertype2)) + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("% difference in synapses to known partner")+theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) 
+PBSynapseCountDiff
 ```
 
 ```{r}
-inputPlot <- ggplot(PB3InputComp,aes(x=R3,y=L3)) + geom_point_interactive(aes(color=supertype.to2,
-                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
-                                                                                              format(R3,digits=3,scientific=FALSE)," in R3, ",
-                                                                                              format(L3,digits=3,scientific=FALSE)," in L3.")),alpha=0.5)  + 
-  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes)
+PBComp <- ggplot(PB3Comp,aes(x=L3,y=R3)) + geom_point(aes(color=supertype2))  + 
+                                                   geom_point(aes(x=R4,y=L4,color=supertype2))  +
+  geom_abline(linetype=2) + theme_minimal_hgrid()  + scale_color_CX_supertype(name="Type") + xlab("Relative synaptic weight in R4/L3") + 
+  ylab("Relative synaptic weight in R3/L4") + facet_grid(.~side)+theme(panel.border = element_rect(color = "gray 50", fill = NA)) + 
+  geom_text(data=corPB,aes(label=paste0("r= ",format(cc,digits=3,scientific = F))), x=0.2, y=0.6)
 
-outputPlot <- ggplot(PB3OutputComp,aes(x=R3,y=L3)) + geom_point_interactive(aes(color=supertype.to2,
-                                                                               tooltip=paste0(databaseType.from," to ", databaseType.to,".\n",
-                                                                                              format(R3,digits=3,scientific=FALSE)," in R3, ",
-                                                                                              format(L3,digits=3,scientific=FALSE)," in L3.")),alpha=0.5)  + 
-  geom_abline(linetype=2) + theme_minimal()  + scale_color_manual(values=myPal,name="Type",breaks=allTypes)
+
+PBComp
+```
+
+### PB anatomies
+
+```{r}
+PBOutline <- roiOutline("PB")
+R3Outline <- roiOutline("PB(R3)")
+L3Outline <- roiOutline("PB(L3)")
+R4Outline <- roiOutline("PB(R4)")
+L4Outline <- roiOutline("PB(L4)")
 ```
 
 ```{r}
-outputPlot
+PBAnatPlotOld <- ggplot() + 
+    geom_path(data=PBOutline,aes(x=x,y=y),inherit.aes = FALSE) + geom_polygon(data=bind_rows(L3Outline,R4Outline),aes(x=x,y=y,group=roi),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="grey80")+ coord_fixed() + scale_y_reverse() + theme_void() +facet_grid(proj~.) + scale_fill_manual(values = c("FALSE" = "grey50","TRUE" = "#0072B2")) 
+PBAnatPlotOld
+```
+
+```{r}
+PBAnatPlotNew <- ggplot() + 
+    geom_path(data=PBOutline,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=bind_rows(L4Outline,R3Outline),aes(x=x,y=y,group=roi),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="#908827") + coord_fixed() + scale_y_reverse() + theme_void() +facet_grid(proj~.) + scale_fill_manual(values = c("FALSE" = "grey50","TRUE" = "#0072B2")) 
+PBAnatPlotNew
+```
+```{r}
+PBPanel <- PBAnatPlot / (PBComp + PBSynapseCountDiff) + plot_layout(guides='collect',heights = c(1,1)) 
+PBPanel
 ```
 
 
+```{r}
+PBExampleAnatomies <- neuprint_read_neurons(filter(PBTargets,databaseType=="PFNa")$bodyid,resample=10,meta=FALSE,connectors=FALSE)
+```
+
+```{r}
+PBExampleAnatomies <- bind_rows(list(neuron2polygon(PBExampleAnatomies,cl=20),neuron2polygon(PBExampleAnatomies,axis=c("x","z"),cl=20)))
+```
+```{r}
+PBExampleAnatomies <- mutate(PBExampleAnatomies,overTraced=bodyid %in% filter(PBTargets,subregion %in% c("PB(L3)","PB(R4)"))$bodyid)
+```
+
+
+```{r}
+PBAnatPlot <- ggplot() + geom_polygon(data=PBExampleAnatomies[seq(1,by=10,to = nrow(PBExampleAnatomies)),],aes(x,y,group=bodyid,fill=overTraced)) + 
+    geom_path(data=PBOutline,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=bind_rows(L3Outline,R4Outline),aes(x=x,y=y,group=roi),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="#908827") + geom_polygon(data=bind_rows(L4Outline,R3Outline),aes(x=x,y=y,group=roi),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="grey80")+ coord_fixed() + scale_y_reverse() + theme_void() +facet_grid(proj~.) + scale_fill_manual(values = c("FALSE" = "grey50","TRUE" = "#0072B2")) 
+```
+
+```{r}
+PBAnatPlot
+```
+```{r}
+PBPanel <- plot_grid(PBAnatPlot+ theme(legend.position = "none"),PBComp,rel_widths = c(0.5,1))
+PBPanel
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/PBR4L3.svg",PBPanel,height=7,width=17)
+```
+
+#### PB 5-6 control
+
+```{r}
+PB3InputCompControl <- PBreBagControl$inputs %>% filter(!is.na(databaseType.from)) %>%  
+  mutate(glomerulus = substring(str_extract(type.to,"_[R|L][5-6]"),2)) %>%
+  group_by(databaseType.from,databaseType.to,glomerulus) %>%
+  summarize(weightRelative=mean(knownWeightRelative),
+            known_synapses=first(knownTotalROIweight)) %>%
+  ungroup() %>%
+  supertype() %>%
+  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
+              names_from= glomerulus,
+              values_from = c("weightRelative","known_synapses"),
+              values_fill=list("weightRelative"=0))%>%
+  rename(R5=weightRelative_R5,
+         R6=weightRelative_R6,
+         L5=weightRelative_L5,
+         L6=weightRelative_L6)
+
+PB3InputCompControl <-  group_by(PB3InputCompControl,databaseType.to) %>% mutate_at(vars(paste0("known_synapses_",c("R5","L5","R6","L6"))),~mean(.,na.rm=TRUE)) %>%
+                                                                  mutate(known_synapses_ratio5 = (known_synapses_R5 - known_synapses_L5)/known_synapses_L5,
+                                                                        known_synapses_ratio6 = (known_synapses_L6 - known_synapses_R6)/known_synapses_R6) %>% ungroup()
+```
+
+```{r}
+PB3OutputCompControl <- PBreBagControl$outputs %>% filter(!is.na(databaseType.to)) %>%  
+  mutate(glomerulus = substring(str_extract(type.from,"_[R|L][5-6]"),2)) %>%
+  group_by(databaseType.from,databaseType.to,glomerulus) %>%
+  summarize(outputContribution=mean(knownOutputContribution),
+            known_synapses=first(knownTotalPreROIweight)) %>%
+  ungroup() %>%
+  supertype() %>%
+  pivot_wider(id_cols=c("databaseType.from","databaseType.to",c(paste0("supertype.from",1:3)),c(paste0("supertype.to",1:3))),
+              names_from= glomerulus,
+              values_from = c("outputContribution","known_synapses"),
+              values_fill=list("outputContribution"=0))%>%
+  rename(R5=outputContribution_R5,
+         R6=outputContribution_R6,
+         L5=outputContribution_L5,
+         L6=outputContribution_L6)
+
+PB3OutputCompControl <-  group_by(PB3OutputCompControl,databaseType.from) %>% mutate_at(vars(paste0("known_synapses_",c("R5","L5","R6","L6"))),~mean(.,na.rm=TRUE)) %>%
+                                                                  mutate(known_synapses_ratio5 = (known_synapses_R5 - known_synapses_L5)/known_synapses_L5,
+                                                                        known_synapses_ratio6 = (known_synapses_L6 - known_synapses_R6)/known_synapses_R6) %>% ungroup()
+```
+
+```{r}
+inputCorPBControl <- cor(c(PB3InputCompControl$R5,PB3InputCompControl$L6),c(PB3InputCompControl$L5,PB3InputCompControl$R6))
+outputCorPBControl <- cor(c(PB3OutputCompControl$R5,PB3OutputCompControl$L6),c(PB3OutputCompControl$L5,PB3OutputCompControl$R6))
+corPBControl <- data.frame(cc=c(inputCorPBControl,outputCorPBControl),side=c("Inputs","Outputs"))
+```
+
+```{r}
+PB3CompControl <- bind_rows(mutate(PB3InputCompControl,side="Inputs",
+                                           supertype2=supertype.to2,
+                                           databaseType=databaseType.to),
+                      mutate(PB3OutputCompControl,side="Outputs",
+                                           supertype2=supertype.from2,
+                                           databaseType=databaseType.from))
+```
+
+```{r}
+PBSynapseCountDiffControl <- ggplot(distinct(PB3CompControl,databaseType,side,.keep_all = TRUE),aes(x=supertype2,y=known_synapses_ratio5*100,color=supertype2)) + geom_jitter() + geom_jitter(aes(x=supertype2,y=known_synapses_ratio6*100,color=supertype2))+ scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("% difference in synapses to known partner")+theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) 
+PBSynapseCountDiffControl
+```
+
+```{r}
+PBCompControl <- ggplot(PB3CompControl,aes(x=L5,y=R5)) + geom_point(aes(color=supertype2))  + 
+                                                   geom_point(aes(x=R6,y=L6,color=supertype2))  +
+  geom_abline(linetype=2) + theme_minimal_hgrid()  + scale_color_CX_supertype(name="Type") + xlab("Relative synaptic weight in R6/L5") + 
+  ylab("Relative synaptic weight in R5/L6") + facet_grid(.~side)+theme(panel.border = element_rect(color = "gray 50", fill = NA)) + 
+  geom_text(data=corPBControl,aes(label=paste0("r= ",format(cc,digits=3,scientific = F))), x=0.1, y=0.6)
+
+
+PBCompControl
+```
+```{r}
+PBControl <- PBCompControl + PBSynapseCountDiffControl + plot_layout(guides='collect',widths=c(1,1)) 
+PBControl
+```
+
+```{r}
+save_plot(paste0(validationFolder,"SI/PB5-6Control.svg"),PBControl,ncol=2,nrow=1)
+```
 
 ### Comparing with the old version of the dataset
 ```{r}
-newConnection <- neuprint_connection()
+newConnection <- neuprint_login(Force = T)
 ```
 
 ```{r}
-oldConnection <- neuprint_connection(server="https://emdata1.int.janelia.org:11000/",token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FBS1dKSk14RURObVNiekk5TjNULWw2RkRySWhHdG5LNncvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzY2NDY0NjI2fQ.HsBHKOqeLUUcBcOY-GwzbCHrBMdCBesaICM4UUQSH_k",config=httr::config(ssl_verifypeer=0L))
+oldConnection <- neuprint_login(server="https://emdata1.int.janelia.org:11000/",token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FBS1dKSk14RURObVNiekk5TjNULWw2RkRySWhHdG5LNncvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzY2NDY0NjI2fQ.HsBHKOqeLUUcBcOY-GwzbCHrBMdCBesaICM4UUQSH_k",config=httr::config(ssl_verifypeer=0L),dataset="hemibrain:v0.9pre_dense",Force=T)
 ```
 
-```{r,warning=FALSE}
-newRawTable <- neuprint_connection_table(FBC3Real$bodyid,"PRE",roi="FB-column3",conn=newConnection) %>% drop_na(ROIweight)
-oldRawTable <- neuprint_connection_table(FBC3Real$bodyid,"PRE",roi="FB-column3",conn=oldConnection) %>% drop_na(ROIweight)
-```
-
-```{r,warning=FALSE}
-newRefTable <- neuprint_get_meta(FBC3Real$bodyid,conn=newConnection)
-oldRefTable <- neuprint_get_meta(FBC3Real$bodyid,conn=oldConnection) %>% mutate(type=newRefTable$type[match(bodyid,newRefTable$bodyid)]) 
-
-newPartnerTable <- neuprint_get_meta(newRawTable$partner,conn=newConnection)
-```
-
-We want to remove bodyids that do not exist in one of the dataframes.
-```{r,warning=FALSE}
-newPartnersOldDataset <- neuprint_get_meta(newRawTable$partner,conn=oldConnection)
-oldPartnersNewDataset <- neuprint_get_meta(oldRawTable$partner,conn=newConnection)
-
-oldPartnerTable <- neuprint_get_meta(oldRawTable$partner,conn=oldConnection) %>% mutate(type=oldPartnersNewDataset$type[match(bodyid,oldPartnersNewDataset$bodyid)]) 
-
-newRawTable <- filter(newRawTable,partner %in% newPartnersOldDataset$bodyid)
-oldRawTable <- filter(oldRawTable,partner %in% oldPartnersNewDataset$bodyid)
-
-newPartnerTable <- filter(newPartnerTable,bodyid %in% newPartnersOldDataset$bodyid)
-oldPartnerTable <- filter(oldPartnerTable,bodyid %in% oldPartnersNewDataset$bodyid)
-```
-
-
-
-```{r,warning=FALSE}
-newConnTable <- processConnectionTable(newRawTable,newRawTable,newRefTable,newPartnerTable,newRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection)
-oldConnTable <- processConnectionTable(oldRawTable,oldRawTable,oldRefTable,oldPartnerTable,oldRefTable,"PRE",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection)
-```
-
-```{r,warning=FALSE}
-newRawTableOut <- neuprint_connection_table(FBC3RealOut$bodyid,"POST",roi="FB-column3",conn=newConnection) %>% drop_na(ROIweight)
-oldRawTableOut <- neuprint_connection_table(FBC3RealOut$bodyid,"POST",roi="FB-column3",conn=oldConnection) %>% drop_na(ROIweight)
-```
-
-```{r,warning=FALSE}
-newRefTableOut <- neuprint_get_meta(FBC3RealOut$bodyid,conn=newConnection)
-oldRefTableOut <- neuprint_get_meta(FBC3RealOut$bodyid,conn=oldConnection) %>% mutate(type=newRefTableOut$type[match(bodyid,newRefTableOut$bodyid)]) 
-
-newPartnerTableOut <- neuprint_get_meta(newRawTableOut$partner,conn=newConnection)
-```
-
-We want to remove bodyids that do not exist in one of the dataframes.
-```{r,warning=FALSE}
-newPartnersOldDatasetOut <- neuprint_get_meta(newRawTableOut$partner,conn=oldConnection)
-oldPartnersNewDatasetOut <- neuprint_get_meta(oldRawTableOut$partner,conn=newConnection)
-
-oldPartnerTableOut <- neuprint_get_meta(oldRawTableOut$partner,conn=oldConnection) %>% mutate(type=oldPartnersNewDatasetOut$type[match(bodyid,oldPartnersNewDatasetOut$bodyid)]) 
-
-newRawTableOut <- filter(newRawTableOut,partner %in% newPartnersOldDatasetOut$bodyid)
-oldRawTableOut <- filter(oldRawTableOut,partner %in% oldPartnersNewDatasetOut$bodyid)
-
-newPartnerTableOut <- filter(newPartnerTableOut,bodyid %in% newPartnersOldDatasetOut$bodyid)
-oldPartnerTableOut <- filter(oldPartnerTableOut,bodyid %in% oldPartnersNewDatasetOut$bodyid)
-```
-
-```{r,warning=FALSE}
-newConnTableOut <- processConnectionTable(newRawTableOut,newRawTableOut,newRefTableOut,newPartnerTableOut,newRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newConnection,chunk_connections = TRUE)
-oldConnTableOut <- processConnectionTable(oldRawTableOut,oldRefTableOut,oldRefTableOut,oldPartnerTableOut,oldRefTableOut,"POST",slctROI="FB-column3",by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldConnection,chunk_connections = TRUE)
+#### Overall synaptic counts
+Plot raw increase in synapse numbers
+```{r}
+roiTable <- getCompRoiInfo(FBC3Real$bodyid,FBC3RealOut$bodyid,roi="FB-column3",newConnection,oldConnection)
 ```
 
 ```{r}
-inputsAges <- full_join(newConnTable,oldConnTable,by = c("from","to","roi","type.from","type.to","supertype.from2","supertype.to2"),suffix=c(".new",".old")) %>% replace_na(list("ROIweight.new"=0,
-                                                                                                                                                                               "ROIweight.old"=0,
-                                                                                                                                                                               "weight.new"=0,
-                                                                                                                                                                               "weight.old"=0,
-                                                                                                                                                                               "weightRelative.new"=0,
-                                                                                                                                                                               "weightRelative.old"=0,
-                                                                                                                                                                               "outputContribution.new"=0,
-                                                                                                                                                                               "outputContribution.old"=0))
+synapseIncrease <- ggplot(roiTable,aes(x=supertype2,y=100*(new-old)/old,color=supertype2,size=old)) + geom_jitter() + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + xlab("") + ylab("Percentage increase in input synapses") + scale_size(name = "# synapses in \nthe old dataset") + facet_grid(.~side,scales = "free_x",labeller=labeller(side = c(inputs="Receiving in FB",outputs="Sending in FB")))
 
-outputsAges <- full_join(newConnTableOut,oldConnTableOut,by = c("from","to","roi","type.from","type.to","supertype.from2","supertype.to2"),suffix=c(".new",".old")) %>% replace_na(list("ROIweight.new"=0,
-                                                                                                                                                                               "ROIweight.old"=0,
-                                                                                                                                                                               "weight.new"=0,
-                                                                                                                                                                               "weight.old"=0,
-                                                                                                                                                                               "weightRelative.new"=0,
-                                                                                                                                                                               "weightRelative.old"=0,
-                                                                                                                                                                               "outputContribution.new"=0,
-                                                                                                                                                                               "outputContribution.old"=0))
+synapseIncrease
+```
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/overallIncreasesInC3.svg",synapseIncrease,height=4)
+```
 
+#### Comparing neuron to neuron connections
+
+```{r}
+FBC3Age <- getCompConnectionTable(FBC3Real$bodyid,FBC3RealOut$bodyid,"FB",newConnection,oldConnection)
 ```
 
 ```{r}
-oldNewInputs <- ggplot(inputsAges,aes(x=weightRelative.old,y=weightRelative.new)) + geom_point(alpha=0.5,aes(color=supertype.from2,size=ROIweight.new))  + geom_abline(linetype=2) + scale_color_manual(values=myPal,name="Partner type",breaks=allTypes) + theme_minimal() + facet_wrap(supertype.to2~.) + xlab("Relative weight in the old dataset") + ylab("Relative weight in the new dataset") + scale_size(name="# synapses in new dataset") + ggtitle("Receiving in FB column3")
-oldNewOutputs <- ggplot(outputsAges,aes(x=outputContribution.old,y=outputContribution.new)) + geom_point(alpha=0.5,aes(color=supertype.to2,size=ROIweight.new)) + geom_abline(linetype=2) + scale_color_manual(values=myPal,name="Partner type",breaks=allTypes) + theme_minimal() + facet_wrap(supertype.from2~.)+ xlab("Output contribution in the old dataset") + ylab("Output contribution in the new dataset") + ggtitle("Sending in FB column3")
-FBCompOldNew <- plot_grid(oldNewInputs+ theme(legend.position = "none"),oldNewOutputs+ theme(legend.position = "none"))
-legOldNew <- get_legend(oldNewInputs + theme(legend.box.margin = margin(0, 0, 0, 12)))
-FBCompOldNew <- plot_grid(FBCompOldNew,legOldNew, rel_widths = c(3, .4))
-FBCompOldNew
-```
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNew.svg",FBCompOldNew,height=7,width=13)
+FBC3ReInputCor <- cor(filter(FBC3Age,side=="inputs")$old,filter(FBC3Age,side=="inputs")$new)
+FBC3ReOutputCor <- cor(filter(FBC3Age,side=="outputs")$old,filter(FBC3Age,side=="outputs")$new)
 ```
 
 ```{r}
-ggplot(inputsAges,aes(x=ROIweight.new,y=abs(weightRelative.old-weightRelative.new))) + geom_point(alpha=0.2)
+FBC3CompOldNew <- ggplot(FBC3Age,aes(x=old,y=new)) + geom_point(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) + geom_abline(linetype=2) + facet_grid(.~side,labeller=labeller(side = c(inputs=paste0("Receiving in FB.   r=",format(FBC3ReInputCor,digits=3)),outputs=paste0("Sending in FB.   r=",format(FBC3ReOutputCor,digits=3))))) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + xlab("Relative weight in the old dataset") + ylab("Relative weight in the new dataset") + scale_size(name="# synapses \nin old dataset")
+FBC3CompOldNew
 ```
 
+```{r}
+compRawFB1 <- ggplot(FBC3Age,aes(x=ROIweight.old,y=ROIweight.new)) + geom_point(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) + geom_abline(linetype=2) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + ylab("Weight in new dataset") +xlab("Weight in old dataset")+scale_size(name="# synapses in the old dataset") + facet_grid(.~side,labeller=labeller(side = c(inputs="",outputs="")))
+compRawFB1
+```
+
+```{r}
+compRawFB2 <- ggplot(FBC3Age,aes(x=supertype2,y=ROIweight.new-ROIweight.old)) + geom_jitter(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) +  
+    stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),
+                 width = .8, linetype = 3) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + ylab("Connection weight increase") +xlab("")+scale_size(name="# synapses in the old dataset") + facet_grid(.~side,labeller=labeller(side = c(inputs="",outputs="")),scale="free_x")
+compRawFB2
+```
+
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNew.svg",FBCompOldNew,height=4)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNewRaw1.svg",compRawFB1,height=4)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNewRaw2.svg",compRawFB2,height=4)
+```
+
+### EB before/after comparison
+Select EB neurons for inputs/outputs
+```{r}
+ebNeurons <- neuprint_bodies_in_ROI("EB",all_segments = FALSE,conn = newConnection)
+ebInfo <- filter(getRoiInfo(ebNeurons$bodyid,conn=newConnection),roi=="EB")
+ebInfo[is.na(ebInfo)] <- 0
+```
+
+```{r}
+ebIns <- filter(ebInfo,upstream>200)
+ebOuts <- filter(ebInfo,downstream>200)
+```
+
+#### Comparing neuron to neuron connections
+```{r}
+EBOutline <- roiOutline("EB")
+```
+```{r}
+EBAnatPlotOld <- ggplot() + 
+    geom_polygon(data=filter(EBOutline,proj=="xz"),aes(x=x,y=y),fill="grey50",inherit.aes = FALSE,alpha=0.3)   + coord_fixed() + scale_y_reverse() + theme_void() 
+EBAnatPlotNew <- ggplot() + 
+    geom_polygon(data=filter(EBOutline,proj=="xz"),aes(x=x,y=y),fill="#908827",inherit.aes = FALSE,alpha=0.3)   + coord_fixed() + scale_y_reverse() + theme_void() 
+EBAnatPlotOld
+```
+
+
+```{r}
+EBAges <- getCompConnectionTable(ebIns$bodyid,ebOuts$bodyid,"EB",newConnection,oldConnection)
+```
+
+```{r}
+EBTot <-distinct(filter(EBAges,known_synapses_ratio>0.1),bodyid,side,.keep_all = TRUE) 
+synChangeEB <- ggplot(EBTot,aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2) + 
+     scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("% change in synapses to known partner") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5),panel.border = element_rect(color = "gray 50", fill = NA)) + ylim(c(0,120))
+synChangeEB
+```
+
+```{r}
+EBAges <- mutate(EBAges,
+                 range = factor(case_when(
+                   known_synapses_ratio < 0 ~ "(-Inf,0)",
+                   known_synapses_ratio >= 0 & known_synapses_ratio < 0.02 ~ "[0-2%)",
+                   known_synapses_ratio >= 0.02 & known_synapses_ratio < 0.05 ~ "[2-5%)",
+                   known_synapses_ratio >= 0.05 & known_synapses_ratio < 0.1 ~ "[5-10%)",
+                   known_synapses_ratio >= 0.1 & known_synapses_ratio < 0.2 ~ "[10-20%)",
+                   known_synapses_ratio >= 0.2 & known_synapses_ratio < 0.5 ~ "[20-50%)",
+                   known_synapses_ratio >= 0.5 ~ "[50%-Inf)",
+                 ),levels=c("(-Inf,0)","[0-2%)","[2-5%)","[5-10%)","[10-20%)","[20-50%)", "[50%-Inf)")))
+```
+
+```{r}
+synChangeEBTot <- ggplot(distinct(EBAges,bodyid,side,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2) + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x")+ xlab("") + ylab("% change in synapses to known partner") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5),panel.border = element_rect(color = "gray 50", fill = NA)) + geom_hline(yintercept = 10,linetype=2,color="grey")
+synChangeEBTot
+```
+
+```{r}
+EBAges_filtered <- filter(EBAges,known_synapses_ratio>0.1)
+EBInputCor <- cor(filter(EBAges_filtered,side=="Inputs")$old,filter(EBAges_filtered,side=="Inputs")$new)
+EBOutputCor <- cor(filter(EBAges_filtered,side=="Outputs")$old,filter(EBAges_filtered,side=="Outputs")$new)
+corEB <- data.frame(cc=c(EBInputCor,EBOutputCor),side=c("Inputs","Outputs"))
+```
+
+```{r}
+EBCompOldNew <- ggplot(EBAges_filtered,aes(x=old,y=new)) +geom_point(aes(color=supertype2)) + geom_abline(linetype=2) + facet_grid(.~side) + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + xlab("Relative weight in the old dataset") + ylab("Relative weight in the new dataset") + scale_size(name="# synapses \nin old dataset") +  theme(panel.border = element_rect(color = "gray 50", fill = NA))+ 
+  geom_text(data=corEB,aes(label=paste0("r= ",format(cc,digits=3,scientific = F))), x=0.05, y=0.22)
+EBCompOldNew
+```
+
+
+```{r}
+EBPanel <- EBCompOldNew / synChangeEB + plot_layout(guides="collect")
+EBPanel
+```
+```{r}
+save_plot(paste0(validationFolder,"EBPanel.svg"),EBPanel,nrow=3,ncol=1.5)
+```
+
+```{r}
+layout <- "
+ABEF
+CCGG
+DDHH
+"
+
+fig1Panel <- EBAnatPlotOld + (EBAnatPlotNew+ theme(plot.margin = margin(r=100)))  + (EBCompOldNew+ theme(plot.margin = margin(r=100))) + (synChangeEBTot+ theme(plot.margin = margin(r=100))) + PBAnatPlotOld + PBAnatPlotNew + PBComp + PBSynapseCountDiff + plot_layout(design=layout,guides="collect",widths=c(3,3,1,1))
+fig1Panel
+```
+
+```{r}
+save_plot(paste0(validationFolder,"Figure1Panel.svg"),fig1Panel,nrow=3,ncol=3)
+save_plot(paste0(validationFolder,"Figure1Panel.png"),fig1Panel,nrow=3,ncol=3)
+```
+
+
+```{r}
+EBCompOldNewSI <- ggplot(EBAges,aes(x=old,y=new)) +geom_point(aes(color=supertype2)) + geom_abline(linetype=2) + geom_smooth(method="lm",color="grey") + facet_grid(range~side) + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + xlab("Relative weight in the old dataset") + ylab("Relative weight in the new dataset") + coord_fixed(expand=FALSE)+theme(panel.border = element_rect(color = "gray 50", fill = NA))
+EBCompOldNewSI
+```
+```{r}
+save_plot(paste0(validationFolder,"SI/EBCompSI.svg"),EBCompOldNewSI,nrow=3.5,ncol=1)
+save_plot(paste0(validationFolder,"SI/EBCompSI.png"),EBCompOldNewSI,nrow=3.5,ncol=1)
+```
+
+```{r}
+EBFits <- EBAges %>% group_by(side,databaseType,bodyid,supertype2,known_synapses.new,known_synapses.old,known_synapses_ratio,completedness.new,completedness.old) %>% summarize(lm=list(lm(formula=new~old))) %>% mutate(slope=coefficients(lm[[1]])[2],
+                                                   rsq = sum(residuals(lm[[1]])^2),
+                                                   slopeMin = confint(lm[[1]])[2,1],
+                                                   slopeMax=confint(lm[[1]])[2,2])
+```
+```{r}
+EBSlopes <- ggplot(EBFits,aes(x=supertype2,y=slope,ymin=slopeMin,ymax=slopeMax,color=supertype2)) + geom_pointrange(alpha=0.5,position = "jitter") + facet_grid(.~side) + theme_minimal_hgrid() + scale_color_CX_supertype(name="Type")+theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5),panel.border = element_rect(color = "gray 50", fill = NA))+xlab("") + ylab("Slope of the regression")
+EBSlopes
+```
+```{r}
+save_plot(paste0(validationFolder,"SI/slopes.svg"),EBSlopes,ncol=2)
+save_plot(paste0(validationFolder,"SI/slopes.png"),EBSlopes,ncol=2)
+```
+
+
+```{r}
+ggplot(EBFits,aes(x=known_synapses_ratio*100,y=slope,color=supertype2)) +   
+    geom_point() +theme_minimal_grid()+facet_grid(.~side,scale="free_x")+xlab("% known synapses increase") + ylab("Slope of the regression")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+scale_color_CX_supertype(name="Type")
+```
+
+```{r}
+ggplot(EBFits,aes(x=slope,y=rsq,color=supertype2)) +   
+    geom_point() +theme_minimal_grid()+facet_grid(.~side,scale="free_x")+xlab("Slope of the regression") + ylab("Residuals sum of squares")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+scale_color_CX_supertype(name="Type")
+```
+
+```{r}
+increase2rsq <- ggplot(EBFits,aes(x=known_synapses_ratio*100,y=rsq,color=supertype2)) +   
+    geom_point() +theme_minimal_grid()+facet_grid(.~side,scale="free_x")+xlab("% known synapse increase") + ylab("Residual sum of squares")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+scale_color_CX_supertype(name="Type")
+increase2rsq
+```
+
+```{r}
+save_plot(paste0(validationFolder,"SI/errorFromChange.svg"),increase2rsq)
+save_plot(paste0(validationFolder,"SI/errorFromChange.png"),increase2rsq)
+```
+
+
+```{r}
+ggplot(EBFits,aes(x=known_synapses.new,y=rsq,color=supertype2)) +   
+    geom_point() +theme_minimal_grid()+facet_grid(.~side,scale="free_x")+xlab("# known synapses") + ylab("Residual sum of squares")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+scale_color_CX_supertype(name="Type")
+```
+```{r}
+ggplot(EBFits,aes(x=known_synapses.new,y=slope,color=supertype2)) +   
+    geom_point() +theme_minimal_grid()+facet_grid(.~side,scale="free_x")+xlab("# known synapses") + ylab("Slope of the regression")+theme(panel.border = element_rect(color = "gray 50", fill = NA))+scale_color_CX_supertype(name="Type")
+```
+
+```{r}
+save_plot(paste0(validationFolder,"errorPerChangeEB.svg"),controlChange,ncol=2)
+```
+```{r}
+EBAgesSummary <- EBAges %>% group_by(bodyid,known_synapses.new,known_synapses.old,known_synapses_ratio,supertype2,side) %>% summarize(error=mean(new-old),sdError=sd(new-old)) %>%
+  ungroup()
+```
+
+```{r}
+ggplot(EBAgesSummary,aes(x=known_synapses.new,y=known_synapses_ratio,z=sdError)) + stat_summary_2d() +theme_cowplot() + facet_grid(.~side) + scale_fill_gradient(low = "black",high = "white")
+```
+
+```{r}
+inputErrorLm <- lm(sdError~known_synapses.new * known_synapses_ratio,filter(EBAgesSummary,side=="inputs"))
+outputErrorLm <- lm(sdError~known_synapses.new + known_synapses_ratio,filter(EBAgesSummary,side=="outputs"))
+```
+
+```{r}
+controlAbsolute <- ggplot(EBAges,aes(x=known_synapses.new,y=(new-old),color=supertype2)) +   
+    stat_summary(fun = sd, geom = "point") +theme_minimal()+facet_grid(.~side,scale="free_x") + scale_color_CX_supertype(name="Type")+xlab("# known synapses in new dataset") + ylab("Sd of the connection strengths residuals") + scale_x_log10()
+controlAbsolute
+```
+```{r}
+ggsave(paste0(validationFolder,"errorPerChangeEBRaw.svg"),controlAbsolute,width=18)
+```
+
+### Heavytraced vs their brothers
+```{r}
+library(readxl)
+heavyTraced <- read_xlsx("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/191120_HeavyTraceCoreCX neurons.xlsx")
+```
+ 
 

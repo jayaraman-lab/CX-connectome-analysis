@@ -1,0 +1,454 @@
+---
+title: "PB Figure 2"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
+```
+
+Specify plotting text sizes
+```{r}
+tickLabSz <- 6
+axLabSz <- 8
+legSz <- 6
+legTitSz <- 8
+pltTit <- 8
+
+theme_set(theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz),
+      plot.title = element_text(size = pltTit)))
+
+```
+
+Get the connection matrix between the EPGs, EPGts, D7s, and IbSpsPs
+```{r}
+EPGD7ConTab <- getConnectionTable(
+  c(unique(neuprint_search("EPG.*")$bodyid),
+    unique(neuprint_search("IbSpsP.*")$bodyid),
+    unique(neuprint_search("Delta7.*")$bodyid)),
+  "POST",
+  "PB")
+EPGD7ConTab <- EPGD7ConTab %>% filter(type.to == "Delta7" | type.to == "EPG" | type.to == "EPGt" | type.to == "IbSpsP")
+
+EPGD7ConTab$name.to <- factor(EPGD7ConTab$name.to,
+        levels = glomSort(EPGD7ConTab$name.to))
+
+EPGD7ConTab$nameid <- PBRename(EPGD7ConTab$name.from,EPGD7ConTab$from)
+EPGD7ConTab$partnerid <- PBRename(EPGD7ConTab$name.to,EPGD7ConTab$to)
+
+conmatPlot <- ggplot(EPGD7ConTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(EPGD7ConTab$ROIweight),
+                       limits=c(0,max(EPGD7ConTab$ROIweight))) +
+  geom_tile(aes(partnerid,nameid,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("pre-synaptic neuron") + ylab("post-synaptic neuron")
+
+offset <- 0.5
+types <- EPGD7ConTab$type.from %>% unique()
+for (t in 1:length(types)){
+  numNrons <- nrow(EPGD7ConTab %>% filter(type.from == types[t]) %>% select(nameid) %>% unique())
+  offset <- offset + numNrons
+  conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+types <- EPGD7ConTab$type.to %>% unique() %>% sort()
+for (t in 1:length(types)){
+  offset <- offset + nrow(EPGD7ConTab %>% filter(type.to == types[t]) %>% select(partnerid) %>% unique())
+  conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
+}
+
+print(conmatPlot)
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGD7IbSpsPConn.pdf',conmatPlot)
+```
+
+Figure 2A 
+Plot the EPG input from D7s given a von Mises or Impulse input profile
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Transform the bump from EB coordinates to PB coordinates
+vMOut <- EPGToD7Transform("EPG",actProfvM)
+
+# Get the profile stats
+D7OutputShape_stats_vM <- D7ShapeMeanSD(vMOut)
+  
+# Fit a cosine to the data
+fit_vM <- D7CosFit(D7OutputShape_stats_vM) 
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+impOut <- EPGToD7Transform("EPG",actProfImp)
+
+# Get the profile stats
+D7OutputShape_stats_imp <- D7ShapeMeanSD(impOut)
+  
+# Fit a cosine to the data
+fit_imp <- D7CosFit(D7OutputShape_stats_imp) 
+
+# Plot
+PBEPGToD7Prof_vM <- PBActPlot(D7OutputShape_stats_vM,fit_vM)
+PBEPGToD7Prof_vM <- PBEPGToD7Prof_vM + ggtitle('von Mises E-PG input -> D7 -> E-PG') + theme_cowplot() +
+  theme(legend.justification = c(0, 1), legend.position = c(0.1, 1))
+
+# Plot
+PBEPGToD7Prof_imp <- PBActPlot(D7OutputShape_stats_imp,fit_imp)
+PBEPGToD7Prof_imp <- PBEPGToD7Prof_imp + ggtitle('impulse E-PG input -> D7 -> E-PG') + theme_cowplot() +
+  theme(legend.justification = c(0, 1), legend.position = c(0.1, 1))
+
+```
+
+Figure 2B,C
+List the order of PB gloms
+```{r}
+PBGlomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+                 "L1","L2","L3","L4","L5","L6","L7","L8","L9")
+```
+
+Create a von Mises profile in the EPGs - in the EB
+```{r}
+gloms = c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  theme(axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+print(g_EPGact_in_EB)
+```
+
+Propogate the profile into the PB
+```{r}
+# Get the EPG to D7 connections
+EPG_2_Delta7 <- getConnectionTable(
+  unique(neuprint_search("EPG.*")$bodyid),
+  "POST",
+  "PB") %>% filter(type.from == "EPG" & type.to == "Delta7")
+EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
+EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
+
+# Get the EPG activity given the assumed profile
+allEPGids <- EPG_2_Delta7$nameid %>% unique()
+allD7ids <- EPG_2_Delta7$partnerid %>% unique()
+allEPGGloms = strsplit(allEPGids,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+EPGact = numeric(length(allEPGids))
+for (EPG in 1:length(allEPGids)){
+  EPGact[EPG] <- actProfvM[which(actProfvM$glom == allEPGGloms[EPG]),]$act
+}
+EPGProf <- data.frame(nameid = PBRename(EPG_2_Delta7$name.from,EPG_2_Delta7$from) %>% unique(), act = EPGact, glom = allEPGGloms)
+EPGProf$glom <- factor(EPGProf$glom, levels = gloms)
+
+g_EPGact_in_PB <- ggplot(EPGProf) + geom_bar(aes(x = nameid, weight = act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity') + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+print(g_EPGact_in_PB)
+```
+
+Convert this to a Delta 7 activity profile
+```{r}
+justWeights_EPG_2_D7 <- WMFromConTab(EPG_2_Delta7,allEPGids,allD7ids)
+D7outAct <- as.vector(EPGact %*% justWeights_EPG_2_D7)
+D7outAct <- (D7outAct - min(D7outAct))/(max(D7outAct)-min(D7outAct))
+allD7Gloms = strsplit(allD7ids,"_") %>% lapply(function(x){tail(x,3)[1]}) %>% unlist()
+D7act <- data.frame(nameid = PBRename(EPG_2_Delta7$name.to,EPG_2_Delta7$to) %>% unique(), act= D7outAct, glom = allD7Gloms)
+
+g_D7act <- ggplot(D7act) + geom_bar(aes(x=nameid, weight=act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + 
+  xlab('D7 neuron') + ylab('normalized activity') + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz))
+print(g_D7act)
+```
+
+Convert back to an E-PG activity profile
+```{r}
+# Get the weight matrix from EPG->D7->EPG
+transMat <- EPGToD7Mat("EPG")
+allEPGidsIn = rownames(transMat)
+allEPGGlomsIn = strsplit(allEPGidsIn,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+allEPGidsOut = colnames(transMat)
+allEPGGlomsOut = strsplit(allEPGidsOut,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+
+# Get the EPG input activity profile
+EPGactIn = numeric(length(allEPGidsIn))
+for (EPG in 1:length(allEPGidsIn)){
+  EPGactIn[EPG] <- actProfvM[which(actProfvM$glom == allEPGGlomsIn[EPG]),]$act
+}
+
+# Get the D7->EPG input profile
+EPGOutAct <- as.vector(EPGactIn %*% transMat)
+EPGOutAct <- (EPGOutAct - min(EPGOutAct))/(max(EPGOutAct)-min(EPGOutAct))
+EPGinput <- data.frame(nameid = allEPGidsOut, act = EPGOutAct, glom = allEPGGlomsOut)
+EPGinput$glom <- factor(EPGinput$glom, levels = PBGlomOrder)
+
+# Rename the EPGs
+allNames = paste0(EPGinput$nameid %>% as.character() %>% sapply(function(n){strsplit(n,"\\(")[[1]][1]}) %>% as.character(),
+              EPGinput$nameid %>% as.character() %>% sapply(function(n){strsplit(n,"\\)")[[1]][2]}) %>% as.character())
+nms <- allNames %>% sapply(function(n){paste(strsplit(n,"_")[[1]][1], strsplit(n,"_")[[1]][2],sep='_')}) %>% unique()
+for (n in 1:length(nms)){
+  nmsNow <- allNames[which(grepl(nms[n],allNames))]
+  nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
+  allNames[which(grepl(nms[n],allNames))] <- nmsNow
+}
+EPGinput$nameid <- factor(allNames,levels = glomSort(allNames))
+
+g_EPGinAct <- ggplot(EPGinput) + geom_bar(aes(x=nameid, weight=act)) + 
+  theme_cowplot() + coord_cartesian(expand=FALSE) + 
+  xlab('EPG neuron') + ylab('normalized activity')
+
+# Fit with a cosine
+df = data.frame(pts = c(1:nrow(EPGinput)), weight = EPGinput$act)
+fit <- nls(weight ~ (C1 * cos(C2*(pts-theta))+C3), data=df, algorithm="port",
+           start = list(C1=0.4, C2=0.3, theta=0.5, C3=0.4),
+           lower = list(C1=0, C2=0, theta=0, C3=-1),
+           upper = list(C1=2, C2=2, theta=20, C3=1))
+dffit <- data.frame(nameid = EPGinput$nameid)
+dffit$wMean <-  predict(fit, newdata=dffit)
+g_EPGinAct <-g_EPGinAct + geom_line(data = dffit, aes(x=nameid,y=wMean,group=1,color="red"),size=0.5)  + 
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title = element_text(size = axLabSz), 
+        axis.text = element_text(size = tickLabSz),
+        legend.position = "None")
+print(g_EPGinAct)
+```
+
+Put them all into one plot
+```{r}
+D7TransPlot <- g_EPGact_in_EB / g_EPGact_in_PB / g_D7act / g_EPGinAct
+plot_layout(guides="collect",heights=c(1,1,1.5,1))
+D7TransPlot
+```
+
+
+Figure 2C - show the E-PG to Delta7 input profile
+
+Shift the rows in the weight matrix to align the peaks
+```{r}
+# Get info about the D7 and EPG neurons
+allD7ids = EPG_2_Delta7$partnerid %>% as.character() %>% unique()
+D7Gloms = strsplit(allD7ids,"_") %>% lapply(function(x){x[3]}) %>% unlist()
+allEPGids = EPG_2_Delta7$nameid %>% as.character() %>% unique() %>% glomSort()
+
+# Create a matrix of just the weights
+justWeights = matrix(0L,nrow=length(allD7ids),ncol=length(allEPGids))
+for (i in 1:length(allD7ids)){
+  for (j in 1:length(allEPGids)){
+    w = EPG_2_Delta7[which(EPG_2_Delta7$partnerid == allD7ids[i] & EPG_2_Delta7$nameid == allEPGids[j]),]$weight
+    if (length(w) > 0)
+      justWeights[i,j] = w
+  }
+}
+
+# Shift the entries to align the peaks
+for (i in 1:length(allD7ids)){
+  # First, move the max so that the two peaks occur ~1/4 and ~3/4 of the way in
+  wNow = justWeights[i,]
+  shift = which.max(wNow)-12
+  if (shift == 0){
+    wNow
+  } else {
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  }
+  
+  # Fit two gaussians to the two peaks
+  pts = c(1:length(wNow)-1)
+  df = data.frame(pts = pts, wNow = wNow)
+  fit <- nls(wNow ~ (C1 * exp(-(pts-mean1)**2/(2 * sigma1**2)) +
+    C2 * exp(-(pts-mean2)**2/(2 * sigma2**2))), data=df,
+    start=list(C1=20, mean1=15, sigma1=5,
+               C2=20, mean2=35, sigma2=5), algorithm="port") 
+  dffit <- data.frame(pts)
+  dffit$wNow <- predict(fit, newdata=dffit)
+  
+  # Align the center of the higher amplitude Gaussian to the same position
+  if (as.numeric(coef(fit)['C1'])>as.numeric(coef(fit)['C2']))
+    shift = coef(fit)['mean1'] %>% as.numeric()-25
+  else
+    shift = coef(fit)['mean2'] %>% as.numeric()-25
+
+  if (shift == 0)
+    wNow
+  else
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  justWeights[i,] <- wNow
+}
+```
+
+Plot the weight matrix
+```{r}
+allD7ids <- allD7ids %>% str_replace('_R_','_R-') %>% str_replace('_L_','_L-')
+rownames(justWeights) <- PBRename(sapply(allD7ids,function(x) strsplit(x,'-')[[1]][1]) %>% as.character(),
+                                 sapply(allD7ids,function(x) strsplit(x,'-')[[1]][2]) %>% as.character())
+colnames(justWeights) <- seq(1:dim(justWeights)[2])
+PBRegInputs <- melt(justWeights,value.name = 'regInput',varnames = c('D7id','position'))
+PBRegInputs$D7id <- as.factor(PBRegInputs$D7id)
+PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
+
+conmatPlot <- ggplot(PBRegInputs) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(PBRegInputs$regInput),
+                       limits=c(0,max(PBRegInputs$regInput))) +
+  geom_tile(aes(position,D7id,fill=regInput)) +
+  theme_minimal() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  ylab("post-synaptic neuron") + xlab("pre-synaptic position")
+
+print(conmatPlot)
+```
+
+
+Plot the mean and SD with a cosine fit
+```{r}
+PBRegInputStats <- PBRegInputs %>% group_by(position) %>% summarize(mean = mean(regInput), sd = sd(regInput))
+
+g_PBProf <- ggplot(PBRegInputStats) + geom_line(aes(x=position,y=mean,group=1),color='black') +
+  geom_line(aes(x=position,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=position,y=mean+sd,group=1),color='gray')
+
+# Fit a cosine to the profile and plot it
+df = data.frame(pts = PBRegInputStats$position, wMean = PBRegInputStats$mean)
+fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+  start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+dffit <- data.frame(pts)
+dffit$wMean <- predict(fit, newdata=dffit)
+
+g_PBProf <- g_PBProf + geom_line(data=dffit,aes(x=pts,y=wMean),color='red')
+
+g_PBProf <- g_PBProf + theme_cowplot() + xlab('EPG input position') + ylab('# of synapses') + 
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+print(g_PBProf)
+```
+
+Combine the plots
+```{r}
+EPGToD7Prof <- conmatPlot / g_PBProf + 
+  plot_layout(heights=c(1,1))
+EPGToD7Prof
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGToD7Profile.pdf',EPGToD7Prof,ncol=1)
+```
+
+Plot a cosine fit for the D7 inputs onto EPG neurons from EPG neurons assuming a von Mises input
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+ # Get the von Mises profiles
+vMOut <- EPGToD7Transform("EPG",actProfvM)
+
+# Get the profile stats
+D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+
+g_D7ToEPG <- ggplot(D7OutputShape_stats) + geom_line(aes(x=glom,y=mean,group=1),color='black') +
+  geom_line(aes(x=glom,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=glom,y=mean+sd,group=1),color='gray')
+
+# Fit a cosine to the profile and plot it
+df = data.frame(pts = seq(1,length(D7OutputShape_stats$glom)), wMean = D7OutputShape_stats$mean)
+fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+  start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+dffit <- data.frame(pts = seq(1,length(D7OutputShape_stats$glom)))
+dffit$wMean <- predict(fit, newdata=dffit)
+
+g_D7ToEPG <- g_D7ToEPG + geom_line(data=dffit,aes(x=pts,y=wMean,group=1),color='red')
+
+g_D7ToEPG <- g_D7ToEPG + theme_t() + xlab('EPG input position') + ylab('# of synapses') + 
+  scale_y_continuous(expand = c(0, 0))
+print(g_D7ToEPG)
+```
+
+Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Specify the search strings
+PBTps <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+           "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+           "PFGs","PFL1","PFL3","PFR_a","PFR_b")
+PBTpNames <- c("EPG","PEN1","PEN2","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+               "PFG","PFL1","PFL3","PFR_a","PFR_b")
+allvMDev <- c()
+allimpDev <- c()
+for (tp in 1:length(PBTps)){
+  # Get the von Mises profiles
+  vMOut <- EPGToD7Transform(PBTps[tp],actProfvM)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allvMDev <- append(allvMDev,deviance(fit))
+  
+  # Get the impulse profiles
+  impOut <- EPGToD7Transform(PBTps[tp],actProfImp)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allimpDev <- append(allimpDev,deviance(fit))
+}
+
+plt_order = c("EPG","PEN1","PEN2","PEG","PFG",
+              "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+              "PFL1","PFL3","PFR_a","PFR_b")
+
+vM_stats <- data.frame(type = PBTpNames, resid = allvMDev, input = "von Mises")
+imp_stats <- data.frame(type = PBTpNames, resid = allimpDev, input = "impulse")
+all_stats = rbind(vM_stats,imp_stats)
+all_stats$type = factor(all_stats$type, levels = as.factor(plt_order))
+
+gStats_all <- ggplot(all_stats,aes(x=type,y=resid,color=input)) + geom_point(size=2) +
+  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.4)) + theme_minimal_grid() +
+  xlab('neuron type') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_colour_manual(values = c('black','red'))
+print(gStats_all)
+
+```
+
+Combine the plots
+```{r}
+EPGToD7Prof <- g_D7ToEPG / gStats_all
+EPGToD7Prof
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\D7ToEPGMeanProfile.pdf',EPGToD7Prof,ncol=1,
+          base_asp = 1.25,base_height = 3.5)
+```

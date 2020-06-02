@@ -47,12 +47,12 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 ### Make selection of neurons to be used in connecitivy analysis
 This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
 ```{r}
-ROI = "EB"
-slctROI ="EB"# "EB"#LAL(-GA)
+ROI = "BU"
+slctROI ="BU(R)"# "EB"#LAL(-GA)
 
 splitLR = FALSE
 
-saveName = paste0("RN_to_EPG-EP_",slctROI) #RN_TB_ExR #RN_ExR_col_in_
+saveName = paste0("TB2RN_",slctROI) #RN_TB_ExR #RN_ExR_col_in_
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
 useCuratedListPost = FALSE#
@@ -90,7 +90,7 @@ if (useCuratedListPost) {
   
 } else{
   if(useCustomPostSelection){
-    postNeuron = c("EPG", "EL")
+    postNeuron = c("R1","R2","R3","R4","R5","R6")
     postNeuron = paste0(postNeuron,".*")
     #c("R1","R2","R3","R4","R5","R6", "EL","EPG","EPGt","PEG","PEN_a","PEN_b","ExR")
     #c("R1","R2","R3","R4","R5","R6")
@@ -99,7 +99,7 @@ if (useCuratedListPost) {
     #c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")#
     #, "ExR","EPG","EL","EPGt","PEG","PEN","PEN") #c("PDM21a.*","TuBu.*", "TuTuB.*")# 
     # c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*", "ExR.*")
-    postName = paste0("EPG, EL in ",slctROI) #RN, columnar and ExR
+    postName = paste0("RN in ",slctROI) #RN, columnar and ExR
     postIDs = getBodyIdsForList(postNeuron)
   }else{
     postName = paste0("all in ", ROI)
@@ -120,8 +120,8 @@ if (useCuratedListPre) {
 
 } else{
   if(useCustomPreSelection){
-    preNeuron = c("R1","R2","R3","R4","R5","R6") # postNeuron #c("TuBu.*")#
-    preName = paste0("RN in ",slctROI) # postName#
+    preNeuron = c("TuBu.*") # postNeuron #c("TuBu.*")#
+    preName = paste0("TB in ",slctROI) # postName#
     preIDs = getBodyIdsForList(preNeuron)
   }else{
     preName = paste0("all in ", ROI)
@@ -135,12 +135,7 @@ if (useCuratedListPre) {
 myConnections = getConnectionTable(preIDs$bodyid, "POST", slctROI)
 myConnections = myConnections %>% filter(to %in% postIDs$bodyid) 
   
-#myConnections = getConnectionTable_forSubset(preIDs$bodyid,postIDs$bodyid, slctROI)
 write.csv(myConnections, paste0("../neuprintR_analysis_plots/connectivityTable_",saveName,'_byid.csv'), row.names = FALSE)
-#library(igraph)
-#edge_list <- myConnections[c("from","type.to","weightRelative")]
-#G <- graph.data.frame(edge_list,directed=TRUE);
-#A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative");
 ```
 
 ```{r}
@@ -164,11 +159,25 @@ myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
 
 ```
 
+```{r}
+library(igraph)
+myConnections_nameid = myConnections %>% mutate(typeid.to = paste(type.to, to,sep="_"),
+                                                typeid.from = paste(type.from, from, sep="_"))
+edge_list <- myConnections_nameid[c("from","to","weightRelative")]
+#[c("typeid.from","typeid.to","weightRelative")]
+G <- graph.data.frame(edge_list,directed=TRUE);
+A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative")
+write.csv(A, paste0("../neuprintR_analysis_plots/adjacencyMatrix_",saveName,'_byid.csv'), row.names = FALSE)
+write.csv(edge_list, paste0("../neuprintR_analysis_plots/edgeList_",saveName,'_byid.csv'), row.names = FALSE)
+
+```
+
+
 ### Connectivity matrix
 ```{r}
-plotW = 7 #24#25# 45 # 20
+plotW = 24#25# 45 # 20
 plotH = 22 #4 #40  #17
-cmax = 0.48#NULL
+cmax = NULL
 connectionMeasures = c("weightRelative")#,"weight")
 
 for (connectionMeasure in connectionMeasures){
@@ -197,6 +206,7 @@ for (connectionMeasure in connectionMeasures){
     scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
+
 
 ###  Draw graph
 

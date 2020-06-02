@@ -1,0 +1,317 @@
+---
+title: "Make illustration of ROIs"
+output:
+  html_document:
+    df_print: paged
+---
+#Analysis of Ring neuron connectivity
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(natverse)
+require(matlib)
+library(neuprintrExtra)
+
+source("SynapsePCAUtils.R")
+require(alphahull)
+require(RColorBrewer)
+library("paletteer")
+```
+
+```{r}
+neuprint_login()
+```
+
+
+### (1) Select ROI
+```{r}
+myROI = "EB"
+
+roiTree = getRoiTree()
+mySubROIs = roiTree %>% filter(level2 == myROI) %>% select(level3)
+mySubROIs = as.character(mySubROIs$level3)
+mySubROIs
+```
+
+### (2) Find convenient coordinate system based on PCA of vertices and center of mass of the high-level ROI
+#***Transform mesh locations***
+```{r}
+roiMesh = neuprint_ROI_mesh(myROI)
+roiMeshPts = data.frame(dotprops(roiMesh)$points)
+names(roiMeshPts) <- c("x","y","z")
+
+# define new origin from roi center of mass
+origin = getCOM(roiMeshPts)
+
+#reset orgin
+roiMeshPts = resetOrigin(roiMeshPts, origin)
+
+#get eigenvectors
+roiEigen = covPCA(roiMeshPts)
+
+roiMeshPtsRot = changeBasis(roiMeshPts, roiEigen)
+
+```
+
+
+### (3) Plot
+
+```{r}
+rot = c(0,180,0) #BU (45,180, 0) EB: (0,180,0) AOTU: (0,180,0)
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
+                             y=roiMeshPtsRot$Y,
+                             z=roiMeshPtsRot$Z)
+# rotate points
+roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
+
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsPlane[,1],y=roiMeshPtsPlane[,2],z=roiMeshPtsPlane[,3])
+```
+
+***(3a) frotal view***
+
+
+```{r}
+plotW = 14#12
+plotH =  6# 4
+
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=100)
+
+outline = data.frame(meshOutline$arcs)
+
+roiProjFront = ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + theme_void() + coord_fixed(ratio = 1)
+
+#Load, transform and plot low-level rois 
+
+for (sr in mySubROIs){
+  sroiMesh = neuprint_ROI_mesh(sr)
+  sroiMeshPts = data.frame(dotprops(sroiMesh)$points)
+  names(sroiMeshPts) <- c("x","y","z")
+  
+  #reset orgin and transform based on roi eigen vector
+  sroiMeshPts = resetOrigin(sroiMeshPts, origin)
+  sroiMeshPtsRot = changeBasis(sroiMeshPts, roiEigen)
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsRot$X, y=sroiMeshPtsRot$Y, z=sroiMeshPtsRot$Z)
+  
+  # rotate points
+  sroiMeshPtsPlane = data.matrix(sroiMeshPtsPlane)
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXY(rot[1])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsPlane[,1],y=sroiMeshPtsPlane[,2],z=sroiMeshPtsPlane[,3])
+  
+  # get outline
+  srmeshOutline <- ahull(x=sroiMeshPtsPlane$x,y=sroiMeshPtsPlane$y,alpha=100)
+  
+  sroutline = data.frame(srmeshOutline$arcs)
+  
+  # make plot
+  roiProjFront = roiProjFront + geom_path(data=sroutline, aes(x=c1, y=c2), size = 0.5)
+
+}
+roiProjFront = roiProjFront  + theme_void() + coord_fixed(ratio = 1)
+
+print(roiProjFront)
+ggsave( paste("subrois_",myROI,'_front.pdf', sep=''), plot = roiProjFront, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
+```
+***(3b) side view***
+
+```{r}
+plotW = 12
+plotH =  6# 
+
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$y,alpha=100)
+
+outline = data.frame(meshOutline$arcs)
+
+roiProjFront = ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + theme_void() + coord_fixed(ratio = 1)
+
+#Load, transform and plot low-level rois 
+
+for (sr in mySubROIs){
+  sroiMesh = neuprint_ROI_mesh(sr)
+  sroiMeshPts = data.frame(dotprops(sroiMesh)$points)
+  names(sroiMeshPts) <- c("x","y","z")
+  
+  #reset orgin and transform based on roi eigen vector
+  sroiMeshPts = resetOrigin(sroiMeshPts, origin)
+  sroiMeshPtsRot = changeBasis(sroiMeshPts, roiEigen)
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsRot$X, y=sroiMeshPtsRot$Y, z=sroiMeshPtsRot$Z)
+  
+  # rotate points
+  sroiMeshPtsPlane = data.matrix(sroiMeshPtsPlane)
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXY(rot[1])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsPlane[,1],y=sroiMeshPtsPlane[,2],z=sroiMeshPtsPlane[,3])
+  
+  # get outline
+  srmeshOutline <- ahull(x=sroiMeshPtsPlane$z,y=sroiMeshPtsPlane$y,alpha=100)
+  
+  sroutline = data.frame(srmeshOutline$arcs)
+  
+  # make plot
+  roiProjFront = roiProjFront + geom_path(data=sroutline, aes(x=c1, y=c2), size = 0.5) + 
+    theme_void() + coord_fixed(ratio = 1)
+
+}
+```
+
+```{r}
+print(roiProjFront)
+
+ggsave( paste("subrois_",myROI,'_side.pdf', sep=''), plot = roiProjFront, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+***(3c) slice view***
+
+***Compute angle of vectors to each point relative to x-axis***
+```{r}
+
+plotW = 12
+plotH =  6# 
+
+roi_dist = numeric(length(roiMeshPtsPlane$x))
+for (i in seq(1,length(roiMeshPtsPlane$x))) {
+  roi_dist[i] = sqrt(sum(roiMeshPtsPlane[i,1:2] * roiMeshPtsPlane[i,1:2]))
+}
+
+roiMeshPtsPlane$dist = roi_dist
+
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$dist,alpha=70)
+outline = data.frame(meshOutline$arcs)
+
+roiProjFront = ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + theme_void() + coord_fixed(ratio = 1)
+
+#Load, transform and plot low-level rois 
+
+for (sr in mySubROIs){
+  sroiMesh = neuprint_ROI_mesh(sr)
+  sroiMeshPts = data.frame(dotprops(sroiMesh)$points)
+  names(sroiMeshPts) <- c("x","y","z")
+  
+  #reset orgin and transform based on roi eigen vector
+  sroiMeshPts = resetOrigin(sroiMeshPts, origin)
+  sroiMeshPtsRot = changeBasis(sroiMeshPts, roiEigen)
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsRot$X, y=sroiMeshPtsRot$Y, z=sroiMeshPtsRot$Z)
+  
+  # rotate points
+  sroiMeshPtsPlane = data.matrix(sroiMeshPtsPlane)
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXY(rot[1])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsPlane[,1],y=sroiMeshPtsPlane[,2],z=sroiMeshPtsPlane[,3])
+  
+  # get distance
+  srroi_dist = numeric(length(sroiMeshPtsPlane$x))
+  for (i in seq(1,length(sroiMeshPtsPlane$x))) {
+    srroi_dist[i] = sqrt(sum(sroiMeshPtsPlane[i,1:2] * sroiMeshPtsPlane[i,1:2]))
+  }
+  
+  sroiMeshPtsPlane$dist = srroi_dist
+
+  # get outline
+  srmeshOutline <- ahull(x=sroiMeshPtsPlane$z,y=sroiMeshPtsPlane$dist,alpha=100)
+  
+  sroutline = data.frame(srmeshOutline$arcs)
+  
+  # make plot
+  roiProjFront = roiProjFront + geom_path(data=sroutline, aes(x=c1, y=c2), size = 0.5) + 
+    theme_void() + coord_fixed(ratio = 1)
+
+}
+
+print(roiProjFront)
+
+ggsave( paste("subrois_",myROI,'_slice.pdf', sep=''), plot = roiProjFront, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+```{r}
+nclear3d()
+plot3d(roiMesh-origin, alpha=0.2)
+
+sr = mySubROIs[1]
+print(sr)
+sroiMesh = neuprint_ROI_mesh(sr)
+plot3d(sroiMesh-origin, alpha=1,  color="maroon", add=TRUE)
+
+decorate3d(box=FALSE)
+
+```
+
+```{r}
+plotW = 12
+plotH =  6# 
+
+roi_dist = numeric(length(roiMeshPtsPlane$x))
+for (i in seq(1,length(roiMeshPtsPlane$x))) {
+  roi_dist[i] = sqrt(sum(roiMeshPtsPlane[i,1:2] * roiMeshPtsPlane[i,1:2]))
+}
+
+roiMeshPtsPlane$dist = roi_dist
+
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$dist,alpha=70)
+outline = data.frame(meshOutline$arcs)
+
+#Load, transform and plot low-level rois 
+
+for (sr in mySubROIs){
+  roiProjFront = ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+
+  sroiMesh = neuprint_ROI_mesh(sr)
+  sroiMeshPts = data.frame(dotprops(sroiMesh)$points)
+  names(sroiMeshPts) <- c("x","y","z")
+  
+  #reset orgin and transform based on roi eigen vector
+  sroiMeshPts = resetOrigin(sroiMeshPts, origin)
+  sroiMeshPtsRot = changeBasis(sroiMeshPts, roiEigen)
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsRot$X, y=sroiMeshPtsRot$Y, z=sroiMeshPtsRot$Z)
+  
+  # rotate points
+  sroiMeshPtsPlane = data.matrix(sroiMeshPtsPlane)
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXY(rot[1])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+  sroiMeshPtsPlane = sroiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+  
+  sroiMeshPtsPlane = data.frame(x=sroiMeshPtsPlane[,1],y=sroiMeshPtsPlane[,2],z=sroiMeshPtsPlane[,3])
+  
+  # get distance
+  srroi_dist = numeric(length(sroiMeshPtsPlane$x))
+  for (i in seq(1,length(sroiMeshPtsPlane$x))) {
+    srroi_dist[i] = sqrt(sum(sroiMeshPtsPlane[i,1:2] * sroiMeshPtsPlane[i,1:2]))
+  }
+  
+  sroiMeshPtsPlane$dist = srroi_dist
+
+  
+  # make plot
+  roiProjFront = roiProjFront + geom_hex(data=sroiMeshPtsPlane, aes(x=z, y=dist), bins=30) +
+    theme_void() + coord_fixed(ratio = 1)
+
+  roiProjFront = roiProjFront + theme_void() + coord_fixed(ratio = 1)
+  print(roiProjFront)
+  
+  ggsave( paste("subrois_",sr,'_slice_facet.pdf', sep=''), plot = roiProjFront, device='pdf', path = "../neuprintR_analysis_plots/",
+      scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
