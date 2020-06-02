@@ -31,20 +31,37 @@ Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
 
 PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping, DIR, TOPLOT_TF, TOPLOTLEGEND_TF){
   
-  P1 = Plot_Layer(Plot_Syns, "L1", Outline_L1_XZ, paste("L1 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P2 = Plot_Layer(Plot_Syns, "L2", Outline_L2_XZ, paste("L2 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P3 = Plot_Layer(Plot_Syns, "L3", Outline_L3_XZ, paste("L3 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P4 = Plot_Layer(Plot_Syns, "L4", Outline_L4_XZ, paste("L4 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P5 = Plot_Layer(Plot_Syns, "L5", Outline_L5_XZ, paste("L5 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P6 = Plot_Layer(Plot_Syns, "L6", Outline_L6_XZ, paste("L6 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P7 = Plot_Layer(Plot_Syns, "L7", Outline_L7_XZ, paste("L7 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P8 = Plot_Layer(Plot_Syns, "L8", Outline_L8_XZ, paste("L8 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
-  P9 = Plot_Layer(Plot_Syns, "L9", Outline_L9_XZ, paste("L9 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF)
+  P1 = Plot_Layer(Plot_Syns, "L1", Outline_L1_XZ, paste("L1 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P2 = Plot_Layer(Plot_Syns, "L2", Outline_L2_XZ, paste("L2 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P3 = Plot_Layer(Plot_Syns, "L3", Outline_L3_XZ, paste("L3 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P4 = Plot_Layer(Plot_Syns, "L4", Outline_L4_XZ, paste("L4 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P5 = Plot_Layer(Plot_Syns, "L5", Outline_L5_XZ, paste("L5 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P6 = Plot_Layer(Plot_Syns, "L6", Outline_L6_XZ, paste("L6 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P7 = Plot_Layer(Plot_Syns, "L7", Outline_L7_XZ, paste("L7 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P8 = Plot_Layer(Plot_Syns, "L8", Outline_L8_XZ, paste("L8 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  P9 = Plot_Layer(Plot_Syns, "L9", Outline_L9_XZ, paste("L9 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
   
   P12<-ggarrange(plotlist=list(P9,P8,P7,P6,P5,P4,P3,P2,P1), ncol =3, nrow = 3)
-  ggsave(paste(DIR, PlotName,".png",sep=""),
-         plot = P12, device='png', scale = 1, width = 12, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(DIR, PlotName,"_XZ.pdf",sep=""),
+         plot = P12, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(DIR, PlotName,"_XZ.png",sep=""),
+         plot = P12, device='png', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   
+  P1b = Plot_Layer(Plot_Syns, "L1", Outline_L1_XY, paste("L1 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P2b = Plot_Layer(Plot_Syns, "L2", Outline_L2_XY, paste("L2 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P3b = Plot_Layer(Plot_Syns, "L3", Outline_L3_XY, paste("L3 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P4b = Plot_Layer(Plot_Syns, "L4", Outline_L4_XY, paste("L4 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P5b = Plot_Layer(Plot_Syns, "L5", Outline_L5_XY, paste("L5 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P6b = Plot_Layer(Plot_Syns, "L6", Outline_L6_XY, paste("L6 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P7b = Plot_Layer(Plot_Syns, "L7", Outline_L7_XY, paste("L7 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P8b = Plot_Layer(Plot_Syns, "L8", Outline_L8_XY, paste("L8 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  P9b = Plot_Layer(Plot_Syns, "L9", Outline_L9_XY, paste("L9 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+  
+  P12b<-ggarrange(plotlist=list(P9b,P8b,P7b,P6b,P5b,P4b,P3b,P2b,P1b), ncol =3, nrow = 3)
+  ggsave(paste(DIR, PlotName,"_XY.pdf",sep=""),
+         plot = P12b, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE,  useDingbats=FALSE)
+  ggsave(paste(DIR, PlotName,"_XY.pdf",sep=""),
+         plot = P12b, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE,  useDingbats=FALSE)
 }
 
 
@@ -54,7 +71,7 @@ PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping, DIR, TOPLOT_TF
 
 
 
-Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF){
+Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, View){
   
   # Get data
   PlotData=subset(Plot_Syns, Layer==Layer_To_Plot)
@@ -70,7 +87,7 @@ Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, 
   }
   
   # Make plot
-  P1 <- Plot_Synapse_Distribution(PlotData, "XZ", Outline, ColorVar, col_vector, DIR, PlotName, Layer_To_Plot, TOPLOT_TF, TOPLOTLEGEND_TF)
+  P1 <- Plot_Synapse_Distribution(PlotData, View, Outline, ColorVar, col_vector, DIR, PlotName, Layer_To_Plot, TOPLOT_TF, TOPLOTLEGEND_TF)
 
   return(P1)
 }
@@ -82,7 +99,7 @@ Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, 
 
 
 
-Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=1){
+Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=2){
   
   # Get view
   if (VIEW=="XY"){
@@ -92,28 +109,28 @@ Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vec
   }
   
   # Plot just the data for now
-  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar) ,  size=Size, alpha = 1, stroke = 0, shape=16) + 
-    geom_path(data=Outline, aes(x=c1, y=c2), size = 2) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
+  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar, shape=Side) ,  size=Size, alpha = 1, stroke = 0) + 
+    geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
 
   # Save with scaled visible if TOPLOTLEGEND_TF us TRUE
   if (TOPLOTLEGEND_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2 , "_Legend.png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+    ggsave(paste(DIR, PlotName,"_",PlotName2 , "_Legend.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
   }  
   
   # Format the rest of the plot, get rid of axes
   P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
       scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
-      panel.background = element_rect(fill = "transparent"), # bg of the panel
+      panel.background = element_rect(fill = "transparent", color = NA), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
       panel.grid.minor = element_blank(), # get rid of minor grid
-      legend.background = element_rect(fill = "transparent"), # get rid of legend bg
-      legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
+      legend.background = element_rect(fill = "transparent", color = NA), # get rid of legend bg
+      legend.box.background = element_rect(fill = "transparent", color = NA) # get rid of legend panel bg
     )
   
   # Save plot
   if (TOPLOT_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2 , ".png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+    ggsave(paste(DIR, PlotName,"_",PlotName2, VIEW, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
   } 
   
   return(P1)
@@ -127,10 +144,14 @@ Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vec
 
 
 GetColorMap <- function(Grouping){
-  if (Grouping == "FBcol"){
+  if (Grouping == "FBcol_Old"){
     col_vector=brewer.pal(8, "Paired")
     col_vector[9]=col_vector[1]
     col_vector=col_vector[c(1,4,7,2,5,8,3,6,9)]
+  } else if (Grouping == "FBcol"){
+    col_vector=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
+  } else if (Grouping == "FBcol_Function"){
+    col_vector=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
   } else if (Grouping == "PBglom") {
     L_col_vector=brewer.pal(8, "Paired")
     L_col_vector[9]=L_col_vector[1]
@@ -677,7 +698,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
     
     
     # Get column vector
-    col_vector=GetColorMap("FBcol")
+    col_vector=GetColorMap("FBcol_Function")
     PB_FB_Mapping$Color = order(PB_FB_Mapping$FBcol)
     
     
@@ -693,6 +714,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
       ggtitle(PB_FB_Mapping$type[1])
     
     ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 4.5, units ="in", dpi = 500, limitsize = TRUE) 
+    ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], "_", NAME, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 4.5, units ="in", dpi = 500, limitsize = TRUE) 
     
     
     PB_FB_Mapping$COL=as.numeric(sapply(PB_FB_Mapping$FBcol, substring, 2, 2))
@@ -716,6 +738,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
     
     
     ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P123, device='png', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+    ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".pdf",sep=""), plot = P123, device='pdf', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
     
     
   }
@@ -879,8 +902,8 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
               geom_point(data=Box_LR, aes(x=X,y=Y,size=50),color="darkslategray") + coord_fixed(ratio = 1) +
               ggtitle(paste(NeuronData$type[1],"_Layer_",as.character(lll),sep=""))
             
-            ggsave(paste(PlotDir, "Cloud_", NeuronData$type[1],"_Layer_",as.character(lll),"_", as.character(ttt*lll*nnn),".png",sep=""),
-                   plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
+            ggsave(paste(PlotDir, "Cloud_", NeuronData$type[1],"_Layer_",as.character(lll),"_", as.character(ttt*lll*nnn),".pdf",sep=""),
+                   plot = p1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 300, limitsize = TRUE)
             
             remove(p1)
           
