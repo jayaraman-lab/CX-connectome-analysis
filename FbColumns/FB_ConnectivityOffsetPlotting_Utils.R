@@ -3,7 +3,7 @@
 
 Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_field, body_field){
   
-
+  
   # Assign side (pb or fb column half)
   DF[[side_field]]=NA
   DF[[side_field]][grepl("_R",DF[[name_field]])]<-"R"
@@ -20,18 +20,10 @@ Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_
   # Assign FB columns of FX, PFX, and Delta0
   DF[[FBcol_field]]=NA
   DF[[FBcol_field]]=str_extract(DF[[name_field]], "_C(\\d+)")
-  DF[[FBcol_field]]=sapply(DF[[FBcol_field]], substring, 2, 3)
+  DF[[FBcol_field]]=sapply(DF[[FBcol_field]], substring, 2, 4)
   
-  # Assign column to Delta6s
-  Delta6_Temp=subset(DF, startsWith(as.character(DF[[name_field]]), "Delta6"))[c(body_field,name_field,FBcol_field)]
-  if (length(Delta6_Temp[[name_field]])>0){
-    Delta6_Temp[[FBcol_field]]=str_extract(as.character(Delta6_Temp[[name_field]]), "_(\\d+)")
-    Delta6_Temp[[FBcol_field]]=paste("DC",sapply(as.character(Delta6_Temp[[FBcol_field]]), substring, 2, 3),sep="")
-    Delta6_Temp=distinct(Delta6_Temp)
-    for (nnn in 1:length(Delta6_Temp[[body_field]])){
-      DF[[FBcol_field]][DF[[body_field]] == Delta6_Temp[[body_field]][nnn]]=as.character(Delta6_Temp[[FBcol_field]][nnn])
-    }
-  }
+
+  
   return(DF)
   
 }
