@@ -154,13 +154,15 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   hc <- hclust(d, method = "ward.D2" )
   dend1 <- as.dendrogram(hc)
   postscript(file = paste(PlotDir,"/",Type2TypeConnTabName,"_clusterBy",clusterBy,".eps",sep=""),width=36,height=24)
-  plot(dend1,lab.cex=0.25)
+  par(cex=0.25)
+  plot(dend1)
   dev.off()
   
   # Order the Type2TypeConnTab according to the clustering of the clusterBy types
   Type2TypeConnTab_hc <- Type2TypeConnTab
   Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[,clusterBy], levels = hc$labels[hc$order], ordered=TRUE)
-  Type2TypeConnTab_hc <- arrange(Type2TypeConnTab_hc,Type2TypeConnTab_hc[,clusterBy])
+  Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(.data[[clusterBy]])
+  # Type2TypeConnTab_hc[,clusterBy] <- as.vector(Type2TypeConnTab_hc[,clusterBy])
   
   # Plot and save the Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative"
   plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
