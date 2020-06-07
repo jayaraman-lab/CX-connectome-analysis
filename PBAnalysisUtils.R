@@ -104,7 +104,8 @@ EPGToD7Mat <- function(PBNronTypeStr){
   EPG_2_Delta7 <- getConnectionTable(
     unique(neuprint_search("EPG.*")$bodyid),
     "POST",
-    "PB") %>% filter(type.from == "EPG" & type.to == "Delta7")
+    "PB",
+    synThresh= 0) %>% filter(type.from == "EPG" & type.to == "Delta7")
   EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
   EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
   
@@ -112,14 +113,23 @@ EPGToD7Mat <- function(PBNronTypeStr){
   Delta7_2_PBTp <- getConnectionTable(
     unique(neuprint_search("Delta7.*")$bodyid),
     "POST",
-    "PB") %>% filter(type.from == "Delta7" & type.to == PBNronTypeStr)
+    "PB",
+    synThresh= 0) %>% filter(type.from == "Delta7" & type.to == PBNronTypeStr)
   Delta7_2_PBTp$nameid = paste(as.character(Delta7_2_PBTp$name.from), as.character(Delta7_2_PBTp$from), sep = "_")
   Delta7_2_PBTp$partnerid = paste(as.character(Delta7_2_PBTp$name.to), as.character(Delta7_2_PBTp$to), sep = "_")
   
   # Get the EPG and D7 names and glomeruli
-  allEPGids <-EPG_2_Delta7$nameid %>% as.character() %>% unique() %>% PBGlomSort()
-  allD7ids <- EPG_2_Delta7$partnerid %>% as.character() %>% unique() %>% sort()
-  allPBTpids <- Delta7_2_PBTp$partnerid %>% as.character() %>% unique() %>% sort()
+  allEPGids <- paste(getTypesTable(c("EPG"))$name,
+                     getTypesTable(c("EPG"))$bodyid,sep='_') %>%
+    as.character() %>% unique() %>% PBGlomSort()
+  
+  allD7ids <- paste(getTypesTable(c("Delta7"))$name,
+                    getTypesTable(c("Delta7"))$bodyid,sep='_') %>%
+    as.character() %>% unique() %>% sort()
+  
+  allPBTpids <- paste(getTypesTable(c(PBNronTypeStr))$name,
+                      getTypesTable(c(PBNronTypeStr))$bodyid,sep='_') %>%
+    as.character() %>% unique() %>% sort()
   
   # Create weight matrices for the connections
   justWeights_EPG_2_D7 <-  WMFromConTab(EPG_2_Delta7,allEPGids,allD7ids)
