@@ -284,30 +284,50 @@ for (ppp in 1:length(Pre_Post$type.from)){
 
 
 # Make plot with all examples shown
+Example_Inds=c(11,23,47,14,10,142)
 
-CCC1=pcCols[which(Columnar_PC_Motifs$Motif[11] == levels(Columnar_PC_Motifs$Motif))]
-CCC2=pcCols[which(Columnar_PC_Motifs$Motif[23] == levels(Columnar_PC_Motifs$Motif))]
-CCC3=pcCols[which(Columnar_PC_Motifs$Motif[47] == levels(Columnar_PC_Motifs$Motif))]
-CCC4=pcCols[which(Columnar_PC_Motifs$Motif[14] == levels(Columnar_PC_Motifs$Motif))]
-CCC5=pcCols[which(Columnar_PC_Motifs$Motif[10] == levels(Columnar_PC_Motifs$Motif))]
-CCC6=pcCols[which(Columnar_PC_Motifs$Motif[142] == levels(Columnar_PC_Motifs$Motif))]
+CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))]   # PFNd --> hDeltaB
+CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   # PFNv --> hDebtaB
+CCC3=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[3]] == levels(Columnar_PC_Motifs$Motif))]   # PFNa --> FC1
+CCC4=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[4]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaK
+CCC5=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[5]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaI
+CCC6=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[6]] == levels(Columnar_PC_Motifs$Motif))]  # hDeltaG --> vDeltaE
 
 P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
-  geom_point(data=Columnar_PC_Motifs[11,],aes(x=V1, y=V2),color="red", fill=CCC1, alpha=1,size=5,shape = 21) +
-  geom_point(data=Columnar_PC_Motifs[23,],aes(x=V1, y=V2),color="red", fill=CCC2, alpha=1,size=5,shape = 21) +
-  geom_point(data=Columnar_PC_Motifs[47,],aes(x=V1, y=V2),color="red", fill=CCC3, alpha=1,size=5,shape = 21) +
-  geom_point(data=Columnar_PC_Motifs[14,],aes(x=V1, y=V2),color="red", fill=CCC4, alpha=1,size=5,shape = 21) +
-  geom_point(data=Columnar_PC_Motifs[10,],aes(x=V1, y=V2),color="red", fill=CCC5, alpha=1,size=5,shape = 21) +
-  geom_point(data=Columnar_PC_Motifs[142,],aes(x=V1, y=V2),color="red", fill=CCC6, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[1],],aes(x=V1, y=V2),color="red", fill=CCC1, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[2],],aes(x=V1, y=V2),color="red", fill=CCC2, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[3],],aes(x=V1, y=V2),color="red", fill=CCC3, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[4],],aes(x=V1, y=V2),color="red", fill=CCC4, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[5],],aes(x=V1, y=V2),color="red", fill=CCC5, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[6],],aes(x=V1, y=V2),color="red", fill=CCC6, alpha=1,size=5,shape = 21) +
   xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
   xlim(-4,4) + ylim(0,8) + scale_color_manual(values=pcCols)
-
-
 ggsave(paste(PFX_Dir_Connectivity, "PCA_Scatter_Examples.pdf",sep=""), plot = P3, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
 
 
-
-
+# Loop over chosen examples and save connectivity matrices as PDFs
+library(scales)
+for (exex in 1:length(Example_Inds)){
+  
+  ppp=Example_Inds[exex]
+  print(ppp)
+  
+  # Average across columns and plot (using all columns)
+  Temp_PFX_Out=subset(PFX_FB_Outputs_All, (type.from==Pre_Post$type.from[ppp]) & (type.to==Pre_Post$type.to[ppp]))
+  
+  # Average across columns and plot (using all columns)
+  Temp_ColumnTable=Temp_PFX_Out %>% group_by(FBcol.from,FBcol.to) %>% summarize(weightRelative=mean(weightRelative))
+  
+  # Make plot
+  P1=ggplot(Temp_ColumnTable) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="gray30", high="black", 
+                        limits=c(0,0.04), oob=squish) + coord_fixed() +
+    geom_tile(aes(FBcol.to,FBcol.from,fill=weightRelative)) + ylab(Pre_Post$type.from[ppp]) + xlab(Pre_Post$type.to[ppp])
+  ggsave(paste(PFX_Dir_Connectivity, "FIGURE_", Pre_Post$type.from[ppp],"_to_", Pre_Post$type.to[ppp], "_", as.character(ppp),"_inFB.pdf",sep=""),
+         plot = P1, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+  
+}
   
   
 
