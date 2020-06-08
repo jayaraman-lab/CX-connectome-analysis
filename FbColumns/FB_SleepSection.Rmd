@@ -1,0 +1,185 @@
+---
+title: "Notebook analyzing FB sleep circuit"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Command to update is remotes::update_packages('neuprintr')
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+options(nat.plotengine = 'rgl')
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# Directory to save data to.
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_SynapseDistribution_Utils.r")
+source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+source("../visualizeConnectivityTables.r", chdir = TRUE)
+source("../inputOutputRegionsVis.r")
+source("../GetNeuronsInRoi.r")
+
+
+```
+
+
+# Get all FB bodies and columnar types
+```{r}
+
+NamedBodies = Get_AllNeurons_InRoi("FB", FALSE)
+NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
+Columnar_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "PF" ) | startsWith(NamedBodies$bodytype, "FR" ) | 
+               startsWith(NamedBodies$bodytype, "FS" ) | startsWith(NamedBodies$bodytype, "FC" ) |
+               startsWith(NamedBodies$bodytype, "vDelta" ) | startsWith(NamedBodies$bodytype, "hDelta" )] ))
+Tangential_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "FB" )]))
+FBBodyCount=NamedBodies %>% group_by(bodytype) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
+
+```
+
+
+
+# ##################################################################################################################
+# ######### Figure 1: Plots of 23E10 neuron types  #################################################################
+# ##################################################################################################################
+
+
+
+# Look at connectivity of 23E10 neurons
+```{r}
+
+
+# Other plotting directories
+PFX_Dir_Connectivity=paste(PlotDir,"Columnar_Motifs","/",sep="")
+if (!dir.exists(PFX_Dir_Connectivity)){dir.create(PFX_Dir_Connectivity)}
+
+
+# Get columnar output connectivity table
+PFX_Bag=create_neuronBag(Columnar_Types, slctROI="FB")
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+
+
+# Subset data on columnar types
+PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
+
+
+# Assign PBglom, FBcol, and Side from neuron names
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+
+
+# Order ouput table
+PFX_FB_Outputs_All$PBglom.from=factor(PFX_FB_Outputs_All$PBglom.from, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PFX_FB_Outputs_All$FBcol.from=factor(PFX_FB_Outputs_All$FBcol.from, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+PFX_FB_Outputs_All$PBglom.to=factor(PFX_FB_Outputs_All$PBglom.to, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+
+
+# Get the number of columns for each neuron type
+ColumnarBodies=subset(NamedBodies, bodytype %in% Columnar_Types)
+ColumnarBodies=All=Assign_FBcol_PBglom(ColumnarBodies, "bodyname", "Side", "PBglom", "FBcol", "bodyid") 
+ColumnCounts=ColumnarBodies %>% group_by(bodytype) %>% summarize(Columns = length(unique(FBcol)))
+ColumnCounts$Columns[ !(startsWith(ColumnCounts$bodytype,"hDelta"))]=9
+
+ColumnCounts_from=ColumnCounts
+colnames(ColumnCounts_from)<-c("type.from","ColNum.from")
+ColumnCounts_to=ColumnCounts_from
+colnames(ColumnCounts_to)<-c("type.to","ColNum.to")
+PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_to, by="type.to")
+PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_from, by="type.from")
+
+
+# Map all neurons into 9 column space (C0 to C9)
+PFX_FB_Outputs_All$FBcol.from9=PFX_FB_Outputs_All$FBcol.from
+PFX_FB_Outputs_All$FBcol.from9=as.numeric(sapply(PFX_FB_Outputs_All$FBcol.from9, substring, 2, 4))
+PFX_FB_Outputs_All$FBcol.from9=round(PFX_FB_Outputs_All$FBcol.from9/PFX_FB_Outputs_All$ColNum.from*9)
+PFX_FB_Outputs_All$FBcol.from9=paste("C",PFX_FB_Outputs_All$FBcol.from9,sep="")
+PFX_FB_Outputs_All$FBcol.from9=factor(PFX_FB_Outputs_All$FBcol.from9, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+
+PFX_FB_Outputs_All$FBcol.to9=PFX_FB_Outputs_All$FBcol.to
+PFX_FB_Outputs_All$FBcol.to9=as.numeric(sapply(PFX_FB_Outputs_All$FBcol.to9, substring, 2, 4))
+PFX_FB_Outputs_All$FBcol.to9=round(PFX_FB_Outputs_All$FBcol.to9/PFX_FB_Outputs_All$ColNum.to*9)
+PFX_FB_Outputs_All$FBcol.to9=paste("C",PFX_FB_Outputs_All$FBcol.to9,sep="")
+PFX_FB_Outputs_All$FBcol.to9=factor(PFX_FB_Outputs_All$FBcol.to9, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
