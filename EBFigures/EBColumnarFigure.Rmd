@@ -36,19 +36,19 @@ Order the columnar neurons by their location in the EB
 EBGlomOrder <- function(name,id){
   # Specify the order of glomeruli
   glomOrder <- list(
-    EPG = c("R1","R2","R3","R4","R5","R6","R7","R8",
-             "L8","L7","L6","L5","L4","L3","L2","L1"),
-    # c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1"),
-    PEG = c("R1","R2","R3","R4","R5","R6","R7","R8",
-             "L8","L7","L6","L5","L4","L3","L2","L1"),
-    # c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1"),
-    EPGt = c("R9","L9"),
-    PEN1 = c("R2","R3","R4","R5","R6","R7","R8","R9",
-             "L9","L8","L7","L6","L5","L4","L3","L2"),
-    #c("R2","L9","R3","L8","R4","L7","R5","L6","R6","L5","R7","L4","R8","L3","R9","L2")
-    PEN2 = c("R2","R3","R4","R5","R6","R7","R8","R9",
-             "L9","L8","L7","L6","L5","L4","L3","L2"))
-    #c("R2","L9","R3","L8","R4","L7","R5","L6","R6","L5","R7","L4","R8","L3","R9","L2")
+    EPG = c("L8","L7","L6","L5","L4","L3","L2","L1",
+            "R1","R2","R3","R4","R5","R6","R7","R8"),
+    #EPG = c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1"),
+    PEG = c("L8","L7","L6","L5","L4","L3","L2","L1",
+            "R1","R2","R3","R4","R5","R6","R7","R8"),
+    #PEG = c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1"),
+    #EPGt = c("R9","L9"),
+    PEN1 = c("L9","L8","L7","L6","L5","L4","L3","L2",
+             "R2","R3","R4","R5","R6","R7","R8","R9"),
+    #PEN1 = c("R2","L9","R3","L8","R4","L7","R5","L6","R6","L5","R7","L4","R8","L3","R9","L2"),
+    PEN2 = c("L9","L8","L7","L6","L5","L4","L3","L2",
+             "R2","R3","R4","R5","R6","R7","R8","R9"))
+    #PEN2 = c("R2","L9","R3","L8","R4","L7","R5","L6","R6","L5","R7","L4","R8","L3","R9","L2"))
   
   # Form a unique nameid from the PB type, the PB gloms where it arborizes, and the bodyid
   name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
@@ -94,7 +94,7 @@ EBGlomOrder <- function(name,id){
 
 Get the connection matrix between the EPGs, EPGts, PEN1s, PEN2s, and PEGs in the EB
 ```{r}
-neurons = c("EPG","EPGt","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
+neurons = c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
 
 EBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
   "POST",
@@ -103,7 +103,7 @@ EBColConTab <- EBColConTab %>% filter(type.to %in% neurons)
 EBColConTab$id.from <- EBGlomOrder(EBColConTab$name.from,EBColConTab$from)
 EBColConTab$id.to <- EBGlomOrder(EBColConTab$name.to,EBColConTab$to)
 
-plotOrder <- c("EPG","EPGt","PEN1","PEN2","PEG")
+plotOrder <- c("EPG","PEN1","PEN2","PEG")
 fromLevelsOld <- levels(EBColConTab$id.from)
 fromLevelsNew <-  c()
 toLevelsOld <- levels(EBColConTab$id.to)
@@ -145,7 +145,7 @@ print(conmatPlot)
 ```
 
 ```{r}
-save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\EBColConmat.pdf',conmatPlot)
+save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\EBColConmat-PBOriented.pdf',conmatPlot)
 ```
 
 Look at the total number of input synapses by PB glom

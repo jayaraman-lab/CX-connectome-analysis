@@ -1,0 +1,336 @@
+---
+title: "FC1 subtyping"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting text sizes
+```{r}
+tickLabSz <- 6
+axLabSz <- 8
+legSz <- 6
+legTitSz <- 8
+pltTit <- 8
+
+theme_set(theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz),
+      plot.title = element_text(size = pltTit)))
+
+stCols <- supertype2Palette()
+```
+
+Function to rename FB neurons
+```{r}
+FBRename <- function(name,id){
+  
+  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
+  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
+  nameid <- paste(name, as.character(id), sep='-')
+  
+  # Extract the unique names and types
+  allNames = nameid %>% unique() %>% sort()
+  nameLabels = name %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  
+  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
+  newNames = c()
+  for (tp in 1:length(types)){
+    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
+      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
+    for (n in 1:length(nms)){
+      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
+      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
+      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
+    }
+    newNames = append(newNames,nmOrder)
+  }
+  # Create a lookup table between the old and new names
+  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
+  
+  # Swap in the new names
+  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
+    factor(levels = nmSwap$newNm)
+  
+  return(nameid)
+}
+```
+
+Look at clustering the FC1 neurons - by outputs
+```{r}
+# Get the connection table
+conTab_FCs_To <- getConnectionTable(getTypesTable(c("FC1"))$bodyid,
+                                   "POST",
+                                   "FB")
+conTab_FCs_To$id.from <- FBRename(conTab_FCs_To$name.from, conTab_FCs_To$from)
+conTab_FCs_To$id.to <- FBRename(conTab_FCs_To$name.to, conTab_FCs_To$to)
+
+# Select only the relevant columns
+Data4Clust <- conTab_FCs_To%>% select(id.from,type.to)
+
+# Recast it into a matrix
+Data4Clust <- dcast(Data4Clust,id.from~type.to)
+Data4Clust[is.na(Data4Clust)] <- 0
+rownames(Data4Clust) <- Data4Clust$id.from
+Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
+Data4Clust <- scale(Data4Clust)
+d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+hc_from <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
+
+fromOrder <- hc_from$labels[hc_from$order]
+fromDend <- dendPlot(hc_from,TRUE)
+print(fromDend)
+```
+
+Look at clustering the FC neurons - by inputs
+```{r}
+# Get the connection table
+conTab_FCs_From <- getConnectionTable(getTypesTable(c("FC1"))$bodyid,
+                                   "PRE",
+                                   "FB")
+conTab_FCs_From$id.from <- FBRename(conTab_FCs_From$name.from, conTab_FCs_From$from)
+conTab_FCs_From$id.to <- FBRename(conTab_FCs_From$name.to, conTab_FCs_From$to)
+
+# Select only the relevant columns
+Data4Clust <- conTab_FCs_From%>% select(type.from,id.to)
+
+# Recast it into a matrix
+Data4Clust <- dcast(Data4Clust,id.to~type.from)
+Data4Clust[is.na(Data4Clust)] <- 0
+rownames(Data4Clust) <- Data4Clust$id.to
+Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
+Data4Clust <- scale(Data4Clust)
+d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+hc_to <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
+
+toOrder <- hc_to$labels[hc_to$order]
+toDend <- dendPlot(hc_to,TRUE)
+print(toDend)
+```
+
+Split the from dendrogram into 5 groups and the to dendrogram into 4 groups, compare
+```{r}
+fromSplit <- cutree(hc_from,5)
+toSplit <- cutree(hc_to,4)
+
+GpDat <- data.frame(name = names(fromSplit), from_group = as.numeric(fromSplit))
+GpDat$to_group = as.numeric(toSplit)
+
+ggplot(GpDat) + geom_point(aes(x=to_group,y=from_group),alpha=0.1)
+
+# Manually reclassify some of the outliers
+GpDat$from_group[which(GpDat$from_group == 5)] <- 4
+GpDat$group <- 26
+GpDat$group[which(GpDat$from_group == 1 & GpDat$to_group == 1)] <- 1
+GpDat$group[which(GpDat$from_group == 2 & GpDat$to_group == 1)] <- 1
+GpDat$group[which(GpDat$from_group == 3 & GpDat$to_group == 1)] <- 2
+GpDat$group[which(GpDat$from_group == 3 & GpDat$to_group == 4)] <- 2
+GpDat$group[which(GpDat$from_group == 2 & GpDat$to_group == 2)] <- 3
+GpDat$group[which(GpDat$from_group == 1 & GpDat$to_group == 3)] <- 4
+GpDat$group[which(GpDat$from_group == 2 & GpDat$to_group == 3)] <- 5
+GpDat$group[which(GpDat$from_group == 4 & GpDat$to_group == 4)] <- 6
+GpDat$group[which(GpDat$from_group == 4 & GpDat$to_group == 1)] <- 6
+
+ggplot(GpDat) + geom_point(aes(x=to_group,y=from_group,color=as.factor(group)),alpha=0.1)
+
+dend_to <- as.dendrogram(hc_to)
+dend_to_data <- dendro_data(dend_to, type = "rectangle")
+
+# Add a group category
+HClabels_to <- dend_to_data$labels
+HClabels_to$group <- lapply(HClabels_to$label, function(l) GpDat$group[which(GpDat$name == l)]) %>% unlist() %>% as.factor()
+  
+p_to <- ggplot(dend_to_data$segments) +
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = HClabels_to, aes(x, y, label = label,color=group),
+            hjust = 1, angle = 90, size = 3) + 
+  theme_cowplot()
+print(p_to)
+
+dend_from <- as.dendrogram(hc_from)
+dend_from_data <- dendro_data(dend_from, type = "rectangle")
+
+# Add a group category
+HClabels_from <- dend_from_data$labels
+HClabels_from$group <- lapply(HClabels_from$label, function(l) GpDat$group[which(GpDat$name == l)]) %>% unlist() %>% as.factor()
+  
+p_from <- ggplot(dend_from_data$segments) +
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = HClabels_from, aes(x, y, label = label,color=group),
+            hjust = 1, angle = 90, size = 3) + 
+  theme_cowplot()
+print(p_from)
+```
+
+Rename the neurons according to their groups and plot their connectivity matrices
+```{r}
+
+conTab_FCs_To$type.from <- lapply(conTab_FCs_To$id.from, function(i)
+  paste("FC1", letters[GpDat$group[which(GpDat$name == i)]], sep='_')) %>%
+  unlist() %>% as.character()
+conTab_FCs_To$name.from <- lapply(seq(1:nrow(conTab_FCs_To)), function(n)
+  gsub("FC1",conTab_FCs_To$type.from[n],conTab_FCs_To$name.from[n])) %>%
+  unlist() %>% as.character()
+conTab_FCs_To$id.from <- FBRename(conTab_FCs_To$name.from,conTab_FCs_To$from)
+
+conTab_FCs_To$type.to[which(conTab_FCs_To$type.to == "FC1")] <- lapply(conTab_FCs_To$id.to[which(conTab_FCs_To$type.to == "FC1")], function(i)
+  paste("FC1",letters[GpDat$group[which(GpDat$name == i)]],sep='_')) %>% 
+  unlist() %>% as.character()
+conTab_FCs_To$name.to[which(grepl("FC1",conTab_FCs_To$type.to))] <- lapply(which(grepl("FC1",conTab_FCs_To$type.to)), function(n)
+  gsub("FC1",conTab_FCs_To$type.to[n],conTab_FCs_To$name.to[n])) %>%
+  unlist() %>% as.character()
+conTab_FCs_To$id.to <- FBRename(conTab_FCs_To$name.to,conTab_FCs_To$to)
+
+FCTypes <- conTab_FCs_To$type.from %>% unique() %>% sort()
+FCCols <- paletteer_d("colorblindr::OkabeIto")
+
+txtLabsFrom <- conTab_FCs_To$id.from %>% unique() %>% sort()
+txtColsFrom <- lapply(txtLabsFrom, function(t) FCCols[which(grepl(substring(t,1,5),FCTypes))]) %>% unlist()
+
+plt_conTab_FCs_To <- ggplot(conTab_FCs_To %>% filter(!grepl("FC1",type.to))) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_FCs_To$weightRelative),
+                       limits=c(0,max(conTab_FCs_To$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=1,hjust=1),
+        axis.text.y = element_text(color=txtColsFrom,size=1)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset <- 0.5
+tpsFrom <- conTab_FCs_To$type.from %>% unique() %>% sort()
+idsFrom <- conTab_FCs_To$id.from %>% unique() %>% sort()
+for (t in 1:length(tpsFrom)){
+  offset <- offset + length(which(grepl(tpsFrom[t],idsFrom)))
+  plt_conTab_FCs_To <- plt_conTab_FCs_To + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+tpsTo <- conTab_FCs_To %>% filter(!grepl("FC1",type.to)) %>% select(type.to) %>% unlist() %>% unique() %>% sort()
+idsTo <- conTab_FCs_To$id.to %>% unique() %>% sort()
+for (t in 1:length(tpsTo)){
+  offset <- offset + length(which(grepl(tpsTo[t],idsTo)))
+  plt_conTab_FCs_To <- plt_conTab_FCs_To + geom_vline(xintercept = offset)
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FCClustTo.pdf")
+print(plt_conTab_FCs_To)
+dev.off()
+```
+
+Rename the neurons according to their groups and plot their connectivity matrices
+```{r}
+conTab_FCs_From$type.to <- lapply(conTab_FCs_From$id.to, function(i)
+  paste("FC1", letters[GpDat$group[which(GpDat$name == i)]], sep='_')) %>%
+  unlist() %>% as.character()
+conTab_FCs_From$name.to <- lapply(seq(1:nrow(conTab_FCs_From)), function(n)
+  gsub("FC1",conTab_FCs_From$type.to[n],conTab_FCs_From$name.to[n])) %>%
+  unlist() %>% as.character()
+conTab_FCs_From$id.to <- FBRename(conTab_FCs_From$name.to,conTab_FCs_From$to)
+
+conTab_FCs_From$type.from[which(conTab_FCs_From$type.from == "FC1")] <- lapply(conTab_FCs_From$id.from[which(conTab_FCs_From$type.from == "FC1")], function(i)
+  paste("FC1",letters[GpDat$group[which(GpDat$name == i)]],sep='_')) %>% 
+  unlist() %>% as.character()
+conTab_FCs_From$name.from[which(grepl("FC1",conTab_FCs_From$type.from))] <- lapply(which(grepl("FC1",conTab_FCs_From$type.from)), function(n)
+  gsub("FC1",conTab_FCs_From$type.from[n],conTab_FCs_From$name.from[n])) %>%
+  unlist() %>% as.character()
+conTab_FCs_From$id.from <- FBRename(conTab_FCs_From$name.from,conTab_FCs_From$from)
+
+txtLabsTo <- conTab_FCs_From$id.to %>% unique() %>% sort()
+txtColsTo <- lapply(txtLabsTo, function(t) FCCols[which(grepl(substring(t,1,5),FCTypes))]) %>% unlist()
+
+plt_conTab_FCs_From <- ggplot(conTab_FCs_From %>% filter(!grepl("FC1",type.from))) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_FCs_From$weightRelative),
+                       limits=c(0,max(conTab_FCs_From$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,
+                                   color = txtColsTo,
+                                   size = 1,
+                                   hjust = 1),
+        axis.text.y = element_text(size=1)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset <- 0.5
+tpsFrom <- conTab_FCs_From %>% filter(!grepl("FC1",type.from)) %>% select(type.from) %>% unlist() %>% unique() %>% sort()
+idsFrom <- conTab_FCs_From$id.from %>% unique() %>% sort()
+for (t in 1:length(tpsFrom)){
+  offset <- offset + length(which(grepl(tpsFrom[t],idsFrom)))
+  plt_conTab_FCs_From <- plt_conTab_FCs_From + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+tpsTo <- conTab_FCs_From$type.to %>% unique() %>% sort()
+idsTo <- conTab_FCs_From$id.to %>% unique() %>% sort()
+for (t in 1:length(tpsTo)){
+  offset <- offset + length(which(grepl(tpsTo[t],idsTo)))
+  plt_conTab_FCs_From <- plt_conTab_FCs_From + geom_vline(xintercept = offset)
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FCClustFrom.pdf")
+print(plt_conTab_FCs_From)
+dev.off()
+```
+
+Plot FC to FC connections
+```{r}
+conTab_FC_To_FC <- conTab_FCs_From %>% filter(grepl("FC1",type.from))
+
+txtLabsTo <- conTab_FC_To_FC$id.to %>% unique() %>% sort()
+txtColsTo <- lapply(txtLabsTo, function(t) FCCols[which(grepl(substring(t,1,5),FCTypes))]) %>% unlist()
+txtLabsFrom <- conTab_FC_To_FC$id.from %>% unique() %>% sort()
+txtColsFrom <- lapply(txtLabsFrom, function(t) FCCols[which(grepl(substring(t,1,5),FCTypes))]) %>% unlist()
+
+plt_conTab_FC_To_FC <- ggplot(conTab_FC_To_FC) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_FC_To_FC$weightRelative),
+                       limits=c(0,max(conTab_FC_To_FC$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,
+                                   color = txtColsTo,
+                                   size = 1,
+                                   hjust = 1),
+        axis.text.y = element_text(color = txtColsFrom,
+                                   size=1)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset <- 0.5
+tpsFrom <- conTab_FC_To_FC$type.from %>% unique() %>% sort()
+idsFrom <- conTab_FC_To_FC$id.from %>% unique() %>% sort()
+for (t in 1:length(tpsFrom)){
+  offset <- offset + length(which(grepl(tpsFrom[t],idsFrom)))
+  plt_conTab_FC_To_FC<- plt_conTab_FC_To_FC + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+tpsTo <- conTab_FC_To_FC$type.to %>% unique() %>% sort()
+idsTo <- conTab_FC_To_FC$id.to %>% unique() %>% sort()
+for (t in 1:length(tpsTo)){
+  offset <- offset + length(which(grepl(tpsTo[t],idsTo)))
+  plt_conTab_FC_To_FC <- plt_conTab_FC_To_FC + geom_vline(xintercept = offset)
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FCClustSelf.pdf")
+print(plt_conTab_FC_To_FC)
+dev.off()
+```
+
+Come up with new type and name for each FC1 bodyid
+```{r}
+FCLookupTable <- conTab_FC_To_FC %>% group_by(id.from) %>% select(from,type.from,name.from,id.from) %>% unique()
+colnames(FCLookupTable) <- c("bodyid","type","name","id")
+```
