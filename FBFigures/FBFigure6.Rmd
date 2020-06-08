@@ -1,0 +1,287 @@
+---
+title: "FB explorations"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting text sizes
+```{r}
+tickLabSz <- 6
+axLabSz <- 8
+legSz <- 6
+legTitSz <- 8
+pltTit <- 8
+
+theme_set(theme(axis.title = element_text(size = axLabSz), 
+      axis.text = element_text(size = tickLabSz),
+      legend.text = element_text(size = legSz),
+      legend.title = element_text(size = legTitSz),
+      plot.title = element_text(size = pltTit)))
+
+stCols <- supertype2Palette()
+```
+
+Function to rename FB neurons
+```{r}
+FBRename <- function(name,id){
+  
+  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
+  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
+  nameid <- paste(name, as.character(id), sep='-')
+  
+  # Extract the unique names and types
+  allNames = nameid %>% unique() %>% sort()
+  nameLabels = name %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  
+  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
+  newNames = c()
+  for (tp in 1:length(types)){
+    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
+      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
+    for (n in 1:length(nms)){
+      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
+      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
+      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
+    }
+    newNames = append(newNames,nmOrder)
+  }
+  # Create a lookup table between the old and new names
+  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
+  
+  # Swap in the new names
+  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
+    factor(levels = nmSwap$newNm)
+  
+  return(nameid)
+}
+```
+
+Get the different types of FB neurons
+```{r}
+FBNrons <- neuprint_bodies_in_ROI("FB") %>% mutate(type = neuprint_get_meta(bodyid)$type)
+FBTypes <- FBNrons$type %>% unique()
+FBTypesCol <- FBTypes[which(grepl("PF",FBTypes) |
+                           grepl("FS",FBTypes) |
+                           grepl("FC",FBTypes) |
+                           grepl("FR",FBTypes) |
+                           grepl("vDelta",FBTypes) |
+                           grepl("hDelta",FBTypes)
+                           )]
+FBTypesTan <- FBTypes[which(grepl("FB",FBTypes) |
+                              grepl("OA-VPM3",FBTypes) |
+                              grepl("ExR3",FBTypes) |
+                              grepl("ExR1",FBTypes)
+                              )]
+FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
+                             grepl("SA1_a",FBTypes) |
+                             grepl("SA1_b",FBTypes) | 
+                             grepl("SA2_a",FBTypes) |
+                             grepl("SA2_b",FBTypes) |
+                             grepl("SA3",FBTypes)
+                           )]
+```
+
+Get the FB columnar type to type table
+```{r}
+# Get the connection table
+conTab_FBCol <- getConnectionTable(getTypesTable(FBTypesCol)$bodyid,
+                                   "POST",
+                                   "FB") %>%
+  filter(type.to %in% FBTypesCol)
+conTab_FBCol$id.from <- FBRename(conTab_FBCol$name.from, conTab_FBCol$from)
+conTab_FBCol$id.to <- FBRename(conTab_FBCol$name.to, conTab_FBCol$to)
+
+T2T_FBCol <- getTypeToTypeTable(conTab_FBCol)
+```
+
+
+Group the type to type table manually and plot
+```{r}
+colGps <- c("PFN","hDelta","vDelta","FC","FR","FS","PFG","PFL")
+pltOrder <- c()
+for (g in 1:length(colGps)){
+  pltOrder <- c(pltOrder,FBTypesCol[which(grepl(colGps[g],FBTypesCol))] %>% sort())
+}
+T2T_FBCol$type.to <- factor(T2T_FBCol$type.to,pltOrder)
+T2T_FBCol$type.from <- factor(T2T_FBCol$type.from,pltOrder)
+
+txtLabsTo <- pltOrder[which(pltOrder %in% as.character(unique(T2T_FBCol$type.to)))]
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+txtLabsFrom <- pltOrder[which(pltOrder %in% as.character(unique(T2T_FBCol$type.from)))]
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+T2TPlt_FBCol_Manual <- ggplot(T2T_FBCol) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBCol$weightRelative),
+                       limits=c(0,max(T2T_FBCol$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("post-synaptic type") + ylab("pre-synaptic type")
+
+offset = 0.5
+typesFrom <- T2T_FBCol$type.from %>% unique()
+for (g in 1:length(colGps)){
+  offset <- offset + length(which(grepl(colGps[g],typesFrom)))
+  T2TPlt_FBCol_Manual <- T2TPlt_FBCol_Manual + geom_hline(yintercept = offset)
+}
+
+offset = 0.5
+typesTo <- T2T_FBCol$type.to %>% unique()
+for (g in 1:length(colGps)){
+  offset <- offset + length(which(grepl(colGps[g],typesTo)))
+  T2TPlt_FBCol_Manual <- T2TPlt_FBCol_Manual + geom_vline(xintercept = offset)
+}
+  
+print(T2TPlt_FBCol_Manual)
+```
+
+Cluster the FB inputs and outputs and plot
+```{r}
+# Select only the relevant columns
+Data4Clust <- T2T_FBCol %>% select(type.from,type.to,weightRelative)
+
+# Recast it into a matrix
+Data4Clust <- dcast(Data4Clust,type.from~type.to)
+Data4Clust[is.na(Data4Clust)] <- 0
+rownames(Data4Clust) <- Data4Clust$type.from
+Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
+Data4Clust <- scale(Data4Clust)
+d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+hc <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
+
+fromOrder <- hc$labels[hc$order]
+fromDend <- dendPlot(hc,TRUE)
+txtColsFrom <- lapply(fromOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+# Select only the relevant columns
+Data4Clust <- T2T_FBCol %>% select(type.from,type.to,weightRelative)
+
+# Recast it into a matrix
+Data4Clust <- dcast(Data4Clust,type.to~type.from)
+Data4Clust[is.na(Data4Clust)] <- 0
+rownames(Data4Clust) <- Data4Clust$type.to
+Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
+Data4Clust <- scale(Data4Clust)
+d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+hc <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
+
+toOrder <- hc$labels[hc$order]
+toDend <- dendPlot(hc,FALSE)
+txtColsTo <- lapply(toOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+T2T_FBCol$type.to <- factor(T2T_FBCol$type.to,toOrder)
+T2T_FBCol$type.from <- factor(T2T_FBCol$type.from,fromOrder)
+
+T2TPlt_FBCol_Clust <- ggplot(T2T_FBCol) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBCol$weightRelative),
+                       limits=c(0,max(T2T_FBCol$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("post-synaptic type") + ylab("pre-synaptic type")
+print(T2TPlt_FBCol_Clust)
+```
+
+Combine, plot, and print
+```{r}
+t2tplts <- (toDend + T2TPlt_FBCol_Manual) / (T2TPlt_FBCol_Clust + fromDend) 
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity.pdf",t2tplts)
+
+```
+
+
+Plot PFNa, FC1, and PFL1 matrices as an example
+```{r}
+types4ExFrom <- c("PFNa","FC1")
+types4ExTo <- c("FC1","PFL1")
+
+exConTab <- conTab_FBCol %>% filter(type.from %in% types4ExFrom, type.to %in% types4ExTo)
+exConTab$id.from <- factor(exConTab$id.from,
+                           levels = c(exConTab$id.from[which(grepl("PFNa",as.character(exConTab$id.from)))] %>%
+                                        unique() %>% as.character() %>% sort(),
+                                      exConTab$id.from[which(grepl("FC1",as.character(exConTab$id.from)))] %>% 
+                                        unique() %>% as.character() %>% sort()))
+
+txtLabsTo <- exConTab$id.to %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsTo <- lapply(txtLabsTo,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+txtLabsFrom <- exConTab$id.from %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsFrom <- lapply(txtLabsFrom,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+
+FBCol_Ex <- ggplot(exConTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(exConTab$weightRelative),
+                       limits=c(0,max(exConTab$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset = 0.5
+typesTo <- c("FC1","PFL1")
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(grepl(typesTo[g],typLabsTo)))
+  FBCol_Ex <- FBCol_Ex + geom_vline(xintercept = offset)
+}
+
+offset = 0.5
+typesFrom <- c("PFNa","FC1")
+for (g in 1:length(typesFrom)){
+  offset <- offset + length(which(grepl(typesFrom[g],typLabsFrom)))
+  FBCol_Ex <- FBCol_Ex + geom_hline(yintercept = offset)
+}
+print(FBCol_Ex)
+```
+
+
+```{r}
+T2T_Ex <- getTypeToTypeTable(exConTab)
+
+xyLookup <- data.frame(
+  type = c("PFNa","FC1","PFL1"),
+  x = c(0,0,0.25),
+  y = c(0,0.25,0.25)
+)
+
+gCT <- graphConTab(T2T_Ex,xyLookup,FALSE,TRUE)
+print(gCT)
+```
+
+Combine and save
+```{r}
+exPlt <- FBCol_Ex + gCT
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColExample.pdf",exPlt)
+```

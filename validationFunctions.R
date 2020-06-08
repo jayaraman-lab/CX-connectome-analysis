@@ -139,3 +139,10 @@ getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
   
 }
 
+getFit <- function(compTable,groups=c("side","databaseType","supertype2"),predicted="C3",predictor="CX"){
+  compFits <- compTable %>% group_by_at(groups) %>% 
+    do(fitRes = lm(as.formula(paste0(predicted,"~",predictor)),data=.))
+  compFitsCoeff <- tidy(compFits,fitRes) %>% filter(term==predictor) 
+  compFitsStats <-  glance(compFits,fitRes)
+  left_join(compFitsCoeff,compFitsStats,by=groups)
+  }

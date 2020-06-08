@@ -1,6 +1,7 @@
 ############################################################
 # Functions to generate FB network diagrams
 ############################################################
+library(ggdendro)
 
 #Create x and y coordinates for a manual network layout of neurons - FB columnar types
 xyLookupTableCol <- function(){
@@ -105,14 +106,14 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
   
   # Assign colors to the supertypes
-  sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort() %>% as.factor()
+  sTs <- supertype2Palette()
   if (guideOnOff){
-    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs))
+    sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
   } else {
-    sTScale <- scale_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
+    sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
   }
   
-  sTScale_edge <- scale_edge_colour_discrete(drop=TRUE,limits = levels(sTs),guide = FALSE)
+  sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
   
   # Get the edges from the connection table
   edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
@@ -235,4 +236,36 @@ corMat <- function(connMat,preId,postId){
   #ggplot(melt(justWeights), aes(Var1,Var2, fill=value)) + geom_raster()
   
   return(corMat)
+}
+
+# Function to plot a dendrogram
+dendPlot <- function(hc,rotate){
+  # Pull of the data
+  dend <- as.dendrogram(hc)
+  dend_data <- dendro_data(dend, type = "rectangle")
+  
+  # Add a supertype category
+  HClabels <- dend_data$labels
+  HClabels$supertype <- HClabels$label %>% as.character() %>% supertype() %>% as.factor()
+  
+  p <- ggplot(dend_data$segments)
+  if (rotate){
+    p <- p + geom_segment(aes(x = y, y = x, xend = yend, yend = xend)) +
+      geom_text(data = HClabels, aes(y, x, label = label,color=supertype),
+                hjust = 1, size = 1)
+  } else {
+    p <- p + geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+      geom_text(data = HClabels, aes(x, y, label = label,color=supertype),
+                hjust = 1, angle = 90, size = 1)
+  }
+  p <- p + theme_classic() +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line=element_blank())
+  
+  return(p)
 }
