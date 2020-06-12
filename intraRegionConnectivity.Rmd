@@ -12,6 +12,7 @@ library(tidyverse)
 library(dplyr)
 library(neuprintrExtra)
 options(nat.plotengine = 'rgl')
+library(igraph)
 
 neuprint_login()
 ```
@@ -47,12 +48,12 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 ### Make selection of neurons to be used in connecitivy analysis
 This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
 ```{r}
-ROI = "BU"
-slctROI ="BU(R)"# "EB"#LAL(-GA)
+ROI = "EB"
+slctROI ="EB"# "EB"#LAL(-GA)
 
 splitLR = FALSE
 
-saveName = paste0("TB2RN_",slctROI) #RN_TB_ExR #RN_ExR_col_in_
+saveName = paste0("allIn_",slctROI) #RN_TB_ExR #RN_ExR_col_in_
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
 useCuratedListPost = FALSE#
@@ -60,8 +61,8 @@ useCuratedListPre = FALSE#
 curatedList = paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",ROI,"/",ROI,"_Types.RData")
 
 #only relevant if one of the above is false:
-useCustomPostSelection = TRUE
-useCustomPreSelection = TRUE#FALSE#
+useCustomPostSelection = FALSE
+useCustomPreSelection = FALSE#FALSE#
 
 if(!useCustomPostSelection | !useCustomPreSelection){
   if(splitLR){
@@ -90,10 +91,10 @@ if (useCuratedListPost) {
   
 } else{
   if(useCustomPostSelection){
-    postNeuron = c("R1","R2","R3","R4","R5","R6")
+    postNeuron = "ER4d"#c(paste0("ER",seq(6)))
     postNeuron = paste0(postNeuron,".*")
     #c("R1","R2","R3","R4","R5","R6", "EL","EPG","EPGt","PEG","PEN_a","PEN_b","ExR")
-    #c("R1","R2","R3","R4","R5","R6")
+    #c(paste0("ER",seq(6)))
     #c("EL", "ExR", "PEG","AVM08n","EPG")
     #c("ExR.*","PDM21a.*","TuBu.*","R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
     #c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")#
@@ -120,8 +121,8 @@ if (useCuratedListPre) {
 
 } else{
   if(useCustomPreSelection){
-    preNeuron = c("TuBu.*") # postNeuron #c("TuBu.*")#
-    preName = paste0("TB in ",slctROI) # postName#
+    preNeuron = postNeuron #c("TuBu.*")#
+    preName = postName#paste0("TB in ",slctROI) # 
     preIDs = getBodyIdsForList(preNeuron)
   }else{
     preName = paste0("all in ", ROI)
@@ -160,31 +161,30 @@ myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
 ```
 
 ```{r}
-library(igraph)
 myConnections_nameid = myConnections %>% mutate(typeid.to = paste(type.to, to,sep="_"),
                                                 typeid.from = paste(type.from, from, sep="_"))
 edge_list <- myConnections_nameid[c("from","to","weightRelative")]
 #[c("typeid.from","typeid.to","weightRelative")]
-G <- graph.data.frame(edge_list,directed=TRUE);
-A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative")
-write.csv(A, paste0("../neuprintR_analysis_plots/adjacencyMatrix_",saveName,'_byid.csv'), row.names = FALSE)
-write.csv(edge_list, paste0("../neuprintR_analysis_plots/edgeList_",saveName,'_byid.csv'), row.names = FALSE)
+#G <- graph.data.frame(edge_list,directed=TRUE);
+#A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative")
+#write.csv(A, paste0("../neuprintR_analysis_plots/adjacencyMatrix_",saveName,'_byid.csv'), row.names = FALSE)
+#write.csv(edge_list, paste0("../neuprintR_analysis_plots/edgeList_",saveName,'_byid.csv'), row.names = FALSE)
 
 ```
 
 
 ### Connectivity matrix
 ```{r}
-plotW = 24#25# 45 # 20
-plotH = 22 #4 #40  #17
+plotW = 10#23#25# 45 # 20
+plotH = 9#21 #4 #40  #17
 cmax = NULL
-connectionMeasures = c("weightRelative")#,"weight")
+connectionMeasures = c("weightRelative")
 
 for (connectionMeasure in connectionMeasures){
   
   conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmax)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
-  #conMatPlot = structureMatrixPlotByType(conMatPlot)
+  
   print(conMatPlot)
   ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
@@ -199,7 +199,7 @@ for (connectionMeasure in connectionMeasures){
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
-  conMatPlot = structureMatrixPlotByType(conMatPlot)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
   print(conMatPlot)
   ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
     plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
@@ -218,7 +218,7 @@ connectionMeasures = c("weightRelative","weightROIRelativeTotal")
 connectionMeasure = connectionMeasures[1]
 cutoff = 0.05 # for weight 0.05, 0.01, 0
 
-largeGraph = FALSE
+largeGraph = TRUE
 selfFeedbackScale = 10
 edcurve = 0.15
 edgeNorm = 0.07#0.05#0.07#0.03#
@@ -287,6 +287,7 @@ if(splitLR){
   myColorMap= bind_rows(myColorMap_L, myColorMap_R)
 }
 
+myColorMap = myColorMap %>% filter(Simpletype == "no")
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
 graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T$weightRelative)
@@ -330,6 +331,56 @@ myConnectionsT2T_toEPG = getTypeToTypeTable(myConnections_toEPG,typesTable = typ
 
 ```
 
+Use community info, hierarchy measure and EPG input to generate a layout
+```{r}
+# find communities
+wc = cluster_walktrap(myGraph)
+print(modularity(wc))
+communitymembership = stack(membership(wc))
+
+# compute hierarchy measure for each node: # of nodes that can be reached
+downstreamNodes = data.frame(vertex = V(myGraph)$name, 
+                             closeness = closeness(myGraph, vids = V(myGraph), mode = "out", weights = NULL, normalized = TRUE),
+                             ndownstream = 1)
+
+for (v in V(myGraph)$name){
+  subgraph = delete_vertices(myGraph,v)
+  pathfromSouce = all_simple_paths(myGraph, V(myGraph)[v], to = V(myGraph)[c(V(subgraph)$name)], mode = "out")
+  nv = length(V(myGraph)[unique(c(unlist(pathfromSouce)))])
+  downstreamNodes <- within(downstreamNodes, ndownstream[vertex == v] <- nv)
+}
+
+for (v in V(myGraph)$name){
+  
+  subgraph = delete_vertices(myGraph,v)
+}
+
+# align community and EPG input data
+layoutInfo = full_join(data.frame("type.from" = V(myGraph)$name), 
+                  myConnectionsT2T_toEPG[c("type.from", "weightRelative")]) %>% mutate(order = rank(weightRelative))
+layoutInfo =  full_join(layoutInfo, communitymembership, by=c("type.from" = "ind"))
+```
+
+
+Plot
+```{r}  
+#V1
+V(myGraph)$size = vertexSize 
+myLayout = matrix(c(layoutInfo$values*5 + 0.5*layoutInfo$order, #as.numeric(l[,1]),
+                    as.numeric(downstreamNodes$closeness)),
+  ncol = 2, nrow = length(V(myGraph)$name))
+
+myGraph$main = "Hierarchy between RNs (x ~ community + input to EPGs (low to high), y ~ hierarchy measure)"
+plot(myGraph,edge.curved=0.15, layout=norm_coords(myLayout, xmin=-1.5, xmax=1.5, ymin=-1, ymax=1), 
+     edge.color = customizeGraphEdges(myGraph), rescale=FALSE)
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
+                      "_",connectionMeasure, round(100*cutoff),"perc_hierarchy.pdf"), width=20, height=12)
+
+```
+
+
+
 ```{r, warning=FALSE} 
 
 inWeight = myConnectionsT2T %>% group_by(type.to) %>% summarise(inWeight = sum(weightRelative))
@@ -341,19 +392,6 @@ vertexBaseSize = 5
 myGraph = constructConnectivityGraph(graphData, cutoff, vertexBaseSize, selfFBscale, arrowSize, edgeNorm, colormap = myColorMap)
 
 vertexSize = integer(length(V(myGraph)$name)) + 5
-```
-
-Use community info, hierarchy measure and EPG input to generate a layout
-```{r}
-# find communities
-wc = cluster_walktrap(myGraph)
-print(modularity(wc))
-communitymembership = stack(membership(wc))
-
-# align community and EPG input data
-layoutInfo = full_join(data.frame("type.from" = V(myGraph)$name), 
-                  myConnectionsT2T_toEPG[c("type.from", "weightRelative")]) %>% mutate(order = rank(weightRelative))
-layoutInfo =  full_join(layoutInfo, communitymembership, by=c("type.from" = "ind"))
 ```
 
 
@@ -370,7 +408,7 @@ plot(myGraph,edge.curved=0.15, layout=norm_coords(myLayout, xmin=-1.5, xmax=1.5,
      edge.color = customizeGraphEdges(myGraph), rescale=FALSE)
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
-                      "_",connectionMeasure, round(100*cutoff),"perc_inOutRatio.pdf"), width=20, height=12)
+                      "_",connectionMeasure, round(100*cutoff),"perc_inOutRatio.pdf"), width=20, height=10)
 
 
 # V2: 
@@ -389,7 +427,7 @@ plot(myGraph,edge.curved=0.15, layout=norm_coords(myLayout, xmin=-1.75, xmax=1.7
      edge.color = customizeGraphEdges(myGraph), rescale=FALSE)
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
-                      "_",connectionMeasure, round(100*cutoff),"perc_byEPG.pdf"), width=20, height=12)
+                      "_",connectionMeasure, round(100*cutoff),"perc_byEPG.pdf"), width=20, height=10)
 ```
 
 ## Use ROI innervation of types to structure graph
