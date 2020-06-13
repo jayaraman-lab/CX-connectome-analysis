@@ -5,7 +5,7 @@
 
 ### Connectivity matrix
 
-plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure="weightRelative", cmax=NULL) {
+plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure="weightRelative", cmax=NULL, postfixfrom = NULL, postfixto = NULL) {
   #' Generate plot of connectivity matrix using ggplot
   #' @param myConTab Neuprint connection table
   #' @param synapseCutOff Minimum number of synapses between two partners to be considered a connection
@@ -18,8 +18,8 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
   myConTab = myConTab %>% ungroup() %>% mutate(plotWeight = myConTab[[connectionMeasure]])
   
   if (byGroup == "id"){
-    myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
-    myConTab$nameid.to = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
+    myConTab$nameid.from = paste(as.character(myConTab$name.from), postfixfrom, as.character(myConTab$from), sep = "_")
+    myConTab$nameid.to = paste(as.character(myConTab$name.to), postfixto,as.character(myConTab$to), sep = "_")
   }
   if (is.null(cmax)){
     cmax = max(myConTab$plotWeight)
