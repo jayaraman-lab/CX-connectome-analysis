@@ -23,9 +23,9 @@ neuprint_login()
 
 ### Select types for comparison
 ```{r}
-myTypes = c("ExR.*")#c("GLN","LN1","LN2","LN3","LNa","LCNpm","LCNp")
+myTypes = c("GLNO","LNO1","LNO2","LNO3","LNOa","LCNOpm","LCNOp") #c("ExR.*")#
 side = "_R"
-saveName = "ExR_comarison"
+saveName = "LNO_comarison"
 saveDir = "../neuprintR_analysis_plots/"
 ```
 
@@ -42,11 +42,15 @@ if(splitLR){
 ### Generate list of ROIs to consider
 ```{r}
 roiTree = getRoiTree()
+#slctROIs = selectRoiSet(roiTree, default_level = 2, 
+#                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+#                                          "VMNP"=1,"INP"=1,"SNP(R)"=1,"SNP(L)"=1), exceptionLevelMatch = 1)
 slctROIs = selectRoiSet(roiTree, default_level = 2, 
                         exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
                                           "VMNP"=1,"INP"=1,"SNP(R)"=1,"SNP(L)"=1), exceptionLevelMatch = 1)
-#unique(roiTree[["level2"]])
 slctROIs = unique(slctROIs$roi)
+slctROIs = slctROIs[!grepl("\\(L\\)",slctROIs)]
+
 
 rpal = paletteer_d("Polychrome::palette36")[1:length(slctROIs)]
 #paletteer_c("grDevices::Set 3",n=length(slctROIs))
@@ -99,7 +103,8 @@ myTypes_out_plot = myTypes_out_filt %>% select(c("roi","type.from", "type.to", "
 myTypes_filt = bind_rows(myTypes_in_plot,myTypes_out_plot)
 
 bar = ggplot(data=myTypes_filt, aes(x=ref, y=measure, fill=partner)) + 
-  geom_bar(position = "fill", stat="identity") + scale_fill_brewer(palette="Set3") +
+  geom_bar(position = "fill", stat="identity") + 
+  scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(myTypes_filt$partner)))[c(-seq(5))]) + #scale_fill_brewer(palette="Set3") +
   facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free") + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) #+ guides(fill=FALSE)
 bar
@@ -109,7 +114,8 @@ ggsave(paste("inputAndOutputComposition_",saveName,side,'.pdf', sep=''),plot = b
 
 
 bar2 = ggplot(data=myTypes_filt, aes(x=ref, y=measure, fill=partner)) + 
-  geom_bar(position = "fill", stat="identity") + scale_fill_brewer(palette="Set3") +
+  geom_bar(position = "fill", stat="identity") + 
+  scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(myTypes_filt$partner)))[c(-seq(5))] ) + #scale_fill_brewer(palette="Set3") +
   facet_grid(rows=vars(roi), cols=vars(dir)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) #+ guides(fill=FALSE)
 bar2
@@ -142,18 +148,24 @@ outputTypes_bag = create_neuronBag(outtypes)
 ```
 
 ```{r}
-intypeROI = getROISummary(inputTypes_bag, filter=FALSE) 
+usth = 10
+dsth = 10
+intypeROI = getROISummary(inputTypes_bag) 
 
 intypeROI = intypeROI %>% filter(roi %in% slctROIs) %>%
+  filter(upstream > usth) %>%
+  filter(downstream > dsth) %>%
   mutate(roisimple = sub("\\(R\\)", "", roi))  %>% 
   mutate(roisimple = sub("\\(L\\)", "", roisimple)) %>%
   group_by(type) %>% mutate(roi_per_type = paste0(sort(unique(roi)), collapse = "_"),
                             roisimple_per_type = paste0(sort(unique(roisimple)), collapse = "_")) 
 
 
-outtypeROI = getROISummary(outputTypes_bag, filter=FALSE) 
+outtypeROI = getROISummary(outputTypes_bag) 
 
 outtypeROI = outtypeROI %>% filter(roi %in% slctROIs) %>%
+  filter(upstream > usth) %>%
+  filter(downstream > dsth) %>%
   mutate(roisimple = sub("\\(R\\)", "", roi))  %>% 
   mutate(roisimple = sub("\\(L\\)", "", roisimple)) %>%
   group_by(type) %>% mutate(roi_per_type = paste0(unique(roi), collapse = "_"),
