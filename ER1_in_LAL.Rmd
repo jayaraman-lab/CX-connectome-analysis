@@ -1,0 +1,347 @@
+---
+title: "Analysis of windsensory ring neurons in LAL"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of mechanosensory information pathway coming into CX via R1 neurons
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+library(paletteer)
+library(gridExtra)
+
+options(nat.plotengine = 'rgl')
+source("visualizeConnectivityTables.R")
+source("SynapsePCAUtils.R")
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+```{r}
+neuprint_login()
+```
+
+
+### (0) Get some synapse locations
+Choose ROI and get curated list of neurons
+```{r}
+myROI = "LAL(R)"
+
+saveName = paste0("ER1_a_input_", myROI)
+my_types = c("ER1_a") #This should be the post-synaptic partners
+my_types = paste0(my_types, ".*")
+
+my_neurons = getBodyIdsForList(my_types)
+
+#roiTable = getTypesInRoiTable(myROI,lateralize = TRUE, minTypePercentage = 0.5)
+#preName = paste0("all in ", myROI)
+#preIDs = roiTable$names
+
+```
+
+...use this list to get synapse locations
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types)$bodyid),myROI)
+# From the doc: A data frame, where each entry is a connection between the specified bodyid and its partner, either presynaptic to the bodyid (prepost=0) or postsynaptic (prepost=1). Each connection is associated with a synapse that has its own unique connector_id, XYZ coordinates and a confidence in its existence.
+```
+
+```{r}
+my_synapses = my_synapses %>% mutate(
+name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
+
+
+# (1) Import of ROI meshes and get vertices in x,y,z
+
+roiMesh = neuprint_ROI_mesh(myROI)
+roiMeshPts = data.frame(dotprops(roiMesh)$points)
+names(roiMeshPts) <- c("x","y","z")
+
+# (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
+# define new origin from roi center of mass
+origin = getCOM(roiMeshPts)
+
+#reset orgin
+roiMeshPts = resetOrigin(roiMeshPts, origin)
+
+#get eigenvectors
+roiEigen = covPCA(roiMeshPts)
+
+roiMeshPtsRot = changeBasis(roiMeshPts, roiEigen)
+
+#Synapse locations
+synPts = data.frame(x=as.numeric(my_synapses$x),
+                    y=as.numeric(my_synapses$y),
+                    z=as.numeric(my_synapses$z))
+synPts = resetOrigin(synPts, origin)
+synPtsRot = changeBasis(synPts, roiEigen)
+
+```
+
+***Select either original or EV coordinates and rotate***
+```{r}
+rot = c(0,0, 0) #BU (45,180, 0) EB: (0,0,180) AOTU: (0,0,0)
+flipx = 1
+flipy = 1
+flipz = 1
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
+                             y=roiMeshPtsRot$Y,
+                             z=roiMeshPtsRot$Z)
+synPtsPlane = data.frame(x=synPtsRot$X,
+                             y=synPtsRot$Y,
+                             z=synPtsRot$Z)
+# rotate points
+roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
+synPtsPlane = data.matrix(synPtsPlane)
+
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
+synPtsPlane = synPtsPlane %*% makeRotMatXY(rot[1])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+synPtsPlane = synPtsPlane %*% makeRotMatYZ(rot[2])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+synPtsPlane = synPtsPlane %*% makeRotMatXZ(rot[3])
+
+roiMeshPtsPlane = data.frame(x=flipx*roiMeshPtsPlane[,1],y=flipy*roiMeshPtsPlane[,2],z=flipz*roiMeshPtsPlane[,3])
+synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz*synPtsPlane[,3],
+                         type = as.factor(my_synapses$type), 
+                         partnerType = as.factor(my_synapses$partnertype),
+                         name = as.factor(my_synapses$name), 
+                         partnerName = as.factor(my_synapses$partnerName),
+                         id = as.factor(my_synapses$bodyid),
+                         partnerid = as.factor(my_synapses$partner),
+                         prepost = as.factor(my_synapses$prepost))
+
+#Add simple type name
+synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
+```
+
+
+### Look at synapse distributions of individual neurons
+
+```{r}
+require(alphahull)
+
+# get outline
+if(myROI %in% c("AOTU(R)", "LAL(R)")){
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=140)
+}else{
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=100)
+}
+outline_xy = data.frame(meshOutline$arcs)
+
+if(myROI %in% c("AOTU(R)", "LAL(R)")){
+  meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$y,alpha=140)
+}else{
+  meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$y,alpha=100)
+}
+outline_zy = data.frame(meshOutline$arcs)
+
+
+if(myROI %in% c("AOTU(R)", "LAL(R)")){
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$z,alpha=140)
+}else{
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$z,alpha=100)
+}
+outline_xz = data.frame(meshOutline$arcs)
+
+```
+
+Find major partners of ER1_b in the LAL
+```{r}
+minSyn = 10
+inputTypes = my_synapses %>% filter(prepost == 1 ) %>% group_by(partnertype) %>% count() %>% filter(n>=10)
+mainInput = inputTypes %>% filter(n>=minSyn)#arrange(inputTypes, desc(n))$partnertype[5]
+mainInput = mainInput$partnertype
+mainInput
+
+mainInputIDs = getBodyIdsForList(mainInput)
+mainOutputIDs = getBodyIdsForList(my_types)
+
+splitLR  = FALSE
+```
+
+
+# Get connectivity table
+```{r, warning=FALSE}
+myConnections = getConnectionTable(mainInputIDs$bodyid, "POST", myROI)
+myConnections = myConnections %>% filter(to %in% mainOutputIDs$bodyid) 
+  
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+Connectivity matrix
+```{r}
+plotW = 8
+plotH = 10
+cmax = NULL
+
+preName = "ER1aInput"
+postName = "ER1a"
+connectionMeasures = c("weightRelative")
+
+position = synPtsPlane %>% select(c('x','id')) %>% group_by(id)  %>% summarize_each(mean) %>% arrange(x) %>% mutate(oder = seq(length(x)))
+position$id =as.numeric(as.character(position$id))
+myConnections_plot = left_join(myConnections,position, by=c("to" = "id"))
+
+for (connectionMeasure in connectionMeasures){
+
+  conMatPlot = plotConnectivityMatrix(myConnections_plot, byGroup = "id", connectionMeasure, cmax, postfixto=as.character(myConnections_plot$oder))
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, myROI, connectionMeasure)
+  #conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+  print(conMatPlot)
+  ggsave(paste0("connectivityMatrix_",saveName,'_',connectionMeasure,'_byID_minSyn',minSyn,'.pdf'), 
+    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+3D plot
+```{r}
+post = 1
+partnerType = arrange(inputTypes, desc(n))$partnertype[2]
+partnerSubset = getBodyIdsForList(paste0(c(partnerType),".*")) #  "TuBu", "ER"
+focustype = "ER3a_b"
+data = synPtsPlane %>% filter(partnerType %in% partnerSubset$type) %>% 
+  filter(type %in% c(focustype) & prepost == post)
+
+#minConnections = data %>% group_by(id) %>% count() %>% filter(n >= 10)
+#data = data %>% filter(id %in% minConnections$id)
+
+myids = unique(data$id)
+mycols = paletteer_c("pals::ocean.phase", n=1+length(myids))[-1]
+
+nclear3d()
+for (i in seq(1,length(myids),1)){
+  toplot = synPtsPlane%>%filter(id == myids[i]) %>% select(c('x','y','z'))
+  if (! i %% 1){
+    plot3d(toplot, col=mycols[i], add=TRUE,  size=5, alpha=0.4)
+    plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=10, add=TRUE)
+  }
+  plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=8, add=TRUE)
+}
+
+plot3d(roiMeshPtsPlane, size=2, alpha=0.1, add=TRUE)
+decorate3d(box=FALSE)
+```
+
+
+```{r, warning=FALSE}
+
+post = 1
+
+for (partner in c(arrange(inputTypes, desc(n))$partnertype[-1])){
+  print(partner)
+  focustype = "ER3a_b"#"ER1_b"#"ER4d"# 
+  data = synPtsPlane %>% filter(partnerType %in% partner) %>% 
+    filter(type %in% c(focustype) & prepost == post)
+  
+  myids = unique(data$partnerid)
+  colPal = paletteer_c("pals::ocean.phase",n=1+length(myids))[-1]
+  
+  toplot_2D = synPtsPlane%>%filter(partnerid %in% myids) %>% select(c('x','y','z', 'id', 'type', 'partnerType'))
+  
+  minConnections = toplot_2D %>% group_by(id) %>% count() %>% filter(n >= 10)
+  toplot_2D = toplot_2D %>% filter(id %in% minConnections$id)
+      
+  mycols = paletteer_c("pals::ocean.phase", n=1+length(unique(data$id)))[-1]
+  
+  xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=1, alpha=0.8)) + 
+     geom_point(data=toplot_2D %>% group_by(id) %>% 
+                summarize_each(mean), aes(x=x, y=y, color=id, size=2)) +
+     #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+     geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(yrange) +
+     coord_fixed() + theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=xrange,  y=yrange)
+  
+  zyproj <- ggplot(toplot_2D) + geom_point(aes(x=z, y=y, color=id, size=1, alpha=0.8)) + 
+    geom_point(data=toplot_2D %>% group_by(id) %>% 
+                 summarize_each(mean), aes(x=z,y=y, color=id, size=2)) +
+    #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+    geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5) + xlim(zrange)  + ylim(yrange) +
+    coord_fixed() +theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=zrange,  y=yrange)
+  
+  xzproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=z, color=id, size=1, alpha=0.8)) + 
+    geom_point(data=toplot_2D %>% group_by(id) %>% 
+                 summarize_each(mean), aes(x=x,y=z, color=id, size=2)) +
+    #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+    geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(zrange) +
+    coord_fixed() +theme_void() + guides(size=FALSE, alpha=FALSE) + lims(x=xrange,  y=zrange)
+  
+  projPlot <- grid.arrange(xyproj,zyproj,xzproj, nrow=1)
+  
+  ggsave(paste("synapseDistributions_",focustype,'_',partner,'_post_projection.pdf', sep=''),
+                plot = projPlot, device='pdf', path = "../neuprintR_analysis_plots/", 
+                scale = 1, width = 40, height = 15, units ="cm", dpi = 600, useDingbats=FALSE)
+}
+
+```
+
+```{r, warning=FALSE}
+
+ data = synPtsPlane %>% filter(partnerType %in% c(arrange(inputTypes, desc(n))$partnertype[-1])) %>% 
+    filter(type %in% c(focustype) & prepost == 1)
+
+for (partner in c(arrange(inputTypes, desc(n))$partnertype[-1])){
+  print(partner)
+  
+  toplot_2D = data%>%filter(partnerType==partner) %>% select(c('x','y','z', 'partnerid','id', 'type', 'partnerType'))
+  minConnections = toplot_2D %>% group_by(id) %>% count() %>% filter(n >= 10)
+  toplot_2D = toplot_2D %>% filter(id %in% minConnections$id)
+  
+  xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=partnerid, size=1, alpha=0.8)) + 
+     geom_point(data=toplot_2D %>% group_by(partnerid) %>% 
+                summarize_each(mean), aes(x=x, y=y, color=partnerid, size=2)) +
+     #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+     geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(yrange) +
+     coord_fixed() + theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=xrange,  y=yrange)
+  
+  zyproj <- ggplot(toplot_2D) + geom_point(aes(x=z, y=y, color=partnerid, size=1, alpha=0.8)) + 
+    geom_point(data=toplot_2D %>% group_by(partnerid) %>% 
+                 summarize_each(mean), aes(x=z,y=y, color=partnerid, size=2)) +
+    #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+    geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5) + xlim(zrange)  + ylim(yrange) +
+    coord_fixed() +theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=zrange,  y=yrange)
+  
+  xzproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=z, color=partnerid, size=1, alpha=0.8)) + 
+    geom_point(data=toplot_2D %>% group_by(partnerid) %>% 
+                 summarize_each(mean), aes(x=x,y=z, color=partnerid, size=2)) +
+    #scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+    geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(zrange) +
+    coord_fixed() +theme_void() + guides(size=FALSE,  alpha=FALSE) + lims(x=xrange,  y=zrange)
+  
+  projPlot <- grid.arrange(xyproj,zyproj,xzproj, nrow=1)
+  
+  ggsave(paste("synapseDistributions_",focustype,'_',partner,'_bypartner_post_projection.pdf', sep=''),
+                plot = projPlot, device='pdf', path = "../neuprintR_analysis_plots/", 
+                scale = 1, width = 40, height = 15, units ="cm", dpi = 600, useDingbats=FALSE)
+}
+```
