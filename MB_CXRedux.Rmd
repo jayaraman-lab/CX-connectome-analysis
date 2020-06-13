@@ -205,9 +205,7 @@ plotStrongMBON2CXTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CXTarget
 print(plotStrongMBON2CXTargetsToPostInFB)
 ggsave("plotStrongMBON2CXTargetsToPostInFB.eps", plot=plotStrongMBON2CXTargetsToPostInFB, device="eps", path=PlotDir, scale=1, 
        width=80, height=10, units="in", dpi=300, limitsize=FALSE)
-```
 
-```{r}
 # Get type to type connection table
 StrongMBON2CXTargetsToPostInFB$type.from <- as.vector(StrongMBON2CXTargetsToPostInFB$type.from)
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
@@ -266,6 +264,15 @@ ggsave("MBON1stTo2ndaryTargetTab.svg", plot=gg_MBON1stTo2ndaryTargetTab, device=
        width=16, height=16, units="in", dpi=300, limitsize=FALSE)
 ```
 
+### Cluster MB->CX primary targets by the correlation of their weightRelative connectivity to secondary targets and the inverse (clustering secondary targets based on their inputs)
+```{r}
+StrongMBON2CXTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2CXTargetsToPostInFB_Type2TypeTab,'StrongMBON2CXTargetsToPostInFB_Type2Type')
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByFrom <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[1]]
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[2]]
+rm(StrongMBON2CXTargetsToPostInFB_Type2Type_clustered);
+```
+
+
 ```{r}
 # Plot the connections by pathwayWeight (= totalMBContribution * weightRelative)
 
@@ -289,9 +296,7 @@ plotStrongMBON2CX2ndTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CX_2n
 print(plotStrongMBON2CX2ndTargetsToPostInFB)
 ggsave("plotStrongMBON2CX2ndTargetsToPostInFB.eps", plot=plotStrongMBON2CX2ndTargetsToPostInFB, device="eps", path=PlotDir, scale=1, 
        width=180, height=80, units="in", dpi=300, limitsize=FALSE)
-```
 
-```{r}
 # Get type to type connection table
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX_2ndTargetsToPostInFB)
 # StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% arrange(type.from %in% StrongMBON2CX_TargetsType)
@@ -348,7 +353,7 @@ ggsave("MBON2ndTo3rdCXTargetTab.svg", plot=gg_MBON2ndTo3rdTargetTab, device="svg
        width=30, height=30, units="in", dpi=300, limitsize=FALSE)
 ```
 
-### Cluster MB->CX secondary targets by the correlation of their weightRelative connectivity to tertiary targets and the inverse (clustering tertiary targets based their inputs)
+### Cluster MB->CX secondary targets by the correlation of their weightRelative connectivity to tertiary targets and the inverse (clustering tertiary targets based on their inputs)
 ```{r}
 StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,'StrongMBON2CX_2ndTargetsToPostInFB_Type2Type')
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered[[2]]
