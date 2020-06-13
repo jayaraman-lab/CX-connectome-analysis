@@ -355,53 +355,6 @@ StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTarge
 ```
 
 ```{r}
-# library(reshape2)
-# Select only the relevant columns
-# Data4Clust <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab %>% select(type.from,type.to,weightRelative)
-
-# Recast it into a matrix
-# Data4Clust <- dcast(Data4Clust,type.from~type.to) # rows are type.from, columns are type.to except the first column has the type.from names, values are weightRelative
-# Data4Clust[is.na(Data4Clust)] <- 0
-# rownames(Data4Clust) <- Data4Clust$type.from
-# Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1)) # chop off the first column
-
-# Plot the correlation matrix among type.to
-# library(corrplot)
-# postscript(file = paste(PlotDir,"corrplotByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=24,height=24)
-# corrplot(cor(Data4Clust), order="hclust", hclust.method="ward.D2", tl.cex=0.25, tl.col="black") # cor computes the correlation matrix between the columns of the input matrix
-# dev.off()
-
-# Plot the correlation matrix among type.from
-# Data4Clust <- t(Data4Clust) # transpose Data4Clust if wanting to plot correlations between type.from
-# postscript(file = paste(PlotDir,"corrplotByFrom_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=24,height=24)
-# corrplot(cor(Data4Clust), order="hclust", hclust.method="ward.D2", tl.cex=0.25, tl.col="black") # cor computes the correlation matrix between the columns of the input matrix
-# dev.off()
-
-# Calculate the dissimilarity matrix
-# Data4Clust <- t(Data4Clust) # transpose Data4Clust back so rows are type.from, columns are type.to
-# Data4ClustSc <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
-# d <- dist(t(Data4ClustSc), method = "euclidean") # compute the distance matrix between rows (type.to)
-# Perform hierarchical clustering and plot the dendrogram
-# hc <- hclust(d, method = "ward.D2" )
-# dend1 <- as.dendrogram(hc)
-# postscript(file = paste(PlotDir,"ClusterByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=36,height=24)
-# plot(dend1,lab.cex=0.25)
-# dev.off()
-
-# Order the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab according to the clustering of the inputs to the tertiary targets
-# StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab
-# StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to <- factor(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to, levels = hc$labels[hc$order], ordered=TRUE)
-# StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- arrange(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo,type.to)
-
-# Plot and save the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo based on the connectionMeasure of "weightRelative"
-# plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc <- plotConnectivityMatrix(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo,byGroup="type",connectionMeasure="weightRelative")
-# print(plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc)
-# ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTable_weightRelative_clusterByTo.eps", plot=plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc, device="eps", path=PlotDir, scale=1, 
-#        width=24, height=16, units="in", dpi=300, limitsize=FALSE)
-
-```
-
-```{r}
 # Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.from)),unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to))))
