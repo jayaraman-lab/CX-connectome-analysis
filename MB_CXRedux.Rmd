@@ -131,10 +131,9 @@ ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=input
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
-
+### Find Strongly connected direct MBON targets in the CX
 ```{r}
-### Pull significant MBONTargetInpC connections based on "totalMBContribution"
-# Find Strongly connected MBON targets in the CX
+# Pull significant MBONTargetInpC connections based on "totalMBContribution"
 StrongMBONTargetInpC <- MBONTargetInpC  %>% filter(totalMBContribution > 0.05)
 StrongMBON2CX_TargetsType <- unique(as.vector(StrongMBONTargetInpC$databaseType.to))
 StrongMBON2CX_TargetNeurons <- getTypesTable(StrongMBON2CX_TargetsType)
@@ -151,18 +150,16 @@ StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeuron
 # Arrange StrongMBON2CX_ConnTable in the order of StrongMBONTargetInpC$databaseType.to
 StrongMBON2CX_ConnTable$type.to <- factor(StrongMBON2CX_ConnTable$type.to,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
 StrongMBON2CX_ConnTable <- arrange(StrongMBON2CX_ConnTable,type.to)
-```
 
-### Plot StrongMBON2CX_ConnTable
-```{r}
+# Plot StrongMBON2CX_ConnTable
 plotStrongMBON2CX_ConnTable <- plotConnectivityMatrix(StrongMBON2CX_ConnTable,byGroup="id")
 print(plotStrongMBON2CX_ConnTable)
 ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
+### Plot the strong direct pathways from MBONs to CX
 ```{r}
-### Plot the pathways from MBONs to CX
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
 numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
@@ -359,8 +356,8 @@ StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(Plo
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered[[2]]
 ```
 
+### Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
 ```{r}
-# Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.from)),unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to))))
 numTypes <- length(types)
@@ -397,9 +394,7 @@ tsne(Data4Clust,perplex=15)
 MBON_nonCXnonMBON_ConnTable <- MBON_PostConnections %>% filter(type.to %in% MBONnonCXTargetsL)
 plotMBON_nonCXnonMBON_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_ConnTable,byGroup="id",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_ConnTable)
-```
 
-```{r}
 # Plot type to type connection matrix from MBONs to non-CX non-MBON targets
 MBON_nonCXnonMBON_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_ConnTable)
 # Filter the table by weightRelative
@@ -407,16 +402,12 @@ MBON_nonCXnonMBON_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab  %>% filter(wei
 
 plotMBON_nonCXnonMBON_Type2TypeConn <- plotConnectivityMatrix(MBON_nonCXnonMBON_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_Type2TypeConn)
-```
 
-```{r}
 # Plot neuron to neuron connection matrix from MBON non-CX non-MBON targets to their targets in the CX
 MBON_nonCXnonMBON_2ndaryCX_ConnTable <- MBON_2ndaryPostConnections %>% filter(type.to %in% MBONCX2ndaryTargetsL)
 plotMBON_nonCXnonMBON_2ndaryCX_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_ConnTable,byGroup="id",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_2ndaryCX_ConnTable)
-```
 
-```{r}
 # Plot type to type connection matrix from MBON non-CX non-MBON targets to their targets in the CX
 MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_2ndaryCX_ConnTable)
 # Filter the table by weightRelative
@@ -426,9 +417,7 @@ MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeT
 
 plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab)
-```
 
-```{r}
 # Filter MBON_nonCXnonMBON_Type2TypeTab based on type.to with direct connections in the CX
 MBON_nonCXnonMBONwCX2ndT_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab %>% filter(type.to %in% unique(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.from))
 MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab %>% filter(type.from %in% unique(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab$type.to))
