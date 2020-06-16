@@ -457,24 +457,44 @@ epgInputSynapsesOld <- filter(epgInputSynapsesOld,partner %in% partnerListOld$bo
 
 ```{r}
 nopen3d()
-par3d(windowRect = c(20, 30, 1500, 1500))
+par3d(windowRect = c(30, 30, 1530, 1530))
 plot3d(EBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
 par3d(scale=c(1,1,1))
 shade3d(exampleEPGOld,color="grey80")
 shade3d(exampleEPGNew,color="red")
-plot3d(epgInputSynapsesOld,add=T,size=15,col="#B32DB5")
-plot3d(epgInputSynapsesNew,add=T,col="#348E53",size=14)
+plot3d(epgInputSynapsesOld,add=T,col="#B32DB5")
+plot3d(epgInputSynapsesNew,add=T,col="#053CFF")
 nview3d("ventral")
+zoom0View <- par3d("userProjection")
 rgl.snapshot(paste0(validationFolder,"frontEBZoom1.png"))
 ```
 
 ```{r}
-rgl.snapshot(paste0(validationFolder,"frontEBZoom2.png"))
-rgl.snapshot(paste0(validationFolder,"frontEBZoom3.png"))
+nopen3d()
+par3d(windowRect = c(30, 30, 1530, 1530))
+par3d(userProjection=translationMatrix(-1.2,1.6,0) %*% zoom0View)
+plot3d(EBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+par3d(scale=c(1,1,1))
+nview3d("ventral",zoom=0.1)
+shade3d(addNormals(exampleEPGOld),color="grey80")
+shade3d(addNormals(exampleEPGNew),color="red")
+
+
+plot3d(epgInputSynapsesOld,add=T,col="#B32DB5",size=15)
+plot3d(epgInputSynapsesNew,add=T,col="#053CFF",size=15)
 ```
 
 ```{r}
-EPGViews <- ggdraw() + draw_image(paste0(validationFolder,"frontEBZoom1.png")) + draw_image(paste0(validationFolder,"frontEBZoom3.png"),scale=0.5,vjust=-0.25,hjust=0.15) 
+rgl.snapshot(paste0(validationFolder,"frontEBZoom2.png"))
+```
+
+```{r}
+EPGViews <- ggdraw() + draw_image(paste0(validationFolder,"frontEBZoom1.png"),scale=1.6,clip="on") + draw_image(paste0(validationFolder,"frontEBZoom2.png"),scale=0.5,vjust=-0.23,hjust=0.05,clip="on") +
+   annotate(geom="text",x=0.25,y=0.22,label="Synapses",hjust=0) +
+  annotate(geom="point",x=0.25,y=0.18,color="#B32DB5",size=1) + 
+  annotate(geom="point",x=0.25,y=0.14,color="#053CFF",size=1) +
+  annotate(geom="text",x=0.26,y=0.18,label="Initially traced",hjust=0) +
+  annotate(geom="text",x=0.26,y=0.14,label="New additions",hjust=0)
 EPGViews
 ```
 
@@ -526,8 +546,8 @@ C
 
 EBFig <- ((EPGViews | (EBCompExample + theme(legend.position="none"))) + 
             plot_layout(tag_level = "new",widths = c(1.8,1))) / 
-  (synChangeEB + theme(legend.position="none")) / 
-  EBSlopes +plot_layout(design = layout) + plot_annotation(tag_levels=c("A","i"))
+  (synChangeEB ) / 
+  (EBSlopes+ theme(legend.position="none")) +plot_layout(design = layout) + plot_annotation(tag_levels=c("A","i"))
 
 save_plot(paste0(validationFolder,"ValidationPanel1.pdf"),EBFig,nrow=4,ncol=2,device=cairo_pdf)
 ```
