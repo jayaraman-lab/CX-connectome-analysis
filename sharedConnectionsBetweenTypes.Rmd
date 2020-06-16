@@ -13,6 +13,7 @@ library(tidyverse)
 library(dplyr)
 library(plotly)
 library(paletteer)
+library(neuprintrExtra)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -20,36 +21,43 @@ options(nat.plotengine = 'rgl')
 neuprint_login()
 ```
 
-```{r messages=FALSE, warning=FALSE}
-# Get some custom functions
-source("neuprintQueryUtils.R")
-source("InputOutputByTypeUtils.R")
-source("R/rois.R")
-```
-
 ### Select types for comparison
 ```{r}
-myTypes = c("GLN","LN1","LN2","LN3","LNa","LCNpm","LCNp")
-saveName = "LAL-NOinputs"
-roiLevel = "level1"
+myTypes = c("GLNO","LNO1","LNO2","LNO3","LNOa","LCNOpm","LCNOp") #c("ExR.*")#
+side = "_R"
+saveName = "LNO_comarison"
 saveDir = "../neuprintR_analysis_plots/"
 ```
 
 ```{r}
-myTypes_bag = buildInputsOutputsByType(myTypes)
+myTypes_bag = create_neuronBag(myTypes)
 
 # Filter out neurons from left side?
 splitLR = TRUE
 if(splitLR){
-  myTypes_bag = lateralizeInputOutputList(myTypes_bag)
-  #myTypes = paste0(myTypes,"_R")
+  myTypes_bag = lateralize_types(myTypes_bag)
   }
 ```
 
 ### Generate list of ROIs to consider
 ```{r}
 roiTree = getRoiTree()
-slctROIs = unique(roiTree[[roiLevel]])
+#slctROIs = selectRoiSet(roiTree, default_level = 2, 
+#                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+#                                          "VMNP"=1,"INP"=1,"SNP(R)"=1,"SNP(L)"=1), exceptionLevelMatch = 1)
+slctROIs = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+                                          "VMNP"=1,"INP"=1,"SNP(R)"=1,"SNP(L)"=1), exceptionLevelMatch = 1)
+slctROIs = unique(slctROIs$roi)
+slctROIs = slctROIs[!grepl("\\(L\\)",slctROIs)]
+
+
+rpal = paletteer_d("Polychrome::palette36")[1:length(slctROIs)]
+#paletteer_c("grDevices::Set 3",n=length(slctROIs))
+#roisPalette(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::palette36"))
+rpal
+roiCol = data.frame(roi = slctROIs, col=as.character(rpal))
+head(roiCol)
 ```
 
 ### Generate dataframe of inputs to types of interest
@@ -57,73 +65,142 @@ slctROIs = unique(roiTree[[roiLevel]])
 ```{r}
 myTypes_in = myTypes_bag$inputs#_raw
 myTypes_out = myTypes_bag$outputs#_raw
+
+myTypes = myTypes_bag$names
 ```
 
-# Filter based on simple thresholds for now
+# Filter based on rois to use
 ```{r}
 myTypes_in_filt = myTypes_in %>% 
   filter(roi %in% slctROIs) %>%
-  select(c("roi","type.from", "type.to", "databaseType.from", "databaseType.to", "weightRelative", "weightRelativeTotal")) 
-      #"ROIweight", "name.from", "name.to",
+  filter(type.to %in% c(paste0(unique(myTypes_in$databaseType.to),side))) %>%
+  group_by(roi,  type.to) %>% filter(sum(weight) >= 10)
 
 myTypes_in_filt = myTypes_in_filt[complete.cases(myTypes_in_filt), ]
+myTypes_in_filt = bind_cols(myTypes_in_filt, data.frame(dir = rep("in", length(myTypes_in_filt$roi))))
 
 myTypes_out_filt = myTypes_out %>% 
   filter(roi %in% slctROIs) %>%
-  select(c("roi","type.from", "type.to", "databaseType.from", "databaseType.to", "weightRelative", "weightRelativeTotal")) 
-      #"ROIweight", "name.from", "name.to",
+  filter(type.from %in% c(paste0(unique(myTypes_out$databaseType.from),side))) %>%
+  group_by(roi,  type.from) %>% filter(sum(weight) >= 10)
+
 
 myTypes_out_filt = myTypes_out_filt[complete.cases(myTypes_out_filt), ]
+myTypes_out_filt = bind_cols(myTypes_out_filt, data.frame(dir = rep("out", length(myTypes_out_filt$roi))))
 ```
 
+# Visualize in bar graph different input types
+```{r}
+myTypes_in_plot = myTypes_in_filt %>% select(c("roi","type.from", "type.to", "supertype.from3", "supertype.to3",
+                                               "weightRelative","outputContribution", "dir")) %>%
+  mutate(ref = type.to, partner=supertype.from3, measure=weightRelative)
+
+
+myTypes_out_plot = myTypes_out_filt %>% select(c("roi","type.from", "type.to", "supertype.from3", "supertype.to3", 
+                                                 "weightRelative", "outputContribution", "dir")) %>%
+  mutate(ref = type.from, partner=supertype.to3, measure=outputContribution)
+
+myTypes_filt = bind_rows(myTypes_in_plot,myTypes_out_plot)
+
+bar = ggplot(data=myTypes_filt, aes(x=ref, y=measure, fill=partner)) + 
+  geom_bar(position = "fill", stat="identity") + 
+  scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(myTypes_filt$partner)))[c(-seq(5))]) + #scale_fill_brewer(palette="Set3") +
+  facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free") + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) #+ guides(fill=FALSE)
+bar
+
+ggsave(paste("inputAndOutputComposition_",saveName,side,'.pdf', sep=''),plot = bar, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1, width=35, height=15, units ="cm", dpi = 600, limitsize = TRUE)
+
+
+bar2 = ggplot(data=myTypes_filt, aes(x=ref, y=measure, fill=partner)) + 
+  geom_bar(position = "fill", stat="identity") + 
+  scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(myTypes_filt$partner)))[c(-seq(5))] ) + #scale_fill_brewer(palette="Set3") +
+  facet_grid(rows=vars(roi), cols=vars(dir)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) #+ guides(fill=FALSE)
+bar2
+
+ggsave(paste("inputAndOutputComposition_",saveName,side,'_v2.pdf', sep=''),plot = bar2, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1, width=15, height=35, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+## ....
+
 # Generate a data frame that lists all inputs by type and for each input type, provides a list of ROIs in they innervate
+
+```{r}
+roiTree = getRoiTree()
+slctROIs = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=0,"AL(R)"=0,"PENP"=0,"AL(L)"=0,"MB(+ACA)(R)"=0,"MB(L)"=0,
+                                          "VMNP"=0,"INP"=0,"SNP(R)"=0,"SNP(L)"=0), exceptionLevelMatch = 1)
+#unique(roiTree[["level2"]])
+slctROIs = as.character(unique(slctROIs$roi))
+#slctROIs = slctROIs[!slctROIs %in% c("INP", "VMNP", "PVLP")]
+```
+
 ```{r}
 intypes = unique(myTypes_in_filt$databaseType.from)
-intypeROI = getROISummary(lateralizeInputOutputList(buildInputsOutputsByType(intypes))) 
-intypeROI = intypeROI %>%
-  filter(roi %in% slctROIs) %>%
+inputTypes_bag = create_neuronBag(intypes)
+
+outtypes = unique(myTypes_out_filt$databaseType.to)
+outputTypes_bag = create_neuronBag(outtypes)
+```
+
+```{r}
+usth = 10
+dsth = 10
+intypeROI = getROISummary(inputTypes_bag) 
+
+intypeROI = intypeROI %>% filter(roi %in% slctROIs) %>%
+  filter(upstream > usth) %>%
+  filter(downstream > dsth) %>%
   mutate(roisimple = sub("\\(R\\)", "", roi))  %>% 
   mutate(roisimple = sub("\\(L\\)", "", roisimple)) %>%
   group_by(type) %>% mutate(roi_per_type = paste0(sort(unique(roi)), collapse = "_"),
                             roisimple_per_type = paste0(sort(unique(roisimple)), collapse = "_")) 
-```
 
-```{r}
-outtypes = unique(myTypes_out_filt$databaseType.from)
-outtypeROI = getROISummary(lateralizeInputOutputList(buildInputsOutputsByType(outtypes))) %>% 
-  filter(roi %in% slctROIs) %>%
+
+outtypeROI = getROISummary(outputTypes_bag) 
+
+outtypeROI = outtypeROI %>% filter(roi %in% slctROIs) %>%
+  filter(upstream > usth) %>%
+  filter(downstream > dsth) %>%
   mutate(roisimple = sub("\\(R\\)", "", roi))  %>% 
   mutate(roisimple = sub("\\(L\\)", "", roisimple)) %>%
   group_by(type) %>% mutate(roi_per_type = paste0(unique(roi), collapse = "_"),
                             roisimple_per_type = paste0(unique(roisimple), collapse = "_")) 
 ```
 
-Join connectivity data and input type ROI data
+## Plot input
 ```{r}
-roiInfoInputs = intypeROI %>% select(c("type","databaseType", "roi_per_type","roisimple_per_type")) #%>% unique()
-plotData = full_join(myTypes_in_filt, roiInfoInputs, by = c("type.from" = "type", "databaseType.from" = "databaseType")) %>% 
-  select(c("roi","type.from", "type.to", "roi_per_type", "roisimple_per_type", "weightRelative", "weightRelativeTotal")) %>%
-  unique()  %>% na.omit(cols = c("type.to"))
-```
+## Join connectivity data and input type ROI data
 
-Sum over types that go to the same ROIs
-```{r}
+roiInfoInputs = intypeROI %>% select(c("type","databaseType", "roi_per_type","roisimple_per_type"))
+plotData = full_join(myTypes_in, roiInfoInputs, by = c("databaseType.from" = "type")) %>% 
+  select(c("roi","type.from", "type.to", "roi_per_type", "roisimple_per_type", "weightRelative", "weightRelativeTotal")) #%>% 
+
+## Sum over types that go to the same ROIs
+
+plotTypes = myTypes$type
+plotTypes = plotTypes[grep(".*_R", plotTypes)]
+
 plotData_perInROI = plotData %>% 
-  filter(type.to %in% paste0(myTypes, "_R")) %>% 
+  filter(type.to %in% plotTypes) %>% 
+  filter(roi %in% slctROIs) %>% 
   group_by(roi, type.to, roisimple_per_type) %>% 
-  summarize(weight = sum(weightRelative),
-            count = length(weightRelative))
+  summarize(weight = sum(weightRelative), count = length(weightRelative))
 
 plotData_total = plotData %>% 
-  filter(type.to %in% paste0(myTypes, "_R")) %>% 
+  filter(type.to %in%  plotTypes) %>% 
+  filter(roi %in% slctROIs) %>% 
   group_by(type.to, roisimple_per_type) %>% 
-  summarize(weight = sum(weightRelative),
-            count = length(weightRelative))
+  summarize(weight = sum(weightRelative), count = length(weightRelative))
 
 ```
 
 ```{r}
-plotW = 20
+plotW = 25
 plotH = 35
 
 p_simple <- ggplot(plotData_total, aes(x=type.to,y=roisimple_per_type,fill=weight)) + 
@@ -132,13 +209,11 @@ p_simple <- ggplot(plotData_total, aes(x=type.to,y=roisimple_per_type,fill=weigh
                          midpoint =0.5*max(plotData_total$weight), limits=c(0,max(plotData_total$weight)))  +
   theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
 
-ggsave( paste0("inputByRegionMatrix_",saveName,"_", roiLevel, "_simple.pdf"), plot = p_simple, device='pdf', path = saveDir,
+ggsave( paste0("inputByRegionMatrix_",saveName, "_simple.pdf"), plot = p_simple, device='pdf', path = saveDir,
     scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 
 print(p_simple)
 
-#inRoiList = c("LAL(R)", "NO", "WED(R)")
-#plotData_perInROI = plotData_perInROI %>% filter(roi %in% inRoiList)
 p_facet <- ggplot(plotData_perInROI, aes(x=type.to,y=roisimple_per_type,fill=weight)) + 
   geom_tile() +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
@@ -146,9 +221,107 @@ p_facet <- ggplot(plotData_perInROI, aes(x=type.to,y=roisimple_per_type,fill=wei
   facet_grid(.~roi) + 
   theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
 
-ggsave( paste0("inputByRegionMatrix_",saveName,"_", roiLevel, "_faceted.pdf"), plot = p_facet, device='pdf', path = saveDir,
+ggsave( paste0("inputByRegionMatrix_",saveName,"_faceted.pdf"), plot = p_facet, device='pdf', path = saveDir,
     scale = 1, width = plotW*1.2, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 
 print(p_facet)
 ```
 
+## Plot output
+```{r}
+## Join connectivity data and input type ROI data
+
+roiInfoOutouts = outtypeROI %>% select(c("type","databaseType", "roi_per_type","roisimple_per_type"))
+plotData = full_join(myTypes_out, roiInfoOutouts, by = c("databaseType.to" = "type")) %>% 
+  select(c("roi","type.from", "type.to", "roi_per_type", "roisimple_per_type", "weightRelative", "weightRelativeTotal")) #%>% 
+
+## Sum over types that go to the same ROIs
+
+plotTypes = myTypes$type
+plotTypes = plotTypes[grep(".*_R", plotTypes)]
+
+plotData_perOutROI = plotData %>% 
+  filter(type.from %in% plotTypes) %>% 
+  filter(roi %in% slctROIs) %>% 
+  group_by(roi, type.from, roisimple_per_type) %>% 
+  summarize(weight = sum(weightRelative), count = length(weightRelative))
+
+plotData_total = plotData %>% 
+  filter(type.from %in%  plotTypes) %>% 
+  filter(roi %in% slctROIs) %>% 
+  group_by(type.from, roisimple_per_type) %>% 
+  summarize(weight = sum(weightRelative), count = length(weightRelative))
+
+```
+
+```{r}
+plotW = 25
+plotH = 35
+
+p_simple <- ggplot(plotData_total, aes(x=type.from,y=roisimple_per_type,fill=weight)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(plotData_total$weight), limits=c(0,max(plotData_total$weight)))  +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+ggsave( paste0("outputByRegionMatrix_",saveName, "_simple.pdf"), plot = p_simple, device='pdf', path = saveDir,
+    scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+print(p_simple)
+
+p_facet <- ggplot(plotData_perOutROI, aes(x=type.from,y=roisimple_per_type,fill=weight)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(plotData_perOutROI$weight), limits=c(0,max(plotData_perOutROI$weight)))  +
+  facet_grid(.~roi) + 
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+ggsave( paste0("outputByRegionMatrix_",saveName,"_faceted.pdf"), plot = p_facet, device='pdf', path = saveDir,
+    scale = 1, width = plotW*1.2, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+print(p_facet)
+```
+
+### overview
+
+```{r}
+inData = full_join(myTypes_in, intypeROI, by = c("databaseType.from" = "type")) #%>% na.omit()
+inData =  inData %>% group_by(type.to, roi.x) %>% filter(roi.x %in% slctROIs) %>% 
+  summarise(sumweight = sum(absoluteWeight), sumweightrel = sum(weightRelative))
+inData = inData %>% filter(type.to %in% plotTypes) %>% rename(type = type.to) %>% mutate("dir" = "input")
+
+outData = full_join(myTypes_out, outtypeROI, by = c("databaseType.to" = "type")) #%>% na.omit()
+outData =  outData %>% group_by(type.from, roi.x) %>% filter(roi.x %in% slctROIs) %>% 
+  summarise(sumweight = sum(absoluteWeight), sumweightrel = sum(weightRelative))
+outData = outData %>% filter(type.from %in% plotTypes) %>% rename(type = type.from) %>% mutate("dir" = "output")
+
+
+roiDist = bind_rows(inData, outData)
+
+```
+
+```{r}
+plotW = 15
+plotH = 12
+
+absWP = ggplot(roiDist, aes(x=type,y=roi.x,fill=sumweight)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(inData$sumweight), limits=c(0,max(inData$sumweight)))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) +
+  facet_grid(cols = vars(dir))
+
+ggsave( paste0("roiDistribution",saveName,"_absWeight.pdf"), plot = absWP, device='pdf', path = saveDir,
+    scale = 1, width = plotW*1.2, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+relWB = ggplot(roiDist, aes(x=type,y=roi.x,fill=sumweightrel)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(inData$sumweightrel), limits=c(0,max(inData$sumweightrel)))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) + 
+  facet_grid(cols = vars(dir))
+
+ggsave( paste0("roiDistribution",saveName,"_relWeight.pdf"), plot = relWB, device='pdf', path = saveDir,
+    scale = 1, width = plotW*1.2, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+```

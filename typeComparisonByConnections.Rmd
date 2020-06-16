@@ -1,0 +1,197 @@
+---
+title: "Plots for comparing inputs/outputs between types"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+options(nat.plotengine = 'rgl')
+
+neuprint_login()
+```
+
+```{r, messages=FALSE, warning=FALSE}
+# Get some custom functions
+source("visualizeConnectivityTables.R")
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
+```{r}
+ROI = "EB"
+slctROI ="EB"# "EB"#LAL(-GA)
+
+splitLR = FALSE
+
+saveName = paste0("EPG_with_RN",slctROI) #RN_TB_ExR #RN_ExR_col_in_ EPG-EL_with_RN
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+# group 1 (focal)
+neuron1 = c("EPG")#, "EL")
+neuron1 = paste0(neuron1,".*")
+neuronName1 = "EPG"#"columnar"
+IDs1 = getBodyIdsForList(neuron1)
+
+# group 2
+neuron2 = c(paste0("ER",seq(6))) # postNeuron #c("TuBu.*")#
+neuron2 = paste0(neuron2,".*")
+neuronName2 = "RN"
+IDs2 = getBodyIdsForList(neuron2)
+
+```
+
+### Get connectivity table
+```{r}
+getT2Ttable <- function(preIDs, postIDs){
+  myConnections = getConnectionTable(preIDs$bodyid, "POST", slctROI)
+  myConnections = myConnections %>% filter(to %in% postIDs$bodyid) 
+  typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+  
+  if (splitLR){
+    # Subdevide types and build a custom types table
+    myConnections = lateralize_types(myConnections, postfix="to")
+    myConnections = lateralize_types(myConnections, postfix="from")
+    typesTable = lateralize_types(typesTable, postfix="raw")
+  }
+  
+  myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+}
+```
+
+```{r, warning=FALSE}
+myConnections_1to2_full = getT2Ttable(IDs1,IDs2)
+myConnections_2to1_full = getT2Ttable(IDs2,IDs1)
+```
+
+```{r}
+myConnections_1to2 = myConnections_1to2_full %>% select(c(type.from, type.to, weightRelative, weight)) %>% 
+  rename(c(type1 = type.from, type2 = type.to)) %>% mutate(dir = paste("from",neuronName1)) %>%
+  group_by(dir, type1) %>% mutate(normRelWeight = weightRelative/sum(weightRelative))
+myConnections_2to1 = myConnections_2to1_full %>% select(c(type.from, type.to, weightRelative, weight)) %>% 
+  rename(c(type2 = type.from, type1 = type.to)) %>% mutate(dir = paste("to",neuronName1)) %>%
+  group_by(dir, type1) %>% mutate(normRelWeight = weightRelative/sum(weightRelative))
+```
+
+### Connectivity matrix
+```{r}
+plotW = 19 #24#25# 45 # 20
+plotH = 5 #4 #40  #17
+cmax = max(myConnections[["weightRelative"]]) #0.48
+
+myConnections = bind_rows(myConnections_2to1,myConnections_1to2)
+
+myConTab = myConnections  %>% 
+  ungroup() %>% mutate(plotWeight = myConnections[["weightRelative"]]) %>% 
+  filter(type1 %in% c("EPG", "EL"))
+
+conmatPlot = ggplot(myConTab) + 
+  geom_tile(aes(type2,dir,fill=plotWeight)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  facet_grid(rows=vars(type1))
+
+conmatPlot = conmatPlot +
+    xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") + labs(fill="weightRelative") +
+    labs(title=paste(neuronName1,'to', neuronName2, 'Connectivity within', slctROI, sep=' ')) +
+    theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3))
+
+print(conmatPlot)
+
+ggsave( paste("typeConmarison_matrix_",saveName,'_in_',slctROI,'_weightRelative.pdf', sep=''), plot = conmatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+```
+
+```{r}
+cmapName = "RingNeurons"
+myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colorMap_",cmapName,".csv"))
+myTypeCMap = myColorMap %>% filter(Simpletype == "no")
+```
+
+
+```{r}
+library("paletteer")
+
+myConnections_regionInfo = left_join(myConTab, myTypeCMap, by=c("type2" = "Type")) %>% mutate()
+
+plotW = 7#10
+plotH = 8
+
+bargraph_wr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = weightRelative, x = type1, fill = type2), stat="identity") + 
+  facet_grid(cols=vars(dir)) + scale_fill_manual(values = c(as.character(myTypeCMap$hex))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Relative weight") + labs(fill="Partner type")
+
+print(bargraph_wr)
+  
+bargraph_nwr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = normRelWeight, x = type1, fill = type2), stat="identity") + 
+  facet_grid(cols=vars(dir)) + scale_fill_manual(values = c(as.character(myTypeCMap$hex))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Normalized relative weight") + labs(fill="Partner type")
+
+print(bargraph_nwr)
+
+ggsave( paste("typeConmarison_bar_",saveName,'_in_',slctROI,'_weightRelative.pdf', sep=''), plot = bargraph_wr, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave( paste("typeConmarison_bar_",saveName,'_in_',slctROI,'_norm_weightRelative.pdf', sep=''), plot = bargraph_nwr, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+
+```
+
+```{r}
+
+plotW = 7#10
+plotH = 8
+
+bargraph_wr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = weightRelative, x = type1, fill = regions), stat="identity") + 
+  facet_grid(cols=vars(dir)) + 
+  scale_fill_manual(values = paletteer_d("Polychrome::kelly",n=length(unique(myColorMap$regions)))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Relative weight") + labs(fill="Partner type")
+
+print(bargraph_wr)
+  
+bargraph_nwr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = normRelWeight, x = type1, fill = regions), stat="identity") + 
+  facet_grid(cols=vars(dir)) + 
+  scale_fill_manual(values = paletteer_d("Polychrome::kelly",n=length(unique(myColorMap$regions)))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Normalized relative weight") + labs(fill="Partner type")
+
+print(bargraph_nwr)
+
+ggsave( paste("typeConmarison_bar_byRegion_",saveName,'_in_',slctROI,'_weightRelative.pdf', sep=''), plot = bargraph_wr, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave( paste("typeConmarison_bar_byRegion_",saveName,'_in_',slctROI,'_norm_weightRelative.pdf', sep=''), plot = bargraph_nwr, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+```

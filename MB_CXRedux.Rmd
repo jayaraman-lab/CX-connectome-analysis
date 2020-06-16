@@ -68,7 +68,7 @@ MBON_PostConnections <- getConnectionTable(MBON_Names,synapseType = "POST") ## K
 ### Get MBON targets inside / outside of CX
 ```{r}
 # Selecting CX types as those present in Romain's list.
-CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types052220") %>% rename(databaseType=n.type))
+CXTypes <- supertype(read_csv("/Users/danc/Dropbox (HHMI)/WorkDrop/Manuscripts/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
 MBON_targets <- unique(MBON_PostConnections$type.to)
 
 # Pick MBON targets in the CX
@@ -131,10 +131,9 @@ ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=input
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
-
+### Find Strongly connected direct MBON targets in the CX
 ```{r}
-### Pull significant MBONTargetInpC connections based on "totalMBContribution"
-# Find Strongly connected MBON targets in the CX
+# Pull significant MBONTargetInpC connections based on "totalMBContribution"
 StrongMBONTargetInpC <- MBONTargetInpC  %>% filter(totalMBContribution > 0.05)
 StrongMBON2CX_TargetsType <- unique(as.vector(StrongMBONTargetInpC$databaseType.to))
 StrongMBON2CX_TargetNeurons <- getTypesTable(StrongMBON2CX_TargetsType)
@@ -151,18 +150,16 @@ StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeuron
 # Arrange StrongMBON2CX_ConnTable in the order of StrongMBONTargetInpC$databaseType.to
 StrongMBON2CX_ConnTable$type.to <- factor(StrongMBON2CX_ConnTable$type.to,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
 StrongMBON2CX_ConnTable <- arrange(StrongMBON2CX_ConnTable,type.to)
-```
 
-### Plot StrongMBON2CX_ConnTable
-```{r}
+# Plot StrongMBON2CX_ConnTable
 plotStrongMBON2CX_ConnTable <- plotConnectivityMatrix(StrongMBON2CX_ConnTable,byGroup="id")
 print(plotStrongMBON2CX_ConnTable)
 ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
+### Plot the strong direct pathways from MBONs to CX
 ```{r}
-### Plot the pathways from MBONs to CX
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
 numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
@@ -205,9 +202,7 @@ plotStrongMBON2CXTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CXTarget
 print(plotStrongMBON2CXTargetsToPostInFB)
 ggsave("plotStrongMBON2CXTargetsToPostInFB.eps", plot=plotStrongMBON2CXTargetsToPostInFB, device="eps", path=PlotDir, scale=1, 
        width=80, height=10, units="in", dpi=300, limitsize=FALSE)
-```
 
-```{r}
 # Get type to type connection table
 StrongMBON2CXTargetsToPostInFB$type.from <- as.vector(StrongMBON2CXTargetsToPostInFB$type.from)
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CXTargetsToPostInFB)
@@ -266,6 +261,15 @@ ggsave("MBON1stTo2ndaryTargetTab.svg", plot=gg_MBON1stTo2ndaryTargetTab, device=
        width=16, height=16, units="in", dpi=300, limitsize=FALSE)
 ```
 
+### Cluster MB->CX primary targets by the correlation of their weightRelative connectivity to secondary targets and the inverse (clustering secondary targets based on their inputs)
+```{r}
+StrongMBON2CXTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2CXTargetsToPostInFB_Type2TypeTab,'StrongMBON2CXTargetsToPostInFB_Type2Type')
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByFrom <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[1]]
+StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[2]]
+rm(StrongMBON2CXTargetsToPostInFB_Type2Type_clustered);
+```
+
+
 ```{r}
 # Plot the connections by pathwayWeight (= totalMBContribution * weightRelative)
 
@@ -289,9 +293,7 @@ plotStrongMBON2CX2ndTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CX_2n
 print(plotStrongMBON2CX2ndTargetsToPostInFB)
 ggsave("plotStrongMBON2CX2ndTargetsToPostInFB.eps", plot=plotStrongMBON2CX2ndTargetsToPostInFB, device="eps", path=PlotDir, scale=1, 
        width=180, height=80, units="in", dpi=300, limitsize=FALSE)
-```
 
-```{r}
 # Get type to type connection table
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab <- getTypeToTypeTable(StrongMBON2CX_2ndTargetsToPostInFB)
 # StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% arrange(type.from %in% StrongMBON2CX_TargetsType)
@@ -348,77 +350,29 @@ ggsave("MBON2ndTo3rdCXTargetTab.svg", plot=gg_MBON2ndTo3rdTargetTab, device="svg
        width=30, height=30, units="in", dpi=300, limitsize=FALSE)
 ```
 
-### Cluster MB->CX secondary targets by the correlation of their weightRelative connectivity to tertiary targets and the inverse (clustering tertiary targets based their inputs)
+### Cluster MB->CX secondary targets by the correlation of their weightRelative connectivity to tertiary targets and the inverse (clustering tertiary targets based on their inputs)
 ```{r}
-library(reshape2)
-# Select only the relevant columns
-Data4Clust <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab %>% select(type.from,type.to,weightRelative)
-
-# Recast it into a matrix
-Data4Clust <- dcast(Data4Clust,type.from~type.to) # rows are type.from, columns are type.to except the first column has the type.from names, values are weightRelative
-Data4Clust[is.na(Data4Clust)] <- 0
-rownames(Data4Clust) <- Data4Clust$type.from
-Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1)) # chop off the first column
-
-# Plot the correlation matrix among type.to
-library(corrplot)
-postscript(file = paste(PlotDir,"corrplotByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=24,height=24)
-corrplot(cor(Data4Clust), order="hclust", hclust.method="ward.D2", tl.cex=0.25, tl.col="black") # cor computes the correlation matrix between the columns of the input matrix
-dev.off()
-
-# Plot the correlation matrix among type.from
-Data4Clust <- t(Data4Clust) # transpose Data4Clust if wanting to plot correlations between type.from
-postscript(file = paste(PlotDir,"corrplotByFrom_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=24,height=24)
-corrplot(cor(Data4Clust), order="hclust", hclust.method="ward.D2", tl.cex=0.25, tl.col="black") # cor computes the correlation matrix between the columns of the input matrix
-dev.off()
-
+StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,'StrongMBON2CX_2ndTargetsToPostInFB_Type2Type')
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered[[2]]
 ```
 
+### Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
 ```{r}
-# Calculate the dissimilarity matrix
-Data4Clust <- t(Data4Clust) # transpose Data4Clust back so rows are type.from, columns are type.to
-Data4ClustSc <- scale(Data4Clust) # centers/scales the columns of Data4Clust (ROMAIN: MIGHT INTRODUCE ARTIFACTS)
-d <- dist(t(Data4ClustSc), method = "euclidean") # compute the distance matrix between rows (type.to)
-# Perform hierarchical clustering and plot the dendrogram
-hc <- hclust(d, method = "ward.D2" )
-dend1 <- as.dendrogram(hc)
-postscript(file = paste(PlotDir,"ClusterByTo_StrongMBON2CX_2ndTargetsToPostInFB_Type2Type.eps",sep="/"),width=36,height=24)
-plot(dend1,lab.cex=0.25)
-dev.off()
-
-```
-
-```{r}
-# Order the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab according to the clustering of the inputs to the tertiary targets
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to <- factor(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to, levels = hc$labels[hc$order], ordered=TRUE)
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc <- arrange(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc,type.to)
-
-# Plot and save the StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc based on the connectionMeasure of "weightRelative"
-plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc <- plotConnectivityMatrix(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc,byGroup="type",connectionMeasure="weightRelative")
-print(plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc)
-ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTable_weightRelative_clusterByTo.eps", plot=plotStrongMBON2CX2ndTargetsToPostInFB_Type2Type_hc, device="eps", path=PlotDir, scale=1, 
-       width=24, height=16, units="in", dpi=300, limitsize=FALSE)
-
-```
-
-```{r}
-# Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc
 # Set up the layout for the pathway plot
-types <- unique(c(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from)),unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to))))
+types <- unique(c(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.from)),unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to))))
 numTypes <- length(types)
-numFrom <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.from)))
-numTo <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc$type.to)))
+numFrom <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.from)))
+numTo <- length(unique(as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo$type.to)))
 xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = numTypes-numFrom)), y = c(seq(-1,1,length.out = numFrom), seq(-1,1,length.out = numTypes-numFrom)))
 
 # Graph the TypeToType ConnTable using the lookupTable
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy$type.to <- as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy$type.to)
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_copy,xyLookup,FALSE,TRUE)
-# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway,xyLookup,FALSE,TRUE)
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway + scale_y_reverse()
-print(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway)
-ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_clusterByTo_pathway.svg", plot=StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hc_pathway, device="svg", path=PlotDir, scale=1, 
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy$type.to <- as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy$type.to)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy,xyLookup,FALSE,TRUE)
+# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway,xyLookup,FALSE,TRUE)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway + scale_y_reverse()
+print(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway)
+ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_clusterByTo_pathway.svg", plot=StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway, device="svg", path=PlotDir, scale=1, 
        width=30, height=60, units="in", dpi=300, limitsize=FALSE)
 
 ```
@@ -440,9 +394,7 @@ tsne(Data4Clust,perplex=15)
 MBON_nonCXnonMBON_ConnTable <- MBON_PostConnections %>% filter(type.to %in% MBONnonCXTargetsL)
 plotMBON_nonCXnonMBON_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_ConnTable,byGroup="id",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_ConnTable)
-```
 
-```{r}
 # Plot type to type connection matrix from MBONs to non-CX non-MBON targets
 MBON_nonCXnonMBON_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_ConnTable)
 # Filter the table by weightRelative
@@ -450,16 +402,12 @@ MBON_nonCXnonMBON_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab  %>% filter(wei
 
 plotMBON_nonCXnonMBON_Type2TypeConn <- plotConnectivityMatrix(MBON_nonCXnonMBON_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_Type2TypeConn)
-```
 
-```{r}
 # Plot neuron to neuron connection matrix from MBON non-CX non-MBON targets to their targets in the CX
 MBON_nonCXnonMBON_2ndaryCX_ConnTable <- MBON_2ndaryPostConnections %>% filter(type.to %in% MBONCX2ndaryTargetsL)
 plotMBON_nonCXnonMBON_2ndaryCX_ConnTable <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_ConnTable,byGroup="id",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_2ndaryCX_ConnTable)
-```
 
-```{r}
 # Plot type to type connection matrix from MBON non-CX non-MBON targets to their targets in the CX
 MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- getTypeToTypeTable(MBON_nonCXnonMBON_2ndaryCX_ConnTable)
 # Filter the table by weightRelative
@@ -469,9 +417,7 @@ MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeT
 
 plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- plotConnectivityMatrix(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
 print(plotMBON_nonCXnonMBON_2ndaryCX_Type2TypeTab)
-```
 
-```{r}
 # Filter MBON_nonCXnonMBON_Type2TypeTab based on type.to with direct connections in the CX
 MBON_nonCXnonMBONwCX2ndT_Type2TypeTab <- MBON_nonCXnonMBON_Type2TypeTab %>% filter(type.to %in% unique(MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab$type.from))
 MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab <- MBON_nonCXnonMBON_2ndaryCX_Type2TypeTab %>% filter(type.from %in% unique(MBON_nonCXnonMBONwCX2ndT_Type2TypeTab$type.to))

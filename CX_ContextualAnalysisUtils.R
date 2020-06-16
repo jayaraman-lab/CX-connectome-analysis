@@ -160,7 +160,7 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   
   # Order the Type2TypeConnTab according to the clustering of the clusterBy types
   Type2TypeConnTab_hc <- Type2TypeConnTab
-  Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[,clusterBy], levels = hc$labels[hc$order], ordered=TRUE)
+  Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[[clusterBy]], levels = hc$labels[hc$order], ordered=TRUE)
   Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(.data[[clusterBy]])
   # Type2TypeConnTab_hc[,clusterBy] <- as.vector(Type2TypeConnTab_hc[,clusterBy])
   
