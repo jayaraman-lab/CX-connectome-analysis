@@ -29,6 +29,7 @@ library(dtplyr)
 library(neuprintrExtra)
 library("xlsx")
 library(tidyselect)
+library(paletteer)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -61,8 +62,6 @@ source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
 source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
-source("../GetNeuronsInRoi.r")
-
 
 ```
 
@@ -70,29 +69,13 @@ source("../GetNeuronsInRoi.r")
 # Get all FB bodies and columnar types
 ```{r}
 
-NamedBodies = Get_AllNeurons_InRoi("FB", FALSE)
-NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
-Columnar_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "PF" ) | startsWith(NamedBodies$bodytype, "FR" ) | 
-               startsWith(NamedBodies$bodytype, "FS" ) | startsWith(NamedBodies$bodytype, "FC" ) |
-               startsWith(NamedBodies$bodytype, "vDelta" ) | startsWith(NamedBodies$bodytype, "hDelta" )] ))
+NamedBodies=getNeuronsInRoiTable("FB",0)
+Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
+               startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
+               startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
 
-FBBodyCount=NamedBodies %>% group_by(bodytype) %>% summarize(NumofNeurons=n())
-FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
-
-```
-
-
-# Load pre-processed synapse location data and remove variables that won't be used
-# NOTE: Need to rebuild this periodically in case types/names get changed
-```{r}
-
-load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
-rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
-          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
-
-# Assign Side, PB glom, and FB col info
-FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
-
+FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 ```
 
@@ -107,7 +90,7 @@ FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "bodyname", "Side", "PBglom", "FBco
 
 # Plot intra-FB connectivity matrices and assign to motifs
 ```{r}
-source("FB_ConnectivityOffsetPlotting_Utils.r")
+
 
 
 # Other plotting directories
@@ -137,10 +120,10 @@ PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("
 
 
 # Get the number of columns for each neuron type
-ColumnarBodies=subset(NamedBodies, bodytype %in% Columnar_Types)
-ColumnarBodies=All=Assign_FBcol_PBglom(ColumnarBodies, "bodyname", "Side", "PBglom", "FBcol", "bodyid") 
-ColumnCounts=ColumnarBodies %>% group_by(bodytype) %>% summarize(Columns = length(unique(FBcol)))
-ColumnCounts$Columns[ !(startsWith(ColumnCounts$bodytype,"hDelta"))]=9
+ColumnarBodies=subset(NamedBodies, type %in% Columnar_Types)
+ColumnarBodies=All=Assign_FBcol_PBglom(ColumnarBodies, "name", "Side", "PBglom", "FBcol", "bodyid") 
+ColumnCounts=ColumnarBodies %>% group_by(type) %>% summarize(Columns = length(unique(FBcol)))
+ColumnCounts$Columns[ !(startsWith(ColumnCounts$type,"hDelta"))]=9
 
 ColumnCounts_from=ColumnCounts
 colnames(ColumnCounts_from)<-c("type.from","ColNum.from")
@@ -187,7 +170,7 @@ for (ppp in 1:length(Pre_Post$type.from)){
 }
 
 
-# define a function for doing PCA on Vectors
+# Define a function for doing PCA on Vectors
 motifPCA <- function(PCA_In, Norm, Pre_Post){
   
   # Binarize or normalize data
@@ -208,13 +191,23 @@ motifPCA <- function(PCA_In, Norm, Pre_Post){
   # Make dataframe
   PCA_Out=cbind(Pre_Post,as.data.frame(NewData))
   
-  return(PCA_Out)
+  # Compute variance explained by first two PCs
+  PC_Cov=cov(NewData)
+  PC_Var=diag(PC_Cov)
+  PC12_Var=sum(PC_Var[c(1,2)])/sum(PC_Var)
+  print(paste(as.character(PC12_Var*100), " % of varianced explained by first two PCs",sep=""))
+  
+  OUT=list(PCA_Out, covEigen)
+  return(OUT)
 }
 
 
 ## Perform PCA
-Columnar_PC_Motifs=motifPCA(Vectors, "Binary", Pre_Post)
-
+OUT=motifPCA(Vectors, "Binary", Pre_Post)
+Columnar_PC_Motifs=OUT[[1]]
+covEigen=OUT[[2]]
+Var_Explained=sum(covEigen$values[c(1,2)])/sum(covEigen$values)
+sum(covEigen$values[c(3)])/sum(covEigen$values)
 
 # Make supertypes
 Columnar_PC_Motifs$Motif=NA
@@ -244,8 +237,8 @@ for (ppp in 1:length(Pre_Post$type.from)){
   # Calculate number of pre and post neurons
   PreNum=length(unique(Temp_PFX_Out$from))
   PostNum=length(unique(Temp_PFX_Out$to))
-  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.from[ppp]]
-  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.to[ppp]]
+  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
+  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
   FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
   
   P1=ggplot(Temp_ColumnTable) + 
@@ -275,7 +268,7 @@ for (ppp in 1:length(Pre_Post$type.from)){
   P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
     geom_point(data=Columnar_PC_Motifs[ppp,],aes(x=V1, y=V2),color="red", fill=CCC, alpha=1,size=5,shape = 21) +
     xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
-    xlim(-4,4) + ylim(0,8) + scale_color_manual(values=pcCols)
+    xlim(-4.25,4.25) + ylim(0,8) + scale_color_manual(values=pcCols)
 
   P4=ggarrange(P1,P2,P3,nrow=1,ncol=3)
   ggsave(paste(PFX_Dir_Connectivity, Pre_Post$type.from[ppp],"_to_", Pre_Post$type.to[ppp], "_", as.character(ppp),"_inFB.png",sep=""), plot = P4, device='png', scale = 1, width =15, height = 3.5, units ="in", dpi = 250, limitsize = TRUE)
@@ -284,22 +277,26 @@ for (ppp in 1:length(Pre_Post$type.from)){
 
 
 # Make plot with all examples shown
-Example_Inds=c(11,23,47,14,10,142)
+Example_Inds=c(11,23,47,14,10,229,24,3)
 
-CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))]   # PFNd --> hDeltaB
-CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   # PFNv --> hDebtaB
-CCC3=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[3]] == levels(Columnar_PC_Motifs$Motif))]   # PFNa --> FC1
-CCC4=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[4]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaK
-CCC5=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[5]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaI
-CCC6=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[6]] == levels(Columnar_PC_Motifs$Motif))]  # hDeltaG --> vDeltaE
+CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))]   # PFNd --> hDeltaB #
+CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   # PFNv --> hDebtaB # 
+CCC3=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[3]] == levels(Columnar_PC_Motifs$Motif))]   # PFNa --> FC1B #
+CCC4=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[4]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaK #
+CCC5=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[5]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaI # 
+CCC6=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[6]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaG --> vDeltaE #
+CCC7=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[7]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaA #
+CCC8=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[8]] == levels(Columnar_PC_Motifs$Motif))]   # PFGs --> hDeltaK #
 
-P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
+P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2, shape = 16) + 
   geom_point(data=Columnar_PC_Motifs[Example_Inds[1],],aes(x=V1, y=V2),color="red", fill=CCC1, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[2],],aes(x=V1, y=V2),color="red", fill=CCC2, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[3],],aes(x=V1, y=V2),color="red", fill=CCC3, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[4],],aes(x=V1, y=V2),color="red", fill=CCC4, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[5],],aes(x=V1, y=V2),color="red", fill=CCC5, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[6],],aes(x=V1, y=V2),color="red", fill=CCC6, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[7],],aes(x=V1, y=V2),color="red", fill=CCC7, alpha=1,size=5,shape = 21) +
+  geom_point(data=Columnar_PC_Motifs[Example_Inds[8],],aes(x=V1, y=V2),color="red", fill=CCC8, alpha=1,size=5,shape = 21) +
   xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
   xlim(-4,4) + ylim(0,8) + scale_color_manual(values=pcCols)
 ggsave(paste(PFX_Dir_Connectivity, "PCA_Scatter_Examples.pdf",sep=""), plot = P3, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
@@ -384,7 +381,7 @@ for (exex in 1:length(Example_Inds)){
 
 
 # Get input and output tables
-PFX_Types=unique(NamedBodies$bodytype[startsWith(NamedBodies$bodytype, "PF" )])
+PFX_Types=unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" )])
 PFX_Bag=create_neuronBag(PFX_Types, slctROI="FB")
 PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
 PFX_FB_Inputs_All=PFX_Bag[["inputs_raw"]]
@@ -471,8 +468,8 @@ for (ppp in 1:length(Pre_Post$type.from)){
   # Calculate number of pre and post neurons
   PreNum=length(unique(Temp_PFX_Out$from))
   PostNum=length(unique(Temp_PFX_Out$to))
-  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.from[ppp]]
-  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.to[ppp]]
+  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
+  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
   FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
 
   
