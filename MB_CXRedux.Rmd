@@ -99,6 +99,12 @@ MBONTargetBag <- buildInputsOutputsByType(MBONCXTargets,slctROI=unique(roiSelect
 MBON2ndaryTargetBag <- buildInputsOutputsByType(MBONCX2ndaryTargets,slctROI=unique(roiSelection$roi))
 ```
 
+```{r}
+MBONnonCXTargetBag <- buildInputsOutputsByType(MBONnonCXTargets,slctROI=unique(roiSelection$roi))
+```
+
+
+
 ### Separating left and right neurons in there as some tangential input regions might be cut on the left.
 ```{r}
 MBONTargetBagLat <- lateralizeInputOutputList(MBONTargetBag)
@@ -442,6 +448,11 @@ MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath <- MBON_nonCXnonMBON_2ndaryCX_Type
 # print(MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath)
 ggsave("MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath.svg", plot=MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath, device="svg", path=PlotDir, scale=1, 
        width=30, height=45, units="in", dpi=300, limitsize=FALSE)
+
+```
+
+### Combine direct and indirect MBON->CX connection tables
+```{r}
 
 ```
 
