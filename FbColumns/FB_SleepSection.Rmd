@@ -29,6 +29,8 @@ library(dtplyr)
 library(neuprintrExtra)
 library("xlsx")
 library(tidyselect)
+library(reshape2)
+library(scales)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -61,7 +63,6 @@ source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
 source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
-source("../GetNeuronsInRoi.r")
 
 
 ```
@@ -70,14 +71,13 @@ source("../GetNeuronsInRoi.r")
 # Get all FB bodies and columnar types
 ```{r}
 
-NamedBodies = Get_AllNeurons_InRoi("FB", FALSE)
-NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
-Columnar_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "PF" ) | startsWith(NamedBodies$bodytype, "FR" ) | 
-               startsWith(NamedBodies$bodytype, "FS" ) | startsWith(NamedBodies$bodytype, "FC" ) |
-               startsWith(NamedBodies$bodytype, "vDelta" ) | startsWith(NamedBodies$bodytype, "hDelta" )] ))
-Tangential_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "FB" )]))
-FBBodyCount=NamedBodies %>% group_by(bodytype) %>% summarize(NumofNeurons=n())
-FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
+NamedBodies=getNeuronsInRoiTable("FB",0)
+Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
+               startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
+               startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
+Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" )]))
+FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 ```
 
@@ -87,15 +87,150 @@ FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
 # ######### Figure 1: Plots of 23E10 neuron types  #################################################################
 # ##################################################################################################################
 
+# 1) Plots to show 23E10 made up of multiple cell types
+# 2) Can we find sleep neurons based on DA input?
 
 
-# Look at connectivity of 23E10 neurons
+
+# Functions for computing distance/correlation matrices
 ```{r}
 
 
-# Other plotting directories
-PFX_Dir_Connectivity=paste(PlotDir,"Columnar_Motifs","/",sep="")
-if (!dir.exists(PFX_Dir_Connectivity)){dir.create(PFX_Dir_Connectivity)}
+# Define a function converting connection table to matrix of connectivity vectors
+Connectivity_Vectors <- function(connectTable){
+  all <- connectTable %>% expand(from, to) %>% distinct()
+  connectTable_Vectors = connectTable  %>% dplyr::right_join(all, by = c("from", "to"))
+  connectTable_Vectors = connectTable_Vectors[c("from","to","weightRelative")]
+  connectTable_Vectors$weightRelative[is.na( connectTable_Vectors$weightRelative)]=0
+  connectTable_Vectors <- acast(connectTable_Vectors, from ~ to, value.var="weightRelative")
+  return(connectTable_Vectors)
+}
+
+
+# Compute distance or correlation matrices on a connetivity table matrix
+Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames){
+  # Compute distance/correlation matrix
+  if (Method=='binary'){
+    Dist=dist((connectTable_Vectors), method = "binary") 
+  } else if (Method=='spearman') {
+    Dist=cor(t(connectTable_Vectors), method = "spearman")
+  } 
+
+  # Convert to matrix
+  Dist <- as.matrix(Dist)
+  Dist=melt(Dist)
+  colnames(Dist) <- c("bodyid", "bodyid2", "Distance")
+  
+  # Assign names
+  Names=distinct(MetaNames[c("bodyid","name","type")])
+  Dist=inner_join(Dist,Names, by="bodyid")
+  colnames(Names)=c("bodyid2","name2","type2")
+  Dist=inner_join(Dist,Names, by="bodyid2")
+  return(Dist)
+}
+
+
+
+```
+
+
+
+# Make plot showing distinct connectivity of neurons making up the 23E10 line
+```{r}
+
+# Bodyids of neurons making up the 23E10 line
+# Should the 2 original DANs be included again (5813020698, 948346463)?
+dFB23E10=c(294800293,  297183251,  327203386,  327730878,  329289084,  420842989,  422191200,  422876942,  452029745,  513788774,
+           762222901,  915960391,  915964590,  916288456,  916292026,  946308203,  946641212,  946645313,  946978006,  979065964,
+           1105955480, 5813019588, 5813020684, 5813020735, 5813026514, 5813049824, 5813050747, 5813055834, 5813057169, 5813058367,
+           5813058368, 5813061177, 5813061495, 5813069331, 5813071027, 5813071028, 5813081818)
+dFB23E10_Meta=neuprint_get_meta(dFB23E10)
+dFB23E10_Types=unique(dFB23E10_Meta$type)
+dFB23E10_MetaAll=subset(NamedBodies, type %in% dFB23E10_Types) # Get meta data for all types in 23E10 to make sure there are 37 neurons.
+
+
+# FB7B (1 neuron per hemisphere) and FB7K (2 neurons per hemisphere) are the best candidates 
+# for dFB dopamine neurons.
+dFBdan=c(5813020698, 948346463, 5813081818, 294800293, 420842989, 916288456) 
+dFBdan_Meta=neuprint_get_meta(dFBdan)
+
+
+# Circadian neurons
+DN1=neuprint_search(".*DN1.*")
+
+
+# Get upstream and downstream partners of 23E10 neurons
+dFB23E10_Bag=create_neuronBag(dFB23E10_Meta, by.roi=FALSE)
+dFB23E10_Outputs=dFB23E10_Bag[["outputs_raw"]]
+dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
+
+
+# Compute input and output vectors, then concatonate
+dFB23E10_Outputs_Vectors=Connectivity_Vectors(subset(dFB23E10_Outputs, weightRelative>0.008))
+dFB23E10_Inputs_Vectors=t(Connectivity_Vectors(subset(dFB23E10_Inputs, weightRelative>0.008)))
+if (!sum(rownames(dFB23E10_Outputs_Vectors) == rownames(dFB23E10_Inputs_Vectors)) == 37){
+  print("WARNING: Row order is not the same")
+}
+dFB23E10_InputsOutputs_Vectors=cbind(dFB23E10_Outputs_Vectors, dFB23E10_Inputs_Vectors)
+
+
+# Compute distance
+MetaNames=dFB23E10_Meta[c("bodyid","name","type")]
+dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "binary", MetaNames)
+dFB23E10_Distance$Similarity=1-dFB23E10_Distance$Distance # convert distance to Jaccard similarity coefficient
+
+# Compute correlation
+dFB23E10_Correlation=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "spearman", MetaNames)
+
+
+
+# Plot similarity
+dFB23E10_Distance$plotname=paste(dFB23E10_Distance$type,  as.character(dFB23E10_Distance$bodyid),sep="__")
+dFB23E10_Distance$plotname2=paste(dFB23E10_Distance$type2, as.character(dFB23E10_Distance$bodyid2),sep="__")
+dFB23E10_Distance$bodyid=as.character(dFB23E10_Distance$bodyid)
+dFB23E10_Distance$bodyid2=as.character(dFB23E10_Distance$bodyid2)
+dFB23E10_Distance$type=factor(dFB23E10_Distance$type, levels=sort(unique(dFB23E10_Distance$type)))
+dFB23E10_Distance$type2=factor(dFB23E10_Distance$type2, levels=sort(unique(dFB23E10_Distance$type2),decreasing = TRUE))
+
+P1=ggplot(dFB23E10_Distance) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="white", mid="red", high="black", 
+                        midpoint=0.25,limits=c(0,0.5),oob=squish) +
+  geom_tile(aes(plotname,plotname2,fill=Similarity))  + 
+  facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        axis.ticks = element_blank(),
+        aspect.ratio = 1)  + scale_color_continuous(breaks=seq(50,500,25))
+ ggsave(paste(PlotDir, "FIGURE_", "23e10_Similarity.pdf",sep=""),
+         plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+# Plot correlation coefficient
+dFB23E10_Correlation$plotname=paste(dFB23E10_Correlation$type,  as.character(dFB23E10_Correlation$bodyid),sep="__")
+dFB23E10_Correlation$plotname2=paste(dFB23E10_Correlation$type2, as.character(dFB23E10_Correlation$bodyid2),sep="__")
+ggplot(dFB23E10_Correlation) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", 
+                       midpoint =0, limits=c(-0.5,0.5),oob=squish) +
+  geom_tile(aes(plotname,plotname2,fill=Distance))  + coord_fixed()
+
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
 
 
 # Get columnar output connectivity table
@@ -120,10 +255,10 @@ PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("
 
 
 # Get the number of columns for each neuron type
-ColumnarBodies=subset(NamedBodies, bodytype %in% Columnar_Types)
+ColumnarBodies=subset(NamedBodies, type %in% Columnar_Types)
 ColumnarBodies=All=Assign_FBcol_PBglom(ColumnarBodies, "bodyname", "Side", "PBglom", "FBcol", "bodyid") 
-ColumnCounts=ColumnarBodies %>% group_by(bodytype) %>% summarize(Columns = length(unique(FBcol)))
-ColumnCounts$Columns[ !(startsWith(ColumnCounts$bodytype,"hDelta"))]=9
+ColumnCounts=ColumnarBodies %>% group_by(type) %>% summarize(Columns = length(unique(FBcol)))
+ColumnCounts$Columns[ !(startsWith(ColumnCounts$type,"hDelta"))]=9
 
 ColumnCounts_from=ColumnCounts
 colnames(ColumnCounts_from)<-c("type.from","ColNum.from")
