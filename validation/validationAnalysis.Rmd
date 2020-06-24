@@ -191,9 +191,6 @@ PBCompOut
 PBSynapseCountDiff <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point(size=3) + scale_color_CX_supertype(name="Supertype") + theme_minimal_grid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)")+theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==4 & side=="Outputs")),color="black",expand=0.03) + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",expand=0.03) + scale_shape(name="Comparison")
 PBSynapseCountDiff
 ```
-```{r}
-ggsave("~/test.svg",PBSynapseCountDiff)
-```
 
 
 ```{r}
