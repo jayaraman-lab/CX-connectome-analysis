@@ -13,8 +13,7 @@ sqrt_cos_dist <- function(mat){
 
 cor_dist <- function(mat){
   connCor <- cor(t(mat),method="spearman")
-  connCor[is.na(connCor)] <- 1
-  d <- as.dist(1-connCor)
+  d <- as.dist((1-connCor)/2)
 }
 
 bin_dist <- function(mat,threshold=0.01){
