@@ -40,10 +40,33 @@ xyLookupTableCol <- function(){
 
 #Create x and y coordinates for a manual network layout of neurons - "inner" neurons
 xyLookupTableInner <- function(){
-  nronGps <- list(c("PFN"),
-                  c("Delta0","Delta6","PFR_a","PFG","FC"),
-                  c("PFL","^FR","FS","PFR_b"))
-  lout <- c("h","c","h")
+  nronGps <- list(c("PFNa"),c("PFNd","PFNv","PFNm"),c("PFNp"),
+                  c("FC1"),
+                  c("hDeltaB","hDeltaC","hDeltaD","hDeltaK",
+                    "PFR_a","PFG","FC3"),
+                  c("vDeltaA_a","vDeltaA_b","vDeltaB","vDeltaC","vDeltaD"),
+                  c("hDeltaE","hDeltaF","hDeltaJ","hDeltaL",
+                    "vDeltaF","vDeltaG","vDeltaH","vDeltaI",
+                    "vDeltaE","vDeltaJ","vDeltaK","vDeltaL","vDeltaM"),
+                  c("FC2","hDeltaA","hDeltaG","hDeltaH","hDeltaI","hDeltaM"),
+                  c("FR2","PFL1"),
+                  c("FS3","FS4C"),
+                  c("FS4A","FS4B"),
+                  c("PFR_b","FR1","FS2"),
+                  c("PFL2","PFL3","FS1")
+                  )
+  lout <- c("p","h","h",
+            "c","c","c","c","c",
+            "h","h","h","h","h")
+  xOffset <- c(0,0,0,
+               20,10,20,10,20,
+               30,30,30,30,30)
+  yOffset <- c(-9,-2,10,
+               -10,-4,2,9,19,
+               -10,-4,3,8,16)
+  rad <- c(0,6,6,
+           2,2,1.5,4,3,
+           1.5,1.5,1.5,3,5)
   
   xyLookup <- data.frame(type = c(), x = c(), y = c())
   for (st in 1:length(nronGps)){
@@ -53,19 +76,28 @@ xyLookupTableInner <- function(){
       types <- types %>% append(typesNow)
     }
     
-    xs <- numeric(length(types))
-    ys <- numeric(length(types)) + st
+    xs <- numeric(length(types)) + xOffset[st]
+    ys <- numeric(length(types)) + yOffset[st]
+    
+    xTxts <- xs
+    yTxts<- ys
     
     if (lout[st] == "h"){
-      xs <- xs + seq(-0.5,0.5,length.out=length(types))
+      ys <- ys + seq(rad[st],0,length.out=length(types))
+      xTxts <- xTxts - 1
+      yTxts <- ys
     } else if (lout[st] == "c") {
-      angs <- seq(-pi,pi,length.out=length(types)+1)
+      angs <- seq(0-pi/2,2*pi-pi/2,length.out=length(types)+1)
       angs <- angs[1:(length(angs)-1)]
-      xs <- xs + 0.5*sin(angs)
-      ys <- ys + 0.5*cos(angs)
+      xs <- xs + rad[st]*cos(angs)
+      ys <- ys + rad[st]*sin(angs)
+      xTxts <- xs + cos(angs)
+      yTxts <- ys + sin(angs)
+    } else if (lout[st] == "p") {
+      xTxts <- xTxts - 1
     }
     
-    typeLookup <- data.frame(type = types, x = xs, y = ys)
+    typeLookup <- data.frame(type = types, x = xs, y = ys, xTxt = xTxts, yTxt = yTxts)
     xyLookup <- rbind(xyLookup,typeLookup)
   }
   return(xyLookup)
@@ -98,12 +130,14 @@ cleanUpConTab <- function(conTab){
 graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   # Get the table of nodes (types)
-  nodes = data.frame(name = unique(c(conTab$type.from,conTab$type.to)))
-  nodes$superType <- nodes$name %>% as.character %>% supertype()
+  nodes = data.frame(name = unique(c(as.character(conTab$type.from),as.character(conTab$type.to))))
+  nodes$superType <- nodes$name %>% as.character %>% supertype(unicodeDelta=FALSE)
   
   # Position the nodes according to the lookup table
   nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
   nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+  nodes$xTxt <- sapply(nodes$name, function(x) xyLookup$xTxt[match(x,xyLookup$type)])
+  nodes$yTxt <- sapply(nodes$name, function(x) xyLookup$yTxt[match(x,xyLookup$type)])
   
   # Assign colors to the supertypes
   sTs <- supertype2Palette()
@@ -119,32 +153,24 @@ graphConTab <- function(conTab,xyLookup,textRepel,guideOnOff){
   edges <- conTab[which((conTab$type.from %in% nodes$name) & (conTab$type.to %in% nodes$name)),] %>%
     mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
            from = sapply(type.from, function(f) which(f == nodes$name)))
-  edges$superType <- edges$type.from %>% as.character %>% supertype()
-  
-  # Get the mean weights between types in the connection table
-  edges_Mean <- unique(edges[,c('from','to','superType')])
-  meanWs <- c()
-  for (i in 1:nrow(edges_Mean)){
-    meanWs <- append(meanWs,
-                     mean(edges[which((edges$from == edges_Mean$from[i]) & (edges$to == edges_Mean$to[i])),]$weightRelative))
-  }
-  edges_Mean$weightRelative <- meanWs
+  edges$superType <- edges$type.from %>% as.character %>% supertype(unicodeDelta=FALSE)
   
   # Plot the network
-  graph <- tbl_graph(nodes,edges_Mean)
+  graph <- tbl_graph(nodes,edges)
   
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
-                       strength=0.5,
-                       arrow = arrow(length = unit(1, "cm")),
-                       end_cap = circle(1, 'cm')) + 
-    geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.5) +
-    geom_node_point(aes(color=superType),size=8) + 
+    geom_edge_diagonal2(aes(width=weightRelative,color=superType),alpha=0.5,
+                       strength=1,
+                       #arrow = arrow(length = unit(1, "cm")),
+                       end_cap = circle(0.2, 'cm')) + 
+    geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=1),alpha=0.5) +
+    geom_node_point(aes(color=superType),size=4) + 
+    scale_edge_width(range = c(0, 2)) +
     sTScale_edge +
     sTScale +
-    geom_node_text(aes(label=name),angle=40,size=6,repel = textRepel) +
-    theme_classic() + theme(legend.text=element_text(size=12),legend.title=element_text(size=12),
+    geom_node_text(aes(x=xTxt, y=yTxt,label=name),size=3,repel = textRepel) +
+    theme_cowplot() + theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
                             axis.line=element_blank(),axis.text.x=element_blank(),
                             axis.text.y=element_blank(),axis.ticks=element_blank(),
                             axis.title.x=element_blank(),axis.title.y=element_blank(),) + 

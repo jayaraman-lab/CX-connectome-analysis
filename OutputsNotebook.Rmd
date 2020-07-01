@@ -9,105 +9,374 @@ library(tidyverse)
 library(cowplot)
 library(patchwork)
 library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(ggdendro)
+library(paletteer)
 ```
+
+```{r message=FALSE}
+source("synapseDistsTools.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
+```
+
 
 ## Building the outputs neuron bag
-Building connection table.
+Find the output channels in the CX
 ```{r}
-outputBag <- create_neuronBag("FC[1|2].*|FS.*|^FR.*|ExR[2|3|5|7|8].*|PFL.*|PFR.*|EL.*|EPG.*|PEG.*|PFG.*",verbose=TRUE)
+roiH <- getRoiTree()
+CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
+CXNeurons <- getTypesTable(CXtypes$databaseType)
+CXNeurons <- cxRetyping(CXNeurons,postfix="raw")
+CXNeurons <- supertype(CXNeurons)
+
+CXPerROI <- getROISummary(CXNeurons,threshold=10)
+
+outputRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
+                                     exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
+
+
+CXPerROIRedux <- filter(CXPerROI,roi %in% outputRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
+   summarize(upstream=sum(upstream),
+             downstream=sum(downstream),
+             fullWeight=sum(fullWeight)) %>%
+   mutate(downstreamRatio = downstream/fullWeight) %>%
+   ungroup()
+CXOutputs <- filter(CXPerROIRedux,downstreamRatio>0.5 & fullWeight>20)
+CXOutputNeurons <- filter(CXNeurons,type %in% CXOutputs$type)
 ```
 
-### Renaming
+Get everything connecting to those in the output regions
 ```{r}
+outputBag <- create_neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE)
 outputBag <- cxRetyping(outputBag)
+## What is actually in there
+outputRegionsStrict <- unique(outputBag$outputs$roi)
+outputBagCompressed <- combineRois(outputBag,outputRegionsStrict,"Output_Regions",singleNeuronThreshold=0.001)
+CXOutputs <- filter(CXOutputs,type %in% outputBagCompressed$outputs$type.from)
+CXOutputNeurons <- filter(CXOutputNeurons,type %in% outputBagCompressed$outputs$type.from)
 ```
-Consider only "right side" neurons
+
+## Plotting output synapses of CX "output" neurons
+```{r,warning=FALSE}
+CXOutSyn <- dplyr::bind_rows(pbapply::pblapply(outputRegionsStrict,function(r){
+   synSet <- neuprint_get_synapses(CXOutputNeurons$bodyid,roi=r,chunk=5,progress=FALSE) 
+   if (!is.null(synSet)){
+      synSet <- filter(mutate(synSet,roi=r),prepost==0)
+      }                
+   return(synSet)                
+                             }))
+CXOutSyn <- mutate(CXOutSyn,
+                   type=CXOutputNeurons$type[match(bodyid,CXOutputNeurons$bodyid)],
+                   databaseType=CXOutputNeurons$databaseType[match(bodyid,CXOutputNeurons$bodyid)],
+                   supertype = CXOutputNeurons$supertype2[match(bodyid,CXOutputNeurons$bodyid)]
+                   )
+```
+
 ```{r}
-reducedBag <- filter(outputBag,filterPartners = FALSE,(grepl("_L.*",type) & !startsWith(type,"ExR")) | type == "ExR8_R" | type == "ExR7_R" | type == "ExR5_R" | type == "ExR2_R" | type == "ExR3_R")
+rPal <- roisPalette()
+CXCol <- rPal["CX"]
+typesPal <- supertype2Palette()
+EBMesh <- neuprint_ROI_mesh("EB")
+FBMesh <- neuprint_ROI_mesh("FB")
+PBMesh <- neuprint_ROI_mesh("PB")
+NOMesh <- neuprint_ROI_mesh("NO")
+LALRMesh <- neuprint_ROI_mesh("LAL(-GA)(R)")
+CREMesh <- neuprint_ROI_mesh("CRE(R)")
+SMPMesh <- neuprint_ROI_mesh("SMP(R)")
+SPSMesh <- neuprint_ROI_mesh("SPS(R)")
+SIPMesh <- neuprint_ROI_mesh("SIP(R)")
+SLPMesh <- neuprint_ROI_mesh("SLP(R)")
+GARMesh <- neuprint_ROI_mesh("GA(R)")
+WEDMesh <- neuprint_ROI_mesh("WED(R)")
+IPSMesh <- neuprint_ROI_mesh("IPS(R)")
+GNGMesh <- neuprint_ROI_mesh("GNG")
+GORMesh <- neuprint_ROI_mesh("GOR(R)")
+IBMesh <- neuprint_ROI_mesh("IB")
+ICLMesh <- neuprint_ROI_mesh("ICL(R)")
 ```
+
+
+
+How much do synapses from different types overlap with each other?
+
+```{r}
+## Compute the nearest neighbor in another synapse set for all synapses
+OutputSynNNDists <- nncrossCross(CXOutSyn,by="type")
+
+## Summarise as the proportion of synapses from the other type closer than 1um
+CXOutOverlap <- group_by(OutputSynNNDists,type,to) %>% summarize(overlap=mean(distance<1000/8)) %>% ungroup()
+
+## Put the average of type1 to type2 and type2 to type1 in a matrix for clustering purposes (really for ordering)
+overlapMat <- matrix(nrow=length(unique(CXOutOverlap$type)),ncol=length(unique(CXOutOverlap$type)))
+rownames(overlapMat) <- CXOutputs$type
+colnames(overlapMat) <- CXOutputs$type
+for (t in CXOutputs$type){
+   for (t2 in CXOutputs$type){
+      overlapMat[t,t2] <- mean(filter(CXOutOverlap,(type==t & to==t2) | (type==t2 & to==t))$overlap)
+   }
+}
+
+## Cluster
+outSynClusters <- hclust(as.dist(1-overlapMat))
+outSynClCut <- cutree(outSynClusters,h=0.99)
+
+## Reorder the table with factors
+CXOutOverlap$typeF <- factor(CXOutOverlap$type,levels=colnames(overlapMat)[outSynClusters$order])
+CXOutOverlap$toF <- factor(CXOutOverlap$to,levels=colnames(overlapMat)[outSynClusters$order])
+```
+
+```{r}
+ddTypes <- as.dendrogram(outSynClusters)
+ddTypesData <- dendro_data(ddTypes, type = "rectangle")
+clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))+coord_fixed(ratio=5)
+clustTypes
+```
+
+
+```{r}
+CXOutOverlap <- mutate(CXOutOverlap,cl=outSynClCut[type])
+CXOutSyn <- mutate(CXOutSyn,cl=outSynClCut[type])
+```
+
+Name the "modules"
+```{r}
+clNames <- sapply(1:max(outSynClCut),function(i) paste(names(outSynClCut[outSynClCut==i]),collapse ="/"))
+CXOutOverlap <- mutate(CXOutOverlap,clName=clNames[cl])
+CXOutSyn <- mutate(CXOutSyn,clName=clNames[cl])
+
+## Also create a palette for it
+overlapCols <- paletteer::paletteer_d("Polychrome::dark")[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+names(overlapCols) <- clNames[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+```
+
+```{r}
+overlapPlot <- ggplot(CXOutOverlap,aes(x=typeF,y=toF)) + geom_tile(aes(fill=overlap)) + 
+   theme_map() + 
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols),axis.text.y = element_text(colour = overlapCols)) + 
+   scale_fill_distiller(palette = "Greys",trans="reverse") +xlab("")+ylab("")+coord_fixed()
+overlapPlot
+```
+
+
+```{r}
+nopen3d()
+par3d(windowRect = c(30, 30, 1530, 1530))
+plot3d(EBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+plot3d(FBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(PBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(NOMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(LALRMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(GARMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(CREMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SMPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(WEDMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SLPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+par3d(scale=c(1,1,1))
+for (t in unique(CXOutputNeurons$type)){
+   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::dark")[outSynClCut[t]],add=T)
+}
+nview3d("ventral")
+rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
+nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
+rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
+```
+
+```{r}
+allOutViews <- ggdraw(xlim = c(0,2)) + draw_image(paste0(outputsFolder,"frontAllOuts.png"),scale=1.6,clip="on") + draw_image(paste0(outputsFolder,"sideAllOuts.png"),scale=1.6,hjust=-0.9,clip="on")
+allOutViews
+```
+
+Summaries of those different types/clusters
+```{r}
+## Create a summary restricted to the output regions
+CXOutputSummary <- filter(getRoiInfo(CXOutputNeurons$bodyid),roi %in% outputRegionsStrict & !is.na(downstream)) 
+CXOutputSummary <- left_join(CXOutputSummary,select(CXOutputNeurons,bodyid,type,databaseType,supertype1,supertype2,supertype3),by="bodyid")
+## 
+CXOutputSummary <- mutate(CXOutputSummary,
+                          cl=outSynClCut[type],
+                          clName=clNames[cl]) %>%
+   group_by(bodyid,type,cl,clName,databaseType,supertype1,supertype2,supertype3) %>% summarize(downstreamOutputRegion=sum(downstream)) %>% group_by(type) %>% mutate(n_type=n()) %>% ungroup()
+
+CXOutputSummary <- mutate(CXOutputSummary,
+                          typeF=factor(CXOutputSummary$type,levels=colnames(overlapMat)[outSynClusters$order])) %>% 
+   arrange(typeF) %>% 
+   mutate(typeFN=paste0(typeF," (n=",n_type,")"),
+          typeFN=factor(typeFN,levels=unique(typeFN)))
+
+```
+
+```{r}
+moduleSummaryPlot <- ggplot(CXOutputSummary,aes(x=typeFN,y=downstreamOutputRegion,col=clName)) + geom_point(size=3) + theme_minimal_grid() +scale_color_manual(name="Module",breaks=names(overlapCols),values=overlapCols) + 
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + xlab("") + ylab("Number of downstream synapses")
+moduleSummaryPlot
+```
+
+
+
 
 ## What do their respective innervation patterns look like ?
 ```{r}
-roiH <- getRoiTree()
 roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
 roisOut <- roisOut %>% filter(!(level2 %in% c("ATL(L)","ICL(L)")))
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 ```
 ```{r}
-outputsByRoi <- getROISummary(reducedBag,threshold = 20)
+CXOutputSummary <- getROISummary(CXOutputNeurons,threshold=20)
 ```
 
 
 ```{r}
-outputsInnervation_L <- haneschPlot(outputsByRoi,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE,theme = theme_minimal_grid(),showCount = T)
+outputsInnervation_L <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE,theme = theme_minimal_grid(),showCount = T)
 outputsInnervation_L
 ```
 
 ```{r}
-save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,ncol=2,nrow=2)
+save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,ncol=3,nrow=2)
 ```
 
 ## Who are those neurons they talk to?
+Classify them in broad categories, add the cluster information
+```{r}
+outputsN1Table <- outputBagCompressed$outputs %>% mutate(category="output",
+                                                         cl=outSynClCut[type.from],
+                                                         clName=clNames[cl],
+                                                         type.fromF=factor(type.from,levels=colnames(overlapMat)[outSynClusters$order]))
+outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
+outputsN1Table$category[outputsN1Table$type.from ==  outputsN1Table$type.to] <- "Self"
+
+ 
+```
+
+```{r}
+outputKind <- ggplot(outputsN1Table,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_minimal_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
+outputKind
+```
+
+```{r}
+N1Mat <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative")
+N1MatOut <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1Dist <- cos_dist(N1Mat)
+N1SqDist <- sqrt_cos_dist(N1Mat)
+N1DistOut <- cos_dist(N1MatOut)
+N1DistCor <- cor_dist(N1Mat)
+N1DistCorOut <- cor_dist(N1MatOut)
+N1BinOut <- bin_dist(N1MatOut)
+N1Euc <- dist(N1Mat)
+cosCl <- hclust(N1Dist)
+```
+
+```{r}
+compSim <- (plot_dist_interactive(N1DistCor)+ggtitle("Correlation")) + (plot_dist_interactive(N1DistBin)+ggtitle("Binary")) + 
+   (plot_dist_interactive(N1Dist)+ggtitle("Cosine")) #+(plot_dist_interactive(N1SqDist)+ggtitle("Sqrt Cosine")))
+```
+
+```{r}
+compSim
+```
+
+
+```{r}
+interCompSim <- girafe(ggobj = compSim,width_svg = 20,height_svg = 20
+  )
+```
+
+```{r}
+htmlwidgets::saveWidget(interCompSim,paste0(outputsFolder,"compSimilarity.html"))
+```
+
+
+```{r}
+save_plot(paste0(outputsFolder,"compSimilarity.pdf"),compSim,nrow=4,ncol=4,device=cairo_pdf)
+```
+
+
+```{r}
+targetCounts <- group_by(outputsN1Table,type.to,category) %>% summarize(nCl=length(unique(cl)),nT=n(),CXInfluence=sum(knownWeightRelative),CXMain=max(knownWeightRelative)/sum(knownWeightRelative))
+ggplot(filter(targetCounts,category!="Self" & nCl>1),aes(x=CXMain)) + geom_histogram() + facet_grid(nT~category) + theme_minimal_hgrid()
+filter(targetCounts,nCl>1 & category=="output")
+```
+
+
+```{r}
+outputSynapsesOverview <- (allOutViews + 
+   ((overlapPlot + theme(plot.margin = margin(b=0))) / (clustTypes + theme(plot.margin = margin(t=0)))) + 
+   plot_layout(widths=c(3.5,1))) /
+   (moduleSummaryPlot + outputKind) + plot_layout(guides="keep",heights=c(3,1)) + plot_annotation(tag_levels="A")
+outputSynapsesOverview
+save_plot(paste0(outputsFolder,"OutputsPanel1.pdf"),outputSynapsesOverview,nrow=7,ncol=7,device=cairo_pdf)
+```
+
+
 We'll select all their partners in "output" regions
-
 ```{r}
-allOutsTable <- (reducedBag$outputs %>% filter(roi %in% c("WED(R)","SLP(R)","SIP(R)","SMP(R)","SPS","IPS","CRE(R)","RUB(R)","ROB(R)","BU(R)","LAL(R)","AB(R)","GNG") & !(databaseType.to %in% reducedBag$names$databaseType)))
-allOuts <- reducedBag$outputsTableRef %>% filter(type %in% allOutsTable$type.to)
+allOuts <- outputBagCompressed$outputsTableRef #%>% filter(type %in% allOutsTable$type.to)
+
+## Proper "outputs" are not other CX neurons
+realOuts <- filter(allOuts,!(databaseType %in% CXtypes$databaseType))
+cxOutLoops <- filter(allOuts,(databaseType %in% CXtypes$databaseType))
 ```
 
-
+Get all the connections for those output neurons (not in the CX as they're not going there) in broad regions
 ```{r}
-outputsInOutBag <- create_neuronBag(allOuts,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,synThresh=0)
+realOutsBag <- create_neuronBag(realOuts,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,synThresh=0,chunk_meta=1000,slctROI=outputRegions)
 ```
 
 ```{r}
-outputsInOutBag <- cxRetyping(outputsInOutBag)
+realOutsBag <- cxRetyping(realOutsBag)
 ```
 
-Look at those targets at a "global" output region level?
+Look at the weight of those targets at a "global" output region level. Removing any single neuron getting less than 0.1% of inputs in those regions.
 ```{r}
-outputsOverview <- combineRois(outputsInOutBag,c("VLNP(R)","SNP(R)","VMNP(R)","INP","LX(R)","LX(L)"),"Output regions",singleNeuronThreshold=0.001)
-## One cleans up anything not getting significant CX input
+outputsOverview <- combineRois(outputsInOutBag,outputRegions,"Output regions",singleNeuronThreshold=0.001)
+## One cleans up anything not getting input from our selection of CX neurons in the combined output regions
 signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
 outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
 ```
 
 ```{r}
-CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types3") %>% rename(databaseType=n.type))
+CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
+```
+A set of names at the proper level
+```{r}
+CXCustomSupertypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL"=1,"FS"=1,"ExR"=1),exceptionLevelMatch = 2)
 ```
 
+Looking at the input vector to the set of output neurons -- with a custom supertype for the input CX neurons
 ```{r}
-outputTypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL1"=1,"PFL2"=1,"PFL3"=1,"FS1"=1,"FS4"=1,"ExR5"=1,"ExR7"=1,"ExR8"=1),exceptionLevelMatch = 1)
-```
-
-```{r}
-inputs_toOutputs <- outputsOverview$inputs %>% mutate(customSupertype = outputTypes$type[match(supertype.from1,outputTypes$supertype1)])
+inputs_toOutputs <- outputsOverview$inputs %>% mutate(customSupertype = CXCustomSupertypes$type[match(supertype.from1,CXCustomSupertypes$supertype1)])
 inputs_toOutputs <- replace_na(inputs_toOutputs,list("customSupertype" = "Other"))
 ```
 
+Creating a connectivity matrix from that table for further clustering
 ```{r}
-inputs_toOutputsMat <- connectivityMatrix(connObj = inputs_toOutputs,slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to")
+inputs_toOutputsMat <- connectivityMatrix(connObj = inputs_toOutputs,slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative")
 ```
+
+Compiling the total fraction of input from CX neurons received by the output neurons
 ```{r}
 CXtoOutputs <- filter(inputs_toOutputs,customSupertype !="Other") %>% group_by(type.to,databaseType.to) %>% summarize(totalCX = sum(knownWeightRelative)) %>% ungroup() %>% filter(!(databaseType.to %in% CXtypes$databaseType)) %>% arrange(desc(totalCX))
 ```
-
+List of output neurons to focus on for CAT team
 ```{r}
 outputsIDs <- neuprint_get_meta(unique(outputsOverview$inputs_raw$to[(outputsOverview$inputs_raw$type.to %in% CXtoOutputs$type.to)])) %>% filter(statusLabel != "Leaves") %>% mutate(typeF = factor( as.character(outputsOverview$inputs_raw$type.to[match(bodyid,outputsOverview$inputs_raw$to)]),levels=CXtoOutputs$type.to)) %>% arrange(typeF) %>% filter(!grepl("ring.*",name))
 ```
 
-```{r}
-write.csv(outputsIDs,file="~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsList.csv")
-```
-
-
+All the outputs of those (in the output regions and/or the CX)
 ```{r}
 outputs_FromOutputs <- bind_rows(outputsInOutBag$outputs %>% filter(roi=="CX"),outputsOverview$outputs)
 ```
 
 ```{r}
-outputs_fromOutputsMat <- connectivityMatrix(outputs_FromOutputs,slctROI=c("CX","Output regions"),allToAll=FALSE,from = "type.from","type.to",ref="outputs")
+outputs_fromOutputsMat <- connectivityMatrix(outputs_FromOutputs,slctROI=c("CX","Output regions"),allToAll=FALSE,from = "type.from","type.to",ref="outputs",value="knownWeightRelative")
 ```
+
+```{r}
+source("R/connectivityMatricesTools.R")
+```
+
 
 ```{r}
 #Clustering on the input strengths only of "output" CX neurons 
@@ -122,9 +391,13 @@ inputs_toOutputs$type.toF <- factor(inputs_toOutputs$type.to,levels=colnames(inp
 
 
 ```{r}
-inputProportions <- ggplot(inputs_toOutputs,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(outputTypes$type),name="Input types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight",x="Output type")
+inputProportions <- ggplot(filter(inputs_toOutputs,!(databaseType.to %in% CXtypes$databaseType)),aes(x=type.toF)) + geom_col(aes(y=knownWeightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(unique(CXCustomSupertypes$type)),name="Input types",guide=guide_legend(ncol=2)) + theme_cowplot()  + theme(axis.text.x = element_text(angle = 90,vjust=0.5)) + labs(y="Relative weight",x="Output type")
 inputProportions
 ```
+```{r}
+ggplot(filter(inputs_toOutputs,(databaseType.to %in% CXtypes$databaseType)),aes(x=type.toF)) + geom_col(aes(y=knownWeightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(unique(CXCustomSupertypes$type)),name="Input types",guide=guide_legend(ncol=2)) + theme_cowplot()  + theme(axis.text.x = element_text(angle = 90,vjust=0.5)) + labs(y="Relative weight",x="Output type")
+```
+
 
 ```{r}
 ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsInputProportions.svg",inputProportions,width=35,height=8)
@@ -133,11 +406,10 @@ ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsInpu
 
 ## Find feedback pathways in there.
 ```{r}
-
 CXRois <- unique(unlist(roiH %>% filter(level1=="CX")))
 ```
 ```{r}
-feedbackNeurons <- unique((outputsInOutBag$outputs %>% filter((databaseType.to %in% CXtypes$n.type) & (roi %in% CXRois)))$type.from)
+feedbackNeurons <- unique((outputsInOutBag$outputs %>% filter((databaseType.to %in% CXtypes$databaseType) & (roi %in% CXRois)))$type.from)
 feedbackBag <- filter(outputsInOutBag,filterPartners=FALSE,type %in% feedbackNeurons)
 ```
 
@@ -147,7 +419,7 @@ roisFeedback <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4,"EB"=4,"
 
 
 ```{r}
-feedbackRoiSummary <- getROISummary(feedbackBag,filter=FALSE)
+feedbackRoiSummary <- getROISummary(feedbackBag,threshold = 20)
 ```
 
 ```{r}
