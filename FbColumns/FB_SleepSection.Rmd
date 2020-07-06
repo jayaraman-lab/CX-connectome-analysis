@@ -41,7 +41,7 @@ options(nat.plotengine = 'rgl')
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
 # Directory to save plots to.
-PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/"
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/Plots/"
 
 # Create save/plot directory if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
@@ -72,10 +72,12 @@ source("../inputOutputRegionsVis.r")
 ```{r}
 
 NamedBodies=getNeuronsInRoiTable("FB",0)
+NamedBodies_Meta=neuprint_get_meta(NamedBodies$bodyid)
 Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
                startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
                startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
-Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" )]))
+Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" ) |
+                                                  startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
@@ -130,47 +132,53 @@ Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames
 }
 
 
+```
+
+
+
+# Get neurons of interest: the cell types in 23E10 and the two dFB PPL1 DANs
+```{r}
+
+# Bodyids of neurons with 23E10-like morphologies (including FB7B and FB6H, the putative dopamine neurons)
+dFB23E10_Like=c(294800293,  297183251,  327203386,  327730878,  329289084,  420842989,  422191200,  422876942,  452029745,  513788774,
+           762222901,  915960391,  915964590,  916288456,  916292026,  946308203,  946641212,  946645313,  946978006,  979065964,
+           1105955480, 5813019588, 5813020684, 5813020735, 5813026514, 5813049824, 5813050747, 5813055834, 5813057169, 5813058367,
+           5813058368, 5813061177, 5813061495, 5813069331, 5813071027, 5813071028, 5813081818, 948346463, 5813020698)
+dFB23E10_Like_Meta=neuprint_get_meta(dFB23E10_Like)
+
+
+# FB7B (1 neuron per hemisphere) and FB6H (1 neurons per hemisphere) are the best candidates 
+# for dFB PPL1 dopamine neurons, and also have a 23E10-like anatomy. 
+dFBdan_Types=c("FB6H","FB7B")
+dFBdan=c(5813020698, 948346463, 915960391, 5813020684) 
+dFBdan_Meta=neuprint_get_meta(dFBdan)
+
+
+# Include only the nine cell types found in 23E10
+dFB23E10_Types=c("FB7A","FB7K", "FB6A", "FB6C_a", "FB6C_b", "FB6E", "FB6G", "FB6I", "FB6Z")
+dFB23E10_Meta=subset(dFB23E10_Like_Meta, type %in% dFB23E10_Types)
+dFB23E10_MetaAll=subset(NamedBodies, type %in% dFB23E10_Types) # Get meta data for all 23E10-like types to make sure there are 39 neurons.
+
+# Cell types in sleep/wake circuit
+SleepWakeTypes=c(dFB23E10_Types,dFBdan_Types)
 
 ```
 
 
 
-# Make plot showing distinct connectivity of neurons making up the 23E10 line
+# Make plot showing similarity between neurons making up the 23E10 line.
 ```{r}
-
-# Bodyids of neurons making up the 23E10 line
-# Should the 2 original DANs be included again (5813020698, 948346463)?
-dFB23E10=c(294800293,  297183251,  327203386,  327730878,  329289084,  420842989,  422191200,  422876942,  452029745,  513788774,
-           762222901,  915960391,  915964590,  916288456,  916292026,  946308203,  946641212,  946645313,  946978006,  979065964,
-           1105955480, 5813019588, 5813020684, 5813020735, 5813026514, 5813049824, 5813050747, 5813055834, 5813057169, 5813058367,
-           5813058368, 5813061177, 5813061495, 5813069331, 5813071027, 5813071028, 5813081818)
-dFB23E10_Meta=neuprint_get_meta(dFB23E10)
-dFB23E10_Types=unique(dFB23E10_Meta$type)
-dFB23E10_MetaAll=subset(NamedBodies, type %in% dFB23E10_Types) # Get meta data for all types in 23E10 to make sure there are 37 neurons.
-
-
-# FB7B (1 neuron per hemisphere) and FB7K (2 neurons per hemisphere) are the best candidates 
-# for dFB dopamine neurons.
-dFBdan=c(5813020698, 948346463, 5813081818, 294800293, 420842989, 916288456) 
-dFBdan_Meta=neuprint_get_meta(dFBdan)
-
-
-# Circadian neurons
-DN1=neuprint_search(".*DN1.*")
 
 
 # Get upstream and downstream partners of 23E10 neurons
-dFB23E10_Bag=create_neuronBag(dFB23E10_Meta, by.roi=FALSE)
+dFB23E10_Bag=create_neuronBag(dFB23E10_Meta, slctROI="FB")
 dFB23E10_Outputs=dFB23E10_Bag[["outputs_raw"]]
 dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
 
 
-# Compute input and output vectors, then concatonate
-dFB23E10_Outputs_Vectors=Connectivity_Vectors(subset(dFB23E10_Outputs, weightRelative>0.008))
-dFB23E10_Inputs_Vectors=t(Connectivity_Vectors(subset(dFB23E10_Inputs, weightRelative>0.008)))
-if (!sum(rownames(dFB23E10_Outputs_Vectors) == rownames(dFB23E10_Inputs_Vectors)) == 37){
-  print("WARNING: Row order is not the same")
-}
+# Compute input and output vectors, then concatenate
+dFB23E10_Outputs_Vectors=Connectivity_Vectors(subset(dFB23E10_Outputs, weightRelative>0.008))  #0.008 good threshold
+dFB23E10_Inputs_Vectors=t(Connectivity_Vectors(subset(dFB23E10_Inputs, weightRelative>0.008))) #0.008 good threshold
 dFB23E10_InputsOutputs_Vectors=cbind(dFB23E10_Outputs_Vectors, dFB23E10_Inputs_Vectors)
 
 
@@ -179,9 +187,9 @@ MetaNames=dFB23E10_Meta[c("bodyid","name","type")]
 dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "binary", MetaNames)
 dFB23E10_Distance$Similarity=1-dFB23E10_Distance$Distance # convert distance to Jaccard similarity coefficient
 
+
 # Compute correlation
 dFB23E10_Correlation=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "spearman", MetaNames)
-
 
 
 # Plot similarity
@@ -195,33 +203,379 @@ dFB23E10_Distance$type2=factor(dFB23E10_Distance$type2, levels=sort(unique(dFB23
 P1=ggplot(dFB23E10_Distance) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="white", mid="red", high="black", 
-                        midpoint=0.25,limits=c(0,0.5),oob=squish) +
+                        midpoint=0.3,limits=c(0,0.6),oob=squish,breaks = c(0,0.3,0.6)) +
   geom_tile(aes(plotname,plotname2,fill=Similarity))  + 
   facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
   theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         axis.ticks = element_blank(),
-        aspect.ratio = 1)  + scale_color_continuous(breaks=seq(50,500,25))
+        aspect.ratio = 1) 
  ggsave(paste(PlotDir, "FIGURE_", "23e10_Similarity.pdf",sep=""),
          plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
 
-# Plot correlation coefficient
+# Plot correlation coefficient, to show that you get a similar result.
 dFB23E10_Correlation$plotname=paste(dFB23E10_Correlation$type,  as.character(dFB23E10_Correlation$bodyid),sep="__")
 dFB23E10_Correlation$plotname2=paste(dFB23E10_Correlation$type2, as.character(dFB23E10_Correlation$bodyid2),sep="__")
-ggplot(dFB23E10_Correlation) + 
+dFB23E10_Correlation$bodyid=as.character(dFB23E10_Correlation$bodyid)
+dFB23E10_Correlation$bodyid2=as.character(dFB23E10_Correlation$bodyid2)
+dFB23E10_Correlation$type=factor(dFB23E10_Correlation$type, levels=sort(unique(dFB23E10_Correlation$type)))
+dFB23E10_Correlation$type2=factor(dFB23E10_Correlation$type2, levels=sort(unique(dFB23E10_Correlation$type2),decreasing = TRUE))
+
+P2=ggplot(dFB23E10_Correlation) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="blue", mid="white", high="red", 
                        midpoint =0, limits=c(-0.5,0.5),oob=squish) +
-  geom_tile(aes(plotname,plotname2,fill=Distance))  + coord_fixed()
+  geom_tile(aes(plotname,plotname2,fill=Distance))  + 
+  facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ ggsave(paste(PlotDir, "FIGURE_", "23e10_Correlation.pdf",sep=""),
+         plot = P2, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+```
+
+
+# Get connectivity bag of entire FB
+```{r}
+
+# Get upstream and downstream partners of all FB neurons
+FB_Bag=create_neuronBag(NamedBodies_Meta, slctROI="FB")
+FB_T2T_Output=FB_Bag$outputs
+
+```
+
+
+# Now look at type-to-type connectivity of dFB 23E10 and PPL1 dopamine neurons
+```{r}
+
+
+# Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
+SleepWake_T2T_InputOutput=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes)
+SleepWake_T2T_Input=subset(SleepWake_T2T_InputOutput, type.to %in% SleepWakeTypes)
+SleepWake_T2T_Output=subset(SleepWake_T2T_InputOutput, type.from %in% SleepWakeTypes & !type.to=="FB07?")
+
+
+###################################### Plots of 23E10 Inputs ###################################################
+
+# Plot and save un-sorted type-to-type connectivity matrices for 23E10 inputs
+P1=ggplot(subset(SleepWake_T2T_Input,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.15, limits=c(0,0.3),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs")
+ggsave(paste(PlotDir, "23e10_TypeToType_Inputs.png",sep=""),
+         plot = P1, device='png', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+# Divide presynaptic neurons into groups that target FB layer 6 and those that target layer 7
+InputGrouping = SleepWake_T2T_Input %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative)) 
+InputGrouping = InputGrouping[c("type.from","type.to")]                                                                            
+InputGrouping$InputGrouping=NA
+InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB6")]=6
+InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB7")]=7
+InputGrouping = InputGrouping[c("type.from","InputGrouping")]
+SleepWake_T2T_Input=merge(SleepWake_T2T_Input,InputGrouping, by = "type.from")
+SleepWake_T2T_Input$InputGrouping=factor(SleepWake_T2T_Input$InputGrouping,levels=c(7,6))
+
+# Group postsynaptic 23E10 types by FB layer
+SleepWake_T2T_Input$OutputGrouping=NA
+SleepWake_T2T_Input$OutputGrouping[startsWith(SleepWake_T2T_Input$type.to,"FB6")]=6
+SleepWake_T2T_Input$OutputGrouping[startsWith(SleepWake_T2T_Input$type.to,"FB7")]=7
+SleepWake_T2T_Input$OutputGrouping=factor(SleepWake_T2T_Input$OutputGrouping, levels=c(7,6))
+
+# Make plot with sorted 23E10 input matrix (NEED TO FIX)
+P1b=ggplot(subset(SleepWake_T2T_Input,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs") + 
+  facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
+   theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(PlotDir, "23e10_TypeToType_Inputs_Sorted.pdf",sep=""),
+         plot = P1b, device='pdf', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+###################################### Plots of 23E10 Outputs ###################################################
+
+
+# Plot and save un-sorted type-to-type connectivity matrices for 23E10 outputs
+P2=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs")
+ggsave(paste(PlotDir, "23e10_TypeToType_Outputs.png",sep=""),
+         plot = P2, device='png', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+# Group presynaptic 23E10 types by FB layer
+SleepWake_T2T_Output$InputGrouping=NA
+SleepWake_T2T_Output$InputGrouping[startsWith(SleepWake_T2T_Output$type.from,"FB6")]=6
+SleepWake_T2T_Output$InputGrouping[startsWith(SleepWake_T2T_Output$type.from,"FB7")]=7
+SleepWake_T2T_Output$InputGrouping=factor(SleepWake_T2T_Output$InputGrouping, levels=c(7,6))
+
+
+# Divide postsynaptic neurons into groups targetted by layer 6 or layer 7 neurons
+OutputGrouping = SleepWake_T2T_Output %>% group_by(type.to) %>% filter(weightRelative == max(weightRelative)) 
+OutputGrouping = OutputGrouping[c("type.from","type.to")]                                                                            
+OutputGrouping$OutputGrouping=NA
+OutputGrouping$OutputGrouping[startsWith(OutputGrouping$type.from,"FB6")]=6
+OutputGrouping$OutputGrouping[startsWith(OutputGrouping$type.from,"FB7")]=7
+OutputGrouping = OutputGrouping[c("type.to","OutputGrouping")]
+SleepWake_T2T_Output=merge(SleepWake_T2T_Output,OutputGrouping, by = "type.to")
+SleepWake_T2T_Output$OutputGrouping=factor(SleepWake_T2T_Output$OutputGrouping,levels=c(6,7))
+
+
+# Make plot of sorted 23E10 output matrix (NEED TO FIX)
+P2b=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs") + 
+  facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
+   theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
+         plot = P2b, device='pdf', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
 
 ```
+
+
+# Make a network graph of the above sleep/wake circuit
+```{r}
+
+# Make graph of type-to-type sleep-wake network
+library(visNetwork)
+require(visNetwork, quietly = TRUE)
+library(paletteer)
+
+
+
+GraphTable=SleepWake_T2T_InputOutput
+GraphTable=subset(GraphTable, weightRelative > 0)
+
+# Get colors
+pcCols <- paletteer_d("Polychrome::palette36")
+sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCols[7],pcCols[26],pcCols[1])
+
+
+# Set node id and name
+IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
+IDs_Num=order(IDs_Type)
+nodes=data.frame(id = IDs_Num, name=IDs_Type)
+nodes$superType <- nodes$name %>% as.character %>% supertype()
+nodes$title <- nodes$name %>% as.character()
+nodes$label <- ""
+nodes$font.size <- 12
+#nodes$x <- nodes$y*500
+#nodes$y <- nodes$x*500
+nodes$size <- 10
+#nodes$color.background <- sTCols[match(nodes$superType,as.factor(sTs))]
+#nodes$color.highlight <- sTCols[match(nodes$superType,as.factor(sTs))]
+nodes$color.border <- "black"
+nodes$color.highlight.border <- "orange"
+nodes$group <- as.character(nodes$superType)
+
+#nodes$level=1
+#nodes$level[nodes$type %in% dFB23E10_Types]=2
+
+
+# Set node positions
+nodes=nodes[c(1,3,4,7,8,2,5,9,11,6,10),]
+
+nodes$angle=NA
+nodes$x=NA
+nodes$y=NA
+
+CASE=1
+if (CASE==1){
+  Diff=2*pi/(length(nodes$id)-2)
+  nodes$angle[c(1,2,3,4,5,6,7,8,9)]=seq(from = 0, to = 2*pi-Diff , by = Diff)
+  nodes$x=cos(nodes$angle)*200
+  nodes$y=sin(nodes$angle)*200
+  nodes$x[nodes$name == "FB6H"] = -50
+  nodes$y[nodes$name == "FB6H"] = 0
+  nodes$x[nodes$name == "FB7B"] = 50
+  nodes$y[nodes$name == "FB7B"] = 0
+}
+
+# populated edges dataframe
+nodes_from=nodes
+colnames(nodes_from) = c("from","type.from")
+nodes_to=nodes
+colnames(nodes_to) = c("to","type.to")
+edges=GraphTable[c("type.from","type.to","weightRelative")]
+edges <- merge(edges,nodes_to,by=c("type.to")) 
+edges <- merge(edges,nodes_from,by=c("type.from")) 
+edges$width = edges$weightRelative*20
+edges$arrows <- "to"
+edges$smooth <- TRUE
+#vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
+
+
+
+
+v <- visNetwork(nodes, edges, width="100%", height="800px",main= "inputs -> outputs") %>% 
+  visNodes(fixed = TRUE) %>%
+  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.name") 
+
+
+# Save the plot
+visSave(v, paste(PlotDir,"Test1.html"), selfcontained = TRUE, background = "white")
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+# Circadian neurons
+DN1=neuprint_search(".*DN1.*")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Make a network graph to show similar thing
+```{r}
+
+GraphTable=dFB23e10_T2T_Output
+
+# Make graph of type-to-type 23E10 network
+library(visNetwork)
+require(visNetwork, quietly = TRUE)
+library(paletteer)
+
+
+# Get colors
+pcCols <- paletteer_d("Polychrome::palette36")
+sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCols[7],pcCols[26],pcCols[1])
+
+
+# Set node id and name
+IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
+IDs_Num=order(IDs_Type)
+nodes=data.frame(id = IDs_Num, name=IDs_Type)
+nodes$superType <- nodes$name %>% as.character %>% supertype()
+nodes$title <- nodes$name %>% as.character()
+nodes$label <- ""
+nodes$font.size <- 12
+#nodes$x <- nodes$y*500
+#nodes$y <- nodes$x*500
+nodes$size <- 10
+#nodes$color.background <- sTCols[match(nodes$superType,as.factor(sTs))]
+#nodes$color.highlight <- sTCols[match(nodes$superType,as.factor(sTs))]
+nodes$color.border <- "black"
+nodes$color.highlight.border <- "orange"
+nodes$group <- as.character(nodes$superType)
+
+#nodes$level=1
+#nodes$level[nodes$type %in% dFB23E10_Types]=2
+
+
+# populated edges dataframe
+nodes_from=nodes
+colnames(nodes_from) = c("from","type.from")
+nodes_to=nodes
+colnames(nodes_to) = c("to","type.to")
+edges=GraphTable[c("type.from","type.to","weightRelative")]
+edges <- merge(edges,nodes_to,by=c("type.to")) 
+edges <- merge(edges,nodes_from,by=c("type.from")) 
+edges$width = edges$weightRelative*20
+edges$arrows <- "to"
+edges$smooth <- TRUE
+#vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
+
+
+
+
+v <- visNetwork(nodes, edges, width="100%", height="800px",main= "inputs -> outputs") %>% 
+  visNodes(fixed = TRUE) %>%
+  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.name") 
+
+
+# Save the plot
+visSave(v, paste(PlotDir,"Test1.html"), selfcontained = TRUE, background = "white")
+
+
+```
+
+
+
+
+
+
+
 
 
 
