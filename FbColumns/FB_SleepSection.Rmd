@@ -250,6 +250,43 @@ P2=ggplot(dFB23E10_Correlation) +
 # Get upstream and downstream partners of all FB neurons
 FB_Bag=create_neuronBag(NamedBodies_Meta, slctROI="FB")
 FB_T2T_Output=FB_Bag$outputs
+FB_N2N_Output=FB_Bag$outputs_raw
+
+```
+
+
+# look at neuron-to-neuron connectivity of dFB 23E10 and PPL1 dopamine neurons
+```{r}
+
+
+# Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
+SleepWake_N2N_InputOutput=subset(FB_N2N_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes)
+SleepWake_N2N_InputOutput=subset(SleepWake_N2N_InputOutput, weightRelative > 0.0005)
+
+# Plot matrix
+SleepWake_N2N_InputOutput$fromname=paste(SleepWake_N2N_InputOutput$type.from,  as.character(SleepWake_N2N_InputOutput$from),sep="__")
+SleepWake_N2N_InputOutput$toname=paste(SleepWake_N2N_InputOutput$type.to, as.character(SleepWake_N2N_InputOutput$to),sep="__")
+SleepWake_N2N_InputOutput$type.from=factor(SleepWake_N2N_InputOutput$type.from, levels=sort(unique(SleepWake_N2N_InputOutput$type.from), decreasing=TRUE))
+SleepWake_N2N_InputOutput$type.to=factor(SleepWake_N2N_InputOutput$type.to, levels=sort(unique(SleepWake_N2N_InputOutput$type.to)))
+
+
+P1=ggplot(SleepWake_N2N_InputOutput) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                        midpoint=0.05,limits=c(0,0.1),oob=squish,breaks = c(0,0.05,0.1)) +
+  geom_tile(aes(toname,fromname,fill=weightRelative))  + 
+  facet_grid(rows=vars(type.from),cols=vars(type.to), scales = "free", space = "free") + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        axis.ticks = element_blank(),
+        aspect.ratio = 1) 
+ ggsave(paste(PlotDir, "FIGURE_", "SleepWave_N2N.pdf",sep=""),
+         plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
 
 ```
 
@@ -361,18 +398,21 @@ ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
 ```
 
 
-# Make a network graph of the above sleep/wake circuit
+# Make graph of type-to-type sleep-wake network
 ```{r}
 
-# Make graph of type-to-type sleep-wake network
+# Load libraries
 library(visNetwork)
 require(visNetwork, quietly = TRUE)
 library(paletteer)
 
 
-
+# Get input data
 GraphTable=SleepWake_T2T_InputOutput
 GraphTable=subset(GraphTable, weightRelative > 0)
+
+# remove self connections
+GraphTable=subset(GraphTable, !(type.from == type.to) )
 
 # Get colors
 pcCols <- paletteer_d("Polychrome::palette36")
@@ -383,31 +423,22 @@ sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCol
 IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
 IDs_Num=order(IDs_Type)
 nodes=data.frame(id = IDs_Num, name=IDs_Type)
-nodes$superType <- nodes$name %>% as.character %>% supertype()
 nodes$title <- nodes$name %>% as.character()
-nodes$label <- ""
+nodes$label <- nodes$name %>% as.character()
 nodes$font.size <- 12
-#nodes$x <- nodes$y*500
-#nodes$y <- nodes$x*500
 nodes$size <- 10
-#nodes$color.background <- sTCols[match(nodes$superType,as.factor(sTs))]
-#nodes$color.highlight <- sTCols[match(nodes$superType,as.factor(sTs))]
 nodes$color.border <- "black"
-nodes$color.highlight.border <- "orange"
-nodes$group <- as.character(nodes$superType)
-
-#nodes$level=1
-#nodes$level[nodes$type %in% dFB23E10_Types]=2
+nodes$color=c(pcCols[6],pcCols[6],pcCols[6],pcCols[6],pcCols[6],pcCols[17],pcCols[6],pcCols[6],pcCols[15],pcCols[17],pcCols[15])
 
 
 # Set node positions
-nodes=nodes[c(1,3,4,7,8,2,5,9,11,6,10),]
+nodes=nodes[c(1,3,7,4,8,2,5,9,11,6,10),]
 
 nodes$angle=NA
 nodes$x=NA
 nodes$y=NA
 
-CASE=1
+CASE=2
 if (CASE==1){
   Diff=2*pi/(length(nodes$id)-2)
   nodes$angle[c(1,2,3,4,5,6,7,8,9)]=seq(from = 0, to = 2*pi-Diff , by = Diff)
@@ -417,12 +448,37 @@ if (CASE==1){
   nodes$y[nodes$name == "FB6H"] = 0
   nodes$x[nodes$name == "FB7B"] = 50
   nodes$y[nodes$name == "FB7B"] = 0
+}else if (CASE==2){
+  
+  Diff=pi/(4)
+  nodes$angle[c(1,2,3,4,5)]=seq(from = 0, to = pi , by = Diff)
+  nodes$x=cos(nodes$angle)*200
+  nodes$y=sin(nodes$angle)*200
+  
+  nodes$x[6]=-100
+  nodes$y[6]=0
+  
+  nodes$x[7]=100
+  nodes$y[7]=0
+  
+  nodes$x[8]=0
+  nodes$y[8]=-200
+  
+  nodes$x[9]=100
+  nodes$y[9]=-300
+  
+  nodes$x[10]=0
+  nodes$y[10]=-100
+  
+  nodes$x[11]=-100
+  nodes$y[11]=-300
+
 }
 
 # populated edges dataframe
-nodes_from=nodes
+nodes_from=nodes[c("id","name")]
 colnames(nodes_from) = c("from","type.from")
-nodes_to=nodes
+nodes_to=nodes[c("id","name")]
 colnames(nodes_to) = c("to","type.to")
 edges=GraphTable[c("type.from","type.to","weightRelative")]
 edges <- merge(edges,nodes_to,by=c("type.to")) 
@@ -433,16 +489,67 @@ edges$smooth <- TRUE
 #vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
 
 
-
-
 v <- visNetwork(nodes, edges, width="100%", height="800px",main= "inputs -> outputs") %>% 
-  visNodes(fixed = TRUE) %>%
-  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.name") 
+  visEdges(smooth=list(enabled =TRUE, type = "curvedCCW",ForceDirection=TRUE,roundness=0.1)) %>%
+  visNodes(fixed = TRUE, physics=FALSE) %>%  
+  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 2,algorithm="hierarchical")) 
 
 
 # Save the plot
-visSave(v, paste(PlotDir,"Test1.html"), selfcontained = TRUE, background = "white")
+visSave(v, paste(PlotDir,"SleepWakeGraph.html"), selfcontained = TRUE, background = "white")
 
+
+
+
+
+# colors
+pcCols <- paletteer_d("Polychrome::palette36")
+col_vector=c(pcCols[13],pcCols[15],"gray50")
+
+
+# nodes
+NODES=nodes
+NODES$y=-NODES$y
+NODES$name=as.character(NODES$name)
+NODES=NODES[c("name","x","y")]
+NODES$COLORZ=pcCols[13]
+NODES$COLORZ[NODES$name == "FB6H" | NODES$name == "FB7B"]=pcCols[15]
+
+
+EDGES=GraphTable[c("type.from","type.to","weightRelative")]
+
+# Threshold
+EDGES=subset(EDGES,weightRelative >0.01)
+
+colnames(EDGES)=c("from","to","weight")
+EDGES$from=as.character(EDGES$from)
+EDGES$to=as.character(EDGES$to)
+EDGES$COLORZ="Sleep to Sleep"
+EDGES$COLORZ[EDGES$from == "FB6H" | EDGES$from == "FB7B"]="Wake to sleep"
+EDGES$COLORZ[EDGES$to   == "FB6H" | EDGES$to   == "FB7B"]="Sleep to Wake"
+EDGES$COLORZ=factor(EDGES$COLORZ,levels=c("Sleep to Wake", "Wake to sleep", "Sleep to Sleep"))
+
+graph = tbl_graph(NODES, EDGES)
+
+
+
+
+P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=COLORZ), 
+                 arrow = arrow(length = unit(3, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.5, 'cm'), alpha=1,strength=1) +
+  geom_node_point(color=NODES$COLORZ, size=10) +
+  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
+
+
+ggsave(paste(PlotDir, "Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+    
 
 
 
