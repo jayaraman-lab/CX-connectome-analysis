@@ -110,8 +110,18 @@ MBON2ndaryTargetBagLat <- lateralizeInputOutputList(MBON2ndaryTargetBag)
 ### Isolating the MBON primary and secondary inputs to right side neurons in there
 ```{r}
 MBONTargetInp <- MBONTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to))
-MBONnonCXTargetInp <- MBONnonCXTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to))
 MBON2ndaryTargetInp <- MBON2ndaryTargetBagLat$inputs %>% filter((databaseType.from %in% MBONnonCXTargetsL) & grepl("_R",type.to))
+```
+
+### Get MBON to CX_R indirect connection table through *_R
+```{r}
+# Filter MBONnonCXTargetBagLat$input from MBONs to *_R
+MBONnonCXTargetInp <- MBONnonCXTargetBagLat$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to))
+
+# Filter MBONnonCXTargetBagLat$ouputs from MBONnonCXTargetInp$type.to to CX_R
+MBONnonCXTargetR2CXRtab <- MBONnonCXTargetBagLat$outputs %>% filter(type.from %in% MBONnonCXTargetInp$type.to & databaseType.to %in% CXTypes$databaseType & grepl("_R",type.to))
+# Filter MBONnonCXTargetInp by type.to with CX_R targets
+MBON2nonCXTargetRtab <- MBONnonCXTargetInp %>% filter(type.to %in% MBONnonCXTargetR2CXRtab$type.from)
 ```
 
 ### Combine all input regions into one (to get a "more fair" relative weight). Add a variable, totalMBContribution, that summarize how much of the total input the MBONs contribute to, and use it to sort the CX types.
@@ -133,6 +143,26 @@ print(inputProportions)
 ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=inputProportions, device="eps", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
+
+### Combine all input regions and add the totalMBContribution variable for MBONnonCXTargetBagLat too. 
+```{r}
+# Combine rois based on MBON2nonCXTargetRtab$roi and add a new roi for MBON outputs
+MBON2nonCXTargetInputCombined <- combineRois(MBONnonCXTargetBagLat,unique(MBON2nonCXTargetRtab$roi),newRoi="MBON outputs")
+# Sort MBON to non-CX non-MBON _R connections by totalMBContribution descending
+MBON2nonCXTargetRInpCombSort <- MBON2nonCXTargetInputCombined$inputs %>% filter(startsWith(type.from,"MBON") & grepl("_R",type.to)) %>% 
+  group_by(roi,type.to) %>% mutate(totalMBContribution = sum(weightRelative)) %>% ungroup() %>% arrange(desc(totalMBContribution))  %>%
+  mutate(type.to = factor(type.to,levels=unique(type.to)))
+
+# Filter MBON2nonCXTargetInputCombined$ouputs from MBON2nonCXTargetRInpCombSort$type.to to CX_R
+MBONnonCXTargetR2CXRInpCombined <- MBON2nonCXTargetInputCombined$outputs %>% filter(type.from %in% MBON2nonCXTargetRInpCombSort$type.to & databaseType.to %in% CXTypes$databaseType & grepl("_R",type.to))
+# Filter MBON2nonCXTargetRInpCombSort by type.to with CX_R targets
+MBON2nonCXwCXRTgtInpCombSort <- MBON2nonCXTargetRInpCombSort %>% filter(type.to %in% MBONnonCXTargetR2CXRInpCombined$type.from)
+
+
+```
+
+
+
 
 ### Find Strongly connected direct MBON targets in the CX
 ```{r}
@@ -386,8 +416,8 @@ ggsave("StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_clusterByTo_pathway.svg"
 
 ```{r}
 # Run t-SNE on the type.to of StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab
-library(M3C)
-tsne(Data4Clust,perplex=15)
+# library(M3C)
+# tsne(Data4Clust,perplex=15)
 
 ```
 

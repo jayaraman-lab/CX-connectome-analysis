@@ -1,6 +1,6 @@
 ## Most recent node for emdata4 77309
 ## Node for version 0.9 34d7a
-newNode <- "77309"
+newNode <- "20631"
 oldNode <- "34d7a"
 
 getNeuronMesh <- function(bodyid,cloud=FALSE,node=newNode){
@@ -12,7 +12,7 @@ getNeuronMesh_raw <- function(bodyid,cloud=FALSE,node=newNode){
   if (cloud)
     serv <- "https://hemibrain-dvid2.janelia.org/"
   else
-    serv <- "http://emdata4.int.janelia.org:8900/"
+    serv <- "https://emdata4.int.janelia.org:8900/"
   
   neuronQuery <-  paste0(serv,"api/node/",node,"/segmentation_meshes/key/",bodyid,".ngmesh")
   
