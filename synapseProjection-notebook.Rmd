@@ -16,6 +16,7 @@ source("neuprintQueryUtils.R")
 source("SynapsePCAUtils.R")
 require(alphahull)
 require(RColorBrewer)
+library("paletteer")
 ```
 
 ```{r}
@@ -30,23 +31,23 @@ Choose ROI and get curated list of neurons
 myROI = "EB"
 #load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("Columnar_in_", myROI)
-my_types =  c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")#c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")#c("ExR.*", "PDM21a.*") #
-
-cmapName = "colorMap_columnar"
+saveName = paste0("RN_in_", myROI)
+my_types = c("R1","R2","R3","R4","R5","R6")
+my_types = paste0(my_types, ".*")
+cmapName = "colorMap_RingNeurons"
 
 my_neurons = getBodyIdsForList(my_types)
-# Ring neurons c("R1.*","R2.*","R3.*","R4.*","R5.*","R6.*")
+# Ring neurons: c("R1","R2","R3","R4","R5","R6")
 # ExR: #EB_Type[grep("ExR.*", EB_Type)]
-# ExR etc in BU: c("ExR.*", "PDM21a.*")
+# ExR etc in BU: c("ExR", "PDM21a", "TuTu") "colorMap_ExR_and_PDM21a"
 # Columnar: c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")
+# TuBu:  c("TuBu")
 ```
 
 Load custom color palette
 ```{r}
 myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/",cmapName,".csv"))
 
-#library("paletteer")
 ```
 
 
@@ -165,21 +166,24 @@ synPtsPlane = data.frame(x=synPtsPlane[,1],y=synPtsPlane[,2],z=synPtsPlane[,3],
                          type = as.factor(my_synapses$type), 
                          partnerType = as.factor(my_synapses$partnertype),
                          name = as.factor(my_synapses$name), 
-                         partnerName = as.factor(my_synapses$partnerName))
+                         partnerName = as.factor(my_synapses$partnerName),
+                         id = as.factor(my_synapses$bodyid),
+                         partnerid = as.factor(my_synapses$partner))
 
 #Add simple type name
 synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
 ```
 
+# Frontal view
 ***Get outline using alpha shape and plot***
 ```{r}
 plotW = 14#12
 plotH =  6# 4
-Cmax = 100#60#25 #EB col 150
+Cmax = 100#40#20#100#60# #EB col 150
 nbins = 50#40 #5
 nlevels = 5
 ```
-Frontal view
+
 ```{r}
 # get outline
 if(myROI=="AOTU(R)"){
@@ -199,16 +203,18 @@ typeFilter = synCount$type[synCount$n > 10]
 dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
 
 myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
-myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),]
+myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),] %>%
+  arrange(unique(dataFilt$simpleType))
 
 mySubtypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$type)) %>% filter(Simpletype == "no")
-mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),]
+mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),] %>%
+  arrange(unique(dataFilt$type))
 
 ```
 
 ```{r}
 synprojFront = ggplot() + 
-  geom_hex(data=synPtsPlane, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
+  geom_hex(data=dataFilt, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
   facet_wrap(~type, ncol=ceiling(length(unique(dataFilt$simpleType))/2)) +
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
@@ -253,11 +259,26 @@ ggsave( paste("synapseDistributions_",saveName,'_front_level_simpletypes.pdf', s
     scale = 1.5, width = 10, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-Side view
+For a given population, plot each neuron separately
+
+```{r}
+synprojFront = ggplot() + 
+  geom_point(data=dataFilt, aes(x=x, y=y, fill=id, color=id), size=0.5) + 
+  #scale_fill_manual(values=paletteer_c("grDevices::Hot", n=length(unique(dataFilt$id)))) +
+  #scale_fill_manual(values = as.character(myTypeCols$hex)) +
+  facet_wrap(~type, ncol=ceiling(length(unique(dataFilt$simpleType))/2)) +
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE, fill=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojFront)
+#ggsave( paste("synapseDistributions_",saveName,'_front.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
+#    scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+# Side view
 ```{r}
 plotW = 14
 plotH =  6#10
-Cmax = 150#100##EB col 150
+Cmax = 100#30##EB col 150
 nbins = 40
 nlevels = 5
 ```
@@ -344,8 +365,8 @@ roiMeshPtsPlane$dist = roi_dist
 
 ```{r}
 plotW = 12
-plotH =  6
-Cmax = 500#200#20#
+plotH =  8
+Cmax = 300#20#500#
 nbins = 50#40
 ```
 
@@ -424,13 +445,11 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels2.pdf', sep=''), pl
 ```
 
 ```{r}
-library(paletteer)
-
 regiondata = left_join(dataFilt, myTypeCols[c("Type","regions","hex")], by = c("simpleType" = "Type"))
 synprojSlice = ggplot() + 
   stat_density_2d(data=regiondata, aes(x=z, y=syn_dist, fill=regions, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
-  scale_fill_manual(values = paletteer_d("Polychrome::palette36", length(unique(myTypeCols$regions)))) + 
+  scale_fill_manual(values = paletteer_d("basetheme::brutal", length(unique(myTypeCols$regions)))) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
 print(synprojSlice)
 

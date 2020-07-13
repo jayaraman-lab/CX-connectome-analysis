@@ -144,7 +144,7 @@ ggsave("CXfromMBON_InputProportionsByType_weightRelative_Romain.eps", plot=input
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
-### Combine all input regions and add the totalMBContribution variable for MBONnonCXTargetBagLat too. 
+### Combine all input regions and add the totalMBContribution variable for MBONnonCXTargetBagLat. This is then used to sort the MBONs to non-CX non-MBON targets_R table. 
 ```{r}
 # Combine rois based on MBON2nonCXTargetRtab$roi and add a new roi for MBON outputs
 MBON2nonCXTargetInputCombined <- combineRois(MBONnonCXTargetBagLat,unique(MBON2nonCXTargetRtab$roi),newRoi="MBON outputs")
@@ -158,11 +158,16 @@ MBONnonCXTargetR2CXRInpCombined <- MBON2nonCXTargetInputCombined$outputs %>% fil
 # Filter MBON2nonCXTargetRInpCombSort by type.to with CX_R targets
 MBON2nonCXwCXRTgtInpCombSort <- MBON2nonCXTargetRInpCombSort %>% filter(type.to %in% MBONnonCXTargetR2CXRInpCombined$type.from)
 
+plot_MBON2nonCXwCXRTgtInpCombSort <- plotConnectivityMatrix(MBON2nonCXwCXRTgtInpCombSort,byGroup="type")
+print(plot_MBON2nonCXwCXRTgtInpCombSort)
+ggsave("MBON2nonCXnonMBONTgtRwCXRTgt_InpCombinedSorted.eps", plot=plot_MBON2nonCXwCXRTgtInpCombSort, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 
+inputProportions_MBON2nonCXwCXRTgtInpCombSort <- ggplot(MBON2nonCXwCXRTgtInpCombSort,aes(x=type.to)) + geom_col(aes(y=weightRelative,fill=type.from)) + scale_fill_manual(values=typesPalette(unique(MBON2nonCXwCXRTgtInpCombSort$type.from)),name="MBON types",guide=guide_legend(ncol=2)) + theme_classic()  + theme(axis.text.x = element_text(angle = 90)) + labs(y="Relative weight in input regions",x="Type")
+print(inputProportions_MBON2nonCXwCXRTgtInpCombSort)
+ggsave("MBON2nonCXnonMBONTgtRwCXRTgt_InputProportionsCombinedSorted.eps", plot=inputProportions_MBON2nonCXwCXRTgtInpCombSort, device="eps", path=PlotDir, scale=1, 
+       width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
-
-
-
 
 ### Find Strongly connected direct MBON targets in the CX
 ```{r}
