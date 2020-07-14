@@ -78,7 +78,7 @@ Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" 
                startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
                startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
 Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" ) |
-                                                  startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
+                                                startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
@@ -305,7 +305,6 @@ ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
 ```{r}
 
 # Load libraries
-require(visNetwork, quietly = TRUE)
 library(paletteer)
 
 # Get input data
@@ -391,6 +390,7 @@ P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) +
   scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
 ggsave(paste(PlotDir, "FIGURE_SleepWake_N2N_Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8.2, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
+remove(EDGES,NODES,graph,P1)
 
 ```
 
@@ -546,6 +546,46 @@ for (nnn in 1:Steps){
 ```
 
 
+# Look at clustering of pathways from layer 1-->2 and 2-->3
+```{r}
+
+# Cluster Layer 1
+Layer1=subset(Pathway,Step==1)
+Layer1_Vectors=connectivityMatrix(Layer1,"All brain", allToAll=FALSE, from="type.from",to="type.to")
+Layer1_Dist = cos_dist(Layer1_Vectors)
+Layer1_Clust=hclust(Layer1_Dist)
+
+
+# Cluster Layer 2 by their inputs from layer 1 and their outputs to layer 2
+Layer2=subset(Pathway,Step==2)
+Layer2_Vectors_fL1=t(connectivityMatrix(Layer1,"All brain", allToAll=FALSE, from="type.from",to="type.to"))
+Layer2_Vectors_tL2=connectivityMatrix(Layer2,"All brain", allToAll=FALSE, from="type.from",to="type.to")
+Layer2_Vectors_fL1=Layer2_Vectors_fL1[rownames(Layer2_Vectors_fL1) %in% rownames(Layer2_Vectors_tL2), ]
+Layer2_Vectors_fL1=Layer2_Vectors_fL1[rownames(Layer2_Vectors_tL2),]
+Layer2_Vectors=cbind(Layer2_Vectors_fL1, Layer2_Vectors_tL2)
+Layer2_Dist = cos_dist(Layer2_Vectors)
+Layer2_Clust=hclust(Layer2_Dist)
+
+
+# Cluster Layer 3 by their inputs from layer 2
+Layer3=subset(Pathway,Step==2)
+Layer3_Vectors=t(connectivityMatrix(Layer3,"All brain", allToAll=FALSE, from="type.from",to="type.to"))
+Layer3_Dist = cos_dist(Layer3_Vectors)
+Layer3_Clust=hclust(Layer3_Dist)
+
+
+Layer1_Clust$height
+
+
+plot(Layer3_Clust)
+
+plot_dist_interactive(Layer3_Dist,order=TRUE)
+
+
+```
+
+
+# Make graph of network dostream of Sleep-wake circuit
 ```{r include=FALSE}
 
 
@@ -575,8 +615,7 @@ NODES=NODES[order(NODES$name),]
 
 
 # Set note positions
-Case=3
-
+Case=4
 
 if (Case==1){
   
@@ -664,8 +703,10 @@ if (Case==1){
   l1nodes=sum(NODES$Step==1)
   NODES$x[NODES$Step==1]=0
   NODES$y[NODES$Step==1]=seq(from=-l1nodes/2,l1nodes/2-1,by=1)*3
-  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G2") ] = rev(NODES$y[NODES$Step==1 &  startsWith(NODES$Group, "L1_G2")] + 6)
-  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G1") ] = rev(NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G1") ] - 2)
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G2") ] = rev(NODES$y[NODES$Step==1 &
+                                                                             startsWith(NODES$Group, "L1_G2")] + 6)
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G1") ] = rev(NODES$y[NODES$Step==1 & 
+                                                                             startsWith(NODES$Group, "L1_G1") ] - 2)
   
   NODES$y[NODES$Step==1]=NODES$y[NODES$Step==1]*3
   
@@ -674,62 +715,49 @@ if (Case==1){
   ##############################
   Scale_L2=4
   
-  FB_L2_G1=c("FB1I","FB1J","FB7L","FB8C","FB8G","vDeltaE","vDeltaB","FB6U","FB6T","FB6Q")
+  FB_L2_G1=c("FB1I","FB1J","FB7L","FB8C","FB8G","vDeltaE","vDeltaB","FB6T","FB6Q")
   NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G1] = "L2_G1"
   NODES$x[which(NODES$Group=="L2_G1")]=1
   NODES$y[which(NODES$Group=="L2_G1")]=ceiling(seq(from=-length(FB_L2_G1)/2,length(FB_L2_G1)/2-1,by=1) + 12)*Scale_L2
   
   
-  FB_L2_G2=c("hDeltaD","FB8B")
+  FB_L2_G2=c("ExR3")
   NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G2] = "L2_G2"
   NODES$x[which(NODES$Group=="L2_G2")]=1
-  NODES$y[which(NODES$Group=="L2_G2")]=(seq(from=-length(FB_L2_G2)/2,length(FB_L2_G2)/2-1,by=1) -6) *Scale_L2
-  
-
-  FB_L2_G3=c("FB6Y","FB7C","FB7D","FB7E","FB7H","FB7J","FB7M")
-  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G3] = "L2_G3"
-  NODES$x[which(NODES$Group=="L2_G3")]=0.9
-  NODES$y[which(NODES$Group=="L2_G3")]=(seq(from=-length(FB_L2_G3)/2,length(FB_L2_G3)/2-1,by=1) + 0) *Scale_L2
-  
-
-  FB_L2_G4=c("ExR3")
-  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G4] = "L2_G4"
-  NODES$x[which(NODES$Group=="L2_G4")]=1
-  NODES$y[which(NODES$Group=="L2_G4")]=-8 *Scale_L2
+  NODES$y[which(NODES$Group=="L2_G2")]=(seq(from=-length(FB_L2_G2)/2,length(FB_L2_G2)/2-1,by=1) -1) *Scale_L2
   
   
   FB_L2_G5=c("FB5G","FB5Y","FC2B","FC2C","hDeltaG")
   NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G5] = "L2_G5"
   NODES$x[which(NODES$Group=="L2_G5")]=1
-  NODES$y[which(NODES$Group=="L2_G5")]=(seq(from=-length(FB_L2_G5)/2,length(FB_L2_G5)/2-1,by=1) - 15) *Scale_L2
+  NODES$y[which(NODES$Group=="L2_G5")]=(seq(from=-length(FB_L2_G5)/2,length(FB_L2_G5)/2-1,by=1) - 2) *Scale_L2
   
   
-  FB_L2_G6=c("vDeltaC","vDeltaD","FB6D","FB6F","FB6O","FB6P","FB7G","FB7I","FB6J","PFGs")
+  FB_L2_G6=c("vDeltaC","vDeltaD","FB6D","FB6F","FB6O","FB6P","FB7G","FB7I","FB6J","PFGs",
+             "FB6Y","FB7C","FB7D","FB7E","FB7H","FB7J","FB7M")
   NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G6] = "L2_G6"
   NODES$x[which(NODES$Group=="L2_G6")]=0.9
-  NODES$y[which(NODES$Group=="L2_G6")]=(seq(from=-length(FB_L2_G6)/2,length(FB_L2_G6)/2-1,by=1) - 25) *Scale_L2
+  NODES$y[which(NODES$Group=="L2_G6")]=(seq(from=-length(FB_L2_G6)/2,length(FB_L2_G6)/2-1,by=1) - 16) *Scale_L2
   
-  
-  
-  FB_L2_G7=NODES$name[startsWith(NODES$name,"FB") & NODES$Step==2 & is.na(NODES$Group)]
-  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G7] = "L2_G7"
-  NODES$x[which(NODES$Group=="L2_G7")]=1
-  NODES$y[which(NODES$Group=="L2_G7")]=(seq(from=-length(FB_L2_G7)/2,length(FB_L2_G7)/2-1,by=1) - 51) *Scale_L2
   
   
   FB_L2_G8=NODES$name[(startsWith(NODES$name,"FC") |  startsWith(NODES$name,"FS") | startsWith(NODES$name,"hDel") )
                       & NODES$Step==2 & is.na(NODES$Group)]
   NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G8] = "L2_G8"
   NODES$x[which(NODES$Group=="L2_G8")]=1
-  NODES$y[which(NODES$Group=="L2_G8")]=(seq(from=-length(FB_L2_G8)/2,length(FB_L2_G8)/2-1,by=1) - 37.5) *Scale_L2
+  NODES$y[which(NODES$Group=="L2_G8")]=(seq(from=-length(FB_L2_G8)/2,length(FB_L2_G8)/2-1,by=1) - 32) *Scale_L2
+
   
   
-  
+  FB_L2_G7=NODES$name[startsWith(NODES$name,"FB") & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G7] = "L2_G7"
+  NODES$x[which(NODES$Group=="L2_G7")]=1
+  NODES$y[which(NODES$Group=="L2_G7")]=(seq(from=-length(FB_L2_G7)/2,length(FB_L2_G7)/2,by=1) - 45) *Scale_L2
   
   
   logica=sum(is.na(NODES$x) & NODES$Step==2)
   NODES$x[is.na(NODES$x) & NODES$Step==2]=1
-  NODES$y[is.na(NODES$y) & NODES$Step==2]=(seq(from=-1, to=-logica, by=-1)-59)*Scale_L2
+  NODES$y[is.na(NODES$y) & NODES$Step==2]=(seq(from=-1, to=-logica, by=-1)-53)*Scale_L2
   
   
   
@@ -767,26 +795,44 @@ if (Case==1){
   FB_L3_G5=NODES$name[(startsWith(NODES$name,"SLP") | startsWith(NODES$name,"SMP") | startsWith(NODES$name,"SIP")) &
                         NODES$Step==3]
   NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G5] = "L3_G5"
-  Angles=seq(from=-pi, to=pi, by=2*pi/length(FB_L3_G5))
-  NODES$x[which(NODES$Group=="L3_G5")]=(2+cos(Angles)*0.1)
-  NODES$y[which(NODES$Group=="L3_G5")]=(-325 + sin(Angles)*40)
+  Angles=seq(from=-pi, to=pi, by=2*pi/(length(FB_L3_G5)-1))
+  NODES$x[which(NODES$Group=="L3_G5")]=(1.8+cos(Angles)*0.2)
+  NODES$y[which(NODES$Group=="L3_G5")]=(-295 + sin(Angles)*30)
   
   
-  
-  FB_L3_G6=Graph$type.to[Graph$type.to %in% FB_L2_G1] 
-  FB_L3_G6=FB_L3_G6[FB_L3_G6 %in% NODES$name[NODES$Step==3 & !is.na(NODES$x)]] 
-  
+  FB_L3_G6=Graph$type.to[Graph$type.from %in% FB_L2_G1] 
+  FB_L3_G6=FB_L3_G6[FB_L3_G6 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
   NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G6] = "L3_G6"
   NODES$x[which(NODES$Group=="L3_G6")]=2
-  NODES$y[which(NODES$Group=="L3_G6")]=ceiling(seq(from=-length(FB_L3_G6)/2,length(FB_L3_G6)/2 -1,by=1)-25 )*Scale_L3
+  NODES$y[which(NODES$Group=="L3_G6")]=ceiling(seq(from=-length(FB_L3_G6)/2,length(FB_L3_G6)/2 ,by=1)-32 )*Scale_L3
   
   
+  FB_L3_G7=Graph$type.to[Graph$type.from %in% c("hDeltaD","FB8B","ExR3")] 
+  FB_L3_G7=FB_L3_G7[FB_L3_G7 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G7] = "L3_G7"
+  NODES$x[which(NODES$Group=="L3_G7")]=2
+  NODES$y[which(NODES$Group=="L3_G7")]=ceiling(seq(from=-length(FB_L3_G7)/2,length(FB_L3_G7)/2-1 ,by=1)-42 )*Scale_L3
+  
+  
+  FB_L3_G8=Graph$type.to[Graph$type.from %in% FB_L2_G5] 
+  FB_L3_G8=FB_L3_G8[FB_L3_G8 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G8] = "L3_G8"
+  NODES$x[which(NODES$Group=="L3_G8")]=2
+  NODES$y[which(NODES$Group=="L3_G8")]=ceiling(seq(from=-length(FB_L3_G8)/2,length(FB_L3_G8)/2 -1,by=1)-48 )*Scale_L3
+  
+  
+    
+  FB_L3_G9=Graph$type.to[Graph$type.from %in% FB_L2_G8] 
+  FB_L3_G9=FB_L3_G9[FB_L3_G9 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G9] = "L3_G9"
+  NODES$x[which(NODES$Group=="L3_G9")]=2
+  NODES$y[which(NODES$Group=="L3_G9")]=ceiling(seq(from=-length(FB_L3_G9)/2,length(FB_L3_G9)/2 -1,by=1)-75 )*Scale_L3
   
   
   
   logica=sum(is.na(NODES$x) & NODES$Step==3)
   NODES$x[is.na(NODES$x) & NODES$Step==3]=2
-  NODES$y[is.na(NODES$y) & NODES$Step==3]=(seq(from=-1, to=-logica, by=-1))*Scale_L3 -100
+  NODES$y[is.na(NODES$y) & NODES$Step==3]=(seq(from=-1, to=-logica, by=-1))*Scale_L3 -225
   
   
   
@@ -797,23 +843,202 @@ if (Case==1){
   
   NODES$y[NODES$Step==1]= NODES$y[NODES$Step==1] - mean(NODES$y[NODES$Step==1]) 
   NODES$y[NODES$Step==2]= NODES$y[NODES$Step==2] - mean(NODES$y[NODES$Step==2])
-  NODES$y[NODES$Step==3]= NODES$y[NODES$Step==3] - mean(NODES$y[NODES$Step==3])
+  NODES$y[NODES$Step==3]= NODES$y[NODES$Step==3] - mean(NODES$y[NODES$Step==3])-1400
+} else if (Case==4){
+  
+  # Define node groupings
+  NODES$Group=NA
+  NODES$x=NA
+  NODES$y=NA
+  
+  ##############################
+  ### First layer groupings ###
+  ##############################
+  
+  NODES$Group[NODES$Step==1 & startsWith(NODES$name, "FB6") ] = "L1_G1"
+  NODES$Group[NODES$Step==1 & startsWith(NODES$name, "FB7") ] = "L1_G2"
+   
+  
+  l1nodes=sum(NODES$Step==1)
+  NODES$x[NODES$Step==1]=0
+  NODES$y[NODES$Step==1]=seq(from=-l1nodes/2,l1nodes/2-1,by=1)*3
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G2") ] = rev(NODES$y[NODES$Step==1 &
+                                                                             startsWith(NODES$Group, "L1_G2")] + 6)
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G1") ] = rev(NODES$y[NODES$Step==1 & 
+                                                                             startsWith(NODES$Group, "L1_G1") ] - 2)
+  
+  NODES$y[NODES$Step==1]=NODES$y[NODES$Step==1]*3
+  
+  ##############################
+  ### Second layer groupings ###
+  ##############################
+  Scale_L2=4
+  
+  FB_L2_G1=c("FB1I","FB1J","FB7L","FB8C","vDeltaB","FB6T","FB6Q")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G1] = "L2_G1"
+  NODES$x[which(NODES$Group=="L2_G1")]=1
+  NODES$y[which(NODES$Group=="L2_G1")]=ceiling(seq(from=-length(FB_L2_G1)/2,length(FB_L2_G1)/2-1,by=1) + 12)*Scale_L2
+  
+  
+  FB_L2_G2=c("hDeltaD","FB8B","ExR3")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G2] = "L2_G2"
+  NODES$x[which(NODES$Group=="L2_G2")]=1
+  NODES$y[which(NODES$Group=="L2_G2")]=(seq(from=-length(FB_L2_G2)/2,length(FB_L2_G2)/2-1,by=1) + 4) *Scale_L2
+  
+  
+  FB_L2_G5=c("FB5G","FB5Y","FC2B","FC2C","hDeltaG")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G5] = "L2_G5"
+  NODES$x[which(NODES$Group=="L2_G5")]=1
+  NODES$y[which(NODES$Group=="L2_G5")]=(seq(from=-length(FB_L2_G5)/2,length(FB_L2_G5)/2-1,by=1) - 2) *Scale_L2
+  
+  
+  FB_L2_G6=c("vDeltaC","vDeltaD","FB6D","FB6F","FB6O","FB6P","FB7G","FB7I","FB6J","PFGs",
+             "FB6Y","FB7C","FB7D","FB7E","FB7H","FB7J","FB7M")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G6] = "L2_G6"
+  NODES$x[which(NODES$Group=="L2_G6")]=0.9
+  NODES$y[which(NODES$Group=="L2_G6")]=(seq(from=-length(FB_L2_G6)/2,length(FB_L2_G6)/2-1,by=1) - 16) *Scale_L2
+  
+  
+  
+  FB_L2_G8=NODES$name[startsWith(NODES$name,"hDel") & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G8] = "L2_G8"
+  NODES$x[which(NODES$Group=="L2_G8")]=1
+  NODES$y[which(NODES$Group=="L2_G8")]=(seq(from=-length(FB_L2_G8)/2,length(FB_L2_G8)/2-1,by=1) - 31) *Scale_L2
+
+  
+    
+  FB_L2_G8b=NODES$name[(startsWith(NODES$name,"FC") |  startsWith(NODES$name,"FS") )
+                      & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G8b] = "L2_G8b"
+  NODES$x[which(NODES$Group=="L2_G8b")]=1
+  NODES$y[which(NODES$Group=="L2_G8b")]=(seq(from=-length(FB_L2_G8b)/2,length(FB_L2_G8b)/2-1,by=1) - 36) *Scale_L2
+
+  
+  FB_L2_G7=NODES$name[startsWith(NODES$name,"FB") & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G7] = "L2_G7"
+  NODES$x[which(NODES$Group=="L2_G7")]=1
+  NODES$y[which(NODES$Group=="L2_G7")]=(seq(from=-length(FB_L2_G7)/2,length(FB_L2_G7)/2-1,by=1) - 45) *Scale_L2
+  
+  
+  logica=sum(is.na(NODES$x) & NODES$Step==2)
+  NODES$x[is.na(NODES$x) & NODES$Step==2]=1
+  NODES$y[is.na(NODES$y) & NODES$Step==2]=(seq(from=-1, to=-logica, by=-1)-53)*Scale_L2
+  
+  
+  
+  ##############################
+  ### Third layer groupings ####
+  ##############################  
+  
+  Scale_L3=2.5
+  
+  
+  FB_L3_G1=c("vDeltaA_b","FB8H","FB8I","FB1G","FB1A")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G1] = "L3_G1"
+  NODES$x[which(NODES$Group=="L3_G1")]=2
+  NODES$y[which(NODES$Group=="L3_G1")]=ceiling(seq(from=-length(FB_L3_G1)/2,length(FB_L3_G1)/2-1,by=1) + 10)*Scale_L3
+  
+  
+  
+  FB_L3_G2=c("EL","EPG","ER2_a","ER2_c","ER2_d","ER3a_a","ER3a_c","ER3d_a","ER3d_b","ER3d_c","ER3d_d",
+             "ER3m","ER3p_a","ER3p_b","ER4d","ER4m","ER5","ExR2","ExR5")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G2] = "L3_G2"
+  NODES$x[which(NODES$Group=="L3_G2")]=2
+  NODES$y[which(NODES$Group=="L3_G2")]=ceiling(seq(from=-length(FB_L3_G2)/2,length(FB_L3_G2)/2-1,by=1) -4)*Scale_L3
+  
+  
+  FB_L3_G2b=c("ExR1")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G2b] = "L3_G2b"
+  NODES$x[which(NODES$Group=="L3_G2b")]=2
+  NODES$y[which(NODES$Group=="L3_G2b")]=ceiling(seq(from=-length(FB_L3_G2b)/2,length(FB_L3_G2b)/2-1,by=1) - 16)*Scale_L3
+  
+  
+  
+  FB_L3_G3=c("AOTU046","TuBu02","TuBu03","TuBu04")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G3] = "L3_G3"
+  NODES$x[which(NODES$Group=="L3_G3")]=2
+  NODES$y[which(NODES$Group=="L3_G3")]=ceiling(seq(from=-length(FB_L3_G3)/2,length(FB_L3_G3)/2 -1,by=1)-20 )*Scale_L3
+  
+  
+  
+  FB_L3_G4=c("PFL2","PFL3")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G4] = "L3_G4"
+  NODES$x[which(NODES$Group=="L3_G4")]=2
+  NODES$y[which(NODES$Group=="L3_G4")]=ceiling(seq(from=-length(FB_L3_G4)/2,length(FB_L3_G4)/2 -1,by=1)-25 )*Scale_L3
+  
+  
+  FB_L3_G5=NODES$name[(startsWith(NODES$name,"SLP") | startsWith(NODES$name,"SMP") | startsWith(NODES$name,"SIP")) &
+                        NODES$Step==3]
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G5] = "L3_G5"
+  Angles=seq(from=-pi, to=pi, by=2*pi/(length(FB_L3_G5)-1))
+  NODES$x[which(NODES$Group=="L3_G5")]=(1.8+cos(Angles)*0.2)
+  NODES$y[which(NODES$Group=="L3_G5")]=(-295 + sin(Angles)*30)
+  
+  
+
+  FB_L3_G6=Graph$type.to[Graph$type.from %in% FB_L2_G1] 
+  FB_L3_G6=FB_L3_G6[FB_L3_G6 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G6] = "L3_G6"
+  NODES$x[which(NODES$Group=="L3_G6")]=2
+  NODES$y[which(NODES$Group=="L3_G6")]=ceiling(seq(from=-length(FB_L3_G6)/2,length(FB_L3_G6)/2-1 ,by=1)-32 )*Scale_L3
+  
+  
+  
+  FB_L3_G7=Graph$type.to[Graph$type.from %in% c("hDeltaD","FB8B","ExR3")] 
+  FB_L3_G7=FB_L3_G7[FB_L3_G7 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G7] = "L3_G7"
+  NODES$x[which(NODES$Group=="L3_G7")]=2
+  NODES$y[which(NODES$Group=="L3_G7")]=ceiling(seq(from=-length(FB_L3_G7)/2,length(FB_L3_G7)/2-1 ,by=1)-42 )*Scale_L3
+  
+  
+
+  FB_L3_G8=Graph$type.to[Graph$type.from %in% FB_L2_G5] 
+  FB_L3_G8=FB_L3_G8[FB_L3_G8 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G8] = "L3_G8"
+  NODES$x[which(NODES$Group=="L3_G8")]=2
+  NODES$y[which(NODES$Group=="L3_G8")]=ceiling(seq(from=-length(FB_L3_G8)/2,length(FB_L3_G8)/2 -1,by=1)-48 )*Scale_L3
+  
+  
+    
+  FB_L3_G9=Graph$type.to[Graph$type.from %in% FB_L2_G8 | Graph$type.from %in% FB_L2_G8b] 
+  FB_L3_G9=FB_L3_G9[FB_L3_G9 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G9] = "L3_G9"
+  NODES$x[which(NODES$Group=="L3_G9")]=2
+  NODES$y[which(NODES$Group=="L3_G9")]=ceiling(seq(from=-length(FB_L3_G9)/2,length(FB_L3_G9)/2 -1,by=1)-80.5 )*Scale_L3
+  
+  
+  FB_L3_G10=c("FB5P","FB5Z","FB6X")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G10] = "L3_G10"
+  NODES$x[which(NODES$Group=="L3_G10")]=2
+  NODES$y[which(NODES$Group=="L3_G10")]=ceiling(seq(from=-length(FB_L3_G10)/2,length(FB_L3_G10)/2-1 ,by=1)-67.5 )*Scale_L3
+  
+  
+  logica=sum(is.na(NODES$x) & NODES$Step==3)
+  NODES$x[is.na(NODES$x) & NODES$Step==3]=2
+  NODES$y[is.na(NODES$y) & NODES$Step==3]=(seq(from=-1, to=-logica, by=-1))*Scale_L3 -236
+  
+  
+  # Scale and tidy up
+  NODES$x=NODES$x*50
+  NODES$y=NODES$y*50
+  
+  
+  NODES$y[NODES$Step==1]= NODES$y[NODES$Step==1] - mean(NODES$y[NODES$Step==1]) 
+  NODES$y[NODES$Step==2]= NODES$y[NODES$Step==2] - mean(NODES$y[NODES$Step==2])
+  NODES$y[NODES$Step==3]= NODES$y[NODES$Step==3] - mean(NODES$y[NODES$Step==3])-1400
+  
+  
 }
 
 
-
-
-# edges
+# Edges
 EDGES=Graph[c("type.from","type.to","outputContribution")]
-
-
-# edges
 colnames(EDGES)=c("from","to","weight")
 EDGES$from=as.character(EDGES$from)
 EDGES$to=as.character(EDGES$to)
 
 
-# define pathways to highlight
+# Define pathways to highlight
 EDGES$COLORZ=NA
 EDGES$COLORZ[startsWith(EDGES$to,"E") | EDGES$to == "FB8B" | EDGES$to =="hDeltaD"]="dFB-->EB Pathway"
 EDGES$COLORZ[EDGES$to == "PFL2" | EDGES$to =="PFL3" | EDGES$to =="FB5G" | EDGES$to =="FB5Y" | EDGES$to =="FB2C" |
@@ -828,6 +1053,8 @@ EDGES=rbind(subset(EDGES,COLORZ == "Other Pathways"),
             subset(EDGES,COLORZ == "dFB-->vFB Pathway"),
             subset(EDGES,COLORZ == "dFB-->EB Pathway"))
 
+
+# Chose colors for pathways
 col_vector=c("dodgerblue3","slateblue4","springgreen3", "Gray80")
 
 
@@ -838,7 +1065,7 @@ plotgraph = tbl_graph(NODES, EDGES)
 # Make plot and save ("dh" layout is decent too)
 P1=ggraph(plotgraph,layout="manual",x=NODES$x,y=NODES$y) + 
   geom_edge_fan( aes(width=weight,colour=EDGES$COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0, 'cm'), alpha=0.7,strength=1) +
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.1, 'cm'), alpha=0.7,strength=1) +
   geom_node_point(size=1) +
   geom_node_text(aes(label=name),angle=0,size=2, nudge_x = 3, color='black' ) +
   theme_classic() + 
@@ -852,67 +1079,7 @@ ggsave(paste(PlotDir, "Graph_new.pdf",sep=""), plot = P1, device='pdf', scale = 
 
 
 
-
-
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
