@@ -140,7 +140,7 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
       for (i in seq(1, length(V(connectGraph)$name))) {
         ncol = unique(colormap %>% filter(Type %in% V(connectGraph)$name[i]) %>% select(hex))
         if (length(ncol$hex) > 0) {
-          print(as.character(ncol$hex))
+          #print(as.character(ncol$hex))
           nodeCols[i] = as.character(ncol$hex)
           }
       }

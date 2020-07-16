@@ -173,10 +173,20 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   return(Type2TypeConnTab_hc)
 }
 
-
-
-
-
+# From Hannah: Function to plot a distance matrix
+HHplot_dist <- function(dd,order=TRUE){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+  }
+  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=value)) +
+    theme_classic() +
+    scale_fill_gradient2(low="black", mid="grey", high="white", 
+                         midpoint =0.5, limits=c(0,1)) +
+    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
+    xlab("") + ylab("")+coord_fixed() +xlab("") + ylab("")
+}
 
 
 
