@@ -140,9 +140,17 @@ getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
 }
 
 getFit <- function(compTable,groups=c("side","databaseType","supertype2"),predicted="C3",predictor="CX"){
-  compFits <- compTable %>% group_by_at(groups) %>% 
-    do(fitRes = lm(as.formula(paste0(predicted,"~",predictor)),data=.))
-  compFitsCoeff <- tidy(compFits,fitRes) %>% filter(term==predictor) 
-  compFitsStats <-  glance(compFits,fitRes)
+  compFits <- compTable %>%
+    nest(data = !(any_of(groups))) %>% 
+    mutate(
+      fitRes = map(data, ~ lm(as.formula(paste0(predicted,"~",predictor)), data = .x)),
+      tidied = map(fitRes, tidy),
+      fitStats = map(fitRes,glance)
+    ) 
+  compFitsCoeff <- compFits %>% 
+    unnest(tidied) %>% filter(term==predictor) %>% select(-data,-fitStats,-fitRes)
+  
+  compFitsStats <-  compFits %>% 
+    unnest(fitStats) %>% select(-data,-fitRes,-tidied)
   left_join(compFitsCoeff,compFitsStats,by=groups)
   }
