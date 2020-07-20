@@ -5,14 +5,14 @@
 # 3) Plotting the distribution of synapses over ROI outlins
 
 
-MeshOutline <- function(Mesh, Plane){
+MeshOutline <- function(Mesh, Plane, alpha_rad=100){
   
   if (Plane=="XY"){
-    meshOutline <- ahull(x=Mesh$X, y=-Mesh$Y,alpha=100)
+    meshOutline <- ahull(x=Mesh$X, y=-Mesh$Y,alpha=alpha_rad)
   } else if (Plane=="XZ"){
-    meshOutline <- ahull(x=Mesh$X, y=Mesh$Z,alpha=100)
+    meshOutline <- ahull(x=Mesh$X, y=Mesh$Z,alpha=alpha_rad)
   } else if (Plane=="YZ"){
-    meshOutline <- ahull(x=Mesh$Y, y=Mesh$Z,alpha=100)
+    meshOutline <- ahull(x=Mesh$Y, y=Mesh$Z,alpha=alpha_rad)
   }
   
   outline = data.frame(meshOutline$arcs)

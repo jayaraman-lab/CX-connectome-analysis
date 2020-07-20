@@ -18,6 +18,7 @@ library(reshape2)
 library(patchwork)
 library(visNetwork)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
 options(nat.plotengine = 'rgl')
 ```
 
@@ -140,8 +141,8 @@ T2TPlt_FBCol_Manual <- ggplot(T2T_FBCol) +
         axis.text.y = element_text(color=txtColsFrom)) +
   xlab("post-synaptic type") + ylab("pre-synaptic type")
 
-offset = length(typesFrom) + 0.5
 typesFrom <- T2T_FBCol$type.from %>% unique()
+offset = length(typesFrom) + 0.5
 for (g in 1:length(colGps)){
   offset <- offset - length(which(grepl(colGps[g],typesFrom)))
   T2TPlt_FBCol_Manual <- T2TPlt_FBCol_Manual + geom_hline(yintercept = offset)
@@ -167,8 +168,9 @@ Data4Clust <- dcast(Data4Clust,type.from~type.to)
 Data4Clust[is.na(Data4Clust)] <- 0
 rownames(Data4Clust) <- Data4Clust$type.from
 Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
-Data4Clust <- scale(Data4Clust)
-d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+Data4Clust <- scale(Data4Clust) %>% as.matrix()
+#d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+d <- cos_dist(Data4Clust)
 hc <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
 
 fromOrder <- hc$labels[hc$order]
@@ -186,8 +188,9 @@ Data4Clust <- dcast(Data4Clust,type.to~type.from)
 Data4Clust[is.na(Data4Clust)] <- 0
 rownames(Data4Clust) <- Data4Clust$type.to
 Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1))# Calculate the dissimilarity matrix
-Data4Clust <- scale(Data4Clust)
-d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+Data4Clust <- scale(Data4Clust) %>% as.matrix()
+#d <- dist(Data4Clust, method = "euclidean")# Perform hierarchical clustering
+d <- cos_dist(Data4Clust)
 hc <- hclust(d, method = "ward.D2" )# Order the FB tangential cells according to their clustering
 
 toOrder <- hc$labels[hc$order]
@@ -224,9 +227,9 @@ Resort the matrix and plot the correlation matrix - grouped by from connections
 ```{r}
 # Order the FB tangential cells according to their clustering
 Data4Corr <- dcast(T2T_FBCol %>% select(type.from,type.to,weightRelative),type.to~type.from)
-Data4Corr[is.na(Data4Corr)] <- 0
+Data4Corr[is.na(Data4Corr)] <- 0.0
 rownames(Data4Corr) <- Data4Corr$type.to
-Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1))# Plot the correlation matrix
+Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1)) %>% as.matrix()
 
 fromCor <- cor(Data4Corr) %>% melt()
 fromCor$Var1 <- factor(fromCor$Var1, levels = fromOrder)
