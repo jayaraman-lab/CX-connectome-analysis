@@ -14,11 +14,14 @@ library(pbapply)
 library(tidygraph)
 library(gridExtra)
 library(neuprintrExtra)
+library(paletteer)
+library(alphahull)
 
 # Go to the neurpintR-notebooks directory before loading these functions
 source("visualizeConnectivityTables.R")
 # source("neuprintQueryUtils.R")
 source("R/table2ggraphUtils.R")
+source("R/connectivityMatricesTools.R")
 # source("InputOutputByTypeUtils.R")
 # source("R/rois.R")
 # source("R/supertypeUtils.R")
@@ -197,7 +200,7 @@ xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times 
 # Graph the TypeToType ConnTable using the lookupTable
 StrongMBON2nonCXR2CXRTgtComboPath <- graphConTab_old(StrongMBON2nonCXR2CXRTgtComboTable,xyLookup,FALSE,TRUE)
 StrongMBON2nonCXR2CXRTgtComboPath <- StrongMBON2nonCXR2CXRTgtComboPath + scale_y_reverse()
-# print(StrongMBON2nonCXR2CXRTgtComboPath)
+print(StrongMBON2nonCXR2CXRTgtComboPath)
 ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtComboPath, device="svg", path=PlotDir, scale=1, 
        width=30, height=45, units="in", dpi=300, limitsize=FALSE)
 
@@ -206,12 +209,10 @@ StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,Strong
 StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
 
 ```
-### Test cosine distance matrix
+### Make and plot cosine distance matrix
 ```{r}
-StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs <- connectivityMatrix(StrongMBON2nonCXwCXRTgtInpCombSort,unique(StrongMBON2nonCXwCXRTgtInpCombSort$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref="outputs")
-StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs_CosDist <- cos_dist(StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs)
-StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs_CosDistPlot <- HHplot_dist(StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs_CosDist, order=TRUE)
-print(StrongMBON2nonCXwCXRTgtInpCombSortConnMatByOutputs_CosDistPlot)
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
+StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
 
 ```
 
