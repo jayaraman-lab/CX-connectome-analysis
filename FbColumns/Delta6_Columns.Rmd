@@ -51,7 +51,6 @@ PlotDirKmean="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Co
 FigDirPNG="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Column_Positions/FIG_ColPos_PNG/"
 FigDirPDF="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Column_Positions/FIG_ColPos_PDF/"
 
-
 # Create save/plot directory if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
@@ -148,12 +147,15 @@ ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
     TempColumnPositions$prepost="Neither"
   } else if (startsWith(TempSynapseData$type[1],"hDelta")) {
     InputInd=which(TempColumnPositions$prepost == min(TempColumnPositions$prepost))
-    TempColumnPositions$prepost[InputInd] = "Input"
-    if (InputInd == 1){
-      TempColumnPositions$prepost[2] = "Output"
-    } else {
-      TempColumnPositions$prepost[1] = "Output"
-    }
+    if (length(InputInd)==1){
+      TempColumnPositions$prepost[InputInd] = "Input"
+      if (InputInd == 1){
+        TempColumnPositions$prepost[2] = "Output"
+      } else {
+        TempColumnPositions$prepost[1] = "Output"
+      }
+    } else { # if length of prepost min is 2, then both arbors are inputs
+    TempColumnPositions$prepost="Input"}
   }
   
   return(TempColumnPositions)
@@ -172,10 +174,75 @@ Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLa
   
   
   ggsave(paste(PlotDirTemp, TempSynapseData$type[1], " ", as.character(TempSynapseData$bodyid[1]), " ", CurrentLayer, ".png", sep=""),
-         plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 200, limitsize = TRUE)
+         plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 150, limitsize = TRUE)
   
 }
 
+
+GetColorPalette <- function(TempSynapseData){
+  
+  # get color palette
+  TempColNum=length(unique(TempSynapseData$FBcol))
+  if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B"))
+  } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD4F39", "#7D26CD", "#63B8FF", "#FF1493")
+  } else if (TempColNum == 6 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=c("#CD4F39","#7D26CD","#63B8FF","#CD4F39","#7D26CD","#63B8FF")
+  } else if (startsWith(TempSynapseData$type[1],'vDelta')){
+    Colors=color(c("Gray50","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
+  } else if (startsWith(TempSynapseData$type[1],'PF') | startsWith(TempSynapseData$type[1],'FS') | 
+             startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
+    Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
+  }
+  
+  return(Colors)
+}
+
+
+GetColorFactor <- function(TempSynapseData){
+  
+  # get color palette
+  TempColNum=length(unique(TempSynapseData$FBcol))
+  if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12") )
+  } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8") )
+  } else if (TempColNum == 6 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6") )
+  } else if (startsWith(TempSynapseData$type[1],'vDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  } else if (startsWith(TempSynapseData$type[1],'PF') | startsWith(TempSynapseData$type[1],'FS') | 
+             startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  }
+  
+  return(TempSynapseData)
+}
+
+
+PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG){
+  
+  # Conversion vector from pixels to microns
+  Convert=8/1000 # 8 nm/pixel, divided by 1000 nm per um.
+  
+  P3=ggplot() + geom_point(data=TempSynapseData, aes(x=X*Convert, y=-Z*Convert, colour=FBcol, shape=prepost),  size=4, alpha = 0.75) + 
+    coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
+    ggtitle(paste(TempSynapseData$type[1], " ", CurrentLayer , "   Neurons = ", length(unique(TempSynapseData$bodyid)) ,
+                  " of ", as.character(length(unique(TempTypeSynsAll$bodyid))) ,
+                  "   Total Syns = ", sum(TempSynapseData$numsyns),  sep=""))  +
+    scale_color_manual(values=Colors, drop=FALSE) + xlim(-9000*Convert,9000*Convert) + ylim(-6000*Convert, 6000*Convert) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  
+  ggsave(paste(FigDirPDF, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".pdf", sep=""),
+         plot = P3, device='pdf', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  
+  ggsave(paste(FigDirPNG, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".png", sep=""),
+         plot = P3, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 200, limitsize = TRUE)
+  
+  
+}
 
 ```
 
@@ -202,19 +269,20 @@ Delta_ColumnPositions=data.frame(LR=character(),X=numeric(),Y=numeric(), Z=numer
 
 
 # Loop over Delta types and individual neurons and find median location of pre/post arbors
-SynThresh=10 # minimum number of synapses per layer to run kmeans on
+SynThresh=10 # Minimum number of synapses per layer to run kmeans on
+PLOT=TRUE   # Whether to plot or not
 for (ttt in 1:length(Delta_Types)){
   print(as.character(ttt))
   
   # Get synapses for just this neuron type
-  TempTypeSyns_All=subset(Delta_SynsAll, type == Delta_Types[ttt])
+  TempTypeSynsAll=subset(Delta_SynsAll, type == Delta_Types[ttt])
   
   # Loop over neurons and plot data
-  TempBodyIds=unique(TempTypeSyns_All$bodyid)
+  TempBodyIds=unique(TempTypeSynsAll$bodyid)
   for (nnn in 1:length(TempBodyIds)){
     
     # Get data just for this neuron
-    TempNeuronData=subset(TempTypeSyns_All, bodyid == TempBodyIds[nnn])
+    TempNeuronData=subset(TempTypeSynsAll, bodyid == TempBodyIds[nnn])
     TempNeuronData$LR=NA
     
     # Perform K-means on synapses from all layers, add data to dataframe, and plot
@@ -223,27 +291,30 @@ for (ttt in 1:length(Delta_Types)){
     CurrentColumnPositions=ComputeMeanArbor(TempNeuronData, CurrentLayer)
     Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
     eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
-    Plot_Kmeans(TempNeuronData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)
+    if (PLOT==TRUE){Plot_Kmeans(TempNeuronData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
     
     
     # Loop over layers
     TempLayers=sort(unique(TempNeuronData$Layer))
     for (lll in 1:length(TempLayers)){
-      
+  
       # Get data just for this layer
       TempLayerData=subset(TempNeuronData, Layer == TempLayers[lll])
       TempLayerData$LR=NA
       
       if (length(TempLayerData$bodyid)>=SynThresh){
-        # Perform K-means on synapses from this layer, add data to dataframe, and plot
+        # Perform K-means on synapses from this layer, add data to dataframe, and plot.
+        # Note that not all layers will have two clear clusters, especially those with very few synapses,
+        # But these will get filtered out in the plotting step below.
         CurrentLayer=TempLayers[lll]
         TempLayerData=Kmeans_Synapses(TempLayerData)
         CurrentColumnPositions=ComputeMeanArbor(TempLayerData, CurrentLayer)
         Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
         eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
-        Plot_Kmeans(TempLayerData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)
+        if (PLOT==TRUE){Plot_Kmeans(TempLayerData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
       }
     }
+    
   }
 }
 
@@ -253,19 +324,30 @@ for (ttt in 1:length(Delta_Types)){
 
 
 
-# Plot the mean location of each neuron's synapse cloud as a way to show where column locations are
+# Plot the median location of each neuron's synapse cloud as a way to show where column locations are
 # and how evenly spaced they are.
 ```{r}
 
-# Get columnar information from all other FB columnar neurons (the ones the only have single FB arbors)
+# Get median column locations, by layer, for all FB columnar neurons (the ones the only have single FB arbors)
 ColumnPositions_All= FBC_SynsAll %>% group_by(bodyid, bodyname, Layer, type) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), numsyns=n())
 ColumnPositions_All$LR="Neither"
 ColumnPositions_All$prepost="Neither"
 
+# Get median column locations, across all layers , for all FB columnar neurons (the ones the only have single FB arbors)
+ColumnPositions_All_FB= FBC_SynsAll %>% group_by(bodyid, bodyname, type) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), numsyns=n())
+ColumnPositions_All_FB$LR="Neither"
+ColumnPositions_All_FB$prepost="Neither"
+ColumnPositions_All_FB$Layer="FB"
+
+# Combine layer and all-FB locations
+ColumnPositions_All_FB=ColumnPositions_All_FB[colnames(ColumnPositions_All)]
+ColumnPositions_All=rbind(as.data.frame(ColumnPositions_All),as.data.frame(ColumnPositions_All_FB))
+remove(ColumnPositions_All_FB)
+
 # Assign PB-FB-XX shapes based on L/R PB innervation
 Delta_ColumnPositions=Assign_FBcol_PBglom(Delta_ColumnPositions, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
 ColumnPositions_All=Assign_FBcol_PBglom(ColumnPositions_All, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
-ColumnPositions_All$LR[startsWith(ColumnPositions_All$type,"PF")]=ColumnPositions_All$Side[startsWith(ColumnPositions_All$type,"PF")]
+ColumnPositions_All$prepost[startsWith(ColumnPositions_All$type,"PF")]=ColumnPositions_All$Side[startsWith(ColumnPositions_All$type,"PF")]
 ColumnPositions_All=ColumnPositions_All[colnames(Delta_ColumnPositions)]
 
 # Get rid of neurons with two arbors, whose locations were computed above
@@ -287,60 +369,28 @@ for (ttt in 1:length(Columnar_Types)){
   TempSynsPerLayer=TempTypeSynsAll %>% group_by(Layer) %>% summarize(numsyns=mean(numsyns)) ###
   MaxLayer=as.character(TempSynsPerLayer$Layer[which(TempSynsPerLayer$numsyns == max(TempSynsPerLayer$numsyns))]) ###
   
+  
+  # Plot median neuron location for all FB layers
+  CurrentLayer="FB"
+  PlotData=subset(TempTypeSynsAll, Layer==CurrentLayer)
+  eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+  PlotData=GetColorFactor(PlotData)
+  Colors=GetColorPalette(PlotData)
+  PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
+  
+  
   # Loop over layers
   TempLayers=unique(TempTypeSynsAll$Layer)
   for (lll in 1:length(TempLayers)){
     
-    # Get outline for this layer
-    eval(parse( text= paste("OUTLINE=Outline_", TempLayers[lll],"_XZ",sep="") )) ###
+    CurrentLayer=TempLayers[lll]
+    TempLayerData=subset(TempTypeSynsAll, Layer == CurrentLayer)
+    PlotData=subset(TempLayerData, Layer==CurrentLayer)
+    eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+    PlotData=GetColorFactor(PlotData)
+    Colors=GetColorPalette(PlotData)
+    PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
     
-    
-    # Get just the synapses in that layer
-    TempTypeSyns=subset(TempTypeSynsAll, Layer==TempLayers[lll]) ###
-    
-    
-    # Get column information and color map
-    TempTypeSyns=Assign_FBcol_PBglom(TempTypeSyns, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
-    
-    
-    # get color palette
-    TempColNum=length(unique(TempTypeSyns$FBcol))
-    if (TempColNum == 12 & startsWith(TempTypeSyns$type[1],'hDelta')){
-      TempTypeSyns$FBcol=factor(TempTypeSyns$FBcol, levels=sort(unique(TempTypeSyns$FBcol)))
-      Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B"))
-    } else if (TempColNum == 8 & startsWith(TempTypeSyns$type[1],'hDelta')){
-      TempTypeSyns$FBcol=factor(TempTypeSyns$FBcol, levels=sort(unique(TempTypeSyns$FBcol)))
-      Colors=c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD4F39", "#7D26CD", "#63B8FF", "#FF1493")
-    } else if (TempColNum == 6 & startsWith(TempTypeSyns$type[1],'hDelta')){
-      TempTypeSyns$FBcol=factor(TempTypeSyns$FBcol, levels=sort(unique(TempTypeSyns$FBcol)))
-      Colors=c("#CD4F39","#7D26CD","#63B8FF","#CD4F39","#7D26CD","#63B8FF")
-    } else if (startsWith(TempTypeSyns$type[1],'vDelta')){
-      TempTypeSyns$FBcol=factor(TempTypeSyns$FBcol, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9") )
-      Colors=color(c("Gray50","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
-    } else if (startsWith(TempTypeSyns$type[1],'PF') | startsWith(TempTypeSyns$type[1],'FS') | 
-               startsWith(TempTypeSyns$type[1],'FC') | startsWith(TempTypeSyns$type[1],'FR')){
-      TempTypeSyns$FBcol=factor(TempTypeSyns$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
-      Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
-    }
-    
-    # Conversion vector from pixels to microns
-    Convert=8/1000 # 8 nm/pixel, divided by 1000 nm per um.
-    
-    P3=ggplot() + geom_point(data=TempTypeSyns, aes(x=X*Convert, y=-Z*Convert, colour=FBcol, shape=prepost),  size=4, alpha = 0.75) + 
-      coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
-      ggtitle(paste(TempTypeSyns$type[1], " ", TempLayers[lll] , "   Neurons = ", length(unique(TempTypeSyns$bodyid)) ,
-                    " of ", as.character(length(unique(TempTypeSynsAll$bodyid))) ,sep=""))  +
-      scale_color_manual(values=Colors, drop=FALSE) + xlim(-9000*Convert,9000*Convert) + ylim(-6000*Convert, 6000*Convert) +
-      theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-            panel.background = element_blank(), axis.line = element_line(colour = "black"))
-    
-    #ggsave(paste(PlotDir, "ColumnLocs_", TempTypeSyns$type[1], ".pdf", sep=""),
-    #plot = P3, device='pdf', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-    
-    ggsave(paste(FigDirPNG, "ColumnLocs_", TempTypeSyns$type[1], "_", as.character(TempLayers[lll]), ".png", sep=""),
-           plot = P3, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-    
-    remove(Colors)
   }
 }
 
