@@ -31,10 +31,11 @@ library("xlsx")
 library(tidyselect)
 library(reshape2)
 library(scales)
+library(cowplot)
 options(nat.plotengine = 'rgl')
 ```
 
-### Configurable inputs: choose ROI and save/plot directories
+### Configurable inputs: choose save/plot directories
 ```{r}
 
 # Directory to save data to.
@@ -63,7 +64,7 @@ source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
 source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
-
+source("../R/connectivityMatricesTools.R")
 
 ```
 
@@ -77,69 +78,18 @@ Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" 
                startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
                startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
 Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" ) |
-                                                  startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
+                                                startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 ```
 
 
-
-# ##################################################################################################################
-# ######### Figure 1: Plots of 23E10 neuron types  #################################################################
-# ##################################################################################################################
-
-# 1) Plots to show 23E10 made up of multiple cell types
-# 2) Can we find sleep neurons based on DA input?
-
-
-
-# Functions for computing distance/correlation matrices
-```{r}
-
-
-# Define a function converting connection table to matrix of connectivity vectors
-Connectivity_Vectors <- function(connectTable){
-  all <- connectTable %>% expand(from, to) %>% distinct()
-  connectTable_Vectors = connectTable  %>% dplyr::right_join(all, by = c("from", "to"))
-  connectTable_Vectors = connectTable_Vectors[c("from","to","weightRelative")]
-  connectTable_Vectors$weightRelative[is.na( connectTable_Vectors$weightRelative)]=0
-  connectTable_Vectors <- acast(connectTable_Vectors, from ~ to, value.var="weightRelative")
-  return(connectTable_Vectors)
-}
-
-
-# Compute distance or correlation matrices on a connetivity table matrix
-Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames){
-  # Compute distance/correlation matrix
-  if (Method=='binary'){
-    Dist=dist((connectTable_Vectors), method = "binary") 
-  } else if (Method=='spearman') {
-    Dist=cor(t(connectTable_Vectors), method = "spearman")
-  } 
-
-  # Convert to matrix
-  Dist <- as.matrix(Dist)
-  Dist=melt(Dist)
-  colnames(Dist) <- c("bodyid", "bodyid2", "Distance")
-  
-  # Assign names
-  Names=distinct(MetaNames[c("bodyid","name","type")])
-  Dist=inner_join(Dist,Names, by="bodyid")
-  colnames(Names)=c("bodyid2","name2","type2")
-  Dist=inner_join(Dist,Names, by="bodyid2")
-  return(Dist)
-}
-
-
-```
-
-
-
 # Get neurons of interest: the cell types in 23E10 and the two dFB PPL1 DANs
 ```{r}
 
-# Bodyids of neurons with 23E10-like morphologies (including FB7B and FB6H, the putative dopamine neurons)
+# Bodyids of neurons with 23E10-like morphologies (including FB7B and FB6H, the putative dopamine neurons). Important to keep
+# bodyid information in case names change in the future.
 dFB23E10_Like=c(294800293,  297183251,  327203386,  327730878,  329289084,  420842989,  422191200,  422876942,  452029745,  513788774,
            762222901,  915960391,  915964590,  916288456,  916292026,  946308203,  946641212,  946645313,  946978006,  979065964,
            1105955480, 5813019588, 5813020684, 5813020735, 5813026514, 5813049824, 5813050747, 5813055834, 5813057169, 5813058367,
@@ -159,14 +109,55 @@ dFB23E10_Types=c("FB7A","FB7K", "FB6A", "FB6C_a", "FB6C_b", "FB6E", "FB6G", "FB6
 dFB23E10_Meta=subset(dFB23E10_Like_Meta, type %in% dFB23E10_Types)
 dFB23E10_MetaAll=subset(NamedBodies, type %in% dFB23E10_Types) # Get meta data for all 23E10-like types to make sure there are 39 neurons.
 
+
 # Cell types in sleep/wake circuit
 SleepWakeTypes=c(dFB23E10_Types,dFBdan_Types)
+
+
+# Circadian neurons
+DN1=neuprint_search(".*DN1.*")
+
+
+```
+
+
+# ####################################################################################################################
+# ######### Figure 1: Plot of 23E10 and PPL1 circuit #################################################################
+# ####################################################################################################################
+
+
+# Function for computing distance and returning data frame for plotting
+```{r}
+
+# Compute distance or correlation matrices on a connetivity table matrix
+Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames){
+  
+  # Compute similarity matrix
+  if (Method=='binary'){
+     Sim=1-bin_dist(connectTable_Vectors,0)
+  } else if (Method=='cosine') {
+     Sim = 1-cos_dist(connectTable_Vectors)
+  } 
+
+  # Convert to data frame
+  Sim <- as.matrix(Sim)
+  Sim=melt(Sim)
+  colnames(Sim) <- c("bodyid", "bodyid2", "Similarity")
+  
+  # Assign names
+  Names=distinct(MetaNames[c("bodyid","name","type")])
+  Sim=inner_join(Sim,Names, by="bodyid")
+  colnames(Names)=c("bodyid2","name2","type2")
+  Sim=inner_join(Sim,Names, by="bodyid2")
+  return(Sim)
+}
+
 
 ```
 
 
 
-# Make plot showing similarity between neurons making up the 23E10 line.
+# Plot similarity between 23E10 types, to show that there a multiple distinct types
 ```{r}
 
 
@@ -177,19 +168,19 @@ dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
 
 
 # Compute input and output vectors, then concatenate
-dFB23E10_Outputs_Vectors=Connectivity_Vectors(subset(dFB23E10_Outputs, weightRelative>0.008))  #0.008 good threshold
-dFB23E10_Inputs_Vectors=t(Connectivity_Vectors(subset(dFB23E10_Inputs, weightRelative>0.008))) #0.008 good threshold
+dFB23E10_Thresh=0.008 #0.008 good threshold
+#dFB23E10_Outputs$from=as.character(dFB23E10_Outputs$from)
+#dFB23E10_Outputs$to=as.character(dFB23E10_Outputs$to)
+dFB23E10_Outputs_Vectors= connectivityMatrix(subset(dFB23E10_Outputs, weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to")
+dFB23E10_Inputs_Vectors=t(connectivityMatrix(subset(dFB23E10_Inputs,  weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to"))
+dFB23E10_Outputs_Vectors=dFB23E10_Outputs_Vectors[order(rownames(dFB23E10_Outputs_Vectors)),]
+dFB23E10_Inputs_Vectors=dFB23E10_Inputs_Vectors[order(rownames(dFB23E10_Inputs_Vectors)),]
 dFB23E10_InputsOutputs_Vectors=cbind(dFB23E10_Outputs_Vectors, dFB23E10_Inputs_Vectors)
 
 
-# Compute distance
+# Compute cosine distance
 MetaNames=dFB23E10_Meta[c("bodyid","name","type")]
-dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "binary", MetaNames)
-dFB23E10_Distance$Similarity=1-dFB23E10_Distance$Distance # convert distance to Jaccard similarity coefficient
-
-
-# Compute correlation
-dFB23E10_Correlation=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "spearman", MetaNames)
+dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "cosine", MetaNames)
 
 
 # Plot similarity
@@ -200,45 +191,20 @@ dFB23E10_Distance$bodyid2=as.character(dFB23E10_Distance$bodyid2)
 dFB23E10_Distance$type=factor(dFB23E10_Distance$type, levels=sort(unique(dFB23E10_Distance$type)))
 dFB23E10_Distance$type2=factor(dFB23E10_Distance$type2, levels=sort(unique(dFB23E10_Distance$type2),decreasing = TRUE))
 
+
 P1=ggplot(dFB23E10_Distance) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="white", mid="red", high="black", 
-                        midpoint=0.3,limits=c(0,0.6),oob=squish,breaks = c(0,0.3,0.6)) +
+  scale_fill_gradient2(low="white", mid="gray50", high="black", 
+                        midpoint=0.5,limits=c(0,1),oob=squish,breaks = c(0,0.5,1)) +
   geom_tile(aes(plotname,plotname2,fill=Similarity))  + 
   facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
   theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.border = element_rect(colour = "black", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         axis.ticks = element_blank(),
         aspect.ratio = 1) 
- ggsave(paste(PlotDir, "FIGURE_", "23e10_Similarity.pdf",sep=""),
+ ggsave(paste(PlotDir, "FIGURE_", "23e10_SimilarityCosine.pdf",sep=""),
          plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
-
-
-
-# Plot correlation coefficient, to show that you get a similar result.
-dFB23E10_Correlation$plotname=paste(dFB23E10_Correlation$type,  as.character(dFB23E10_Correlation$bodyid),sep="__")
-dFB23E10_Correlation$plotname2=paste(dFB23E10_Correlation$type2, as.character(dFB23E10_Correlation$bodyid2),sep="__")
-dFB23E10_Correlation$bodyid=as.character(dFB23E10_Correlation$bodyid)
-dFB23E10_Correlation$bodyid2=as.character(dFB23E10_Correlation$bodyid2)
-dFB23E10_Correlation$type=factor(dFB23E10_Correlation$type, levels=sort(unique(dFB23E10_Correlation$type)))
-dFB23E10_Correlation$type2=factor(dFB23E10_Correlation$type2, levels=sort(unique(dFB23E10_Correlation$type2),decreasing = TRUE))
-
-P2=ggplot(dFB23E10_Correlation) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", mid="white", high="red", 
-                       midpoint =0, limits=c(-0.5,0.5),oob=squish) +
-  geom_tile(aes(plotname,plotname2,fill=Distance))  + 
-  facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "black", fill = NA), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        axis.ticks = element_blank(),
-        aspect.ratio = 1)  
- ggsave(paste(PlotDir, "FIGURE_", "23e10_Correlation.pdf",sep=""),
-         plot = P2, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
 
 
 ```
@@ -261,7 +227,7 @@ FB_N2N_Output=FB_Bag$outputs_raw
 
 # Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
 SleepWake_N2N_InputOutput=subset(FB_N2N_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes)
-SleepWake_N2N_InputOutput=subset(SleepWake_N2N_InputOutput, weightRelative > 0.0005)
+SleepWake_N2N_InputOutput=subset(SleepWake_N2N_InputOutput, weightRelative > 0.0005) #0.0005
 
 # Plot matrix
 SleepWake_N2N_InputOutput$fromname=paste(SleepWake_N2N_InputOutput$type.from,  as.character(SleepWake_N2N_InputOutput$from),sep="__")
@@ -281,10 +247,8 @@ P1=ggplot(SleepWake_N2N_InputOutput) +
         panel.spacing = unit(0, "lines"),#remove space between facets
         axis.ticks = element_blank(),
         aspect.ratio = 1) 
- ggsave(paste(PlotDir, "FIGURE_", "SleepWave_N2N.pdf",sep=""),
+ ggsave(paste(PlotDir, "FIGURE_", "SleepWake_N2N.pdf",sep=""),
          plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
-
 
 
 
@@ -296,67 +260,7 @@ P1=ggplot(SleepWake_N2N_InputOutput) +
 
 
 # Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
-SleepWake_T2T_InputOutput=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes)
-SleepWake_T2T_Input=subset(SleepWake_T2T_InputOutput, type.to %in% SleepWakeTypes)
-SleepWake_T2T_Output=subset(SleepWake_T2T_InputOutput, type.from %in% SleepWakeTypes & !type.to=="FB07?")
-
-
-###################################### Plots of 23E10 Inputs ###################################################
-
-# Plot and save un-sorted type-to-type connectivity matrices for 23E10 inputs
-P1=ggplot(subset(SleepWake_T2T_Input,weightRelative>0.01)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                       midpoint =0.15, limits=c(0,0.3),oob=squish) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs")
-ggsave(paste(PlotDir, "23e10_TypeToType_Inputs.png",sep=""),
-         plot = P1, device='png', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
-
-# Divide presynaptic neurons into groups that target FB layer 6 and those that target layer 7
-InputGrouping = SleepWake_T2T_Input %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative)) 
-InputGrouping = InputGrouping[c("type.from","type.to")]                                                                            
-InputGrouping$InputGrouping=NA
-InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB6")]=6
-InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB7")]=7
-InputGrouping = InputGrouping[c("type.from","InputGrouping")]
-SleepWake_T2T_Input=merge(SleepWake_T2T_Input,InputGrouping, by = "type.from")
-SleepWake_T2T_Input$InputGrouping=factor(SleepWake_T2T_Input$InputGrouping,levels=c(7,6))
-
-# Group postsynaptic 23E10 types by FB layer
-SleepWake_T2T_Input$OutputGrouping=NA
-SleepWake_T2T_Input$OutputGrouping[startsWith(SleepWake_T2T_Input$type.to,"FB6")]=6
-SleepWake_T2T_Input$OutputGrouping[startsWith(SleepWake_T2T_Input$type.to,"FB7")]=7
-SleepWake_T2T_Input$OutputGrouping=factor(SleepWake_T2T_Input$OutputGrouping, levels=c(7,6))
-
-# Make plot with sorted 23E10 input matrix (NEED TO FIX)
-P1b=ggplot(subset(SleepWake_T2T_Input,weightRelative>0.01)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs") + 
-  facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
-   theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "black", fill = NA), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        #axis.ticks = element_blank(),
-        aspect.ratio = 1)  
-ggsave(paste(PlotDir, "23e10_TypeToType_Inputs_Sorted.pdf",sep=""),
-         plot = P1b, device='pdf', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
-
-
-
-
-###################################### Plots of 23E10 Outputs ###################################################
-
-
-# Plot and save un-sorted type-to-type connectivity matrices for 23E10 outputs
-P2=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs")
-ggsave(paste(PlotDir, "23e10_TypeToType_Outputs.png",sep=""),
-         plot = P2, device='png', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+SleepWake_T2T_Output=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
 
 
 # Group presynaptic 23E10 types by FB layer
@@ -377,7 +281,7 @@ SleepWake_T2T_Output=merge(SleepWake_T2T_Output,OutputGrouping, by = "type.to")
 SleepWake_T2T_Output$OutputGrouping=factor(SleepWake_T2T_Output$OutputGrouping,levels=c(6,7))
 
 
-# Make plot of sorted 23E10 output matrix (NEED TO FIX)
+# Make plot of sorted 23E10 output matrix
 P2b=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
@@ -385,13 +289,12 @@ P2b=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) +
   geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs") + 
   facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
    theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         #axis.ticks = element_blank(),
         aspect.ratio = 1)  
 ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
          plot = P2b, device='pdf', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-
 
 
 
@@ -402,125 +305,61 @@ ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
 ```{r}
 
 # Load libraries
-library(visNetwork)
-require(visNetwork, quietly = TRUE)
 library(paletteer)
 
-
 # Get input data
-GraphTable=SleepWake_T2T_InputOutput
-GraphTable=subset(GraphTable, weightRelative > 0)
+GraphTable=SleepWake_T2T_Output
 
 # remove self connections
 GraphTable=subset(GraphTable, !(type.from == type.to) )
 
-# Get colors
-pcCols <- paletteer_d("Polychrome::palette36")
-sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCols[7],pcCols[26],pcCols[1])
 
-
-# Set node id and name
+# Set node node
 IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
-IDs_Num=order(IDs_Type)
-nodes=data.frame(id = IDs_Num, name=IDs_Type)
-nodes$title <- nodes$name %>% as.character()
-nodes$label <- nodes$name %>% as.character()
-nodes$font.size <- 12
-nodes$size <- 10
-nodes$color.border <- "black"
-nodes$color=c(pcCols[6],pcCols[6],pcCols[6],pcCols[6],pcCols[6],pcCols[17],pcCols[6],pcCols[6],pcCols[15],pcCols[17],pcCols[15])
+NODES=data.frame(name=IDs_Type)
 
 
 # Set node positions
-nodes=nodes[c(1,3,7,4,8,2,5,9,11,6,10),]
+NODES$name=NODES$name[c(1,3,7,4,8,2,5,9,11,6,10)]
+NODES$angle=NA
+NODES$x=NA
+NODES$y=NA
 
-nodes$angle=NA
-nodes$x=NA
-nodes$y=NA
+Diff=pi/(4)
+NODES$angle[c(1,2,3,4,5)]=seq(from = 0, to = pi , by = Diff)
+NODES$x=cos(NODES$angle)*200
+NODES$y=sin(NODES$angle)*100
 
-CASE=2
-if (CASE==1){
-  Diff=2*pi/(length(nodes$id)-2)
-  nodes$angle[c(1,2,3,4,5,6,7,8,9)]=seq(from = 0, to = 2*pi-Diff , by = Diff)
-  nodes$x=cos(nodes$angle)*200
-  nodes$y=sin(nodes$angle)*200
-  nodes$x[nodes$name == "FB6H"] = -50
-  nodes$y[nodes$name == "FB6H"] = 0
-  nodes$x[nodes$name == "FB7B"] = 50
-  nodes$y[nodes$name == "FB7B"] = 0
-}else if (CASE==2){
-  
-  Diff=pi/(4)
-  nodes$angle[c(1,2,3,4,5)]=seq(from = 0, to = pi , by = Diff)
-  nodes$x=cos(nodes$angle)*200
-  nodes$y=sin(nodes$angle)*200
-  
-  nodes$x[6]=-100
-  nodes$y[6]=0
-  
-  nodes$x[7]=100
-  nodes$y[7]=0
-  
-  nodes$x[8]=0
-  nodes$y[8]=-200
-  
-  nodes$x[9]=100
-  nodes$y[9]=-300
-  
-  nodes$x[10]=0
-  nodes$y[10]=-100
-  
-  nodes$x[11]=-100
-  nodes$y[11]=-300
+NODES$x[6]=-125
+NODES$y[6]=0
 
-}
+NODES$x[7]=125
+NODES$y[7]=0
 
-# populated edges dataframe
-nodes_from=nodes[c("id","name")]
-colnames(nodes_from) = c("from","type.from")
-nodes_to=nodes[c("id","name")]
-colnames(nodes_to) = c("to","type.to")
-edges=GraphTable[c("type.from","type.to","weightRelative")]
-edges <- merge(edges,nodes_to,by=c("type.to")) 
-edges <- merge(edges,nodes_from,by=c("type.from")) 
-edges$width = edges$weightRelative*20
-edges$arrows <- "to"
-edges$smooth <- TRUE
-#vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
+NODES$x[8]=0
+NODES$y[8]=-200/1.2
 
+NODES$x[9]=100
+NODES$y[9]=-300/1.3
 
-v <- visNetwork(nodes, edges, width="100%", height="800px",main= "inputs -> outputs") %>% 
-  visEdges(smooth=list(enabled =TRUE, type = "curvedCCW",ForceDirection=TRUE,roundness=0.1)) %>%
-  visNodes(fixed = TRUE, physics=FALSE) %>%  
-  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 2,algorithm="hierarchical")) 
+NODES$x[10]=0
+NODES$y[10]=-100/1.2
 
+NODES$x[11]=-100
+NODES$y[11]=-300/1.3
 
-# Save the plot
-visSave(v, paste(PlotDir,"SleepWakeGraph.html"), selfcontained = TRUE, background = "white")
-
-
-
-
-
-# colors
-pcCols <- paletteer_d("Polychrome::palette36")
-col_vector=c(pcCols[13],pcCols[15],"gray50")
-
-
-# nodes
-NODES=nodes
+# NODES
 NODES$y=-NODES$y
-NODES$name=as.character(NODES$name)
-NODES=NODES[c("name","x","y")]
-NODES$COLORZ=pcCols[13]
-NODES$COLORZ[NODES$name == "FB6H" | NODES$name == "FB7B"]=pcCols[15]
+NODES$COLORZ="dodgerblue3"
+NODES$COLORZ[NODES$name == "FB6H" | NODES$name == "FB7B"]="magenta3"
 
-
+# edges
 EDGES=GraphTable[c("type.from","type.to","weightRelative")]
 
 # Threshold
 EDGES=subset(EDGES,weightRelative >0.01)
 
+# edges
 colnames(EDGES)=c("from","to","weight")
 EDGES$from=as.character(EDGES$from)
 EDGES$to=as.character(EDGES$to)
@@ -529,15 +368,19 @@ EDGES$COLORZ[EDGES$from == "FB6H" | EDGES$from == "FB7B"]="Wake to sleep"
 EDGES$COLORZ[EDGES$to   == "FB6H" | EDGES$to   == "FB7B"]="Sleep to Wake"
 EDGES$COLORZ=factor(EDGES$COLORZ,levels=c("Sleep to Wake", "Wake to sleep", "Sleep to Sleep"))
 
+
+# Make ggraph object
 graph = tbl_graph(NODES, EDGES)
 
+# colors
+pcCols <- paletteer_d("Polychrome::palette36")
+col_vector=c(pcCols[15],pcCols[13],"gray50")
 
-
-
+# Make plot and save
 P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
   geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(3, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.5, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=10) +
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(1, 'cm'), alpha=1,strength=1) +
+  geom_node_point(color=NODES$COLORZ, size=20) +
   geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
   theme_classic() + 
   theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
@@ -545,11 +388,488 @@ P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) +
         axis.text.y=element_blank(),axis.ticks=element_blank(),
         axis.title.x=element_blank(),axis.title.y=element_blank()) +
   scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
+ggsave(paste(PlotDir, "FIGURE_SleepWake_N2N_Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8.2, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+
+remove(EDGES,NODES,graph,P1)
+
+```
 
 
-ggsave(paste(PlotDir, "Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
+# ####################################################################################################################
+# ######### Figure 2: Plot of upstream/downstream of 23E10 and PPL1 circuit ##########################################
+# ####################################################################################################################
+
+
+
+
+# Now look at upstream and downstream connections of 23E10 and PPL1 neurons
+```{r}
+
+
+# Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
+SleepWakeAll_T2T_InputOutput=subset(FB_T2T_Output, type.from %in% SleepWakeTypes | type.to %in% SleepWakeTypes)
+SleepWakeAll_T2T_Input=subset(SleepWakeAll_T2T_InputOutput, type.to %in% SleepWakeTypes)
+SleepWakeAll_T2T_Output=subset(SleepWakeAll_T2T_InputOutput, type.from %in% SleepWakeTypes & !type.to=="FB07?")
+
+
+###################################### Plots of 23E10 Inputs ###################################################
+
+# Plot and save un-sorted type-to-type connectivity matrices for 23E10 inputs
+P1=ggplot(subset(SleepWakeAll_T2T_Input,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.15, limits=c(0,0.3),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs")
+ggsave(paste(PlotDir, "23e10_TypeToType_Inputs.png",sep=""),
+         plot = P1, device='png', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+# Divide presynaptic neurons into groups that target FB layer 6 and those that target layer 7
+InputGrouping = SleepWakeAll_T2T_Input %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative)) 
+InputGrouping = InputGrouping[c("type.from","type.to")]                                                                            
+InputGrouping$InputGrouping=NA
+InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB6")]=6
+InputGrouping$InputGrouping[startsWith(InputGrouping$type.to,"FB7")]=7
+InputGrouping = InputGrouping[c("type.from","InputGrouping")]
+SleepWakeAll_T2T_Input=merge(SleepWakeAll_T2T_Input,InputGrouping, by = "type.from")
+SleepWakeAll_T2T_Input$InputGrouping=factor(SleepWakeAll_T2T_Input$InputGrouping,levels=c(7,6))
+
+# Group postsynaptic 23E10 types by FB layer
+SleepWakeAll_T2T_Input$OutputGrouping=NA
+SleepWakeAll_T2T_Input$OutputGrouping[startsWith(SleepWakeAll_T2T_Input$type.to,"FB6")]=6
+SleepWakeAll_T2T_Input$OutputGrouping[startsWith(SleepWakeAll_T2T_Input$type.to,"FB7")]=7
+SleepWakeAll_T2T_Input$OutputGrouping=factor(SleepWakeAll_T2T_Input$OutputGrouping, levels=c(7,6))
+
+# Make plot with sorted 23E10 input matrix (NEED TO FIX)
+P1b=ggplot(subset(SleepWakeAll_T2T_Input,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Inputs") + 
+  facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
+   theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "black", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(PlotDir, "SleepWake_InputsAll_Sorted.pdf",sep=""),
+         plot = P1b, device='pdf', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+###################################### Plots of 23E10 Outputs ###################################################
+
+
+# Plot and save un-sorted type-to-type connectivity matrices for 23E10 outputs
+P2=ggplot(subset(SleepWakeAll_T2T_Output,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs")
+ggsave(paste(PlotDir, "23e10_TypeToType_Outputs.png",sep=""),
+         plot = P2, device='png', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+# Group presynaptic 23E10 types by FB layer
+SleepWakeAll_T2T_Output$InputGrouping=NA
+SleepWakeAll_T2T_Output$InputGrouping[startsWith(SleepWakeAll_T2T_Output$type.from,"FB6")]=6
+SleepWakeAll_T2T_Output$InputGrouping[startsWith(SleepWakeAll_T2T_Output$type.from,"FB7")]=7
+SleepWakeAll_T2T_Output$InputGrouping=factor(SleepWakeAll_T2T_Output$InputGrouping, levels=c(7,6))
+
+
+# Divide postsynaptic neurons into groups targetted by layer 6 or layer 7 neurons
+OutputGrouping = SleepWakeAll_T2T_Output %>% group_by(type.to) %>% filter(weightRelative == max(weightRelative)) 
+OutputGrouping = OutputGrouping[c("type.from","type.to")]                                                                            
+OutputGrouping$OutputGrouping=NA
+OutputGrouping$OutputGrouping[startsWith(OutputGrouping$type.from,"FB6")]=6
+OutputGrouping$OutputGrouping[startsWith(OutputGrouping$type.from,"FB7")]=7
+OutputGrouping = OutputGrouping[c("type.to","OutputGrouping")]
+SleepWakeAll_T2T_Output=merge(SleepWakeAll_T2T_Output,OutputGrouping, by = "type.to")
+SleepWakeAll_T2T_Output$OutputGrouping=factor(SleepWakeAll_T2T_Output$OutputGrouping,levels=c(6,7))
+
+
+# Make plot of sorted 23E10 output matrix
+P2b=ggplot(subset(SleepWakeAll_T2T_Output,weightRelative>0.01)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs") + 
+  facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
+   theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(PlotDir, "SleepWake_OutputsAll_Sorted.pdf",sep=""),
+         plot = P2b, device='pdf', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+```
+
+
+
+# Try some pathway tracing out of dFB sleep/wake circuit
+```{r include=FALSE}
+
+
+#Start=neuprint_search("FB6A.*")
+Start=subset(NamedBodies, type %in% SleepWakeTypes)
+Steps=3
+
+# Trace downstream pathways
+CurrentLayer=Start
+for (nnn in 1:Steps){
+  print(nnn)
+  
+  
+  bag <- create_neuronBag(CurrentLayer,by.roi=FALSE,omitInputs=TRUE,selfRef=FALSE)  
+  
+  # use raw input and group, because taking the type-to-type drops the huge PFG-->ExR3 connection
+  # should I lateralize?
+  Out=bag$outputs_newnewnewseeabove
+  Out$Step=nnn
+  
+  Out=subset(Out, weightRelative>0.005)          # Need to threshold some to keep the number of weak pathways from exloding in number
+  Out=subset(Out, grepl("\\D", Out$type.to))     # remove neurons with just bodyids as type names
+  #Out=subset(Out, !(type.to %in% Out$type.from)) # no within-layer connections
+
+  if (nnn==1){
+    Pathway=Out
+  } else {
+    #Out=subset(Out, !(type.to %in% Pathway$type.from) ) # no backward connections
+    Pathway=rbind(Pathway,Out)
+  }
+  
+  TempBodies=subset(bag$outputs_raw, type.to %in% Out$type.to)
+  CurrentLayer=neuprint_get_meta(unique(TempBodies$to))
+}
+
+
+```
+
+
+
+```{r}
+
+PFGs_Data=neuprint_search("PFGs.*")
+bag <- create_neuronBag(PFGs_Data,by.roi=FALSE,omitInputs=FALSE,selfRef=FALSE)  
+Out=bag$outputs # There is no PFG-->ExR3 connection here in the type-to-type
+
+Out_Raw=bag$outputs_raw
+Out_Raw_Sub=subset(Out_Raw,type.to == "ExR3") # the PFGs-->ExR3 connection is present in this table
+
+
+```
+
+
+
+# Look at clustering of pathways from layer 1-->2 and 2-->3
+```{r}
+
+# Cluster Layer 1
+Layer1=subset(Pathway,Step==1)
+Layer1_Vectors=connectivityMatrix(Layer1,"All brain", allToAll=FALSE, from="type.from",to="type.to")
+Layer1_Dist = cos_dist(Layer1_Vectors)
+Layer1_Clust=hclust(Layer1_Dist)
+
+
+# Cluster Layer 2 by their inputs from layer 1 and their outputs to layer 2
+Layer2=subset(Pathway,Step==2)
+Layer2_Vectors_fL1=t(connectivityMatrix(Layer1,"All brain", allToAll=FALSE, from="type.from",to="type.to"))
+Layer2_Vectors_tL2=connectivityMatrix(Layer2,"All brain", allToAll=FALSE, from="type.from",to="type.to")
+Layer2_Vectors_fL1=Layer2_Vectors_fL1[rownames(Layer2_Vectors_fL1) %in% rownames(Layer2_Vectors_tL2), ]
+Layer2_Vectors_fL1=Layer2_Vectors_fL1[rownames(Layer2_Vectors_tL2),]
+Layer2_Vectors=cbind(Layer2_Vectors_fL1, Layer2_Vectors_tL2)
+Layer2_Dist = cos_dist(Layer2_Vectors)
+Layer2_Clust=hclust(Layer2_Dist)
+
+
+# Cluster Layer 3 by their inputs from layer 2
+Layer3=subset(Pathway,Step==2)
+Layer3_Vectors=t(connectivityMatrix(Layer3,"All brain", allToAll=FALSE, from="type.from",to="type.to"))
+Layer3_Dist = cos_dist(Layer3_Vectors)
+Layer3_Clust=hclust(Layer3_Dist)
+
+
+
+
+plot(Layer3_Clust)
+
+plot_dist_interactive(Layer3_Dist,order=TRUE)
+
+
+```
+
+
+# Make graph of network dostream of Sleep-wake circuit
+```{r include=FALSE}
+
+
+# Select layers to plot 
+Graph=subset(Pathway,Step<3)
+Graph=subset(Graph, outputContribution >0)
+
+
+# Get ride of layer1 recurrent connections and layer2 reccurent connections
+Graph=subset(Graph, !(Graph$Step==2 & type.to %in% subset(Graph, Step==1)$type.to) )
+Graph=subset(Graph, !(Graph$Step==1 & type.to %in% subset(Graph, Step==1)$type.from) )
+
+
+# Look at all the neurons present and exclude any fragments, etc.
+PotentialTypes=data.frame(name=sort(unique(c(Graph$type.from, Graph$type.to))))
+Exclude=c("FB07?","TuBu","(PDM05)")
+Graph=subset(Graph,!(type.to %in% Exclude | type.from %in% Exclude))
+Graph=subset(Graph, !startsWith(type.to,"("))
+
+
+
+# Set node layers
+MostLayers=distinct(Graph[c("type.from","Step")])
+LastLayer=distinct(Graph[c("type.to","Step")])
+LastLayer=subset(LastLayer, !type.to %in% MostLayers$type.from)
+LastLayer$Step=LastLayer$Step+1
+colnames(MostLayers)=c("name","Step")
+colnames(LastLayer)=c("name","Step")
+NODES=rbind(MostLayers,LastLayer)
+NODES=NODES[order(NODES$name),]
+
+
+# Set note positions
+Case=1
+if (Case==1){
+  
+  # Define node groupings
+  NODES$Group=NA
+  NODES$x=NA
+  NODES$y=NA
+  
+  ##############################
+  ### First layer groupings ###
+  ##############################
+  
+  NODES$Group[NODES$Step==1 & startsWith(NODES$name, "FB6") ] = "L1_G1"
+  NODES$Group[NODES$Step==1 & startsWith(NODES$name, "FB7") ] = "L1_G2"
+   
+  
+  l1nodes=sum(NODES$Step==1)
+  NODES$x[NODES$Step==1]=0
+  NODES$y[NODES$Step==1]=seq(from=-l1nodes/2,l1nodes/2-1,by=1)*3
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G2") ] = rev(NODES$y[NODES$Step==1 &
+                                                                             startsWith(NODES$Group, "L1_G2")] + 6)
+  NODES$y[NODES$Step==1 & startsWith(NODES$Group, "L1_G1") ] = rev(NODES$y[NODES$Step==1 & 
+                                                                             startsWith(NODES$Group, "L1_G1") ] - 2)
+  
+  NODES$y[NODES$Step==1]=NODES$y[NODES$Step==1]*3
+  
+  ##############################
+  ### Second layer groupings ###
+  ##############################
+  Scale_L2=4
+  
+  FB_L2_G1=c("FB1I","FB1J","FB7L","FB8C","vDeltaB","FB6T","FB6Q")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G1] = "L2_G1"
+  NODES$x[which(NODES$Group=="L2_G1")]=1
+  NODES$y[which(NODES$Group=="L2_G1")]=ceiling(seq(from=-length(FB_L2_G1)/2,length(FB_L2_G1)/2-1,by=1) + 12)*Scale_L2
+  
+  
+  FB_L2_G2=c("hDeltaD","FB8B","ExR3")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G2] = "L2_G2"
+  NODES$x[which(NODES$Group=="L2_G2")]=1
+  NODES$y[which(NODES$Group=="L2_G2")]=(seq(from=-length(FB_L2_G2)/2,length(FB_L2_G2)/2-1,by=1) + 4) *Scale_L2
+  
+  
+  FB_L2_G5=c("FB5G","FB5Y","FC2B","FC2C","hDeltaG")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G5] = "L2_G5"
+  NODES$x[which(NODES$Group=="L2_G5")]=1
+  NODES$y[which(NODES$Group=="L2_G5")]=(seq(from=-length(FB_L2_G5)/2,length(FB_L2_G5)/2-1,by=1) - 2) *Scale_L2
+  
+  
+  FB_L2_G6=c("vDeltaC","vDeltaD","FB6D","FB6F","FB6O","FB6P","FB7G","FB7I","FB6J","PFGs",
+             "FB6Y","FB7C","FB7D","FB7E","FB7H","FB7J","FB7M")
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G6] = "L2_G6"
+  NODES$x[which(NODES$Group=="L2_G6")]=0.9
+  NODES$y[which(NODES$Group=="L2_G6")]=(seq(from=-length(FB_L2_G6)/2,length(FB_L2_G6)/2-1,by=1) - 16) *Scale_L2
+  
+  
+  
+  FB_L2_G8=NODES$name[startsWith(NODES$name,"hDel") & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G8] = "L2_G8"
+  NODES$x[which(NODES$Group=="L2_G8")]=1
+  NODES$y[which(NODES$Group=="L2_G8")]=(seq(from=-length(FB_L2_G8)/2,length(FB_L2_G8)/2-1,by=1) - 31) *Scale_L2
+
+  
     
+  FB_L2_G8b=NODES$name[(startsWith(NODES$name,"FC") |  startsWith(NODES$name,"FS") )
+                      & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G8b] = "L2_G8b"
+  NODES$x[which(NODES$Group=="L2_G8b")]=1
+  NODES$y[which(NODES$Group=="L2_G8b")]=(seq(from=-length(FB_L2_G8b)/2,length(FB_L2_G8b)/2-1,by=1) - 36) *Scale_L2
+
+  
+  FB_L2_G7=NODES$name[startsWith(NODES$name,"FB") & NODES$Step==2 & is.na(NODES$Group)]
+  NODES$Group[NODES$Step==2 & NODES$name %in% FB_L2_G7] = "L2_G7"
+  NODES$x[which(NODES$Group=="L2_G7")]=1
+  NODES$y[which(NODES$Group=="L2_G7")]=(seq(from=-length(FB_L2_G7)/2,length(FB_L2_G7)/2-1,by=1) - 45) *Scale_L2
+  
+  
+  logica=sum(is.na(NODES$x) & NODES$Step==2)
+  NODES$x[is.na(NODES$x) & NODES$Step==2]=1
+  NODES$y[is.na(NODES$y) & NODES$Step==2]=(seq(from=-1, to=-logica, by=-1)-53)*Scale_L2
+  
+  
+  
+  ##############################
+  ### Third layer groupings ####
+  ##############################  
+  
+  Scale_L3=2.5
+  
+  
+  FB_L3_G1=c("vDeltaA_b","FB8H","FB8I","FB1G","FB1A")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G1] = "L3_G1"
+  NODES$x[which(NODES$Group=="L3_G1")]=2
+  NODES$y[which(NODES$Group=="L3_G1")]=ceiling(seq(from=-length(FB_L3_G1)/2,length(FB_L3_G1)/2-1,by=1) + 10)*Scale_L3
+  
+  
+  
+  FB_L3_G2=c("EL","EPG","ER2_a","ER2_c","ER2_d","ER3a_a","ER3a_c","ER3d_a","ER3d_b","ER3d_c","ER3d_d",
+             "ER3m","ER3p_a","ER3p_b","ER4d","ER4m","ER5","ExR2","ExR5")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G2] = "L3_G2"
+  NODES$x[which(NODES$Group=="L3_G2")]=2
+  NODES$y[which(NODES$Group=="L3_G2")]=ceiling(seq(from=-length(FB_L3_G2)/2,length(FB_L3_G2)/2-1,by=1) -4)*Scale_L3
+  
+  
+  FB_L3_G2b=c("ExR1")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G2b] = "L3_G2b"
+  NODES$x[which(NODES$Group=="L3_G2b")]=2
+  NODES$y[which(NODES$Group=="L3_G2b")]=ceiling(seq(from=-length(FB_L3_G2b)/2,length(FB_L3_G2b)/2-1,by=1) - 16)*Scale_L3
+  
+  
+  
+  FB_L3_G3=c("AOTU046","TuBu02","TuBu03","TuBu04")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G3] = "L3_G3"
+  NODES$x[which(NODES$Group=="L3_G3")]=2
+  NODES$y[which(NODES$Group=="L3_G3")]=ceiling(seq(from=-length(FB_L3_G3)/2,length(FB_L3_G3)/2 -1,by=1)-20 )*Scale_L3
+  
+  
+  
+  FB_L3_G4=c("PFL2","PFL3")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G4] = "L3_G4"
+  NODES$x[which(NODES$Group=="L3_G4")]=2
+  NODES$y[which(NODES$Group=="L3_G4")]=ceiling(seq(from=-length(FB_L3_G4)/2,length(FB_L3_G4)/2 -1,by=1)-25 )*Scale_L3
+  
+  
+  FB_L3_G5=NODES$name[(startsWith(NODES$name,"SLP") | startsWith(NODES$name,"SMP") | startsWith(NODES$name,"SIP")) &
+                        NODES$Step==3]
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G5] = "L3_G5"
+  Angles=seq(from=-pi, to=pi, by=2*pi/(length(FB_L3_G5)-1))
+  NODES$x[which(NODES$Group=="L3_G5")]=(1.75+cos(Angles)*0.25)
+  NODES$y[which(NODES$Group=="L3_G5")]=(-265 + sin(Angles)*20)
+  
+  
+  FB_L3_G6=Graph$type.to[Graph$type.from %in% FB_L2_G1] 
+  FB_L3_G6=FB_L3_G6[FB_L3_G6 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G6] = "L3_G6"
+  NODES$x[which(NODES$Group=="L3_G6")]=2
+  NODES$y[which(NODES$Group=="L3_G6")]=ceiling(seq(from=-length(FB_L3_G6)/2,length(FB_L3_G6)/2-1 ,by=1)-29 )*Scale_L3
+  
+  
+  
+  FB_L3_G7=Graph$type.to[Graph$type.from %in% c("hDeltaD","FB8B","ExR3")] 
+  FB_L3_G7=FB_L3_G7[FB_L3_G7 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G7] = "L3_G7"
+  NODES$x[which(NODES$Group=="L3_G7")]=2
+  NODES$y[which(NODES$Group=="L3_G7")]=ceiling(seq(from=-length(FB_L3_G7)/2,length(FB_L3_G7)/2-1 ,by=1)-35 )*Scale_L3
+  
+
+
+  FB_L3_G8=Graph$type.to[Graph$type.from %in% FB_L2_G5] 
+  FB_L3_G8=FB_L3_G8[FB_L3_G8 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G8] = "L3_G8"
+  NODES$x[which(NODES$Group=="L3_G8")]=2
+  NODES$y[which(NODES$Group=="L3_G8")]=ceiling(seq(from=-length(FB_L3_G8)/2,length(FB_L3_G8)/2 -1,by=1)-42 )*Scale_L3
+  
+  
+    
+  FB_L3_G9=Graph$type.to[Graph$type.from %in% FB_L2_G8 | Graph$type.from %in% FB_L2_G8b] 
+  FB_L3_G9=FB_L3_G9[FB_L3_G9 %in% NODES$name[NODES$Step==3 & is.na(NODES$Group)] ] 
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G9] = "L3_G9"
+  NODES$x[which(NODES$Group=="L3_G9")]=2
+  NODES$y[which(NODES$Group=="L3_G9")]=ceiling(seq(from=-length(FB_L3_G9)/2,length(FB_L3_G9)/2 -1,by=1)-72 )*Scale_L3
+  
+  
+  FB_L3_G10=c("FB5P","FB5Z","FB6X")
+  NODES$Group[NODES$Step==3 & NODES$name %in% FB_L3_G10] = "L3_G10"
+  NODES$x[which(NODES$Group=="L3_G10")]=2
+  NODES$y[which(NODES$Group=="L3_G10")]=ceiling(seq(from=-length(FB_L3_G10)/2,length(FB_L3_G10)/2-1 ,by=1)-61 )*Scale_L3
+  
+  
+  logica=sum(is.na(NODES$x) & NODES$Step==3)
+  NODES$x[is.na(NODES$x) & NODES$Step==3]=2
+  NODES$y[is.na(NODES$y) & NODES$Step==3]=(seq(from=-1, to=-logica, by=-1))*Scale_L3 -215
+  
+  
+  # Scale and tidy up
+  NODES$x=NODES$x*50
+  NODES$y=NODES$y*50
+  
+  
+  NODES$y[NODES$Step==1]= NODES$y[NODES$Step==1] - mean(NODES$y[NODES$Step==1]) 
+  NODES$y[NODES$Step==2]= NODES$y[NODES$Step==2] - mean(NODES$y[NODES$Step==2])
+  NODES$y[NODES$Step==3]= NODES$y[NODES$Step==3] - mean(NODES$y[NODES$Step==3])-1600
+  
+  
+}
+
+
+# Edges
+EDGES=Graph[c("type.from","type.to","outputContribution")]
+colnames(EDGES)=c("from","to","weight")
+EDGES$from=as.character(EDGES$from)
+EDGES$to=as.character(EDGES$to)
+
+
+# Define pathways to highlight
+EDGES$COLORZ=NA
+EDGES$COLORZ[startsWith(EDGES$to,"E") | EDGES$to == "FB8B" | EDGES$to =="hDeltaD"]="dFB-->EB Pathway"
+EDGES$COLORZ[EDGES$to == "PFL2" | EDGES$to =="PFL3" | EDGES$to =="FB5G" | EDGES$to =="FB5Y" | EDGES$to =="FB2C" |
+             EDGES$to =="FC2B" | EDGES$to =="FC2C" | EDGES$to =="hDeltaG"]="FB Output Pathway"
+EDGES$COLORZ[EDGES$to == "FB1I" | EDGES$to =="FB1J" | EDGES$from == "FB1I" | EDGES$from =="FB1J"]="dFB-->vFB Pathway"
+EDGES$COLORZ[is.na(EDGES$COLORZ)]="Other Pathways"
+
+EDGES$COLORZ=factor(EDGES$COLORZ,levels=c("dFB-->EB Pathway","FB Output Pathway","dFB-->vFB Pathway","Other Pathways"))
+
+EDGES=rbind(subset(EDGES,COLORZ == "Other Pathways"),
+            subset(EDGES,COLORZ == "FB Output Pathway"),
+            subset(EDGES,COLORZ == "dFB-->vFB Pathway"),
+            subset(EDGES,COLORZ == "dFB-->EB Pathway"))
+
+
+# Chose colors for pathways
+col_vector=c("dodgerblue3","slateblue4","springgreen3", "Gray80")
+
+
+# Make ggraph object
+plotgraph = tbl_graph(NODES, EDGES)
+
+
+# Make plot and save ("dh" layout is decent too)
+P1=ggraph(plotgraph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight,colour=EDGES$COLORZ), 
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.1, 'cm'), alpha=0.7,strength=0.02) +
+  geom_node_point(size=1) +
+  geom_node_text(aes(label=name),angle=0,size=2, nudge_x = 3, color='black' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.3,1.5)) + scale_edge_color_manual(values=col_vector) # + scale_edge_color_hue(guide='none') 
+
+ggsave(paste(PlotDir, "Graph_new.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 300, limitsize = TRUE)
 
 
 
@@ -558,214 +878,133 @@ ggsave(paste(PlotDir, "Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, w
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Make smaller graph with just those nodes/edges of pathways
 ```{r}
 
-# Circadian neurons
-DN1=neuprint_search(".*DN1.*")
+
+# Select layers to plot 
+Graph=subset(Pathway,Step<3)
+Graph=subset(Graph, outputContribution >0)
+
+# Get ride of layer1 recurrent connections 
+Graph=subset(Graph, !(Graph$Step==1 & type.to %in% subset(Graph, Step==1)$type.from) )
+
+# Look at all the neurons present and exclude any fragments, etc.
+PotentialTypes=data.frame(name=sort(unique(c(Graph$type.from, Graph$type.to))))
+Exclude=c("FB07?","TuBu","(PDM05)")
+Graph=subset(Graph,!(type.to %in% Exclude | type.from %in% Exclude))
+Graph=subset(Graph, !startsWith(type.to,"("))
+
+# Only include nodes/edges to interesting pathways
+SleepOutputTypes= Graph$type.to[Graph$type.to %in% c( Graph$type.to[startsWith(Graph$type.to,"E")] , "PFL2", "PFL3",
+                                                "FB1J","FB1I","hDeltaD","FB8B","hDeltaG","FC2C","FC2B","FB5Y","FB5G",
+                                                      "FB1A","FB1G","FB8H","FB8I","vDeltaA_b", "PFGs","hDelktaK")]
+Graph=subset(Graph,  type.to %in% SleepOutputTypes )
+                  
+
+# Set node layers
+NODES=data.frame(name=as.character(unique(c(Graph$type.from,Graph$type.to))), Group=NA)
+NODES$name=as.character(NODES$name)
+
+# Define group
+FB_L1=NODES$name[NODES$name %in% SleepWakeTypes]
+FB_L3=c("FB1J","FB1I","hDeltaD","FB8B","ExR3","hDeltaG","FC2C","FC2B","FB5Y","FB5G")
+FB_L2=NODES$name[ NODES$name %in% Graph$type.from[Graph$type.to %in% FB_L3 ] & !(NODES$name %in% FB_L1) & !(NODES$name %in% FB_L3) ]
+FB_L4=NODES$name[!NODES$name %in% c(FB_L1, FB_L2, FB_L3)]
+
+A=subset(Graph,type.from == "hDeltaK")
 
 
+# Set note positions
+Case=1
+if (Case==1){
+  
+  # Define node groupings
+  NODES$Group=NA
+  NODES$x=NA
+  NODES$y=NA
+  
+
+  l1nodes=sum(NODES$Step==1)
+  NODES$x[NODES$Step==1]=0
+  NODES$y[NODES$Step==1]=seq(from=-l1nodes/2,l1nodes/2,by=1)*1500
+  
+  l2nodes=sum(NODES$Step==2)
+  NODES$x[NODES$Step==2]=40
+  NODES$y[NODES$Step==2]=seq(from=-l2nodes/2,l2nodes/2,by=1)*500
+  
+  l3nodes=sum(NODES$Step==3)
+  NODES$x[NODES$Step==3]=80
+  NODES$y[NODES$Step==3]=seq(from=-l3nodes/2,l3nodes/2-1,by=1)*500
+  
+} else if (Case==2) {
+
+  
+    
+  # Define node groupings
+  NODES$Group=NA
+  NODES$x=NA
+  NODES$y=NA
+  
+  
+  FB_L1=NODES$name[NODES$name %in% SleepWakeTypes]
+  NODES$Group[NODES$name %in% FB_L1] = "FB_L1"
+  NODES$x[which(NODES$Group=="FB_L1")]=0
+  NODES$y[which(NODES$Group=="FB_L1")]=ceiling(seq(from=-length(FB_L1)/2,length(FB_L1)/2 -1,by=1) + 0 )*Scale_L3
+  
+  
+  
+}
+
+
+# Edges
+EDGES=Graph[c("type.from","type.to","outputContribution")]
+colnames(EDGES)=c("from","to","weight")
+EDGES$from=as.character(EDGES$from)
+EDGES$to=as.character(EDGES$to)
+
+
+# Define pathways to highlight
+EDGES$COLORZ=NA
+EDGES$COLORZ[startsWith(EDGES$to,"E") | EDGES$to == "FB8B" | EDGES$to =="hDeltaD"]="dFB-->EB Pathway"
+EDGES$COLORZ[EDGES$to == "PFL2" | EDGES$to =="PFL3" | EDGES$to =="FB5G" | EDGES$to =="FB5Y" | EDGES$to =="FB2C" |
+             EDGES$to =="FC2B" | EDGES$to =="FC2C" | EDGES$to =="hDeltaG"]="FB Output Pathway"
+EDGES$COLORZ[EDGES$to == "FB1I" | EDGES$to =="FB1J" | EDGES$from == "FB1I" | EDGES$from =="FB1J"]="dFB-->vFB Pathway"
+EDGES$COLORZ[is.na(EDGES$COLORZ)]="Other Pathways"
+
+EDGES$COLORZ=factor(EDGES$COLORZ,levels=c("dFB-->EB Pathway","FB Output Pathway","dFB-->vFB Pathway","Other Pathways"))
+
+EDGES=rbind(subset(EDGES,COLORZ == "Other Pathways"),
+            subset(EDGES,COLORZ == "FB Output Pathway"),
+            subset(EDGES,COLORZ == "dFB-->vFB Pathway"),
+            subset(EDGES,COLORZ == "dFB-->EB Pathway"))
+
+
+# Chose colors for pathways
+col_vector=c("dodgerblue3","slateblue4","springgreen3", "Gray80")
+
+
+# Make ggraph object
+plotgraph = tbl_graph(NODES, EDGES)
+
+
+# Make plot and save ("dh" layout is decent too)
+#P1=ggraph(plotgraph,layout="manual",x=NODES$x,y=NODES$y) + 
+P1=ggraph(plotgraph,layout="dh") + 
+  geom_edge_fan( aes(width=weight,colour=EDGES$COLORZ), 
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.1, 'cm'), alpha=0.7,strength=0.1) +
+  geom_node_point(size=1) +
+  geom_node_text(aes(label=name),angle=0,size=2, nudge_x = 3, color='black' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.3,1.5)) + scale_edge_color_manual(values=col_vector) # + scale_edge_color_hue(guide='none') 
+
+ggsave(paste(PlotDir, "Graph_new_subset.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 300, limitsize = TRUE)
+  
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Make a network graph to show similar thing
-```{r}
-
-GraphTable=dFB23e10_T2T_Output
-
-# Make graph of type-to-type 23E10 network
-library(visNetwork)
-require(visNetwork, quietly = TRUE)
-library(paletteer)
-
-
-# Get colors
-pcCols <- paletteer_d("Polychrome::palette36")
-sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCols[7],pcCols[26],pcCols[1])
-
-
-# Set node id and name
-IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
-IDs_Num=order(IDs_Type)
-nodes=data.frame(id = IDs_Num, name=IDs_Type)
-nodes$superType <- nodes$name %>% as.character %>% supertype()
-nodes$title <- nodes$name %>% as.character()
-nodes$label <- ""
-nodes$font.size <- 12
-#nodes$x <- nodes$y*500
-#nodes$y <- nodes$x*500
-nodes$size <- 10
-#nodes$color.background <- sTCols[match(nodes$superType,as.factor(sTs))]
-#nodes$color.highlight <- sTCols[match(nodes$superType,as.factor(sTs))]
-nodes$color.border <- "black"
-nodes$color.highlight.border <- "orange"
-nodes$group <- as.character(nodes$superType)
-
-#nodes$level=1
-#nodes$level[nodes$type %in% dFB23E10_Types]=2
-
-
-# populated edges dataframe
-nodes_from=nodes
-colnames(nodes_from) = c("from","type.from")
-nodes_to=nodes
-colnames(nodes_to) = c("to","type.to")
-edges=GraphTable[c("type.from","type.to","weightRelative")]
-edges <- merge(edges,nodes_to,by=c("type.to")) 
-edges <- merge(edges,nodes_from,by=c("type.from")) 
-edges$width = edges$weightRelative*20
-edges$arrows <- "to"
-edges$smooth <- TRUE
-#vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
-
-
-
-
-v <- visNetwork(nodes, edges, width="100%", height="800px",main= "inputs -> outputs") %>% 
-  visNodes(fixed = TRUE) %>%
-  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.name") 
-
-
-# Save the plot
-visSave(v, paste(PlotDir,"Test1.html"), selfcontained = TRUE, background = "white")
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-
-
-# Get columnar output connectivity table
-PFX_Bag=create_neuronBag(Columnar_Types, slctROI="FB")
-PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
-
-
-# Subset data on columnar types
-PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
-
-
-# Assign PBglom, FBcol, and Side from neuron names
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
-
-
-# Order ouput table
-PFX_FB_Outputs_All$PBglom.from=factor(PFX_FB_Outputs_All$PBglom.from, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
-PFX_FB_Outputs_All$FBcol.from=factor(PFX_FB_Outputs_All$FBcol.from, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
-PFX_FB_Outputs_All$PBglom.to=factor(PFX_FB_Outputs_All$PBglom.to, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
-PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
-
-
-# Get the number of columns for each neuron type
-ColumnarBodies=subset(NamedBodies, type %in% Columnar_Types)
-ColumnarBodies=All=Assign_FBcol_PBglom(ColumnarBodies, "bodyname", "Side", "PBglom", "FBcol", "bodyid") 
-ColumnCounts=ColumnarBodies %>% group_by(type) %>% summarize(Columns = length(unique(FBcol)))
-ColumnCounts$Columns[ !(startsWith(ColumnCounts$type,"hDelta"))]=9
-
-ColumnCounts_from=ColumnCounts
-colnames(ColumnCounts_from)<-c("type.from","ColNum.from")
-ColumnCounts_to=ColumnCounts_from
-colnames(ColumnCounts_to)<-c("type.to","ColNum.to")
-PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_to, by="type.to")
-PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_from, by="type.from")
-
-
-# Map all neurons into 9 column space (C0 to C9)
-PFX_FB_Outputs_All$FBcol.from9=PFX_FB_Outputs_All$FBcol.from
-PFX_FB_Outputs_All$FBcol.from9=as.numeric(sapply(PFX_FB_Outputs_All$FBcol.from9, substring, 2, 4))
-PFX_FB_Outputs_All$FBcol.from9=round(PFX_FB_Outputs_All$FBcol.from9/PFX_FB_Outputs_All$ColNum.from*9)
-PFX_FB_Outputs_All$FBcol.from9=paste("C",PFX_FB_Outputs_All$FBcol.from9,sep="")
-PFX_FB_Outputs_All$FBcol.from9=factor(PFX_FB_Outputs_All$FBcol.from9, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
-
-PFX_FB_Outputs_All$FBcol.to9=PFX_FB_Outputs_All$FBcol.to
-PFX_FB_Outputs_All$FBcol.to9=as.numeric(sapply(PFX_FB_Outputs_All$FBcol.to9, substring, 2, 4))
-PFX_FB_Outputs_All$FBcol.to9=round(PFX_FB_Outputs_All$FBcol.to9/PFX_FB_Outputs_All$ColNum.to*9)
-PFX_FB_Outputs_All$FBcol.to9=paste("C",PFX_FB_Outputs_All$FBcol.to9,sep="")
-PFX_FB_Outputs_All$FBcol.to9=factor(PFX_FB_Outputs_All$FBcol.to9, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

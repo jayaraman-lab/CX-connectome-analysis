@@ -173,12 +173,37 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   return(Type2TypeConnTab_hc)
 }
 
+# From Hannah: Function to plot a distance matrix
+HHplot_dist <- function(dd,order=TRUE){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+  }
+  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=value)) +
+    theme_classic() +
+    scale_fill_gradient2(low="black", mid="grey", high="white", 
+                         midpoint =0.5, limits=c(0,1)) +
+    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
+    xlab("") + ylab("")+coord_fixed() +xlab("") + ylab("")
+}
 
+# Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
+cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
+  Type2TypeConnTab_cosDistClusterByInp <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"inputs")
+  Type2TypeConnTab_cosDistClusterByOut <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"outputs")
+  return(list(Type2TypeConnTab_cosDistClusterByInp,Type2TypeConnTab_cosDistClusterByOut))
+}
 
-
-
-
-
+cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,clusterBy){
+  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(Type2TypeConnTab$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=clusterBy)
+  Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
+  Type2TypeConnMatBySide_CosDistPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE)
+  print(Type2TypeConnMatBySide_CosDistPlot)
+  ggsave(paste0(Type2TypeConnTabName,"_cosDistClusterBy",clusterBy,".eps"), plot=Type2TypeConnMatBySide_CosDistPlot, device="eps", path=PlotDir, scale=1, 
+         width=24, height=24, units="in", dpi=300, limitsize=FALSE)
+  return(Type2TypeConnMatBySide_CosDist)
+}
 
 # From DanTE: Function to plot a dendrogram
 dendPlot <- function(hc,rotate){

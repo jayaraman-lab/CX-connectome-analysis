@@ -13,14 +13,18 @@ library(dplyr)
 library(pbapply)
 library(tidygraph)
 library(gridExtra)
+library(neuprintrExtra)
+library(paletteer)
+library(alphahull)
 
 # Go to the neurpintR-notebooks directory before loading these functions
 source("visualizeConnectivityTables.R")
-source("neuprintQueryUtils.R")
+# source("neuprintQueryUtils.R")
 source("R/table2ggraphUtils.R")
-source("InputOutputByTypeUtils.R")
-source("R/rois.R")
-source("R/supertypeUtils.R")
+source("R/connectivityMatricesTools.R")
+# source("InputOutputByTypeUtils.R")
+# source("R/rois.R")
+# source("R/supertypeUtils.R")
 source("colorCodeLookup.R")
 source("pathways.R")
 source("inputOutputRegionsVis.R")
@@ -169,6 +173,58 @@ ggsave("MBON2nonCXnonMBONTgtRwCXRTgt_InputProportionsCombinedSorted.eps", plot=i
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
+### Plot the MBON to CX_R indrect pathways
+```{r}
+# Pull significant MBON2nonCXwCXRTgtInpCombSort connections based on "totalMBContribution"
+StrongMBON2nonCXwCXRTgtInpCombSort <- MBON2nonCXwCXRTgtInpCombSort %>% filter(totalMBContribution > 0.05)
+# Filter MBONnonCXTargetR2CXRtab by type.from among StrongMBON2nonCXwCXRTgtInpCombSort$type.to and weightRelative > 0.01
+StrongMBONnonCXTargetR2CXRtab <- MBONnonCXTargetR2CXRtab %>% filter(type.from %in% StrongMBON2nonCXwCXRTgtInpCombSort$type.to & weightRelative > 0.01)
+# Filter StrongMBON2nonCXwCXRTgtInpCombSort for those connecting to StrongMBONnonCXTargetR2CXRtab$type.from
+StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort %>% filter(type.to %in% StrongMBONnonCXTargetR2CXRtab$type.from)
+
+# Make a combined table
+StrongMBON2nonCXwCXRTgtTable <- StrongMBON2nonCXwCXRTgtInpCombSort %>% select(type.from,type.to,weightRelative)
+StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.from,type.to,weightRelative)
+StrongMBON2nonCXR2CXRTgtComboTable <- bind_rows(StrongMBON2nonCXwCXRTgtTable,StrongMBONnonCXTgtR2CXRTable, .id = NULL)
+
+# Set up the layout for the pathway plot
+types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)),
+                  unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to))))
+numTypes <- length(types)
+numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)))
+numMidNodes <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)))
+numCXtargets <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to)))
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
+                      y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
+
+# Graph the TypeToType ConnTable using the lookupTable
+StrongMBON2nonCXR2CXRTgtComboPath <- graphConTab_old(StrongMBON2nonCXR2CXRTgtComboTable,xyLookup,FALSE,TRUE)
+StrongMBON2nonCXR2CXRTgtComboPath <- StrongMBON2nonCXR2CXRTgtComboPath + scale_y_reverse()
+print(StrongMBON2nonCXR2CXRTgtComboPath)
+ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtComboPath, device="svg", path=PlotDir, scale=1, 
+       width=30, height=45, units="in", dpi=300, limitsize=FALSE)
+
+# Cluster the tables by type.from and type.to
+StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
+StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
+
+```
+### Make and plot cosine distance matrix
+```{r}
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
+StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
+
+```
+
+
+
+### Check if there're cohorts of pathway clusters
+```{r}
+
+```
+
+
+
 ### Find Strongly connected direct MBON targets in the CX
 ```{r}
 # Pull significant MBONTargetInpC connections based on "totalMBContribution"
@@ -223,6 +279,13 @@ Notes:
 6) MBON03 has bilateral branches, but more contralaterally relative to the name.
 7) MBON22 has ipsilateral branches in the calyz and bilateral branches in SIP/SMP.
 8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
+
+### Plot the combined direct and indirect pathways from MBONs to CX_R
+```{r}
+
+```
+
+
 
 ### Find connections from strong direct MBON targets to secondary targets in CX
 ```{r}
