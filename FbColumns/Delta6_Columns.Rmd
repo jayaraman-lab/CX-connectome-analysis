@@ -309,9 +309,12 @@ for (ttt in 1:length(Delta_Types)){
         CurrentLayer=TempLayers[lll]
         TempLayerData=Kmeans_Synapses(TempLayerData)
         CurrentColumnPositions=ComputeMeanArbor(TempLayerData, CurrentLayer)
-        Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
-        eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
-        if (PLOT==TRUE){Plot_Kmeans(TempLayerData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
+        
+        if ( abs(diff(CurrentColumnPositions$X))>3000){ # check to make sure the two clusters are actually well separated.
+          Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
+          eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+          if (PLOT==TRUE){Plot_Kmeans(TempLayerData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
+        }
       }
     }
     
@@ -320,7 +323,6 @@ for (ttt in 1:length(Delta_Types)){
 
 
 ```
-
 
 
 
