@@ -233,6 +233,99 @@ NO_Type[!(NO_Type %in% NORTypes$databaseType)]
 NORTypes$databaseType[!(NORTypes$databaseType %in% NO_Type)]
 ```
 
+# BU
+
+```{r}
+BUTypesTable <- getTypesInRoiTable("BU(R)",lateralize=TRUE,verbose=TRUE)
+```
+
+```{r}
+BURTypes <- typesInROI(BUTypesTable,ROI = "BU(R)")
+```
+
+```{r}
+BURois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisBU <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
+```
+
+
+```{r}
+BUSummary <- getROISummary(BUTypesTable,threshold=3)
+```
+
+```{r}
+haneschBUR <- haneschPlot(BUSummary %>% filter(type %in% BURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschBUR
+```
+```{r}
+save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes.svg"),haneschBUR,ncol=2,nrow=1.5,base_width = 8.5/2)
+```
+
+# AOTU
+
+```{r}
+AOTUTypesTable <- getTypesInRoiTable("AOTU(R)",lateralize=TRUE,verbose=TRUE)
+```
+
+```{r}
+AOTURTypes <- typesInROI(AOTUTypesTable,ROI = "AOTU(R)")
+```
+
+```{r}
+AOTURois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisAOTU <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
+```
+
+
+```{r}
+AOTUSummary <- getROISummary(AOTUTypesTable,threshold=3)
+```
+
+```{r}
+haneschAOTUR <- haneschPlot(AOTUSummary %>% filter(type %in% AOTURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisAOTU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschAOTUR
+```
+
+```{r}
+save_plot(paste0(haneschSaveFolder,"AOTU/AOTU_RTypes.svg"),haneschAOTUR,ncol=8,nrow=1.5,base_width = 8.5/2)
+```
+
+# AB
+
+```{r}
+ABTypesTable <- getTypesInRoiTable("AB(R)",minTypePercentage = 0.2)
+```
+
+```{r}
+ABTypes <- typesInROI(ABTypesTable,ROI = "AB(R)")
+```
+
+```{r}
+ABRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("LAL(R)"=4,"AL(R)"=1,"AL(L)"=1,"FB"=4),exceptionLevelMatch = c(2,1,1,2))
+
+labelRoisAB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
+```
+
+
+```{r}
+ABSummary <- getROISummary(ABTypesTable,threshold=0)
+```
+
+```{r}
+haneschABR <- haneschPlot(ABSummary %>% filter(type %in% ABTypes$type),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschABR
+```
+```{r}
+haneschABRF <- haneschPlot(ABSummary %>% filter((type %in% ABTypes$type) & (databaseType %in% c("SA1_a", "SA1_b", "SA1_c", "SA2_a", "SA2_b", "SA3", "SAF"))),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschABRF
+```
+```{r}
+save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes2.svg"),haneschABR,ncol=1,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes_filtered.svg"),haneschABRF,ncol=1,nrow=1,base_width = 8.5/2)
+```
+
 # PB
 ```{r}
 PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE)
