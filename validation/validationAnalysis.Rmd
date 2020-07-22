@@ -26,17 +26,11 @@ validationFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validatio
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
 source("../neuronMeshes.R")
 source("validationFunctions.R")
-source("../paperTheme.R")
+source("../R/paperTheme.R")
 ```
 
 ```{r}
-#update_geom_defaults("text", list(size = 6))
 pape_theme <- theme_paper(panel.spacing=unit(2, "lines")) 
-#theme_cowplot(font_size=7,font_family="Arial",rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),)
-#pape_theme_hgrid <- theme_minimal_hgrid(font_size=7,font_family="Arial",rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7)
-#pape_theme_grid <- theme_minimal_grid(font_size=7,font_family="Arial",rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7)
-#pape_theme_vgrid <- theme_minimal_hgrid(font_size=7,font_family="Arial",rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7)
-#pape_theme_map <- theme_map(font_size=7,font_family="Arial",rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7)
 ```
 
 
@@ -201,7 +195,7 @@ PBCompOut
 ```
 
 ```{r}
-PBSynapseCountDiff <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point() + scale_color_CX_supertype(name="Supertype") + pape_theme_grid + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)")+theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==4 & side=="Outputs")),color="black",expand=0.03) + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",expand=0.03) + scale_shape(name="Comparison")
+PBSynapseCountDiff <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point() + scale_color_CX_supertype(name="Supertype") + pape_theme + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)")+theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==4 & side=="Outputs")),color="black",expand=0.03) + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",expand=0.03) + scale_shape(name="Comparison")
 
 PBSynapseCountDiffAlt <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point() + scale_color_CX_supertype(name="Supertype") + pape_theme + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +  ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",expand=0.03) + scale_shape(name="Comparison") + geom_hline(yintercept = 0,lty=2)
 PBSynapseCountDiffAlt
@@ -209,8 +203,6 @@ PBSynapseCountDiffAlt
 
 
 ```{r}
-PBSlopes <- ggplot(PBCompFits,aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2,shape=comp)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme_grid +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + scale_shape(name="Comparison")+ ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==4 & side=="Outputs")),color="black",alpha=1,expand=0.03) + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",alpha=1,expand = 0.03)
-
 PBSlopesAlt <- ggplot(PBCompFits,aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2,shape=comp)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + scale_shape(name="Comparison") + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="Inputs")),color="black",alpha=1,expand = 0.03) + geom_hline(yintercept = 1,lty=2)
 PBSlopesAlt
 ```
@@ -270,53 +262,31 @@ rgl.snapshot(paste0(validationFolder,"frontPB4.png"))
 ```
 
 ```{r}
-PBFrame3 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB3.png"),scale=1.4,vjust=0.05,clip="on") + pape_theme_map
+PBFrame3 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB3.png"),scale=1.4,vjust=0.05,clip="on") + theme_paper_map()  
 PBFrame3 <- PBFrame3 + annotate(geom="text",x=0.4,y=0.4,label="R3") + annotate(geom="text",x=0.61,y=0.42,label="L3")
 PBFrame3 <- PBFrame3 + annotate(geom="text",x=0.5,y=0.95,label="PFNa inputs in glomeruli 3")
 PBFrame3
 ```
 ```{r}
-PBFrame4 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB4.png"),scale=1.8,clip="on") + pape_theme_map
+PBFrame4 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB4.png"),scale=1.8,clip="on") + theme_paper_map()
 PBFrame4 <- PBFrame4 + annotate(geom="text",x=0.48,y=0.54,label="R4") + annotate(geom="text",x=0.65,y=0.55,label="L4")
 PBFrame4 <- PBFrame4 + annotate(geom="text",x=0.5,y=0.95,label="EPG outputs in glomeruli 4")
 PBFrame4
-```
-```{r}
-test <- ((PBFrame3 / (PBCompIn +guides(color=FALSE))) | (PBFrame4 / (PBCompOut + guides(color=FALSE)))) | ((PBSynapseCountDiff + theme(legend.position="none")) / 
-                                                                                            (PBSlopes + guides(color=FALSE)))
-save_plot(paste0(validationFolder,"test.pdf"),test,nrow=1,ncol=2,device=cairo_pdf)
-```
-
-```{r}
-layout ="
-AABEE
-CCDFF
-"
-
-
-PBFig <- (PBFrame3 + (PBCompIn+guides(color=FALSE)) + 
-                       PBFrame4 + PBCompOut + (PBSynapseCountDiff + theme(legend.position="none")) + 
-         (PBSlopes + guides(color=FALSE))) + plot_layout(design=layout,guides="keep") + plot_annotation(tag_levels="i")
-PBFig
-
-save_plot(paste0(validationFolder,"ValidationPanel2.pdf"),PBFig,nrow=1,ncol=2,device=cairo_pdf,base_width = 8.5/2)
 ```
 
 ```{r}
 pbLayout <- c(
   area(t = 1, l = 1, b = 5, r = 5),
-  area(t = 6, l = 2, b = 8, r = 4),
   area(t = 1, l = 6, b = 4, r = 10),
+  area(t = 6, l = 2, b = 8, r = 4),
   area(t = 5, l = 6, b = 8, r = 10)
 )
 
 
-PBFigAlt <- (PBFrame3 + (PBCompIn+guides(color=FALSE)) + 
-                         (PBSynapseCountDiffAlt + theme(legend.position="none")) + 
+PBFigAlt <- (PBFrame3 + 
+                         (PBSynapseCountDiffAlt + theme(legend.position="none")) + (PBCompIn+guides(color=FALSE)) + 
          (PBSlopesAlt + guides(color=FALSE)))  + plot_layout(design=pbLayout,guides="keep") + plot_annotation(tag_levels="i") 
 PBFigAlt
-
-save_plot(paste0(validationFolder,"ValidationPanel2Alt.pdf"),PBFigAlt,nrow=1.3,ncol=2,device=cairo_pdf,base_width = 8.5/2)
 ```
 
 
@@ -421,7 +391,7 @@ PBSlopesControl
 
 ```{r}
 PBCompAllFits <- rbind(mutate(PBCompFits,type="Heavy tracing comparison (3/4)"),mutate(PBCompControlFits,type="Control (5/6)"))
-PBCompSlopesComp <- ggplot(PBCompAllFits,aes(estimate,fill=type)) + geom_histogram(alpha=0.5,aes(y=..density..),position="identity")  + paletteer::scale_fill_paletteer_d("Polychrome::dark",name="Comparison") + pape_theme_grid + xlab("Slope estimate")
+PBCompSlopesComp <- ggplot(PBCompAllFits,aes(estimate,fill=type)) + geom_histogram(alpha=0.5,aes(y=..density..),position="identity")  + paletteer::scale_fill_paletteer_d("Polychrome::dark",name="Comparison") + theme_paper_grid() + xlab("Slope estimate")
 PBCompSlopesComp
 ```
 ```{r}
@@ -604,7 +574,7 @@ rgl.snapshot(paste0(validationFolder,"frontC3.png"))
 ```
 
 ```{r}
-FBC3Frame <- ggdraw() + draw_image(paste0(validationFolder,"frontC3.png"),scale=1.55,vjust=0,clip="on") + pape_theme_map
+FBC3Frame <- ggdraw() + draw_image(paste0(validationFolder,"frontC3.png"),scale=1.55,vjust=0,clip="on") + theme_paper_map()
 FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.35,y=0.62,label="Column 3",color="#908827")
 FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.4,y=0.84,label="hΔA outputing \n in other columns",color="grey20")
 FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.76,y=0.92,label="hΔA outputing \n in column 3",color="SteelBlue")
@@ -619,29 +589,17 @@ FBC3Frame
 #BBD"
 fcLayout <- c(
   area(t = 1, l = 1, b = 5, r = 5),
-  area(t = 6, l = 2, b = 8, r = 4),
   area(t = 1, l = 6, b = 4, r = 10),
+  area(t = 6, l = 2, b = 8, r = 4),
   area(t = 5, l = 6, b = 8, r = 10)
 )
 
 
-FC3Panel <- (FBC3Frame + (FBComp + theme(legend.position = "none")) + 
-  (synapseDiffC3 + theme(legend.position = "none")) +
+FC3Panel <- (FBC3Frame + 
+  (synapseDiffC3 + theme(legend.position = "none")) + (FBComp + theme(legend.position = "none")) + 
   FC3Slopes) + plot_layout(design = fcLayout) + plot_annotation(tag_levels=c("i"))
 FC3Panel
 ```
-
-```{r}
-save_plot(paste0(validationFolder,"ValidationPanel3.pdf"),FC3Panel,nrow = 1.3,ncol=2,base_width = 8.5/2,device=cairo_pdf)
-```
-
-```{r}
-combo1 <- (PBFigAlt + plot_layout(tag_level = "new"))/(FC3Panel + plot_layout(tag_level="new")) + plot_annotation(tag_levels=c("A","i"),tag_sep = " ") & theme(strip.background = element_blank())
-combo1
-
-save_plot(paste0(validationFolder,"ValidationPanel2and3.pdf"),combo1,nrow = 2.6,ncol=2,base_width = 8.5/2,device=cairo_pdf)
-```
-
 
 ### EB before/after comparison
 ```{r}
@@ -671,7 +629,7 @@ ebOuts <- filter(ebInfo,downstream>200)
 #### Comparing neuron to neuron connections
 ```{r}
 exampleEPG <- 789126240
-exampleEPGNew <- getNeuronMesh(exampleEPG,cloud=TRUE,node="2b4ff")
+exampleEPGNew <- getNeuronMesh(exampleEPG,cloud=TRUE)
 exampleEPGOld <- getNeuronMesh(exampleEPG,cloud=TRUE,node="34d7a")
 epgInputSynapsesNew <- filter(neuprint_get_synapses(exampleEPG,roi="EB",conn=newConnection),prepost==1)# %>% select(x,y,z)
 epgInputSynapsesOld <- filter(neuprint_get_synapses(exampleEPG,roi="EB",conn=oldConnection),prepost==1)# %>% select(x,y,z)
@@ -716,12 +674,13 @@ rgl.snapshot(paste0(validationFolder,"frontEBZoom2.png"))
 ```
 
 ```{r}
-EPGViews <- ggdraw() + draw_image(paste0(validationFolder,"frontEBZoom1.png"),scale=1.6,clip="on") + draw_image(paste0(validationFolder,"frontEBZoom2.png"),scale=0.5,vjust=-0.23,hjust=0.05,clip="on") +
+EPGViews <- ggdraw() + draw_image(paste0(validationFolder,"frontEBZoom1.png"),scale=1.6,clip="on") + draw_image(paste0(validationFolder,"frontEBZoom2.png"),scale=0.5,vjust=-0.23,hjust=0.05,clip="on") + theme_paper_map() + 
    annotate(geom="text",x=0.25,y=0.22,label="Synapses",hjust=0) +
   annotate(geom="point",x=0.25,y=0.18,color="#B32DB5",size=1) + 
   annotate(geom="point",x=0.25,y=0.14,color="#053CFF",size=1) +
   annotate(geom="text",x=0.26,y=0.18,label="Initially traced",hjust=0) +
-  annotate(geom="text",x=0.26,y=0.14,label="New additions",hjust=0)
+  annotate(geom="text",x=0.26,y=0.14,label="New additions",hjust=0) +
+  annotate(geom="text",x=0.33,y=0.68,label="*",hjust=0,size=8,color="red")
 EPGViews
 ```
 
@@ -734,12 +693,12 @@ EBAges <- getCompConnectionTable(ebIns$bodyid,ebOuts$bodyid,"EB",newConnection,o
 EBAges_filtered <- filter(EBAges,known_synapses_ratio>0.1)
 EBAges_summary <-distinct(EBAges_filtered,bodyid,side,.keep_all = TRUE) 
 synChangeEB <- ggplot(EBAges_summary,aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2) + 
-     scale_color_CX_supertype(name="Supertype") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5),panel.border = element_rect(color = "gray 50", fill = NA)) + ylim(c(0,120))+ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03)
+     scale_color_CX_supertype(name="Supertype") + pape_theme + facet_grid(.~side,scales="free_x") + xlab("") + ylab("Known synapses change (%)") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5)) + ylim(c(0,120))+ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03)
 synChangeEB
 ```
 
 ```{r}
-synChangeEBTot <- ggplot(distinct(EBAges,bodyid,side,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2) + scale_color_CX_supertype(name="Type") + theme_minimal_hgrid() + facet_grid(.~side,scales="free_x")+ xlab("") + ylab("Known synapses change (%)") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5),panel.border = element_rect(color = "gray 50", fill = NA)) + geom_hline(yintercept = 10,linetype=2,color="grey") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side =="Inputs")),color="black",expand=0.03)
+synChangeEBTot <- ggplot(distinct(EBAges,bodyid,side,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2) + scale_color_CX_supertype(name="Type") + pape_theme + facet_grid(.~side,scales="free_x")+ xlab("") + ylab("Known synapses change (%)") + theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=0.5)) + geom_hline(yintercept = 10,linetype=2,color="grey") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side =="Inputs")),color="black",expand=0.03)
 synChangeEBTot
 ```
 ```{r}
@@ -750,71 +709,76 @@ EBFits <- left_join(EBFits,distinct(EBAges,bodyid,databaseType,supertype2,side,k
 
 
 ```{r}
-EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03)
+EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03) + geom_hline(yintercept = 1,lty=2)
 EBSlopes
 ```
 
 ```{r}
 fitValsEPG <- filter(EBFits,bodyid==exampleEPG & side=="Inputs")
-EBCompExample <- ggplot(filter(EBAges_filtered,bodyid==exampleEPG & side=="Inputs"),aes(x=old,y=new)) + geom_point(aes(color=supertype.from2),size=3) + geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
-  geom_abline(linetype=2,lwd=0.2) + theme_minimal_hgrid()  + scale_color_CX_supertype(name="Supertype") + xlab("Relative input weight in the old dataset") + 
-  ylab("Relative input weight in the new dataset") + annotate(geom="text",x=0.015,y=0.002,label=paste0("s= ",format(fitValsEPG$estimate,digits = 3),"\n r\u00b2= ",format(fitValsEPG$adj.r.squared,digits=3)))
+EBCompExample <- ggplot(filter(EBAges_filtered,bodyid==exampleEPG & side=="Inputs"),aes(x=old,y=new)) + geom_point(aes(color=supertype.from2)) + geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
+  geom_abline(linetype=2,lwd=0.2) + pape_theme  + scale_color_CX_supertype(name="Supertype") + xlab("Input weight in the old dataset") + coord_fixed() +
+  ylab("Input weight in the new dataset") + annotate(geom="text",x=0.015,y=0.002,label=paste0("s= ",format(fitValsEPG$estimate,digits = 3),"\n r\u00b2= ",format(fitValsEPG$adj.r.squared,digits=3)))
 
 EBCompExample
 ```
 
 ```{r}
-layout <- "
-A
-A
-B
-C
-"
+ebLayout <- c(
+  area(t = 1, l = 1, b = 5, r = 5),
+  area(t = 1, l = 6, b = 4, r = 10),
+  area(t = 6, l = 2, b = 8, r = 4),
+  area(t = 5, l = 6, b = 8, r = 10)
+)
 
-EBFig <- ((EPGViews | (EBCompExample + theme(legend.position="none"))) + 
-            plot_layout(tag_level = "new",widths = c(1.8,1))) / 
-  (synChangeEB ) / 
-  (EBSlopes+ theme(legend.position="none")) +plot_layout(design = layout) + plot_annotation(tag_levels=c("A","i"))
+EBFig <- (EPGViews + 
+  synChangeEB  + (EBCompExample + theme(legend.position="none")) +
+  (EBSlopes+ theme(legend.position="none"))) +plot_layout(design = ebLayout) #+ plot_annotation(tag_levels=c("A","i"))
 
-save_plot(paste0(validationFolder,"ValidationPanel1.pdf"),EBFig,nrow=4,ncol=2,device=cairo_pdf)
+EBFig
 ```
 
+```{r}
+mainFig <- (EBFig + plot_layout(tag_level = "new")) / (PBFigAlt + plot_layout(tag_level = "new"))/(FC3Panel + plot_layout(tag_level="new")) + plot_annotation(tag_levels=c("A","i"),tag_sep = "") 
+mainFig
+
+save_plot(paste0(validationFolder,"ValidationMainFig.pdf"),mainFig,nrow = 3.9,ncol=2,base_width = 8.5/2,device=cairo_pdf)
+```
 
 #### EB SI
 ```{r}
 EBCompFull <- ggplot(filter(EBAges_filtered),aes(x=old,y=new,fill=supertype2)) + geom_smooth(formula=y~x,aes(group=bodyid),method="lm",alpha=0.3,color="grey30",size=0.1) + 
-  geom_abline(linetype=2,lwd=0.2) + scale_fill_CX_supertype(name="Supertype") + xlab("Relative weight in the old dataset") + 
-  ylab("Relative weight in the new dataset") + facet_wrap(supertype2~side,scales="free")+theme_minimal_hgrid()+theme(panel.border = element_rect(color = "gray 50", fill = NA))
+  geom_abline(linetype=2,lwd=0.2) + scale_fill_CX_supertype(name="Supertype") + xlab("Relative weight in the old dataset") + coord_fixed() +
+  ylab("Relative weight in the new dataset") + facet_wrap(supertype2~side)+ pape_theme#+theme(panel.border = element_rect(color = "gray 50", fill = NA))
 #EBCompFull
-save_plot(paste0(validationFolder,"ValidationPanel1-SI1.pdf"),EBCompFull,nrow = 3,ncol=3)
+save_plot(paste0(validationFolder,"ValidationPanel1-SI1.pdf"),EBCompFull,nrow = 2,ncol=3,base_width = 8.5/3,device=cairo_pdf)
 ```
 
 ```{r}
-incSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))  +xlab("Known synapse increase") +ylab("Slope estimate")
+incSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))  +xlab("Known synapse increase") +ylab("Slope estimate") + geom_hline(yintercept=1,lty=2)
 incSlope
 ```
 ```{r}
-incRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=adj.r.squared,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("Known synapse increase") +ylab("Adjusted r\u00b2")
+incRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=adj.r.squared,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("Known synapse increase") +ylab("Adjusted r\u00b2") + geom_hline(yintercept=1,lty=2)
 incRS
 ```
 
 
 ```{r}
-nSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("# synapses") +ylab("Slope estimate") 
+nSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("# synapses") +ylab("Slope estimate")  + geom_hline(yintercept=1,lty=2)
 nSlope
 ```
 ```{r}
-nRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=adj.r.squared,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("# synapses") +ylab("Adjusted r\u00b2") 
+nRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=adj.r.squared,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("# synapses") +ylab("Adjusted r\u00b2") +geom_hline(yintercept=1,lty=2)
 nRS
 ```
 
 ```{r}
-EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=100,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=100))+ggtitle("Adjusted r\u00b2"))/
+EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=50,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=50))+ggtitle("Adjusted r\u00b2"))/
   (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect")
 EBSI2
 ```
 ```{r}
-save_plot(paste0(validationFolder,"ValidationPanel1-SI2.pdf"),EBSI2,nrow=2,ncol=2,device=cairo_pdf)
+save_plot(paste0(validationFolder,"ValidationPanel1-SI2.pdf"),EBSI2,nrow=2,ncol=2,device=cairo_pdf,base_width = 8.5/2)
 ```
 
 
@@ -822,68 +786,4 @@ save_plot(paste0(validationFolder,"ValidationPanel1-SI2.pdf"),EBSI2,nrow=2,ncol=
 ```{r}
  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=estimate,y=std.error,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("Slope estimate") +ylab("Std Error on the estimate") 
 ```
-
-
-
-### Comparing with the old version of the dataset
-
-
-#### Overall synaptic counts
-Plot raw increase in synapse numbers
-```{r}
-roiTable <- getCompRoiInfo(FBC3Real$bodyid,FBC3RealOut$bodyid,roi="FB-column3",newConnection,oldConnection)
-```
-
-```{r}
-synapseIncrease <- ggplot(roiTable,aes(x=supertype2,y=100*(new-old)/old,color=supertype2,size=old)) + geom_jitter() + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + xlab("") + ylab("Percentage increase in input synapses") + scale_size(name = "# synapses in \nthe old dataset") + facet_grid(.~side,scales = "free_x",labeller=labeller(side = c(inputs="Receiving in FB",outputs="Sending in FB")))
-
-synapseIncrease
-```
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/overallIncreasesInC3.svg",synapseIncrease,height=4)
-```
-
-#### Comparing neuron to neuron connections
-
-```{r}
-FBC3Age <- getCompConnectionTable(FBC3Real$bodyid,FBC3RealOut$bodyid,"FB",newConnection,oldConnection)
-```
-
-```{r}
-FBC3ReInputCor <- cor(filter(FBC3Age,side=="inputs")$old,filter(FBC3Age,side=="inputs")$new)
-FBC3ReOutputCor <- cor(filter(FBC3Age,side=="outputs")$old,filter(FBC3Age,side=="outputs")$new)
-```
-
-```{r}
-FBC3CompOldNew <- ggplot(FBC3Age,aes(x=old,y=new)) + geom_point(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) + geom_abline(linetype=2) + facet_grid(.~side,labeller=labeller(side = c(inputs=paste0("Receiving in FB.   r=",format(FBC3ReInputCor,digits=3)),outputs=paste0("Sending in FB.   r=",format(FBC3ReOutputCor,digits=3))))) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + xlab("Relative weight in the old dataset") + ylab("Relative weight in the new dataset") + scale_size(name="# synapses \nin old dataset")
-FBC3CompOldNew
-```
-
-```{r}
-compRawFB1 <- ggplot(FBC3Age,aes(x=ROIweight.old,y=ROIweight.new)) + geom_point(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) + geom_abline(linetype=2) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + ylab("Weight in new dataset") +xlab("Weight in old dataset")+scale_size(name="# synapses in the old dataset") + facet_grid(.~side,labeller=labeller(side = c(inputs="",outputs="")))
-compRawFB1
-```
-
-```{r}
-compRawFB2 <- ggplot(FBC3Age,aes(x=supertype2,y=ROIweight.new-ROIweight.old)) + geom_jitter(alpha=0.5,aes(size=ROIweight.old,color=supertype2)) +  
-    stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),
-                 width = .8, linetype = 3) + scale_color_manual(values=myPal,name="Type",breaks=allTypes) + theme_minimal() + ylab("Connection weight increase") +xlab("")+scale_size(name="# synapses in the old dataset") + facet_grid(.~side,labeller=labeller(side = c(inputs="",outputs="")),scale="free_x")
-compRawFB2
-```
-
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNew.svg",FBCompOldNew,height=4)
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNewRaw1.svg",compRawFB1,height=4)
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/C3CompPlotOldNewRaw2.svg",compRawFB2,height=4)
-```
-
-
-
-### Heavytraced vs their brothers
-```{r}
-library(readxl)
-heavyTraced <- read_xlsx("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/191120_HeavyTraceCoreCX neurons.xlsx")
-```
- 
 
