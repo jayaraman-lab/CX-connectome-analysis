@@ -1,0 +1,283 @@
+---
+title: "Notebook plotting connectivity of PB-FB-XX outputs in FB to look for lateralized downstream connections"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Command to update is remotes::update_packages('neuprintr')
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+library(paletteer)
+library(quantmod)
+library(prismatic)
+options(nat.plotengine = 'rgl')
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# Directory to save data to.
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/PFX_Lateralized/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_SynapseDistribution_Utils.r")
+source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+source("../visualizeConnectivityTables.r", chdir = TRUE)
+source("../inputOutputRegionsVis.r")
+source("../GetNeuronsInRoi.r")
+
+
+```
+
+
+# Get all FB bodies and columnar types
+```{r}
+
+NamedBodies=getNeuronsInRoiTable("FB",0)
+Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
+                                                    startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) | 
+                                                    startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
+FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
+
+```
+
+
+# Get connectivity matrices for all PFX types
+```{r}
+
+# Get input and output tables
+PFX_Types=unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" )])
+PFX_Bag=create_neuronBag(PFX_Types, slctROI="FB")
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+
+
+# Subset data on outputs that are FB columnar types
+PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
+
+
+# Assign PBglom, FBcol, and Side from neuron names
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+
+
+# Set factors on FB columns
+PFX_FB_Outputs_All$FBcol.from=factor(PFX_FB_Outputs_All$FBcol.from, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+
+
+```
+
+# Analysis questions
+# 1) Do I need to look for lateralization of inputs to PFX neurons too?
+# 2) Can I test whether demicolumns matter more generally? Do PFG demi columns matter?
+
+# Look for lateralized output patterns, where PB-FB-XX neurons of a single neuron type
+# target distinct downstream neurons depending on  whether the PB-FB-XX neurons come 
+# from the right bridge or left bridge.
+```{r}
+
+
+# Get unique pre-post pairs
+Pre_Post=distinct(PFX_FB_Outputs_All[c("type.from","type.to")])
+
+
+# Make to/from names
+PFX_FB_Outputs_All$from_name = paste(PFX_FB_Outputs_All$FBcol.from, PFX_FB_Outputs_All$from, sep="__")
+PFX_FB_Outputs_All$to_name   = paste(PFX_FB_Outputs_All$FBcol.to, PFX_FB_Outputs_All$to, sep="__")
+
+
+# Compute percent input from left and right PB types
+Scatter = PFX_FB_Outputs_All %>% group_by(Side.from, type.from, type.to, to) %>% summarise(weightRelative= sum(weightRelative))
+Scatter_L=subset(Scatter, Side.from=="L")
+colnames(Scatter_L)[colnames(Scatter_L) == "weightRelative"]="weightRelative_L"
+Scatter_R=subset(Scatter, Side.from=="R")
+colnames(Scatter_R)[colnames(Scatter_R) == "weightRelative"]="weightRelative_R"
+Scatter_All=full_join(Scatter_L, Scatter_R, by=c("to", "type.from","type.to"))
+Scatter_All$weightRelative_L[is.na(Scatter_All$weightRelative_L)]=0
+Scatter_All$weightRelative_R[is.na(Scatter_All$weightRelative_R)]=0
+rm(list=c("Scatter","Scatter_L","Scatter_R"))
+Scatter_All=Scatter_All[c("type.from","type.to","to","weightRelative_R","weightRelative_L")]
+
+
+# Plot every PB-FB-XX to FB columnar type connectivity matrix and look for asymmetric connectivities
+ColumnColors <- paletteer_d("Polychrome::dark")
+for (ppp in 1:length(Pre_Post$type.from)){
+  print(ppp)
+  
+  # Consider only this pre-post type
+  Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+  Temp_Scatter = subset(Scatter_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+  Temp_Scatter = merge(Temp_Scatter, Temp_PFX_Out[c("to","FBcol.to")], by="to")
+  
+  
+  # Calculate number of pre and post neurons
+  PreNum=length(unique(Temp_PFX_Out$from))
+  PostNum=length(unique(Temp_PFX_Out$to))
+  FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
+  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
+  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
+  
+  
+  # Complete missing connections between these types.
+  Temp_PFX_Out=complete(Temp_PFX_Out, 
+      from_name = factor(from_name, levels=unique(subset(PFX_FB_Outputs_All, type.from == Pre_Post$type.from[ppp])$from_name)),
+      to_name = factor(to_name, levels=unique(subset(PFX_FB_Outputs_All, type.to == Pre_Post$type.to[ppp])$to_name)))
+  Temp_PFX_Out=Temp_PFX_Out[c("from_name","to_name","weightRelative")]
+  Temp_PFX_Out=left_join(Temp_PFX_Out, distinct(PFX_FB_Outputs_All[c("from_name","Side.from","FBcol.from","type.from")]), by = "from_name")
+  Temp_PFX_Out=left_join(Temp_PFX_Out, distinct(PFX_FB_Outputs_All[c("to_name","Side.to","FBcol.to","type.to")]), by = "to_name")
+  Temp_PFX_Out$weightRelative[is.na(Temp_PFX_Out$weightRelative)]=-1
+  
+  # If enough neurons from the two populations are connected,
+  # plot the connectivity matrix and the scatter plot
+  if (FBColtoNum>4 & PreNum/PreNum_All>0.25 & PostNum/PostNum_All >0.25){
+    
+    if (Temp_PFX_Out$type.from[1] == Temp_PFX_Out$type.to[1]){
+      Prefix="Recurrent"
+    } else {
+      Prefix=""
+    }
+    
+    
+    # Plot connectivity table
+    XXX=unique(Temp_PFX_Out$to_name)
+    YYY=unique(Temp_PFX_Out$from_name)
+    P1 <- ggplot(Temp_PFX_Out) + 
+      theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+      scale_fill_gradient2(midpoint =0.5*max(Temp_PFX_Out$weightRelative), limits=c(0,max(Temp_PFX_Out$weightRelative)),
+                           low="thistle", mid="blueviolet", high="black", na.value="white") +
+      geom_tile(aes(to_name,from_name,fill=weightRelative)) + 
+      scale_x_discrete(breaks  = XXX, labels = substr(XXX,1,6)) + 
+      scale_y_discrete(breaks  = YYY, labels = substr(YYY,1,6)) + 
+      ggtitle(paste(Temp_PFX_Out$type.from[1], "(", as.character(PreNum), " of ", as.character(PreNum_All), ") to ",
+                           Temp_PFX_Out$type.to[1], "(", as.character(PostNum), " of ", as.character(PostNum_All), ") to ", sep="")) +
+      theme(panel.spacing.x=unit(0, "lines") , panel.spacing.y=unit(1,"lines"))
+                    
+    if (Temp_PFX_Out$type.to[1] %in% PFX_Types){
+      P1 = P1 + facet_grid(rows = vars(Side.from), cols=vars(Side.to), scales="free", space="free")  
+    } else {
+      P1 = P1 + facet_grid(rows = vars(Side.from), cols=vars(FBcol.to), scales="free", space="free")
+    }
+    
+ 
+    # Make scatter plot
+    LIM=max( c(Temp_Scatter$weightRelative_L, Temp_Scatter$weightRelative_R))
+    P2=ggplot() + geom_point(data=Temp_Scatter, aes(x=weightRelative_L, y=weightRelative_R, color=FBcol.to)) +
+      ggtitle(paste(Temp_PFX_Out$type.from[1]," to ",Temp_PFX_Out$type.to[1],sep="")) + theme_bw() +
+      scale_color_manual(values=ColumnColors, drop=FALSE) + xlim(0, LIM*1.1) + ylim(0, LIM*1.1)
+    
+
+    # Combine two plots
+    P3=ggarrange(P1,P2,nrow=1, ncol=2)
+    
+    
+    # Save plot for review
+    ggsave(paste(PlotDir, Prefix, Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB_", ppp ,".png",sep=""),
+           plot = P3, device='png', scale = 1, width =15, height = 5, units ="in", dpi = 300, limitsize = TRUE)
+    
+  }
+}
+
+
+
+
+```
+
+
+```{r}
+
+# Make scatter plot
+Scatter_All = merge(Scatter_All, PFX_FB_Outputs_All[c("to","FBcol.to")], by="to")
+
+LIM=max( c(Scatter_All$weightRelative_L, Scatter_All$weightRelative_R))
+ggplot() + geom_point(data=Scatter_All, aes(x=weightRelative_L, y=weightRelative_R, color=FBcol.to)) +
+  theme_bw() + xlim(0, LIM*1.1) + ylim(0, LIM*1.1)
+
+
+# Make scatter plot of all R vs L weights
+pcCols <- paletteer_d("Polychrome::palette36")
+PFXs_ThatOutput=unique(PFX_FB_Outputs_All$type.from)
+for (ppp in 1:length(PFXs_ThatOutput)){
+  
+  Scatter_Temp=subset(Scatter_All, type.from==PFXs_ThatOutput[ppp])
+  
+  
+  
+  ggplot() + geom_point(data=Scatter_Temp, aes(x=weightRelative_L, y=weightRelative_R, color=type.to)) + 
+    scale_color_manual(values=pcCols, drop=FALSE)
+  
+}
+
+
+
+```
+
+
+
+
+```{r}
+
+# Plot PFNd to PFNd connectivity
+Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == "PFNd" & type.to == "PFNd" & weightRelative >0.005)
+Temp_PFX_Out$from_name = paste(Temp_PFX_Out$PBglom.from, Temp_PFX_Out$from, sep="__")
+Temp_PFX_Out$to_name   = paste(Temp_PFX_Out$PBglom.to, Temp_PFX_Out$to, sep="__")
+  
+
+PP <- ggplot(Temp_PFX_Out) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*max(Temp_PFX_Out$weightRelative), limits=c(0,max(Temp_PFX_Out$weightRelative))) +
+  geom_tile(aes(to_name,from_name,fill=weightRelative)) +
+  facet_grid(rows = vars(Side.from), cols=vars(Side.to), scales="free") +
+  ggtitle(paste(Temp_PFX_Out$type.from[1]," to ",Temp_PFX_Out$type.to[1],sep=""))
+
+ggsave(paste(PFX_Dir_Lat, "Asym_", Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB.png",sep=""),
+       plot = PP, device='png', scale = 1, width = 7.5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+```
+
+
+
+
+

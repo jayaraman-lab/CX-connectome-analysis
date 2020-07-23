@@ -1,0 +1,46 @@
+---
+title: "Type to type pathways demo"
+output: html_notebook
+---
+
+```{r,warning=FALSE,message=FALSE}
+library(neuprintrExtra)
+library(dplyr)
+```
+
+Examples of usage of the type to type pathway functions, with a totally random example: getting from PFLs to one DN type.
+
+Getting tables of some types of interest
+```{r}
+PFL <- getTypesTable(c("PFL1","PFL2","PFL3"))
+DN <- getTypesTable(c("DNa03"))
+```
+
+The main function to get pathways is `get_type2typePath`. It takes an argument `n_steps` that can be either an integer or any vector of integers. By default all ROIs are considered, and the neurons are retyped with the `cxRetyping` which lateralizes everything taking into account the PFL/PFR irregularities. This can take a minute because the DN has many presynaptic partners.
+```{r}
+shortPathsAll <- get_type2typePath(PFL,DN,n_steps=1:2)
+```
+```{r}
+head(shortPathsAll,20)
+```
+The table is structure as follow. Each path goes from type.from to type.to, through type_N1, type_N2 ... etc. With connection weights weightRelative_N1, weightRelative_N2... etc (it doesn't have to be weight relative, this can be controlled by the `stat` argument), in ROIs roi_N1, roi_N2... etc (paths can be in different ROIs at different steps). Shorter paths have NA where the steps are missing. All step weights are multiplied to yield the `weightRelative_path` column. You can restrict the analysis to a ROI or a set of ROIs using the `ROI` argument. Moreover, you can use this argument to combine ROIs into a superroi. Let's say you'd want to combine LX(R) and WED(R) into one region and IPS(R) and VES(R) into another one, you would do (this time looking at paths up to length 3 -- this will take several minutes as the diverging pathways start to spread) :
+
+```{r}
+pathsCombo <- get_type2typePath(PFL,DN,n_steps=1:3,ROI = list("LW"=c("LAL(R)","WED(R)"),"IV"=c("IPS(R)","VES(R)")))
+head(pathsCombo)
+```
+
+Once you've combined ROIs and got pathways of the length you like, you can start combining. For example:
+- what do the different PFLs contribute to that DN in those 1-3 pathways (in those weirdly defined ROIs)?
+```{r}
+pathsCombo %>% group_by(type.from) %>% summarise(fullWeight = sum(weightRelative_path))
+```
+Or what's the contribution of pathways grouped by their first relay and roi (interestingly that's only 27 possible combinations):
+```{r}
+pathsCombo %>% group_by(type_N1,roi_N1) %>% summarise(fullWeight = sum(weightRelative_path)) %>% arrange(desc(fullWeight))
+```
+Hope that helps, if you have more questions (then ask me!):
+```{r}
+?get_type2typePath
+```
+

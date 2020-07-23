@@ -17,6 +17,8 @@ library(paletteer)
 
 ```{r message=FALSE}
 source("synapseDistsTools.R")
+source("R/paperTheme.R")
+source("R/connectivityMatricesTools.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
 ```
 
@@ -48,7 +50,7 @@ CXOutputNeurons <- filter(CXNeurons,type %in% CXOutputs$type)
 
 Get everything connecting to those in the output regions
 ```{r}
-outputBag <- create_neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE)
+outputBag <- create_neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE,omitInputs = TRUE)
 outputBag <- cxRetyping(outputBag)
 ## What is actually in there
 outputRegionsStrict <- unique(outputBag$outputs$roi)
@@ -129,7 +131,7 @@ CXOutOverlap$toF <- factor(CXOutOverlap$to,levels=colnames(overlapMat)[outSynClu
 ```{r}
 ddTypes <- as.dendrogram(outSynClusters)
 ddTypesData <- dendro_data(ddTypes, type = "rectangle")
-clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))+coord_fixed(ratio=5)
+clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_paper_map() +coord_fixed(ratio=5)
 clustTypes
 ```
 
@@ -152,13 +154,107 @@ names(overlapCols) <- clNames[outSynClCut[colnames(overlapMat)[outSynClusters$or
 
 ```{r}
 overlapPlot <- ggplot(CXOutOverlap,aes(x=typeF,y=toF)) + geom_tile(aes(fill=overlap)) + 
-   theme_map() + 
+   theme_paper_map() + 
    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols),axis.text.y = element_text(colour = overlapCols)) + 
    scale_fill_distiller(palette = "Greys",trans="reverse") +xlab("")+ylab("")+coord_fixed()
 overlapPlot
 ```
 
+### Do the same but for connectivity
 
+```{r}
+outputsN1Table <- outputBagCompressed$outputs %>% mutate(category="output",
+                                                         cl=outSynClCut[type.from],
+                                                         clName=clNames[cl],
+                                                         type.fromF=factor(type.from,levels=colnames(overlapMat)[outSynClusters$order]))
+outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
+outputsN1Table$category[outputsN1Table$type.from ==  outputsN1Table$type.to] <- "Self"
+
+ 
+```
+
+```{r}
+outputKind <- ggplot(outputsN1Table,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_paper_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
+outputKind
+```
+
+```{r}
+N1Mat <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownOutputContribution")
+N1MatOut <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1Dist <- cos_dist(N1Mat)
+N1DistOut <- cos_dist(N1MatOut)
+
+connCl <- hclust(N1Dist)
+connClCut <- cutree(connCl,h=0.8)
+
+connClOut <- hclust(N1DistOut)
+connClOutCut <- cutree(connClOut,h=0.8)
+
+test <- connectivity_clusters(outputsN1Table,slctROIs = "Output_Regions",clusterSide = "input",distance = cos_dist,knownStats = TRUE,h=0.8)
+```
+
+Name the "modules"
+```{r}
+clConnNames <- sapply(1:max(connClCut),function(i) paste(names(connClCut[connClCut==i]),collapse ="/"))
+CXOutOverlap <- mutate(CXOutOverlap,clConnName=clConnNames[cl])
+CXOutSyn <- mutate(CXOutSyn,clConnName=clConnNames[cl])
+
+## Also create a palette for it
+connCols <- paletteer::paletteer_d("Polychrome::palette36")[connClCut[rownames(N1Mat)[connCl$order]]+2]
+names(connCols) <- clConnNames[connClCut[rownames(N1Mat)[connCl$order]]]
+```
+
+```{r}
+connClPlot <- plot_dist(N1Dist) +
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = connCols),axis.text.y = element_text(colour = connCols))
+   
+connClPlot
+
+plot_dist(test)
+```
+
+```{r}
+connClPlotOut <- plot_dist(N1DistOut) +
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
+
+connClPlotOut
+```
+Look at the connectivity matrix like that
+```{r}
+outMatMelted <- df_conn_mat(N1MatOut,connClOut$order,connCl$order)
+outMatMelted <- mutate(outMatMelted,
+                       clOut=connClOutCut[as.character(Outputs)],
+                       clIn=connClCut[as.character(Inputs)],
+                       category=outputsN1Table$category[match(Outputs,outputsN1Table$type.to)])
+outMatCompressed <- group_by(outMatMelted,Inputs,clIn,clOut,category) %>% summarise(nOut = sum(clOut[1]==connClOutCut),
+                                                                             avgWeightR = sum(value)/(nOut),
+                                                                             n_pairs = n(),
+                                                                             fracConn = n_pairs/(nOut)) %>% ungroup() 
+
+ggplot(filter(outMatCompressed,category=="output")) + geom_point(aes(x=Inputs,y=as.factor(clOut),size=avgWeightR)) + theme_paper_hgrid() + theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(. ~ clIn,scales="free",space="free")
+
+ggplot(filter(outMatMelted,category=="output")) + geom_point(aes(x=Inputs,y=Outputs,size=value)) + theme_paper_hgrid() + theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free")
+
+ggplot(filter(outMatMelted,category=="CX loop")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="#F7F2F7", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
+
+ggplot(filter(outMatMelted,category=="CX loop")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
+
+
+ggplot(filter(outMatMelted,category=="output")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
+
+ggplot(filter(outMatMelted,category=="Self")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
+```
+
+
+
+
+## Map that onto anatomy
 ```{r}
 nopen3d()
 par3d(windowRect = c(30, 30, 1530, 1530))
@@ -176,7 +272,7 @@ plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FA
 plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 par3d(scale=c(1,1,1))
 for (t in unique(CXOutputNeurons$type)){
-   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::dark")[outSynClCut[t]],add=T)
+   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[connClCut[t]+2],add=T)
 }
 nview3d("ventral")
 rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
@@ -185,7 +281,7 @@ rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
 ```
 
 ```{r}
-allOutViews <- ggdraw(xlim = c(0,2)) + draw_image(paste0(outputsFolder,"frontAllOuts.png"),scale=1.6,clip="on") + draw_image(paste0(outputsFolder,"sideAllOuts.png"),scale=1.6,hjust=-0.9,clip="on")
+allOutViews <- ggdraw(xlim = c(0,2)) + draw_image(paste0(outputsFolder,"frontAllOuts.png"),scale=1.6,clip="on") + draw_image(paste0(outputsFolder,"sideAllOuts.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
 allOutViews
 ```
 
@@ -209,7 +305,7 @@ CXOutputSummary <- mutate(CXOutputSummary,
 ```
 
 ```{r}
-moduleSummaryPlot <- ggplot(CXOutputSummary,aes(x=typeFN,y=downstreamOutputRegion,col=clName)) + geom_point(size=3) + theme_minimal_grid() +scale_color_manual(name="Module",breaks=names(overlapCols),values=overlapCols) + 
+moduleSummaryPlot <- ggplot(CXOutputSummary,aes(x=typeFN,y=downstreamOutputRegion,col=clName)) + geom_point(size=3) + theme_paper_grid() +scale_color_manual(name="Module",breaks=names(overlapCols),values=overlapCols) + 
    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + xlab("") + ylab("Number of downstream synapses")
 moduleSummaryPlot
 ```
@@ -229,179 +325,150 @@ CXOutputSummary <- getROISummary(CXOutputNeurons,threshold=20)
 
 
 ```{r}
-outputsInnervation_L <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE,theme = theme_minimal_grid(),showCount = T)
+outputsInnervation_L <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype2",roiLabel = roiOutLabels,flip=TRUE,interactive=TRUE,theme = theme_paper_grid(),showCount = T)
 outputsInnervation_L
 ```
 
 ```{r}
-save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,ncol=3,nrow=2)
+save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/CXoutputsHaneschL.svg",outputsInnervation_L,ncol=2,nrow=1.2,base_width = 8.5/2)
 ```
 
 ## Who are those neurons they talk to?
 Classify them in broad categories, add the cluster information
-```{r}
-outputsN1Table <- outputBagCompressed$outputs %>% mutate(category="output",
-                                                         cl=outSynClCut[type.from],
-                                                         clName=clNames[cl],
-                                                         type.fromF=factor(type.from,levels=colnames(overlapMat)[outSynClusters$order]))
-outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
-outputsN1Table$category[outputsN1Table$type.from ==  outputsN1Table$type.to] <- "Self"
-
- 
-```
-
-```{r}
-outputKind <- ggplot(outputsN1Table,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_minimal_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
-outputKind
-```
-
-```{r}
-N1Mat <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative")
-N1MatOut <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
-N1Dist <- cos_dist(N1Mat)
-N1SqDist <- sqrt_cos_dist(N1Mat)
-N1DistOut <- cos_dist(N1MatOut)
-N1DistCor <- cor_dist(N1Mat)
-N1DistCorOut <- cor_dist(N1MatOut)
-N1BinOut <- bin_dist(N1MatOut)
-N1Euc <- dist(N1Mat)
-cosCl <- hclust(N1Dist)
-```
-
-```{r}
-compSim <- (plot_dist_interactive(N1DistCor)+ggtitle("Correlation")) + (plot_dist_interactive(N1DistBin)+ggtitle("Binary")) + 
-   (plot_dist_interactive(N1Dist)+ggtitle("Cosine")) #+(plot_dist_interactive(N1SqDist)+ggtitle("Sqrt Cosine")))
-```
-
-```{r}
-compSim
-```
 
 
 ```{r}
-interCompSim <- girafe(ggobj = compSim,width_svg = 20,height_svg = 20
-  )
+ddConn <- as.dendrogram(connCl)
+ddConnData <- dendro_data(ddConn, type = "rectangle")
+clustConn <- ggplot(segment(ddConnData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend))  + theme_paper_map()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5)) + xlab("")+ scale_y_reverse()+coord_fixed(ratio=5) + scale_x_discrete(breaks=1:nrow(N1Mat),labels=rownames(N1Mat)[connCl$order])
+#clustTypes2 <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_continuous(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order])+ theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))
+#clustConn / clustTypes2
+clustConn
 ```
 
 ```{r}
-htmlwidgets::saveWidget(interCompSim,paste0(outputsFolder,"compSimilarity.html"))
+ddConnOut <- as.dendrogram(connClOut)
+ddConnDataOut <- dendro_data(ddConnOut, type = "rectangle")
+clustConnOut <- ggplot(segment(ddConnDataOut)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend))  + theme_paper_map()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5)) + xlab("")+ scale_y_reverse()+coord_fixed(ratio=40) + scale_x_continuous(breaks=1:nrow(N1MatOut),labels=rownames(N1MatOut)[connClOut$order])
+#clustTypes2 <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_continuous(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order])+ theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))
+#clustConn / clustTypes2
+clustConnOut
 ```
 
 
-```{r}
-save_plot(paste0(outputsFolder,"compSimilarity.pdf"),compSim,nrow=4,ncol=4,device=cairo_pdf)
-```
 
 
 ```{r}
 targetCounts <- group_by(outputsN1Table,type.to,category) %>% summarize(nCl=length(unique(cl)),nT=n(),CXInfluence=sum(knownWeightRelative),CXMain=max(knownWeightRelative)/sum(knownWeightRelative))
-ggplot(filter(targetCounts,category!="Self" & nCl>1),aes(x=CXMain)) + geom_histogram() + facet_grid(nT~category) + theme_minimal_hgrid()
+ggplot(filter(targetCounts,category!="Self" & nCl>1),aes(x=CXMain)) + geom_histogram() + facet_grid(nT~category) + theme_paper_hgrid()
 filter(targetCounts,nCl>1 & category=="output")
 ```
 
 
 ```{r}
 outputSynapsesOverview <- (allOutViews + 
-   ((overlapPlot + theme(plot.margin = margin(b=0))) / (clustTypes + theme(plot.margin = margin(t=0)))) + 
+   ((connClPlot + theme(plot.margin = margin(b=0))) / (clustConn + theme(plot.margin = margin(t=0)))) + 
    plot_layout(widths=c(3.5,1))) /
    (moduleSummaryPlot + outputKind) + plot_layout(guides="keep",heights=c(3,1)) + plot_annotation(tag_levels="A")
 outputSynapsesOverview
-save_plot(paste0(outputsFolder,"OutputsPanel1.pdf"),outputSynapsesOverview,nrow=7,ncol=7,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"OutputsPanel1.pdf"),outputSynapsesOverview,nrow=4,ncol=4,device=cairo_pdf)
 ```
 
 
 We'll select all their partners in "output" regions
 ```{r}
-allOuts <- outputBagCompressed$outputsTableRef #%>% filter(type %in% allOutsTable$type.to)
+allOuts <- outputBagCompressed$outputsTableRef %>% filter(type %in% outputsN1Table$type.to)
 
 ## Proper "outputs" are not other CX neurons
 realOuts <- filter(allOuts,!(databaseType %in% CXtypes$databaseType))
 cxOutLoops <- filter(allOuts,(databaseType %in% CXtypes$databaseType))
 ```
 
+Augment the output list with the mirror symetric for all the neurons that cross?
+```{r}
+outsRoiInfo <- getROISummary(realOuts,threshold=10)
+bilat <- group_by(outsRoiInfo,type,databaseType) %>% summarise(bilateral = any(grepl("(R)",roi,fixed=T)) & any(grepl("(L)",roi,fixed=T)))
+bilatTable <- getTypesTable(filter(bilat,bilateral==TRUE & !is.na(databaseType))$databaseType)
+bilatTable <- lateralize_types(bilatTable,postfix="raw")
+othersTable <- filter(realOuts,!(databaseType %in% bilatTable$databaseType))
+realOutsAugmented <- rbind(othersTable,bilatTable)
+```
+
+
 Get all the connections for those output neurons (not in the CX as they're not going there) in broad regions
 ```{r}
-realOutsBag <- create_neuronBag(realOuts,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,synThresh=0,chunk_meta=1000,slctROI=outputRegions)
+realN1Bag <- create_neuronBag(realOutsAugmented,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,chunk_meta=1000,slctROI=outputRegions)
+feedbackBag <- create_neuronBag(cxOutLoops,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,chunk_meta=1000)
 ```
 
 ```{r}
-realOutsBag <- cxRetyping(realOutsBag)
+realN1Bag <- cxRetyping(realN1Bag)
+feedbackBag <- cxRetyping(feedbackBag)
 ```
 
 Look at the weight of those targets at a "global" output region level. Removing any single neuron getting less than 0.1% of inputs in those regions.
 ```{r}
-outputsOverview <- combineRois(outputsInOutBag,outputRegions,"Output regions",singleNeuronThreshold=0.001)
+N1Overview <- combineRois(realN1Bag,outputRegions,"Output regions",singleNeuronThreshold=0.001)
 ## One cleans up anything not getting input from our selection of CX neurons in the combined output regions
-signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
-outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
+#signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
+#outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
 ```
 
 ```{r}
-CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
-```
-A set of names at the proper level
-```{r}
-CXCustomSupertypes <- selectSupertypeSet(CXtypes,default_level = 2,exceptions=list("PFL"=1,"FS"=1,"ExR"=1),exceptionLevelMatch = 2)
-```
+inputsN1Table <- N1Overview$inputs %>% mutate(category="extra")
+inputsN1Table$category[inputsN1Table$databaseType.from %in% CXtypes$databaseType] <- "CX"
+inputsN1Table$category[inputsN1Table$type.from ==  inputsN1Table$type.to] <- "Self"
 
-Looking at the input vector to the set of output neurons -- with a custom supertype for the input CX neurons
-```{r}
-inputs_toOutputs <- outputsOverview$inputs %>% mutate(customSupertype = CXCustomSupertypes$type[match(supertype.from1,CXCustomSupertypes$supertype1)])
-inputs_toOutputs <- replace_na(inputs_toOutputs,list("customSupertype" = "Other"))
-```
+outputsN1Table <- N1Overview$outputs %>% mutate(category="outputs")
+outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX"
+outputsN1Table$category[outputsN1Table$type.to %in% outputsN1Table$type.from] <- "Feedback"
+outputsN1Table$category[outputsN1Table$type.to == outputsN1Table$type.from] <- "Self"
 
-Creating a connectivity matrix from that table for further clustering
-```{r}
-inputs_toOutputsMat <- connectivityMatrix(connObj = inputs_toOutputs,slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative")
-```
-
-Compiling the total fraction of input from CX neurons received by the output neurons
-```{r}
-CXtoOutputs <- filter(inputs_toOutputs,customSupertype !="Other") %>% group_by(type.to,databaseType.to) %>% summarize(totalCX = sum(knownWeightRelative)) %>% ungroup() %>% filter(!(databaseType.to %in% CXtypes$databaseType)) %>% arrange(desc(totalCX))
-```
-List of output neurons to focus on for CAT team
-```{r}
-outputsIDs <- neuprint_get_meta(unique(outputsOverview$inputs_raw$to[(outputsOverview$inputs_raw$type.to %in% CXtoOutputs$type.to)])) %>% filter(statusLabel != "Leaves") %>% mutate(typeF = factor( as.character(outputsOverview$inputs_raw$type.to[match(bodyid,outputsOverview$inputs_raw$to)]),levels=CXtoOutputs$type.to)) %>% arrange(typeF) %>% filter(!grepl("ring.*",name))
-```
-
-All the outputs of those (in the output regions and/or the CX)
-```{r}
-outputs_FromOutputs <- bind_rows(outputsInOutBag$outputs %>% filter(roi=="CX"),outputsOverview$outputs)
 ```
 
 ```{r}
-outputs_fromOutputsMat <- connectivityMatrix(outputs_FromOutputs,slctROI=c("CX","Output regions"),allToAll=FALSE,from = "type.from","type.to",ref="outputs",value="knownWeightRelative")
+N1MatFull <- connectivityMatrix(filter(inputsN1Table,type.to %in% realOuts$type),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1MatNoCX <- connectivityMatrix(filter(inputsN1Table,category!="CX" & (type.to %in% realOuts$type)),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1MatFromOutputs <- connectivityMatrix(filter(outputsN1Table,category!="CX" & (type.from %in% realOuts$type)),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownOutputContribution")
+
+N1DistFull <- cos_dist(N1MatFull)
+N1DistNoCX <- cos_dist(N1MatNoCX)
+N1DistFromOutputs <- cos_dist(N1MatFromOutputs)
+
+connClFull <- hclust(N1DistFull)
+connClFullCut <- cutree(connClFull,h=0.8)
+
+connClNoCX <- hclust(N1DistNoCX)
+connClNoCXCut <- cutree(connClNoCX,h=0.8)
 ```
 
 ```{r}
-source("R/connectivityMatricesTools.R")
+plot_dist(N1DistNoCX)+
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
+
+plot_dist(N1DistFromOutputs)+
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
 ```
 
 
 ```{r}
-#Clustering on the input strengths only of "output" CX neurons 
-inputsCl_Out <- hClust_connMat(inputs_toOutputsMat,rowSelect=outputBag$names$type)
-inputsCl_All <- hClust_connMat(inputs_toOutputsMat)
-inputsCl_Other <- hClust_connMat(inputs_toOutputsMat,rowSelect=rownames(inputs_toOutputsMat)[!(rownames(inputs_toOutputsMat) %in% outputBag$names$type)])
-```
-
-```{r}
-inputs_toOutputs$type.toF <- factor(inputs_toOutputs$type.to,levels=colnames(inputs_toOutputsMat)[inputsCl_Out$order])
-```
-
-
-```{r}
-inputProportions <- ggplot(filter(inputs_toOutputs,!(databaseType.to %in% CXtypes$databaseType)),aes(x=type.toF)) + geom_col(aes(y=knownWeightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(unique(CXCustomSupertypes$type)),name="Input types",guide=guide_legend(ncol=2)) + theme_cowplot()  + theme(axis.text.x = element_text(angle = 90,vjust=0.5)) + labs(y="Relative weight",x="Output type")
-inputProportions
+clComp <- data.frame(type=names(connClFullCut)) %>% mutate(CXCl = connClOutCut[type], fullCl = connClFullCut[type], outCl = connClNoCXCut[type])
+clCompSum <- group_by(clComp,outCl) %>% summarize(nFrom = length(unique(CXCl)),nNeuron=n()) %>% group_by(nNeuron,nFrom) %>% mutate(ct=n()) %>% ungroup()
+ggplot(clCompSum) + geom_point(aes(x=nNeuron,y=nFrom,size=ct)) + geom_abline()
 ```
 ```{r}
-ggplot(filter(inputs_toOutputs,(databaseType.to %in% CXtypes$databaseType)),aes(x=type.toF)) + geom_col(aes(y=knownWeightRelative,fill=customSupertype),alpha=0.8) + scale_fill_manual(values=typesPalette(unique(CXCustomSupertypes$type)),name="Input types",guide=guide_legend(ncol=2)) + theme_cowplot()  + theme(axis.text.x = element_text(angle = 90,vjust=0.5)) + labs(y="Relative weight",x="Output type")
+inputsN1Melted <- df_conn_mat(N1MatFromOutputs,rank(connClOut$order[connClOut$order[connClOut$labels %in% filter(outputsN1Table,category!="CX"  & type.from %in% realOuts$type)$type.from]]),
+                              1:ncol(N1MatFromOutputs))
+inputsN1Melted <- mutate(inputsN1Melted,
+                       clIn=connClOutCut[as.character(Inputs)],
+                       category=outputsN1Table$category[match(Inputs,outputsN1Table$type.from)])
+
+ggplot(filter(inputsN1Melted,category=="outputs")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("") + facet_grid(. ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="#F7F2F7", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
 ```
 
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/outputsInputProportions.svg",inputProportions,width=35,height=8)
-```
 
 
 ## Find feedback pathways in there.
@@ -601,7 +668,7 @@ lalOutputsF <- PFLInOut$outputs_raw %>% filter(paste0(type.from,type.to) %in% pa
 
 
 ```{r}
-PFL_breakdown <- ggplot(lalOutputsF,aes(x=name.from,y=weightRelative,group=to,color=as.factor(to))) + geom_point() + geom_line() + facet_wrap(~databaseTypeFrom+type.to ,drop=TRUE,scales = "free_x") + theme_minimal() + theme(axis.text.x = element_text(angle = 90))+  guides(color="none")+ labs(y="Relative weight in the LAL",x="Input Neuron")
+PFL_breakdown <- ggplot(lalOutputsF,aes(x=name.from,y=weightRelative,group=to,color=as.factor(to))) + geom_point() + geom_line() + facet_wrap(~databaseTypeFrom+type.to ,drop=TRUE,scales = "free_x") + theme_paper() + theme(axis.text.x = element_text(angle = 90))+  guides(color="none")+ labs(y="Relative weight in the LAL",x="Input Neuron")
 PFL_breakdown
 ```
 
