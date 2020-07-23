@@ -1,0 +1,428 @@
+---
+title: "FB Figure ? - split vDelta neurons"
+output: html_notebook
+---
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+library(ggnewscale)
+#source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+```{r}
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+  }
+```
+
+Check the clustering for all the neurons of a given type
+```{r}
+vDtypes <- neuprint_search("vDelta.*",field="type")$type %>% unique()
+vDtypes <- D0types[which(!is.na(D0types))]
+
+numClusts = 4
+
+g_list <- list()
+for (tp in 1:length(vDtypes)){
+  
+  # Get the bodyids for a given neuron type
+  bodyids <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$bodyid
+  
+  # Cluster their synapses into the appropraite quadrant
+  synDat <- DeltaSynClust(bodyids, numClusts)
+  
+  # Plot the clusters
+  g_list[[tp]] <- ggplot(synDat) + geom_point(aes(x=x,y=z,color=quad)) + theme_classic() + scale_y_reverse() + ggtitle(D0types[tp]) + coord_equal(ratio=1)
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_vDeltaC0\\vDeltaClustering.pdf", width = 40, height = 40)
+print(grid.arrange(grobs = g_list))
+dev.off()
+```
+
+Cluster synapses, pull out the vD_c0 bodyids, separate inputs and outputs, and plot the correlation matrix across inputs or outputs across type
+```{r}
+vDtypes <- neuprint_search("vDelta.*",field="type")$type %>% unique()
+vDtypes <- vDtypes[which(!is.na(vDtypes))]
+
+numClusts = 4
+quads <- c("DL","DR","UL","UR")
+
+cormatPlot_inputs_all <- list()
+cormatPlot_outputs_all <- list()
+vD_C0_bodyids_all <- c()
+for (tp in 1:length(vDtypes)){
+  
+  # Get the D0 and D12 bodyids for a given neuron type
+  bodyids <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$bodyid
+  
+  # Cluster their synapses into the appropraite quadrant
+  synDat <- DeltaSynClust(bodyids, numClusts)
+  
+  # Pull out the vD_C0 neurons from the D0 population
+  vD_C0s <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$name %>% lapply(function(n) grepl("_C0",n)) %>%unlist()
+  vD_CO_ids <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$bodyid[vD_C0s]
+  vD_C0_bodyids_all <- append(vD_C0_bodyids_all,vD_CO_ids) 
+     
+  # Find the mean number of input connections per type per quadrant
+  DeltaInputs_Mean <- quadSum(synDat,TRUE,vD_CO_ids)
+  
+  # Plot the correlation matrix between inputs
+  cormatPlot_inputs <- corMatPlot(DeltaInputs_Mean,"type.from","nameid.to.quad")
+  offset  <- 0.5
+  for (l in 1:4){
+    offset <-  offset + length(which(grepl(paste0(quads[l],"-vD"),unique(as.character(DeltaInputs_Mean$nameid.to.quad)))))
+    cormatPlot_inputs <- cormatPlot_inputs + geom_vline(xintercept = offset)
+    cormatPlot_inputs <- cormatPlot_inputs + geom_hline(yintercept = offset)
+    
+    offset <-  offset + length(which(grepl(paste0(quads[l],"-vD_C0"),unique(as.character(DeltaInputs_Mean$nameid.to.quad)))))
+    cormatPlot_inputs <- cormatPlot_inputs + geom_vline(xintercept = offset)
+    cormatPlot_inputs <- cormatPlot_inputs + geom_hline(yintercept = offset)
+  }
+  cormatPlot_inputs_all[[tp]] <- cormatPlot_inputs
+  
+  # Find the mean number of output connections per type per quadrant
+  DeltaOutputs_Mean <- quadSum(synDat,FALSE,vD_CO_ids)
+  
+  # Plot the correlation matrix between outputs
+  cormatPlot_outputs <- corMatPlot(DeltaOutputs_Mean,"type.to","nameid.from.quad")
+  offset  <- 0.5
+  for (l in 1:4){
+    offset <-  offset + length(which(grepl(paste0(quads[l],"-vD"),unique(as.character(DeltaOutputs_Mean$nameid.from.quad)))))
+    cormatPlot_outputs <- cormatPlot_outputs + geom_vline(xintercept = offset)
+    cormatPlot_outputs <- cormatPlot_outputs + geom_hline(yintercept = offset)
+    
+    offset <-  offset + length(which(grepl(paste0(quads[l],"-vD_C0"),unique(as.character(DeltaOutputs_Mean$nameid.from.quad)))))
+    cormatPlot_outputs <- cormatPlot_outputs + geom_vline(xintercept = offset)
+    cormatPlot_outputs <- cormatPlot_outputs + geom_hline(yintercept = offset)
+  }
+  cormatPlot_outputs_all[[tp]] <- cormatPlot_outputs
+  
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_vDeltaC0\\Delta0And12InputsByType_CorrelationMatrix.pdf", width = 40, height = 40)
+print(grid.arrange(grobs = cormatPlot_inputs_all))
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_vDeltaC0\\Delta0And12OutputsByType_CorrelationMatrix.pdf", width = 40, height = 40)
+print(grid.arrange(grobs = cormatPlot_outputs_all))
+dev.off()
+```
+
+
+Create a figure for the paper
+```{r}
+exType = 8
+synThresh = 2
+
+numClusts = 4
+quads <- c("DL","DR","UL","UR")
+
+vDtypes <- neuprint_search("vDelta.*",field="type")$type %>% unique()
+vDtypes <- vDtypes[which(!is.na(vDtypes))]
+
+cormatMetrics_inputs <- ggplot()
+cormatMetrics_outputs <- ggplot()
+for (tp in 1:length(vDtypes)){
+  
+  # Get the bodyids for a given neuron type
+  bodyids <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$bodyid
+  
+  # Cluster their synapses into the appropraite quadrant
+  synDat <- DeltaSynClust(bodyids, numClusts)
+  
+  # Pull out the vD_C0 neurons from the D0 population
+  vD_C0s <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$name %>% lapply(function(n) grepl("_C0",n)) %>%unlist()
+  vD_CO_ids <- neuprint_search(paste0(vDtypes[tp],".*"),field="type")$bodyid[vD_C0s]
+  vD_C0_bodyids_all <- append(vD_C0_bodyids_all,vD_CO_ids) 
+      
+  # Find the mean number of input connections per type per quadrant
+  DeltaInputs_Mean <- quadSum(synDat,TRUE,vD_CO_ids)
+  DeltaInputs_Mean <- DeltaInputs_Mean %>% filter(weightMean > synThresh)
+  
+  # Find the correlation matrix between inputs
+  cormat_inputs <- corMat(DeltaInputs_Mean,"type.from","nameid.to.quad")
+  
+  # Summarize the correlation values
+  cmSum_inputs <- corMatSum(cormat_inputs)
+  cmSum_inputs <- cmSum_inputs %>% filter(grepl("vDelta0",type1) | grepl("Delta0",type2))
+
+  # Plot the summary statistics
+  cormatMetrics_inputs <- cormatMetrics_inputs + geom_point(data = cmSum_inputs,aes(x=paste(type1,type2,sep="-"),y=meanCC,color=UD)) +
+    geom_errorbar(data = cmSum_inputs,aes(x=paste(type1,type2,sep="-"), ymin=meanCC-sdCC, ymax=meanCC+sdCC),
+                width=.02, position=position_dodge(0.05))
+  
+  # Find the mean number of output connections per type per quadrant
+  DeltaOutputs_Mean <- quadSum(synDat,FALSE,D12bodyids)
+  DeltaOutputs_Mean <- DeltaOutputs_Mean %>% filter(weightMean > synThresh)
+  
+  # Plot the correlation matrix between inputs
+  cormat_outputs <- corMat(DeltaOutputs_Mean,"type.to","nameid.from.quad")
+  
+  # Summarize the correlation values
+  cmSum_outputs <- corMatSum(cormat_outputs)
+  cmSum_outputs <- cmSum_outputs %>% filter(UD == "U") %>% filter(grepl("Delta0",type1) | grepl("Delta0",type2))
+
+  # Plot the summary statistics
+  cormatMetrics_outputs <- cormatMetrics_outputs + geom_point(data = cmSum_outputs,aes(x=paste(type1,type2,sep="-"),y=meanCC,color=UD)) +
+    geom_errorbar(data = cmSum_outputs,aes(x=paste(type1,type2,sep="-"), ymin=meanCC-sdCC, ymax=meanCC+sdCC),
+                width=.02, position=position_dodge(0.05))
+  
+  if (tp == exType){
+    # Plot the connection table between inputs
+    conmatPlot_inputs = ggplot(DeltaInputs_Mean) + 
+        theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+        scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                             midpoint =0.5*max(DeltaInputs_Mean$weightMean), limits=c(0,max(DeltaInputs_Mean$weightMean)))
+    conmatPlot_inputs = conmatPlot_inputs + geom_tile(aes(nameid.to.quad,type.from,fill=weightMean)) + ggtitle(D0types[exType])
+    conmatPlot_inputs = conmatPlot_inputs + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron")
+    offset <- 0.5
+    for (l in 1:4){
+      offset <- offset + length(which(grepl(quads[l],unique(DeltaInputs_Mean$nameid.to.quad)) & 
+                                        grepl("Delta0",unique(DeltaInputs_Mean$nameid.to.quad))))
+      conmatPlot_inputs <- conmatPlot_inputs + geom_vline(xintercept = offset)
+      
+        offset <- offset + length(which(grepl(quads[l],unique(DeltaInputs_Mean$nameid.to.quad)) & 
+                                        grepl("Delta12",unique(DeltaInputs_Mean$nameid.to.quad))))
+      conmatPlot_inputs <- conmatPlot_inputs + geom_vline(xintercept = offset)
+    }
+    
+    # Plot the connection table between outputs
+    conmatPlot_outputs <- ggplot(DeltaOutputs_Mean) + 
+        theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+        scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                             midpoint =0.5*max(DeltaOutputs_Mean$weightMean), limits=c(0,max(DeltaOutputs_Mean$weightMean)))
+    conmatPlot_outputs <- conmatPlot_outputs + geom_tile(aes(type.to,nameid.from.quad,fill=weightMean)) + ggtitle(D0types[exType])
+    conmatPlot_outputs <- conmatPlot_outputs + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron")
+    offset <- 0.5
+    for (l in 1:2){
+      offset <- offset + length(which(grepl(quads[2+l],unique(DeltaOutputs_Mean$nameid.from.quad)) & 
+                                        grepl("Delta0",unique(DeltaOutputs_Mean$nameid.from.quad))))
+      conmatPlot_outputs <- conmatPlot_outputs + geom_hline(yintercept = offset)
+      
+        offset <- offset + length(which(grepl(quads[2+l],unique(DeltaOutputs_Mean$nameid.from.quad)) & 
+                                        grepl("Delta12",unique(DeltaOutputs_Mean$nameid.from.quad))))
+      conmatPlot_outputs <- conmatPlot_outputs + geom_hline(yintercept = offset)
+    }
+    
+    # Plot the correlation matrix for inputs
+    cormatPlot_inputs <- corMatPlot(DeltaInputs_Mean,"type.from","nameid.to.quad")
+    offset  <- 0.5
+    for (l in 1:4){
+      offset <-  offset + length(which(grepl(paste0(quads[l],"-Delta0"),unique(as.character(DeltaInputs_Mean$nameid.to.quad)))))
+      cormatPlot_inputs <- cormatPlot_inputs + geom_vline(xintercept = offset)
+      cormatPlot_inputs <- cormatPlot_inputs + geom_hline(yintercept = offset)
+      
+      offset <-  offset + length(which(grepl(paste0(quads[l],"-Delta12"),unique(as.character(DeltaInputs_Mean$nameid.to.quad)))))
+      cormatPlot_inputs <- cormatPlot_inputs + geom_vline(xintercept = offset)
+      cormatPlot_inputs <- cormatPlot_inputs + geom_hline(yintercept = offset)
+    }
+    
+    clustPlt <- ggplot(synDat) + geom_point(aes(x=x,y=z,color=quad)) + theme_classic() + scale_y_reverse() + ggtitle(D0types[tp]) + coord_equal(ratio=1)
+  }
+  
+}
+
+cormatMetrics_inputs <- cormatMetrics_inputs + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(0,1)
+cormatMetrics_outputs <- cormatMetrics_outputs + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(0,1)
+
+conmatPlot_inputs
+conmatPlot_outputs
+cormatPlot_inputs
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Deltas\\Delta0And12Summary.pdf", width = 15, height = 20)
+print(grid.arrange(clustPlt,conmatPlot_inputs,cormatPlot_inputs,cormatMetrics_inputs,cormatMetrics_outputs,
+      layout_matrix=rbind(c(1,2),c(3,2),c(4,5))))
+dev.off()
+
+```
+
+
+Summarize the correlation coefficients between different types
+```{r}
+corMatSum <- function(cormat){
+  # Format the data frame
+  colnames(cormat) <- c("neuron1","neuron2","CC")
+  cormat$quad1 <- cormat$neuron1 %>% as.character() %>% sapply(function(x) strsplit(x,'-')[[1]][1]) %>% as.vector()
+  cormat$bodyid1 <- cormat$neuron1 %>% as.character() %>% sapply(function(x) tail(strsplit(x,'_')[[1]],1)) %>% as.vector()
+  cormat$quad2 <- cormat$neuron2 %>% as.character() %>% sapply(function(x) strsplit(x,'-')[[1]][1]) %>% as.vector()
+  cormat$bodyid2 <- cormat$neuron2 %>% as.character() %>% sapply(function(x) tail(strsplit(x,'_')[[1]],1)) %>% as.vector()
+  cormat <- cormat %>% mutate(type1 = neuprint_get_meta(bodyid1)$type, type2 = neuprint_get_meta(bodyid2)$type)
+  if (length(which(grepl("_C0",cormat$neuron1)))>0)
+    cormat[which(grepl("_C0",cormat$neuron1)),]$type1 <- append(unique(cormat$type1),"_C0")
+  if (length(which(grepl("_C0",cormat$neuron2)))>0)
+    cormat[which(grepl("_C0",cormat$neuron2)),]$type2 <- append(unique(cormat$type2),"_C0")
+  cormat <- cormat[order(cormat$type2),]
+  cormat <- cormat[order(cormat$type1),]
+  cormat <- cormat[order(cormat$quad2),]
+  cormat <- cormat[order(cormat$quad1),]
+  
+  # Remove correlations to self
+  cormat <- cormat %>% filter(neuron1 != neuron2)
+  
+  # Remove repeat values
+  rw <- 1
+  while (rw < nrow(cormat)){
+    nronNm1 <- cormat$neuron1[rw]
+    nronNm2 <- cormat$neuron2[rw]
+    cormat <- cormat %>% filter(neuron1 != nronNm2 | neuron2 != nronNm1)
+    rw <- rw + 1
+  }
+  
+  # Group within the same region
+  cormat <- cormat %>% filter(quad1 == quad2)
+  
+  # Summarize corr. coef. value
+  cormat_summary_U <- cormat %>% filter(grepl("U",quad1)) %>% group_by(type1,type2) %>% summarize(meanCC = mean(CC), sdCC = sd(CC))
+  if (nrow(cormat_summary_U)>0)
+    cormat_summary_U$UD <- "U" 
+  cormat_summary_D <- cormat %>% filter(grepl("D",quad1)) %>% group_by(type1,type2) %>% summarize(meanCC = mean(CC), sdCC = sd(CC))
+  if (nrow(cormat_summary_D)>0)
+    cormat_summary_D$UD <- "D"
+  cormat_summary <- rbind(cormat_summary_U,cormat_summary_D)
+  
+  return(cormat_summary)
+}
+```
+
+
+```{r}
+quadSum <- function(synDat,prepost,vD_C0_bodyids){
+  
+  if (prepost){
+    # Select the inputs only and format the data according to the connection table convention
+    DeltaInputs <-  synDat %>% filter(prepost == TRUE) %>%
+      group_by(bodyid,quad,partner) %>% summarize(weight = length(partner)) %>% 
+      mutate(type.to = neuprint_get_meta(bodyid)$type,
+             type.from = neuprint_get_meta(partner)$type,
+             name.to = neuprint_get_meta(bodyid)$name,
+             name.from = neuprint_get_meta(partner)$name)
+    names(DeltaInputs)[names(DeltaInputs) == 'bodyid'] <- 'to'
+    names(DeltaInputs)[names(DeltaInputs) == 'partner'] <- 'from'
+    
+    # Establish a full name for the neurons of interest
+    DeltaInputs$nameid.from = paste(as.character(DeltaInputs$name.from), as.character(DeltaInputs$from), sep = "_")
+    DeltaInputs$nameid.to = paste(as.character(DeltaInputs$name.to), as.character(DeltaInputs$to), sep = "_")
+    
+    # Summarize the input dataset to find the mean input connections by type
+    DeltaInputs_Mean <- DeltaInputs %>% group_by(nameid.to,quad,type.from) %>% summarize(weightMean = mean(weight))
+    DeltaInputs_Mean$nameid.to.quad <- paste(as.character(DeltaInputs_Mean$quad), as.character(DeltaInputs_Mean$nameid.to), sep = "-") %>% as.factor()
+    
+    return(DeltaInputs_Mean)
+    
+  } else {
+    # Select the outputs only and format the data according to the connection table convention
+    DeltaOutputs <-  synDat %>% filter(prepost == FALSE) %>%
+      group_by(bodyid,quad,partner) %>% summarize(weight = length(partner)) %>% 
+      mutate(type.from = neuprint_get_meta(bodyid)$type,
+             type.to = neuprint_get_meta(partner)$type,
+             name.from = neuprint_get_meta(bodyid)$name,
+             name.to = neuprint_get_meta(partner)$name)
+    names(DeltaOutputs)[names(DeltaOutputs) == 'bodyid'] <- 'from'
+    names(DeltaOutputs)[names(DeltaOutputs) == 'partner'] <- 'to'
+    D0type <- unique(DeltaOutputs$type.to)
+
+    # Establish a full name for the neurons of interest
+    DeltaOutputs$nameid.from = paste(as.character(DeltaOutputs$name.from), as.character(DeltaOutputs$from), sep = "_")
+    DeltaOutputs$nameid.to = paste(as.character(DeltaOutputs$name.to), as.character(DeltaOutputs$to), sep = "_")
+    
+    # Summarize the output dataset to find the mean output connections by type
+    DeltaOutputs_Mean <- DeltaOutputs %>% group_by(nameid.from,quad,type.to) %>% summarize(weightMean = mean(weight))
+    DeltaOutputs_Mean$nameid.from.quad <- paste(as.character(DeltaOutputs_Mean$quad), as.character(DeltaOutputs_Mean$nameid.from), sep = "-") %>% as.factor()
+    
+    return(DeltaOutputs_Mean)
+  }
+  
+}
+```
+
+
+
+
+
+Calculate a metric to quantify differences in correlation matrix numbers by quadrant and by Delta 0 or by Delta 12
+    ```{r}
+D0types <- neuprint_search("Delta0.*",field="type")$type %>% unique()
+D0types <- D0types[which(!is.na(D0types))]
+
+numClusts = 4
+quads <- c("DL","DR","UL","UR")
+
+cormatMetrics_inputs <- ggplot()
+cormatMetrics_outputs <- ggplot()
+for (tp in 1:length(D0types)){
+  
+  # Get the D0 and D12 bodyids for a given neuron type
+  bodyids <- neuprint_search(paste0(D0types[tp],".*"),field="type")$bodyid
+  
+  
+  # Cluster their synapses into the appropraite quadrant
+  synDat <- DeltaSynClust(bodyids, numClusts)
+  
+  # Pull out the D12 neurons from the D0 population
+  D12bodyids <- c()
+  for (bid in 1:length(bodyids)){
+    xs = synDat %>% filter(bodyid == bodyids[bid]) %>% select(x)
+    if ((max(xs)-min(xs)) > (0.75*(max(synDat$x)-min(synDat$x))))
+      D12bodyids <- append(D12bodyids,bodyids[bid])
+  }
+      
+  # Find the mean number of input connections per type per quadrant
+  DeltaInputs_Mean <- quadSum(synDat,TRUE,D12bodyids)
+  
+  # Find the correlation matrix between inputs
+  cormat_inputs <- corMat(DeltaInputs_Mean,"type.from","nameid.to.quad")
+  
+  # Summarize the correlation values
+  cmSum_inputs <- corMatSum(cormat_inputs)
+
+  # Plot the summary statistics
+  cormatMetrics_inputs <- cormatMetrics_inputs + geom_point(data = cmSum_inputs,aes(x=paste(type1,type2,sep="-"),y=meanCC,color=UD)) +
+    geom_errorbar(data = cmSum_inputs,aes(x=paste(type1,type2,sep="-"), ymin=meanCC-sdCC, ymax=meanCC+sdCC),
+                width=.02, position=position_dodge(0.05))
+  
+  # Find the mean number of output connections per type per quadrant
+  DeltaOutputs_Mean <- quadSum(synDat,FALSE,D12bodyids)
+  
+  # Plot the correlation matrix between inputs
+  cormat_outputs <- corMat(DeltaOutputs_Mean,"type.to","nameid.from.quad")
+  
+  # Summarize the correlation values
+  cmSum_outputs <- corMatSum(cormat_outputs)
+  cmSum_outputs <- cmSum_outputs %>% filter(UD == "U")
+
+  # Plot the summary statistics
+  cormatMetrics_outputs <- cormatMetrics_outputs + geom_point(data = cmSum_outputs,aes(x=paste(type1,type2,sep="-"),y=meanCC,color=UD)) +
+    geom_errorbar(data = cmSum_outputs,aes(x=paste(type1,type2,sep="-"), ymin=meanCC-sdCC, ymax=meanCC+sdCC),
+                width=.02, position=position_dodge(0.05))
+  
+}
+cormatMetrics_inputs <- cormatMetrics_inputs + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(0,1)
+cormatMetrics_outputs <- cormatMetrics_outputs + theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylim(0,1)
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Deltas\\Delta0And12InputsByType_CorrelationSummary.pdf", width = 10, height = 10)
+print(cormatMetrics_inputs)
+dev.off()
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\Deltas\\Delta0And12OutputsByType_CorrelationSummary.pdf.pdf", width = 10, height = 10)
+print(cormatMetrics_outputs)
+dev.off()
+```
