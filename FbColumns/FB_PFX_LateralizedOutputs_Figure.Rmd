@@ -43,10 +43,12 @@ SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
 # Directory to save plots to.
 PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/PFX_Lateralized/"
+PlotAllDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/PFX_Lateralized/EveryConnection/"
 
 # Create save/plot directory if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+if (!dir.exists(PlotAllDir)){dir.create(PlotAllDir)}
 
 
 ```
@@ -141,10 +143,10 @@ Scatter_All=Scatter_All[c("type.from","type.to","to","weightRelative_R","weightR
 
 
 # Plot every PB-FB-XX to FB columnar type connectivity matrix and look for asymmetric connectivities
-ColumnColors <- paletteer_d("Polychrome::dark")
+ColumnColors <- paletteer_d("Polychrome::palette36")
+ConnectivityCriteria=data.frame(type.from=character(),type.to=character(),ColFromNum=numeric(),PreProportion=numeric(),PostProportion=numeric())
 for (ppp in 1:length(Pre_Post$type.from)){
-  print(ppp)
-  
+
   # Consider only this pre-post type
   Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
   Temp_Scatter = subset(Scatter_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
@@ -154,10 +156,13 @@ for (ppp in 1:length(Pre_Post$type.from)){
   # Calculate number of pre and post neurons
   PreNum=length(unique(Temp_PFX_Out$from))
   PostNum=length(unique(Temp_PFX_Out$to))
-  FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
+  FBColfromNum=length(unique(Temp_PFX_Out$FBcol.from))
   PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
   PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
   
+  ConnectivityCriteria=rbind(ConnectivityCriteria, 
+  data.frame(type.from=Pre_Post$type.from[ppp],type.to=Pre_Post$type.to[ppp],ColFromNum=FBColfromNum,
+             PreProportion=PreNum/PreNum_All,PostProportion=PostNum/PostNum_All))
   
   # Complete missing connections between these types.
   Temp_PFX_Out=complete(Temp_PFX_Out, 
@@ -170,7 +175,7 @@ for (ppp in 1:length(Pre_Post$type.from)){
   
   # If enough neurons from the two populations are connected,
   # plot the connectivity matrix and the scatter plot
-  if (FBColtoNum>4 & PreNum/PreNum_All>0.25 & PostNum/PostNum_All >0.25){
+  if (FBColfromNum>4 & PreNum/PreNum_All>0.3 & PostNum/PostNum_All >0.3){
     
     if (Temp_PFX_Out$type.from[1] == Temp_PFX_Out$type.to[1]){
       Prefix="Recurrent"
@@ -212,7 +217,7 @@ for (ppp in 1:length(Pre_Post$type.from)){
     
     
     # Save plot for review
-    ggsave(paste(PlotDir, Prefix, Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB_", ppp ,".png",sep=""),
+    ggsave(paste(PlotAllDir, Prefix, Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB_", ppp ,".png",sep=""),
            plot = P3, device='png', scale = 1, width =15, height = 5, units ="in", dpi = 300, limitsize = TRUE)
     
   }
@@ -226,56 +231,59 @@ for (ppp in 1:length(Pre_Post$type.from)){
 
 ```{r}
 
-# Make scatter plot
-Scatter_All = merge(Scatter_All, PFX_FB_Outputs_All[c("to","FBcol.to")], by="to")
 
-LIM=max( c(Scatter_All$weightRelative_L, Scatter_All$weightRelative_R))
-ggplot() + geom_point(data=Scatter_All, aes(x=weightRelative_L, y=weightRelative_R, color=FBcol.to)) +
-  theme_bw() + xlim(0, LIM*1.1) + ylim(0, LIM*1.1)
+# Subset Scatter_All on consistent connections (where most neurons in both populatons are involved)
+Scatter_All_Consistent = left_join(Scatter_All, distinct(PFX_FB_Outputs_All[c("to","FBcol.to")]), by="to")
+Scatter_All_Consistent = subset(Scatter_All_Consistent, !startsWith(type.from,"PFL"))
+Scatter_All_Consistent = left_join(Scatter_All_Consistent, ConnectivityCriteria, by=c("type.from","type.to"))
+Scatter_All_Consistent = subset(Scatter_All_Consistent, ColFromNum>7 & (PreProportion>0.6 | PostProportion>0.6) )
 
 
-# Make scatter plot of all R vs L weights
-pcCols <- paletteer_d("Polychrome::palette36")
-PFXs_ThatOutput=unique(PFX_FB_Outputs_All$type.from)
-for (ppp in 1:length(PFXs_ThatOutput)){
-  
-  Scatter_Temp=subset(Scatter_All, type.from==PFXs_ThatOutput[ppp])
-  
-  
-  
-  ggplot() + geom_point(data=Scatter_Temp, aes(x=weightRelative_L, y=weightRelative_R, color=type.to)) + 
-    scale_color_manual(values=pcCols, drop=FALSE)
-  
-}
+# Make supertype factor
+Scatter_All_Consistent$PresynapticClass =NA
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFGs")]="PFGs"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNa")]="PFNa"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNd")]="PFNd"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNm")]="PFNm (a/b)"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNv")]="PFNv"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFR")]="PFR (a/b)"
+
+# Make scatter plot for each supertype
+ScatterColors <- paletteer_d("Polychrome::palette36")
+ScatterColors = ScatterColors[c(6,8,11,13,17,33,1)]
+LIM=max( c(Scatter_All_Consistent$weightRelative_L, Scatter_All_Consistent$weightRelative_R))
+P1=ggplot() + geom_point(data=Scatter_All_Consistent, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
+  facet_wrap(facets=vars(type.from), nrow=3, ncol=5, scales="free") +
+  scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1)
+ggsave(paste(PlotDir, "ALL_Scatter.png",sep=""),
+         plot = P1, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
 ```
 
 
-
-
+# Test case 1
 ```{r}
 
-# Plot PFNd to PFNd connectivity
-Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == "PFNd" & type.to == "PFNd" & weightRelative >0.005)
-Temp_PFX_Out$from_name = paste(Temp_PFX_Out$PBglom.from, Temp_PFX_Out$from, sep="__")
-Temp_PFX_Out$to_name   = paste(Temp_PFX_Out$PBglom.to, Temp_PFX_Out$to, sep="__")
-  
+# I don't think this is correct. Why is PFNd-->PFNd not on diagonal? Wait, I guess it shouldn't be on the diagonal?
+Scatter_All_Consistent_bytype=Scatter_All_Consistent %>% group_by(type.from, type.to, PresynapticClass) %>%
+  summarise(weightRelative_R=mean(weightRelative_R), weightRelative_L=mean(weightRelative_L*PostProportion))
 
-PP <- ggplot(Temp_PFX_Out) + 
-  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                       midpoint =0.5*max(Temp_PFX_Out$weightRelative), limits=c(0,max(Temp_PFX_Out$weightRelative))) +
-  geom_tile(aes(to_name,from_name,fill=weightRelative)) +
-  facet_grid(rows = vars(Side.from), cols=vars(Side.to), scales="free") +
-  ggtitle(paste(Temp_PFX_Out$type.from[1]," to ",Temp_PFX_Out$type.to[1],sep=""))
 
-ggsave(paste(PFX_Dir_Lat, "Asym_", Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB.png",sep=""),
-       plot = PP, device='png', scale = 1, width = 7.5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+LIM=max( c(Scatter_All_Consistent_bytype$weightRelative_L, Scatter_All_Consistent_bytype$weightRelative_R))
+P1=ggplot() + geom_point(data=Scatter_All_Consistent_bytype, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
+  scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1)
+ggsave(paste(PlotDir, "ALL_Scatter_byType.png",sep=""),
+         plot = P1, device='png', scale = 1, width =7, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+
+
 
 
 ```
+
+
 
 
 
