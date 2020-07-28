@@ -50,7 +50,7 @@ CXOutputNeurons <- filter(CXNeurons,type %in% CXOutputs$type)
 
 Get everything connecting to those in the output regions
 ```{r}
-outputBag <- create_neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE,omitInputs = TRUE)
+outputBag <- neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE,omitInputs = TRUE)
 outputBag <- cxRetyping(outputBag)
 ## What is actually in there
 outputRegionsStrict <- unique(outputBag$outputs$roi)
@@ -169,8 +169,6 @@ outputsN1Table <- outputBagCompressed$outputs %>% mutate(category="output",
                                                          type.fromF=factor(type.from,levels=colnames(overlapMat)[outSynClusters$order]))
 outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
 outputsN1Table$category[outputsN1Table$type.from ==  outputsN1Table$type.to] <- "Self"
-
- 
 ```
 
 ```{r}
@@ -179,48 +177,17 @@ outputKind
 ```
 
 ```{r}
-N1Mat <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownOutputContribution")
-N1MatOut <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
-N1Dist <- cos_dist(N1Mat)
-N1DistOut <- cos_dist(N1MatOut)
-
-connCl <- hclust(N1Dist)
-connClCut <- cutree(connCl,h=0.8)
-
-connClOut <- hclust(N1DistOut)
-connClOutCut <- cutree(connClOut,h=0.8)
-
-test <- connectivity_clusters(outputsN1Table,slctROIs = "Output_Regions",clusterSide = "input",distance = cos_dist,knownStats = TRUE,h=0.8)
-```
-
-Name the "modules"
-```{r}
-clConnNames <- sapply(1:max(connClCut),function(i) paste(names(connClCut[connClCut==i]),collapse ="/"))
-CXOutOverlap <- mutate(CXOutOverlap,clConnName=clConnNames[cl])
-CXOutSyn <- mutate(CXOutSyn,clConnName=clConnNames[cl])
-
-## Also create a palette for it
-connCols <- paletteer::paletteer_d("Polychrome::palette36")[connClCut[rownames(N1Mat)[connCl$order]]+2]
-names(connCols) <- clConnNames[connClCut[rownames(N1Mat)[connCl$order]]]
+cxClOnOut <- connectivityCluster(outputsTable = outputsN1Table,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
+n1OnCxIn <- connectivityCluster(inputsTable = outputsN1Table,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
 ```
 
 ```{r}
-connClPlot <- plot_dist(N1Dist) +
-   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
-   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = connCols),axis.text.y = element_text(colour = connCols))
-   
-connClPlot
-
-plot_dist(test)
+plotClusters(cxClOnOut,colorAxis = T,theme = theme_paper_map(),h = 0.8)
+plotClusters(n1OnCxIn,colorAxis = F,theme = theme_paper_map(),h = 0.8)
+plotConnectivity(cxClOnOut,xaxis="inputs",theme=theme_paper_map(),orderOut=n1OnCxIn$hc$order,value="knownWeightRelative")+coord_cartesian()
+plotConnectivity(n1OnCxIn,xaxis="outputs",orderIn=cxClOnOut$hc$order,theme=theme_paper_map())+coord_cartesian()
 ```
 
-```{r}
-connClPlotOut <- plot_dist(N1DistOut) +
-   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
-   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
-
-connClPlotOut
-```
 Look at the connectivity matrix like that
 ```{r}
 outMatMelted <- df_conn_mat(N1MatOut,connClOut$order,connCl$order)
