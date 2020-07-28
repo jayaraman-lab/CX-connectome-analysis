@@ -19,18 +19,10 @@ source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnaly
 
 Specify plotting text sizes
 ```{r}
-tickLabSz <- 6
-axLabSz <- 8
-legSz <- 6
-legTitSz <- 8
-pltTit <- 8
-
-theme_set(theme(axis.title = element_text(size = axLabSz), 
-      axis.text = element_text(size = tickLabSz),
-      legend.text = element_text(size = legSz),
-      legend.title = element_text(size = legTitSz),
-      plot.title = element_text(size = pltTit)))
-
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+  }
 ```
 
 Get the connection tables from EPGs, D7s, IBSpsP, and SpsP Neurons to other FB types
@@ -80,6 +72,30 @@ conmatPlot_T2T <- ggplot(typeToType %>% filter(type.from != "PFR_b")) +
   geom_vline(xintercept = 0.5) + geom_vline(xintercept = 3.5) + geom_vline(xintercept = 23.5) 
 
 print(conmatPlot_T2T)
+```
+Split the connection table in two
+```{r}
+EPGD7Dat <- typeToType %>% filter(type.from %in% c("EPG","Delta7"))
+conmatPlot_T2T_D7EPG <- ggplot(EPGD7Dat) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(EPGD7Dat$weightRelative),
+                       limits=c(0,max(EPGD7Dat$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+otherDat <- typeToType %>% filter(type.from %in% c("SpsP","PFNv","IbSpsP"))
+conmatPlot_T2T_other <- ggplot(otherDat) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(otherDat$weightRelative),
+                       limits=c(0,max(otherDat$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+conmatSplt <- conmatPlot_T2T_D7EPG / conmatPlot_T2T_other
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PBTypeToType_Split.pdf',
+       conmatSplt, width = 3.5, height = 4)
 ```
 
 ```{r}
