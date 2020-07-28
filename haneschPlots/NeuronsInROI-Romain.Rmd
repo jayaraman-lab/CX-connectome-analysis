@@ -27,45 +27,65 @@ haneschSaveFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FirstDra
 CXTypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
 ```
 
-
+```{r}
+## A function to filter summaries to only neuropiles where neurons make significant connections
+filterROISummary <- function(ROIsummary,nBagROI,roiTypes,rois,renaming=cxRetyping){
+  roiConnections <- neuronBag(filter(nBagROI$names, type %in% roiTypes$type),slctROI = unique(filter(ROIsummary,roi %in% rois$roi)$roi),verbose=TRUE,selfRef=TRUE)
+  roiConnections <- renaming(roiConnections)
+  goodTypes <- distinct(do.call(rbind,lapply(unique(ROIsummary$roi),function(r){
+    typesUnfiltered <- roiConnections$names$type
+    inputs <- roiConnections$inputs %>% filter((roi == r) & 
+        (type.to %in% typesUnfiltered))
+    outputs <- roiConnections$outputs %>% filter((roi ==r) & 
+        (type.from %in% typesUnfiltered))
+    roiTypes <- data.frame(type = unique(c(inputs$type.to, outputs$type.from))) %>% 
+        mutate(databaseType = roiConnections$names$databaseType[match(type, 
+            roiConnections$names$type)])
+    return(roiTypes %>% mutate(roi=r))})))
+  ROISummary <- inner_join(goodTypes,ROIsummary)
+  ROISummary
+}
+```
 
 # EB
 This might take a while
 ```{r}
-EBTypesTable <- getTypesInRoiTable("EB",lateralize = FALSE)
+EBTypesTable <- getTypesInRoiTable("EB")
 ```
-
-
-```{r}
-EBTypesTable <- cxRetyping(EBTypesTable)
-```
-
 
 ```{r}
 EBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("EB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
-```
-
-```{r}
 labelRoisEB <- selectRoiSet(roiH,default_level = 0,exceptions = list("EB"=2),exceptionLevelMatch = 2)
 ```
 
-
 ```{r}
-EBTypes <- typesInROI(EBTypesTable,ROI = "EB") %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+EBTypes <- typesInROI(EBTypesTable,ROI = "EB") 
 ```
 
 ```{r}
-EBSummary <- getROISummary(EBTypesTable,threshold=20) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
-```
+EBSummary <- getROISummary(EBTypesTable,threshold=20) 
+EBSummary_ttFiltered <- filterROISummary(EBSummary,EBTypesTable,EBTypes,EBRois)
 
+EBTypes <- EBTypes %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+EBSummary <- EBSummary %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+EBSummary_ttFiltered  <- EBSummary_ttFiltered %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+```
 ```{r}
 haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = TRUE,theme = theme_paper_grid())
 haneschEB_R
 ```
 
 ```{r}
+haneschEB_R_ttF <- haneschPlot(EBSummary_ttFiltered %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = TRUE,theme = theme_paper_grid())
+haneschEB_R_ttF
+```
+
+
+```{r}
 save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth2.svg"),haneschEB_R,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth25.svg"),haneschEB_R,nrow=2,ncol=2.5,base_width = 8.5/2.5)
+save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth2_filtered.svg"),haneschEB_R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"EB/EBTypesRightWidth25_filtered.svg"),haneschEB_R_ttF,nrow=2,ncol=2.5,base_width = 8.5/2.5)
 ```
 
 ```{r}
@@ -79,11 +99,14 @@ htmlwidgets::saveWidget(interHaneschEB_R,paste0(haneschSaveFolder,"EB/EBTypesRig
 
 ```{r}
 haneschExR <- haneschPlot(EBSummary %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschExR_ttF <- haneschPlot(EBSummary_ttFiltered %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschExR
+haneschExR_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"EB/ExRs.svg"),haneschExR,nrow=1,base_width=8.5/2)
+save_plot(paste0(haneschSaveFolder,"EB/ExRs_filtered.svg"),haneschExR_ttF,nrow=1,base_width=8.5/2)
 ```
 
 ```{r}
@@ -189,18 +212,22 @@ NORois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=
 labelRoisNO <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
 ```
 
-
 ```{r}
 NOSummary <- getROISummary(NOTypesTable,threshold=20)
+NOSummary_ttFiltered <- filterROISummary(NOSummary,NOTypesTable,NORTypes,NORois)
 ```
 
 ```{r}
 haneschNOR <- haneschPlot(NOSummary %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschNOR_ttF <- haneschPlot(NOSummary_ttFiltered %>% filter(type %in% NORTypes$type),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschNOR
+haneschNOR_ttF
 ```
 ```{r}
 haneschNORF <- haneschPlot(NOSummary %>% filter((type %in% NORTypes$type) & (databaseType %in% CXTypes$databaseType)),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschNORF_ttF <- haneschPlot(NOSummary_ttFiltered %>% filter((type %in% NORTypes$type) & (databaseType %in% CXTypes$databaseType)),grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschNORF
+haneschNORF_ttF
 ```
 
 
@@ -216,7 +243,9 @@ htmlwidgets::saveWidget(interHaneschNOR,paste0(haneschSaveFolder,"NO/NO_RTypes.h
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"NO/NO_RTypes.svg"),haneschNOR,ncol=2,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"NO/NO_RTypes_t2tFiltered.svg"),haneschNOR_ttF,ncol=2,nrow=1.5,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"NO/NO_RTypes_filtered.svg"),haneschNORF,ncol=1,nrow=1,base_width = 8.5)
+save_plot(paste0(haneschSaveFolder,"NO/NO_RTypes_filtered_t2tFiltered.svg"),haneschNORF_ttF,ncol=1,nrow=1,base_width = 8.5)
 ```
 
 
@@ -236,129 +265,114 @@ NORTypes$databaseType[!(NORTypes$databaseType %in% NO_Type)]
 # BU
 
 ```{r}
-BUTypesTable <- getTypesInRoiTable("BU(R)",lateralize=TRUE,verbose=TRUE)
-```
+BUTypesTable <- getTypesInRoiTable("BU(R)",verbose=TRUE)
 
-```{r}
 BURTypes <- typesInROI(BUTypesTable,ROI = "BU(R)")
-```
 
-```{r}
 BURois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 
 labelRoisBU <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-```
 
-
-```{r}
 BUSummary <- getROISummary(BUTypesTable,threshold=3)
+BUSummary_ttFiltered <- filterROISummary(BUSummary,BUTypesTable,BURTypes,BURois)
 ```
 
 ```{r}
 haneschBUR <- haneschPlot(BUSummary %>% filter(type %in% BURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschBUR_ttF <- haneschPlot(BUSummary_ttFiltered %>% filter(type %in% BURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschBUR
+haneschBUR_ttF
 ```
 ```{r}
 save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes.svg"),haneschBUR,ncol=2,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes_filtered.svg"),haneschBUR_ttF,ncol=2,nrow=1.5,base_width = 8.5/2)
 ```
 
 # AOTU
 
 ```{r}
-AOTUTypesTable <- getTypesInRoiTable("AOTU(R)",lateralize=TRUE,verbose=TRUE)
-```
+AOTUTypesTable <- getTypesInRoiTable("AOTU(R)",verbose=TRUE)
 
-```{r}
 AOTURTypes <- typesInROI(AOTUTypesTable,ROI = "AOTU(R)")
-```
 
-```{r}
 AOTURois <- selectRoiSet(roiH,default_level = 2,exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 
 labelRoisAOTU <- selectRoiSet(roiH,default_level = 0,exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-```
 
-
-```{r}
 AOTUSummary <- getROISummary(AOTUTypesTable,threshold=3)
+AOTUSummary_ttFiltered <- filterROISummary(AOTUSummary,AOTUTypesTable,AOTURTypes,AOTURois)
 ```
 
 ```{r}
 haneschAOTUR <- haneschPlot(AOTUSummary %>% filter(type %in% AOTURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisAOTU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschAOTUR_ttF <- haneschPlot(AOTUSummary_ttFiltered %>% filter(type %in% AOTURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisAOTU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschAOTUR
+haneschAOTUR_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"AOTU/AOTU_RTypes.svg"),haneschAOTUR,ncol=8,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"AOTU/AOTU_RTypes_filtered.svg"),haneschAOTUR_ttF,ncol=8,nrow=1.5,base_width = 8.5/2)
 ```
 
 # AB
 
 ```{r}
 ABTypesTable <- getTypesInRoiTable("AB(R)",minTypePercentage = 0.2)
-```
 
-```{r}
-ABTypes <- typesInROI(ABTypesTable,ROI = "AB(R)")
-```
+ABTypes <- typesInROI(ABTypesTable,ROI = "AB(R)")%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 
-```{r}
 ABRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("LAL(R)"=4,"AL(R)"=1,"AL(L)"=1,"FB"=4),exceptionLevelMatch = c(2,1,1,2))
 
 labelRoisAB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-```
 
-
-```{r}
-ABSummary <- getROISummary(ABTypesTable,threshold=0)
+ABSummary <- getROISummary(ABTypesTable,threshold=0) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+ABSummary_ttFiltered <- filterROISummary(ABSummary,ABTypesTable,ABTypes,ABRois) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
 haneschABR <- haneschPlot(ABSummary %>% filter(type %in% ABTypes$type),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschABR_ttF <- haneschPlot(ABSummary_ttFiltered %>% filter(type %in% ABTypes$type),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschABR
+haneschABR_ttF
 ```
 ```{r}
 haneschABRF <- haneschPlot(ABSummary %>% filter((type %in% ABTypes$type) & (databaseType %in% c("SA1_a", "SA1_b", "SA1_c", "SA2_a", "SA2_b", "SA3", "SAF"))),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschABRF_ttF <- haneschPlot(ABSummary_ttFiltered %>% filter((type %in% ABTypes$type) & (databaseType %in% c("SA1_a", "SA1_b", "SA1_c", "SA2_a", "SA2_b", "SA3", "SAF"))),grouping="supertype2",flip=T,roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschABRF
+haneschABRF_ttF
 ```
 ```{r}
-save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes2.svg"),haneschABR,ncol=1,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes.svg"),haneschABR,ncol=1,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes_t2tFiltered.svg"),haneschABR_ttF,ncol=1,nrow=1.5,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes_filtered.svg"),haneschABRF,ncol=1,nrow=1,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"AB/AB_RTypes_filtered_t2tFiltered.svg"),haneschABRF_ttF,ncol=1,nrow=1,base_width = 8.5/2)
 ```
 
 # PB
 ```{r}
-PBTypesTable <- getTypesInRoiTable("PB",lateralize = FALSE)
-```
+PBTypesTable <- getTypesInRoiTable("PB",retyping = identity)
 
-```{r}
 PBTypesTableNonLat <- PBTypesTable
-```
 
-
-```{r}
 PBTypesTable <- cxRetyping(PBTypesTable)
-```
 
-
-```{r}
 PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
-```
 
-```{r}
 PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
 
 labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-```
 
-```{r}
 PBTypes <- mutate(PBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
-PBSummary <- getROISummary(PBTypesTable,threshold=20)  %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+PBSummary <- getROISummary(PBTypesTable,threshold=0)  %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+PBSummary_ttFiltered <- filterROISummary(PBSummary,PBTypesTable,PBTypes,PBRois) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
 haneschPB <- haneschPlot(PBSummary %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPB_ttF <- haneschPlot(PBSummary_ttFiltered %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschPB
+haneschPB_ttF
 ```
 
 ```{r}
@@ -372,142 +386,116 @@ htmlwidgets::saveWidget(interHaneschPB,paste0(haneschSaveFolder,"PB/PBTypes.html
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,nrow=1,ncol=2.5,base_width = 8.5/2.5)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypes_filtered.svg"),haneschPB_ttF,nrow=1,ncol=2.5,base_width = 8.5/2.5)
 ```
 
 #### PB glomeruli innervation
 
 ```{r}
 PBTypesNonLat <- typesInROI(PBTypesTableNonLat,ROI = "PB")
-```
-
-```{r}
-PBSummaryNonLat <- getROISummary(PBTypesTableNonLat,threshold=0) %>% filter(startsWith(roi,"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
-```
-
-```{r}
 PBRoisDetailed <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,1,1))
-PBRoisDetailedOnly <- filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
+PBRoisDetailedOnly <- filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")")))) 
+
+PBSummaryNonLat <- getROISummary(PBTypesTableNonLat,threshold=0) %>% filter(startsWith(roi,"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
+PBSummaryNonLat_ttFiltered <- filterROISummary(PBSummaryNonLat,PBTypesTableNonLat,PBTypesNonLat,filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")),renaming=identity) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")")))) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
 haneschPBLoc <- haneschPlot(PBSummary %>% filter(databaseType %in% c("Δ7","P1-9","LPsP","P6-8P9","SpsP")),roiSelect = PBRoisDetailed,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPBLoc_ttF <- haneschPlot(PBSummary_ttFiltered %>% filter(databaseType %in% c("Δ7","P1-9","LPsP","P6-8P9","SpsP")),roiSelect = PBRoisDetailed,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschPBLoc
-```
-```{r}
-interHaneschPBLoc <- girafe(ggobj = haneschPBLoc, width_svg=6,height_svg=6
-  )
-```
-
-```{r}
-htmlwidgets::saveWidget(interHaneschPBLoc,paste0(haneschSaveFolder,"PB/PBTypesLocal.html"))
+haneschPBLoc_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal.svg"),haneschPBLoc,nrow=1,ncol=1,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal_filtered.svg"),haneschPBLoc_ttF,nrow=1,ncol=1,base_width = 8.5/2)
 ```
 
 
 ```{r}
 haneschPBLoc2 <- haneschPlot(PBSummaryNonLat %>% filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","EPGt")),roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid(),regionOutlines = F)
+haneschPBLoc2_ttF <- haneschPlot(PBSummaryNonLat_ttFiltered %>% filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","EPGt")),roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid(),regionOutlines = F)
 haneschPBLoc2
-```
-
-```{r}
-interHaneschPBLoc2 <- girafe(ggobj = haneschPBLoc2, width_svg=6,height_svg=6
-  )
-```
-
-```{r}
-htmlwidgets::saveWidget(interHaneschPBLoc2,paste0(haneschSaveFolder,"PB/PBTypesLocal2.html"))
+haneschPBLoc2_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal2.svg"),haneschPBLoc2,nrow=1,ncol=1,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesLocal2_filtered.svg"),haneschPBLoc2_ttF,nrow=1,ncol=1,base_width = 8.5/2)
 ```
 
 ```{r}
 haneschPBColumn <- haneschPlot(PBSummaryNonLat %>% filter(type %in% PBTypesNonLat$type & !(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","SIFamide","EPGt"))),roiSelect = PBRoisDetailedOnly,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid(),regionOutlines = F)
+haneschPBColumn_ttF <- haneschPlot(PBSummaryNonLat_ttFiltered %>% filter(type %in% PBTypesNonLat$type & !(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","SIFamide","EPGt"))),roiSelect = PBRoisDetailedOnly,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid(),regionOutlines = F)
 haneschPBColumn
 ```
 
 ```{r}
 haneschPBDetails <- haneschPBLoc2 / haneschPBColumn + plot_layout(guides="collect",heights=c(1,4))
+haneschPBDetails_ttF <- haneschPBLoc2_ttF / haneschPBColumn_ttF + plot_layout(guides="collect",heights=c(1,4))
 haneschPBDetails
+haneschPBDetails_ttF
 ```
 ```{r}
 save_plot(paste0(haneschSaveFolder,"PB/PBDetails.svg"),haneschPBDetails,nrow=2,ncol=1,base_width=8.5/2)
-```
-
-
-```{r}
-load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/PB/PB_Types.RData")
-```
-
-```{r}
-PB_Type[!(PB_Type %in% PBTypes$databaseType)]
-```
-```{r}
-PBTypes$databaseType[!(PBTypes$databaseType %in% PB_Type)]
+save_plot(paste0(haneschSaveFolder,"PB/PBDetails_filtered.svg"),haneschPBDetails_ttF,nrow=2,ncol=1,base_width=8.5/2)
 ```
 
 # FB
 Tighten your seat belts, there are many neurons here.
 ```{r}
-FBTypesTable <- getTypesInRoiTable("FB",lateralize = F)
-```
-
-```{r}
-FBTypesTable <- cxRetyping(FBTypesTable)
-```
+FBTypesTable <- getTypesInRoiTable("FB",verbose=T)
 
 
-```{r}
-FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
-```
+FBTypes <- typesInROI(FBTypesTable,ROI = "FB")#%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 
-```{r}
 FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,2,1,1))
-
 labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-```
-
-```{r}
 FBTypes <- mutate(FBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
 
-FBSummary <- getROISummary(FBTypesTable,threshold=20) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBSummary <- getROISummary(FBTypesTable,threshold=0) #%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBSummary_ttFiltered <- filterROISummary(FBSummary,FBTypesTable,FBTypes,FBRois)# %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+
+FBSummary <- FBSummary %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBSummary_ttFiltered <- FBSummary_ttFiltered %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBTypes <- FBTypes %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
 haneschFB14R <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & grepl("FB[1-4]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
+haneschFB14R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[1-4]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
 haneschFB14R
+haneschFB14R_ttF
 ```
 ```{r}
-haneschFB56R <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & grepl("FB[5-6]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
-haneschFB56R
+haneschFB56R <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & grepl("FB[5-6]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())
+haneschFB56R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[5-6]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
+haneschFB56R 
+haneschFB56R_ttF
 ```
 ```{r}
 haneschFB79R <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & grepl("FB[7-9]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
+haneschFB79R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[7-9]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())
 haneschFB79R
-```
-
-```{r}
-interHaneschFBtR <- girafe(ggobj = haneschFBtR, width_svg=25,height_svg=8,
-  )
-```
-
-```{r}
-htmlwidgets::saveWidget(interHaneschFBtR,paste0(haneschSaveFolder,"FB/FBTangentialsRight.html"))
+haneschFB79R_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight1-4.svg"),haneschFB14R,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight5-6.svg"),haneschFB56R,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight7-9.svg"),haneschFB79R,nrow=1,ncol=2,base_width = 8.5/2)
+
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight1-4_filtered.svg"),haneschFB14R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight5-6_filtered.svg"),haneschFB56R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight7-9_filtered.svg"),haneschFB79R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
 ```
 
 ```{r}
 haneschFBOutLay <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschFBOutLay_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschFBOutLay
+haneschFBOutLay_ttF
 ```
 
 ```{r}
@@ -521,11 +509,14 @@ htmlwidgets::saveWidget(interHaneschFBQL,paste0(haneschSaveFolder,"FB/FBQsLeft.h
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBQsLeft.svg"),haneschFBOutLay,nrow=1,ncol=1.5,base_width=8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBQsLeft_filtered.svg"),haneschFBOutLay_ttF,nrow=1,ncol=1.5,base_width=8.5/2)
 ```
 
 ```{r}
 haneschFBColL <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschFBColL_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Columnar") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschFBColL
+haneschFBColL_ttF
 ```
 ```{r}
 interHaneschFBColL <- girafe(ggobj = haneschFBColL, width_svg=12,height_svg=8
@@ -538,11 +529,14 @@ htmlwidgets::saveWidget(interHaneschFBColL,paste0(haneschSaveFolder,"FB/FBColumn
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBColsLeft.svg"),haneschFBColL,nrow=1,ncol=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBColsLeft_filtered.svg"),haneschFBColL_ttF,nrow=1,ncol=1.5,base_width = 8.5/2)
 ```
 
 ```{r}
 haneschDeltas <- haneschPlot(FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Interneuron") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschDeltas_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Interneuron") & !grepl("_R",type)),roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschDeltas
+haneschDeltas_ttF
 ```
 ```{r}
 interHaneschDelta <- girafe(ggobj = haneschDeltas, width_svg=10,height_svg=7)
@@ -554,6 +548,7 @@ htmlwidgets::saveWidget(interHaneschDelta,paste0(haneschSaveFolder,"FB/FBDeltas.
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBDeltas.svg"),haneschDeltas,nrow=1,ncol=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBDeltas_filtered.svg"),haneschDeltas_ttF,nrow=1,ncol=1.5,base_width = 8.5/2)
 ```
 
 ### Full FB schematic?
@@ -561,16 +556,21 @@ save_plot(paste0(haneschSaveFolder,"FB/FBDeltas.svg"),haneschDeltas,nrow=1,ncol=
 ```{r}
 summaryFB <- FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & !grepl("_R",type))
 summaryFB$supertype2 <- factor(summaryFB$supertype2,levels=c("PFN","vΔ","hΔ","PFGs","PFR","PFL","FC","FS","FR"))
+summaryFB_ttF <- FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & !grepl("_R",type))
+summaryFB_ttF$supertype2 <- factor(summaryFB_ttF$supertype2,levels=c("PFN","vΔ","hΔ","PFGs","PFR","PFL","FC","FS","FR"))
 ```
 
 
 ```{r}
 haneschFBSummary <- haneschPlot(summaryFB,roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschFBSummary_ttF <- haneschPlot(summaryFB_ttF,roiSelect = FBRois,flip=T,roiLabel = labelRoisFB,grouping="supertype2",interactive=TRUE,showCount = T,theme=theme_paper_grid())
 haneschFBSummary
+haneschFBSummary_ttF
 ```
 
 ```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBSummary.svg"),haneschFBSummary,nrow=1,ncol=2,base_width=8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBSummary_filtered.svg"),haneschFBSummary_ttF,nrow=1,ncol=2,base_width=8.5/2)
 ```
 
 ```{r}
@@ -582,65 +582,3 @@ interHaneschFBSummary <- girafe(ggobj = haneschFBSummary, width_svg=13,height_sv
 htmlwidgets::saveWidget(interHaneschFBSummary,paste0(haneschSaveFolder,"FB/FBSummary.html"))
 ```
 
-## WIP add ons to hanesch plots
-
-```{r}
-library(ggraph)
-```
-
-```{r}
-FBoutputsAugmented <- FBTypesTable$outputs %>% mutate(supertype1.from = supertype(databaseTypeFrom,level=1),supertype1.to = supertype(databaseTypeTo,level=1),
-                                                      supertype2.from = supertype(databaseTypeFrom,level=2),supertype2.to = supertype(databaseTypeTo,level=2),
-                                                      supertype3.from = supertype(databaseTypeFrom,level=3),supertype3.to = supertype(databaseTypeTo,level=3),
-                                                     ) %>% filter(supertype3.from %in% c("FB Columnar","FB Interneuron","FB Output") & supertype3.to %in% c("FB Columnar","FB Interneuron","FB Output") & startsWith(roi,"FBl")) %>%
-                                           group_by(supertype1.from,supertype1.to,roi,supertype2.from,supertype2.to,supertype3.to,supertype3.from) %>%
-                                               summarize(weightRelative= sum(weightRelative),
-                                                         weight = sum(absoluteWeight)) %>% ungroup()
-
-nodesS <- unique(c(FBoutputsAugmented$supertype1.from,FBoutputsAugmented$supertype1.to))
-FBoutputsAugmented <- FBoutputsAugmented %>% mutate(edge.id = 1:nrow(FBoutputsAugmented),
-                                                    from = match(supertype1.from,nodesS),
-                                                    to = match(supertype1.to,nodesS),
-                                                    circular=FALSE,
-                                                    roiE = roi)
-```
-
-```{r}
-haneschFBSummary <- haneschPlot(FBSuperSummary %>% filter(supertype3 %in% c("FB Columnar","FB Interneuron","FB Output") & startsWith(roi,"FB")),roiSelect = normalROIs,flip=TRUE,alphaG = 0.2)
-#haneschFBSummaryPlus <- haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented,aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) + facet_wrap(roiE ~ .) 
-#haneschFBSummaryPlus
-```
-```{r}
-PFL1FBSummary <- haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL1" | supertype1.to == "PFL1"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) 
-PFL2FBSummary <-haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL2" | supertype1.to == "PFL2"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) 
-PFL3FBSummary <-haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL3" | supertype1.to == "PFL3"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3)  
-```
-
-```{r}
-PFL1FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL1" | supertype1.to == "PFL1"),aes(x=roi,y=ifelse(supertype1.from=="PFL1",supertype1.to,supertype1.from),size=weight))
-PFL2FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL2" | supertype1.to == "PFL2"),aes(x=roi,y=ifelse(supertype1.from=="PFL1",supertype1.to,supertype1.from),size=weight))
-PFL3FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL3" | supertype1.to == "PFL3"),aes(x=roi,y=ifelse(supertype1.from=="PFL3",supertype1.to,supertype1.from),size=weight))
-```
-
-```{r}
-PFLSummary <- plot_grid(PFL1FBSummary,PFL2FBSummary,PFL3FBSummary,labels=c("PFL1","PFL2","PFL3"),nrow = 1)
-```
-
-```{r}
-save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/PFLsInFB.svg",PFLSummary,base_width = 28,base_height = 6)
-```
-
-```{r}
-ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypesInFBWithEdges2.svg",haneschFBSummaryPlus,width = 30,height=20)
-```
-
-```{r}
-load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/FB_Types.RData")
-```
-
-```{r}
-FB_Type[!(FB_Type %in% FBTypes$databaseType)]
-```
-```{r}
-FBTypes$databaseType[!(FBTypes$databaseType %in% FB_Type)]
-```
