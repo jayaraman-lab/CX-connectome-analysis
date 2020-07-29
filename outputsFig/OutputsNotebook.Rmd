@@ -16,9 +16,8 @@ library(paletteer)
 ```
 
 ```{r message=FALSE}
-source("synapseDistsTools.R")
-source("R/paperTheme.R")
-source("R/connectivityMatricesTools.R")
+source("../synapseDistsTools.R")
+source("../R/paperTheme.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
 ```
 
@@ -32,37 +31,95 @@ CXNeurons <- getTypesTable(CXtypes$databaseType)
 CXNeurons <- cxRetyping(CXNeurons,postfix="raw")
 CXNeurons <- supertype(CXNeurons)
 
-CXPerROI <- getROISummary(CXNeurons,threshold=10)
-
 outputRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
                                      exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
 
+CXPerROI <- getROISummary(CXNeurons,threshold=0)
 
 CXPerROIRedux <- filter(CXPerROI,roi %in% outputRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
    summarize(upstream=sum(upstream),
              downstream=sum(downstream),
-             fullWeight=sum(fullWeight)) %>%
-   mutate(downstreamRatio = downstream/fullWeight) %>%
-   ungroup()
-CXOutputs <- filter(CXPerROIRedux,downstreamRatio>0.5 & fullWeight>20)
-CXOutputNeurons <- filter(CXNeurons,type %in% CXOutputs$type)
+             fullWeight=sum(fullWeight),
+             downstreamRatio=downstream/fullWeight) %>%
+   ungroup() %>% distinct()
+CXPotentialOutputs <- filter(CXPerROIRedux,downstream>20 & downstreamRatio>0.5)
+CXPotentialOutputNeurons <- filter(CXNeurons,type %in% CXPotentialOutputs$type)
 ```
 
 Get everything connecting to those in the output regions
 ```{r}
-outputBag <- create_neuronBag(CXOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE,omitInputs = TRUE)
+outputBag <- neuronBag(CXPotentialOutputNeurons,selfRef = TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE,omitInputs = TRUE)
 outputBag <- cxRetyping(outputBag)
 ## What is actually in there
 outputRegionsStrict <- unique(outputBag$outputs$roi)
-outputBagCompressed <- combineRois(outputBag,outputRegionsStrict,"Output_Regions",singleNeuronThreshold=0.001)
-CXOutputs <- filter(CXOutputs,type %in% outputBagCompressed$outputs$type.from)
-CXOutputNeurons <- filter(CXOutputNeurons,type %in% outputBagCompressed$outputs$type.from)
+outputBagCompressed <- combineRois(outputBag,outputRegionsStrict,"Output_Regions")
+outputTable <- outputBagCompressed$outputs %>% mutate(category="output")
+
+outputTable$category[outputTable$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
+outputTable$category[outputTable$type.from ==  outputTable$type.to] <- "Self"
+outputTable$category[startsWith(outputTable$type.to,"AOTU") | startsWith(outputTable$type.to,"TuBu")] <- "Efference"
+
+outputTable <- outputTable %>% group_by(type.from) %>% mutate(pureFeedbacks = all(category != "output"))
+
+CXOutputs <- filter(CXPotentialOutputs,type %in% filter(outputTable,pureFeedbacks==FALSE)$type.from)
+CXOutputNeurons <- filter(CXPotentialOutputNeurons,type %in% filter(outputTable,pureFeedbacks==FALSE)$type.from)
+
+
 ```
+
+
+
+### Cluster on the connectivity
+
+```{r}
+cxClOnOut <- connectivityCluster(outputsTable = outputTable,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
+n1OnCxIn <- connectivityCluster(inputsTable = outputTable,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
+cxClCl <- cutree(cxClOnOut$hc,h=0.8)
+```
+
+```{r}
+outputTable <- outputTable %>% mutate(type.fromF = factor(type.from,levels=unique(type.from,levels=unique(type.from)[cxClCl$hc$order])))
+outputKind <- ggplot(outputTable,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_paper_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
+outputKind
+```
+```{r}
+outputTable <- mutate(outputTable,cluster.from=cxClCl[type.from])
+outputTablePerCluster <- outputTable %>% group_by(cluster.from,type.to,category) %>% summarize(clusterContrib=sum(knownWeightRelative)) %>% ungroup()
+outputTableClusterInfluences <- outputTablePerCluster %>% group_by(type.to,category) %>% summarize(mainContrib=cluster.from[which.max(clusterContrib)],mainContribFraction=clusterContrib[which.max(clusterContrib)]/sum(clusterContrib))
+ggplot(outputTableClusterInfluences,aes(x=mainContribFraction)) + geom_histogram() + facet_wrap(category ~.)
+outputTable <- mutate(outputTable,clusterEq.to=outputTableClusterInfluences$mainContrib[match(type.to,outputTableClusterInfluences$type.to)])
+```
+
+
+
+```{r}
+plotClusters(cxClOnOut,colorAxis = T,theme = theme_paper_map(),h=0.8)
+plotClusters(n1OnCxIn,colorAxis = T,theme = theme_paper_map(),h=0.8)
+
+clCol <- paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2]
+plotConnectivity(filter(outputTable,category=="output"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95"),strip.text.x=element_text(colour=clCol)),orderIn=cxClOnOut$hc$order,orderOut=n1OnCxIn$hc$order,value="knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to") + scale_x_discrete(labels=NULL)
+plotConnectivity(filter(outputTable,category=="CX loop" | category=="self" | category=="Efference"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95")),orderIn=cxClOnOut$hc$order,orderOut=n1OnCxIn$hc$order,value="knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to")
+```
+
 
 ## Plotting output synapses of CX "output" neurons
 ```{r,warning=FALSE}
 CXOutSyn <- dplyr::bind_rows(pbapply::pblapply(outputRegionsStrict,function(r){
    synSet <- neuprint_get_synapses(CXOutputNeurons$bodyid,roi=r,chunk=5,progress=FALSE) 
+   if (!is.null(synSet)){
+      synSet <- filter(mutate(synSet,roi=r),prepost==0)
+      }                
+   return(synSet)                
+                             }))
+CXOutSyn <- mutate(CXOutSyn,
+                   type=CXOutputNeurons$type[match(bodyid,CXOutputNeurons$bodyid)],
+                   databaseType=CXOutputNeurons$databaseType[match(bodyid,CXOutputNeurons$bodyid)],
+                   supertype = CXOutputNeurons$supertype2[match(bodyid,CXOutputNeurons$bodyid)]
+                   )
+
+
+CXN1OutSyn <- dplyr::bind_rows(pbapply::pblapply(outputRegionsStrict,function(r){
+   synSet <- neuprint_get_synapses($bodyid,roi=r,chunk=5,progress=FALSE) 
    if (!is.null(synSet)){
       synSet <- filter(mutate(synSet,roi=r),prepost==0)
       }                
@@ -97,164 +154,6 @@ GORMesh <- neuprint_ROI_mesh("GOR(R)")
 IBMesh <- neuprint_ROI_mesh("IB")
 ICLMesh <- neuprint_ROI_mesh("ICL(R)")
 ```
-
-
-
-How much do synapses from different types overlap with each other?
-
-```{r}
-## Compute the nearest neighbor in another synapse set for all synapses
-OutputSynNNDists <- nncrossCross(CXOutSyn,by="type")
-
-## Summarise as the proportion of synapses from the other type closer than 1um
-CXOutOverlap <- group_by(OutputSynNNDists,type,to) %>% summarize(overlap=mean(distance<1000/8)) %>% ungroup()
-
-## Put the average of type1 to type2 and type2 to type1 in a matrix for clustering purposes (really for ordering)
-overlapMat <- matrix(nrow=length(unique(CXOutOverlap$type)),ncol=length(unique(CXOutOverlap$type)))
-rownames(overlapMat) <- CXOutputs$type
-colnames(overlapMat) <- CXOutputs$type
-for (t in CXOutputs$type){
-   for (t2 in CXOutputs$type){
-      overlapMat[t,t2] <- mean(filter(CXOutOverlap,(type==t & to==t2) | (type==t2 & to==t))$overlap)
-   }
-}
-
-## Cluster
-outSynClusters <- hclust(as.dist(1-overlapMat))
-outSynClCut <- cutree(outSynClusters,h=0.99)
-
-## Reorder the table with factors
-CXOutOverlap$typeF <- factor(CXOutOverlap$type,levels=colnames(overlapMat)[outSynClusters$order])
-CXOutOverlap$toF <- factor(CXOutOverlap$to,levels=colnames(overlapMat)[outSynClusters$order])
-```
-
-```{r}
-ddTypes <- as.dendrogram(outSynClusters)
-ddTypesData <- dendro_data(ddTypes, type = "rectangle")
-clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_paper_map() +coord_fixed(ratio=5)
-clustTypes
-```
-
-
-```{r}
-CXOutOverlap <- mutate(CXOutOverlap,cl=outSynClCut[type])
-CXOutSyn <- mutate(CXOutSyn,cl=outSynClCut[type])
-```
-
-Name the "modules"
-```{r}
-clNames <- sapply(1:max(outSynClCut),function(i) paste(names(outSynClCut[outSynClCut==i]),collapse ="/"))
-CXOutOverlap <- mutate(CXOutOverlap,clName=clNames[cl])
-CXOutSyn <- mutate(CXOutSyn,clName=clNames[cl])
-
-## Also create a palette for it
-overlapCols <- paletteer::paletteer_d("Polychrome::dark")[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
-names(overlapCols) <- clNames[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
-```
-
-```{r}
-overlapPlot <- ggplot(CXOutOverlap,aes(x=typeF,y=toF)) + geom_tile(aes(fill=overlap)) + 
-   theme_paper_map() + 
-   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols),axis.text.y = element_text(colour = overlapCols)) + 
-   scale_fill_distiller(palette = "Greys",trans="reverse") +xlab("")+ylab("")+coord_fixed()
-overlapPlot
-```
-
-### Do the same but for connectivity
-
-```{r}
-outputsN1Table <- outputBagCompressed$outputs %>% mutate(category="output",
-                                                         cl=outSynClCut[type.from],
-                                                         clName=clNames[cl],
-                                                         type.fromF=factor(type.from,levels=colnames(overlapMat)[outSynClusters$order]))
-outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX loop"
-outputsN1Table$category[outputsN1Table$type.from ==  outputsN1Table$type.to] <- "Self"
-
- 
-```
-
-```{r}
-outputKind <- ggplot(outputsN1Table,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_paper_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
-outputKind
-```
-
-```{r}
-N1Mat <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownOutputContribution")
-N1MatOut <- connectivityMatrix(outputsN1Table,slctROIs = "Output_Regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
-N1Dist <- cos_dist(N1Mat)
-N1DistOut <- cos_dist(N1MatOut)
-
-connCl <- hclust(N1Dist)
-connClCut <- cutree(connCl,h=0.8)
-
-connClOut <- hclust(N1DistOut)
-connClOutCut <- cutree(connClOut,h=0.8)
-
-test <- connectivity_clusters(outputsN1Table,slctROIs = "Output_Regions",clusterSide = "input",distance = cos_dist,knownStats = TRUE,h=0.8)
-```
-
-Name the "modules"
-```{r}
-clConnNames <- sapply(1:max(connClCut),function(i) paste(names(connClCut[connClCut==i]),collapse ="/"))
-CXOutOverlap <- mutate(CXOutOverlap,clConnName=clConnNames[cl])
-CXOutSyn <- mutate(CXOutSyn,clConnName=clConnNames[cl])
-
-## Also create a palette for it
-connCols <- paletteer::paletteer_d("Polychrome::palette36")[connClCut[rownames(N1Mat)[connCl$order]]+2]
-names(connCols) <- clConnNames[connClCut[rownames(N1Mat)[connCl$order]]]
-```
-
-```{r}
-connClPlot <- plot_dist(N1Dist) +
-   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
-   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = connCols),axis.text.y = element_text(colour = connCols))
-   
-connClPlot
-
-plot_dist(test)
-```
-
-```{r}
-connClPlotOut <- plot_dist(N1DistOut) +
-   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
-   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
-
-connClPlotOut
-```
-Look at the connectivity matrix like that
-```{r}
-outMatMelted <- df_conn_mat(N1MatOut,connClOut$order,connCl$order)
-outMatMelted <- mutate(outMatMelted,
-                       clOut=connClOutCut[as.character(Outputs)],
-                       clIn=connClCut[as.character(Inputs)],
-                       category=outputsN1Table$category[match(Outputs,outputsN1Table$type.to)])
-outMatCompressed <- group_by(outMatMelted,Inputs,clIn,clOut,category) %>% summarise(nOut = sum(clOut[1]==connClOutCut),
-                                                                             avgWeightR = sum(value)/(nOut),
-                                                                             n_pairs = n(),
-                                                                             fracConn = n_pairs/(nOut)) %>% ungroup() 
-
-ggplot(filter(outMatCompressed,category=="output")) + geom_point(aes(x=Inputs,y=as.factor(clOut),size=avgWeightR)) + theme_paper_hgrid() + theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(. ~ clIn,scales="free",space="free")
-
-ggplot(filter(outMatMelted,category=="output")) + geom_point(aes(x=Inputs,y=Outputs,size=value)) + theme_paper_hgrid() + theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free")
-
-ggplot(filter(outMatMelted,category=="CX loop")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="#F7F2F7", mid="blueviolet", high="black", 
-                         midpoint =0.5, limits=c(0,1)) 
-
-ggplot(filter(outMatMelted,category=="CX loop")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5, limits=c(0,1)) 
-
-
-ggplot(filter(outMatMelted,category=="output")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5, limits=c(0,1)) 
-
-ggplot(filter(outMatMelted,category=="Self")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map()+ theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("") + ylab("")+xlab("") + ylab("") + facet_grid(clOut ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5, limits=c(0,1)) 
-```
-
-
-
-
-## Map that onto anatomy
 ```{r}
 nopen3d()
 par3d(windowRect = c(30, 30, 1530, 1530))
@@ -272,7 +171,7 @@ plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FA
 plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 par3d(scale=c(1,1,1))
 for (t in unique(CXOutputNeurons$type)){
-   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[connClCut[t]+2],add=T)
+   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2],add=T)
 }
 nview3d("ventral")
 rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
@@ -283,6 +182,31 @@ rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
 ```{r}
 allOutViews <- ggdraw(xlim = c(0,2)) + draw_image(paste0(outputsFolder,"frontAllOuts.png"),scale=1.6,clip="on") + draw_image(paste0(outputsFolder,"sideAllOuts.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
 allOutViews
+```
+
+```{r}
+nopen3d()
+par3d(windowRect = c(30, 30, 1530, 1530))
+plot3d(EBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+plot3d(FBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(PBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(NOMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(LALRMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(GARMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(CREMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SMPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(WEDMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SLPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+par3d(scale=c(1,1,1))
+for (t in unique(filter(outputTable,category="output")$type.to)){
+   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2],add=T)
+}
+nview3d("ventral")
+rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
+nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
+rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
 ```
 
 Summaries of those different types/clusters
@@ -673,3 +597,63 @@ PFL_breakdown
 ```
 
 
+## Clustering  based on synapse overlap
+How much do synapses from different types overlap with each other?
+
+```{r}
+## Compute the nearest neighbor in another synapse set for all synapses
+OutputSynNNDists <- nncrossCross(CXOutSyn,by="type")
+
+## Summarise as the proportion of synapses from the other type closer than 1um
+CXOutOverlap <- group_by(OutputSynNNDists,type,to) %>% summarize(overlap=mean(distance<1000/8)) %>% ungroup()
+
+## Put the average of type1 to type2 and type2 to type1 in a matrix for clustering purposes (really for ordering)
+overlapMat <- matrix(nrow=length(unique(CXOutOverlap$type)),ncol=length(unique(CXOutOverlap$type)))
+rownames(overlapMat) <- CXOutputs$type
+colnames(overlapMat) <- CXOutputs$type
+for (t in CXOutputs$type){
+   for (t2 in CXOutputs$type){
+      overlapMat[t,t2] <- mean(filter(CXOutOverlap,(type==t & to==t2) | (type==t2 & to==t))$overlap)
+   }
+}
+
+## Cluster
+outSynClusters <- hclust(as.dist(1-overlapMat))
+outSynClCut <- cutree(outSynClusters,h=0.99)
+
+## Reorder the table with factors
+CXOutOverlap$typeF <- factor(CXOutOverlap$type,levels=colnames(overlapMat)[outSynClusters$order])
+CXOutOverlap$toF <- factor(CXOutOverlap$to,levels=colnames(overlapMat)[outSynClusters$order])
+```
+
+```{r}
+ddTypes <- as.dendrogram(outSynClusters)
+ddTypesData <- dendro_data(ddTypes, type = "rectangle")
+clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_paper_map() +coord_fixed(ratio=5)
+clustTypes
+```
+
+
+```{r}
+CXOutOverlap <- mutate(CXOutOverlap,cl=outSynClCut[type])
+CXOutSyn <- mutate(CXOutSyn,cl=outSynClCut[type])
+```
+
+Name the "modules"
+```{r}
+clNames <- sapply(1:max(outSynClCut),function(i) paste(names(outSynClCut[outSynClCut==i]),collapse ="/"))
+CXOutOverlap <- mutate(CXOutOverlap,clName=clNames[cl])
+CXOutSyn <- mutate(CXOutSyn,clName=clNames[cl])
+
+## Also create a palette for it
+overlapCols <- paletteer::paletteer_d("Polychrome::dark")[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+names(overlapCols) <- clNames[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+```
+
+```{r}
+overlapPlot <- ggplot(CXOutOverlap,aes(x=typeF,y=toF)) + geom_tile(aes(fill=overlap)) + 
+   theme_paper_map() + 
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols),axis.text.y = element_text(colour = overlapCols)) + 
+   scale_fill_distiller(palette = "Greys",trans="reverse") +xlab("")+ylab("")+coord_fixed()
+overlapPlot
+```

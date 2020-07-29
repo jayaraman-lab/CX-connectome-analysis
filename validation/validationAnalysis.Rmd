@@ -407,7 +407,7 @@ PBControlFig <-
          (PBSynapseCountDiffControl + theme(legend.position="none")) + 
          (PBSlopesControl + guides(color=FALSE)) +
          PBCompSlopesComp) + plot_layout(design=layout,guides="keep") + plot_annotation(tag_levels="A")
-PBControlFig
+PBControlFig 
 
 save_plot(paste0(validationFolder,"ValidationPanel2SI.pdf"),PBControlFig,nrow=2,ncol=1.5,base_width = 8.5/1.5,device=cairo_pdf)
 ```
@@ -709,7 +709,7 @@ EBFits <- left_join(EBFits,distinct(EBAges,bodyid,databaseType,supertype2,side,k
 
 
 ```{r}
-EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03) + geom_hline(yintercept = 1,lty=2)
+EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(size=0.2,position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + pape_theme +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("") +ylab("Slope estimate") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="Inputs")),color="black",expand=0.03) + geom_hline(yintercept = 1,lty=2)
 EBSlopes
 ```
 
@@ -783,7 +783,4 @@ save_plot(paste0(validationFolder,"ValidationPanel1-SI2.pdf"),EBSI2,nrow=2,ncol=
 
 
 
-```{r}
- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=estimate,y=std.error,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_minimal_hgrid() +theme(panel.border = element_rect(color = "gray 50", fill = NA),axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +xlab("Slope estimate") +ylab("Std Error on the estimate") 
-```
 
