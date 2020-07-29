@@ -432,20 +432,33 @@ for (ttt in 1:length(PbFb_Types)){
   
   
   # Make nodes
+
   TempNodeNames=c( paste("R", as.character(seq(from=9,to=1,by=-1)),sep=""), 
                 paste("L", as.character(seq(from=1,to=9,by=1)),sep=""),
                 paste(PlotData$name, PlotData$bodyid,sep="_") )
   TempX=c( seq(from=-74,to=-10,by=8), seq(from=10,to=74,by=8), PlotData$X*Convert)
   TempY=c(rep(70,18), -PlotData$Z*Convert)
-  CCC=c(rep(1,18),PlotData$FBcol)
+  CCC=c("C1","C2","C3","C4","C5","C6","C7","C8","C9",
+        "C1","C2","C3","C4","C5","C6","C7","C8","C9",
+        PlotData$FBcol)
   NNN=c(rep("R",9), rep("L",9), PlotData$Side)
   NODES=data.frame(name=TempNodeNames,x=TempX,y=TempY, COLORZ=CCC, Side=NNN)
 
 
   
   # Make edges
-  EDGES=data.frame(from=PlotData$PBglom, to=paste(PlotData$name, PlotData$bodyid,sep="_") , weight=1, COLORZ=PlotData$FBcol)
-  
+  EdgeType="FBcol"
+  if (EdgeType=="PBglom"){
+    EDGES=data.frame(from=PlotData$PBglom, to=paste(PlotData$name, PlotData$bodyid,sep="_") , weight=1, COLORZ=PlotData$PBglom)
+    EDGES$COLORZ=factor(EDGES$COLORZ, levels=c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+                                               "L1","L2","L3","L4","L5","L6","L7","L8","L9") )
+    ColumnColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688",
+                         "#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
+  } else if (EdgeType=="FBcol"){
+    EDGES=data.frame(from=PlotData$PBglom, to=paste(PlotData$name, PlotData$bodyid,sep="_") , weight=1, COLORZ=PlotData$FBcol)
+    EDGES$COLORZ=factor(EDGES$COLORZ, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9"))
+    ColumnColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
+  }
   
   # Make ggraph object
   NODES$name=as.character(NODES$name)
@@ -455,8 +468,8 @@ for (ttt in 1:length(PbFb_Types)){
 
   
   # columns colors
-  ColumnColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
-  NodeColors=color(c("black","#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
+  
+  NodeColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
   
   
   # Make graph
@@ -464,15 +477,15 @@ for (ttt in 1:length(PbFb_Types)){
     geom_edge_diagonal(aes(width=weight, color=COLORZ),alpha=0.5,strength=0.5) +
     geom_point(data=subset(NODES,Side=="R"), aes(x=x,y=y, fill=COLORZ),size=3, color="black", shape=21) + 
     geom_point(data=subset(NODES,Side=="L"), aes(x=x,y=y, fill=COLORZ),size=3, color="black", shape=22) +
-    scale_fill_manual(values=NodeColors) +
+    scale_fill_manual(values=NodeColors, drop=FALSE) +
     coord_fixed(ratio = 1) +
     theme_classic() + 
     geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
-    scale_edge_color_manual(values=ColumnColors) +
+    scale_edge_color_manual(values=ColumnColors,drop=FALSE) +
     scale_edge_width(range = c(0.75,0.9))
     
   ggsave(paste(FigDirOffset, "ColumnLocs_", PbFb_Types[ttt], "_", as.character(CurrentLayer), ".png", sep=""),
-         plot = P1, device='png', scale = 1, width = 10, height = 8, units ="in", dpi = 300, limitsize = TRUE)
+         plot = P1, device='png', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
 
 }
