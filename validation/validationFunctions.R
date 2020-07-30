@@ -71,7 +71,7 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("Inputs","Outp
   oldConnTable <- processConnectionTable(oldRawTable,oldRawTable,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="Inputs","PRE","POST"),
                                          slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldC,computeKnownRatio = TRUE,chunk_connections = TRUE)
   
-  groupVars <- c("from","to","roi","type.from","type.to",paste0("supertype.from",1:3),paste0("supertype.to",1:3))
+  groupVars <- c("from","to","roi","type.from","type.to",paste0("supertype",1:3,".from"),paste0("supertype",1:3,".to"))
   measureVars <- c(paste0(c("ROIweight",ifelse(polarity=="Inputs","knownWeightRelative","knownOutputContribution")),".old"),
                    paste0(c("ROIweight",ifelse(polarity=="Inputs","knownWeightRelative","knownOutputContribution")),".new"))
   extraMeasure <- c(paste0(c("input_completedness","output_completedness","knownTotalROIweight","knownTotalPreROIweight"),".old"),
@@ -126,14 +126,14 @@ getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
                        new=knownWeightRelative.new,
                        oldCompletedness=input_completedness.old,
                        newCompletedness=input_completedness.new,
-                       supertype2=supertype.to2) %>% mutate(side="Inputs")
+                       supertype2=supertype2.to) %>% mutate(side="Inputs")
   
   outputsComp <- mutate(outputsComp,
                         old=knownOutputContribution.old,
                         new=knownOutputContribution.new,
                         oldCompletedness=output_completedness.old,
                         newCompletedness=output_completedness.new,
-                        supertype2=supertype.from2) %>% mutate(side="Outputs")
+                        supertype2=supertype2.from) %>% mutate(side="Outputs")
   
   bind_rows(inputsComp,outputsComp)
   
