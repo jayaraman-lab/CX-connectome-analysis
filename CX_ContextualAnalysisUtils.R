@@ -2,6 +2,14 @@
 # Functions to analyze tangential/contextual inputs and their effects on CX networks   #
 ########################################################################################
 
+# Modified from supertype2Palette() function in Romain's neuprintrExtra package
+CXplusPalette <- function(){
+  s2 <- c("vDelta","v\u0394","hDelta","h\u0394","Delta7","\u03947","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LNO","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","ER","SA","MBON","CRE","SIP","SMP")
+  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,35,32,32,28,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36,4,5,13,17)]
+  names(pal) <- s2
+  list(pal=pal,breaks=s2)
+}
+
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   # Get the table of nodes (types)
