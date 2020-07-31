@@ -41,7 +41,7 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
     geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.25,
-                       strength=1,
+                       strength=0.5,
                        arrow = arrow(length = unit(1, "cm")),
                        end_cap = circle(1, 'cm')) + 
     geom_edge_loop(aes(direction=45,span=90,width=weightRelative,color=superType,strength=0.1),alpha=0.25) +

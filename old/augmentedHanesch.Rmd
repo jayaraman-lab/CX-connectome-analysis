@@ -1,0 +1,68 @@
+---
+title: "Augmented Hanesch"
+output: html_notebook
+---
+
+
+## WIP add ons to hanesch plots
+
+```{r}
+library(ggraph)
+```
+
+```{r}
+FBoutputsAugmented <- FBTypesTable$outputs %>% mutate(supertype1.from = supertype(databaseTypeFrom,level=1),supertype1.to = supertype(databaseTypeTo,level=1),
+                                                      supertype2.from = supertype(databaseTypeFrom,level=2),supertype2.to = supertype(databaseTypeTo,level=2),
+                                                      supertype3.from = supertype(databaseTypeFrom,level=3),supertype3.to = supertype(databaseTypeTo,level=3),
+                                                     ) %>% filter(supertype3.from %in% c("FB Columnar","FB Interneuron","FB Output") & supertype3.to %in% c("FB Columnar","FB Interneuron","FB Output") & startsWith(roi,"FBl")) %>%
+                                           group_by(supertype1.from,supertype1.to,roi,supertype2.from,supertype2.to,supertype3.to,supertype3.from) %>%
+                                               summarize(weightRelative= sum(weightRelative),
+                                                         weight = sum(absoluteWeight)) %>% ungroup()
+
+nodesS <- unique(c(FBoutputsAugmented$supertype1.from,FBoutputsAugmented$supertype1.to))
+FBoutputsAugmented <- FBoutputsAugmented %>% mutate(edge.id = 1:nrow(FBoutputsAugmented),
+                                                    from = match(supertype1.from,nodesS),
+                                                    to = match(supertype1.to,nodesS),
+                                                    circular=FALSE,
+                                                    roiE = roi)
+```
+
+```{r}
+haneschFBSummary <- haneschPlot(FBSuperSummary %>% filter(supertype3 %in% c("FB Columnar","FB Interneuron","FB Output") & startsWith(roi,"FB")),roiSelect = normalROIs,flip=TRUE,alphaG = 0.2)
+#haneschFBSummaryPlus <- haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented,aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) + facet_wrap(roiE ~ .) 
+#haneschFBSummaryPlus
+```
+```{r}
+PFL1FBSummary <- haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL1" | supertype1.to == "PFL1"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) 
+PFL2FBSummary <-haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL2" | supertype1.to == "PFL2"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3) 
+PFL3FBSummary <-haneschFBSummary + geom_edge_arc(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL3" | supertype1.to == "PFL3"),aes(x=roi,xend=roi,y=supertype1.from,yend=supertype1.to,color=supertype2.from,width=weightRelative),alpha=0.3)  
+```
+
+```{r}
+PFL1FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL1" | supertype1.to == "PFL1"),aes(x=roi,y=ifelse(supertype1.from=="PFL1",supertype1.to,supertype1.from),size=weight))
+PFL2FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL2" | supertype1.to == "PFL2"),aes(x=roi,y=ifelse(supertype1.from=="PFL1",supertype1.to,supertype1.from),size=weight))
+PFL3FBSummary <- haneschFBSummary + geom_point(data=FBoutputsAugmented %>% filter(supertype1.from == "PFL3" | supertype1.to == "PFL3"),aes(x=roi,y=ifelse(supertype1.from=="PFL3",supertype1.to,supertype1.from),size=weight))
+```
+
+```{r}
+PFLSummary <- plot_grid(PFL1FBSummary,PFL2FBSummary,PFL3FBSummary,labels=c("PFL1","PFL2","PFL3"),nrow = 1)
+```
+
+```{r}
+save_plot("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/PFLsInFB.svg",PFLSummary,base_width = 28,base_height = 6)
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/RoiInOut/HaneschFBTypesInFBWithEdges2.svg",haneschFBSummaryPlus,width = 30,height=20)
+```
+
+```{r}
+load("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/FB/FB_Types.RData")
+```
+
+```{r}
+FB_Type[!(FB_Type %in% FBTypes$databaseType)]
+```
+```{r}
+FBTypes$databaseType[!(FBTypes$databaseType %in% FB_Type)]
+```

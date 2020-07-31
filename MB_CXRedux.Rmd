@@ -177,8 +177,8 @@ ggsave("MBON2nonCXnonMBONTgtRwCXRTgt_InputProportionsCombinedSorted.eps", plot=i
 ```{r}
 # Pull significant MBON2nonCXwCXRTgtInpCombSort connections based on "totalMBContribution"
 StrongMBON2nonCXwCXRTgtInpCombSort <- MBON2nonCXwCXRTgtInpCombSort %>% filter(totalMBContribution > 0.05)
-# Filter MBONnonCXTargetR2CXRtab by type.from among StrongMBON2nonCXwCXRTgtInpCombSort$type.to and weightRelative > 0.01
-StrongMBONnonCXTargetR2CXRtab <- MBONnonCXTargetR2CXRtab %>% filter(type.from %in% StrongMBON2nonCXwCXRTgtInpCombSort$type.to & weightRelative > 0.01)
+# Filter MBONnonCXTargetR2CXRInpCombined by type.from among StrongMBON2nonCXwCXRTgtInpCombSort$type.to and weightRelative > 0.01
+StrongMBONnonCXTargetR2CXRtab <- MBONnonCXTargetR2CXRInpCombined %>% filter(type.from %in% StrongMBON2nonCXwCXRTgtInpCombSort$type.to & weightRelative > 0.01)
 # Filter StrongMBON2nonCXwCXRTgtInpCombSort for those connecting to StrongMBONnonCXTargetR2CXRtab$type.from
 StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort %>% filter(type.to %in% StrongMBONnonCXTargetR2CXRtab$type.from)
 
@@ -208,22 +208,15 @@ ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtCom
 StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
 StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
 
-```
-### Make and plot cosine distance matrix
-```{r}
+# Make and plot cosine distance matrix
 StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
 StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
-
 ```
-
-
 
 ### Check if there're cohorts of pathway clusters
 ```{r}
 
 ```
-
-
 
 ### Find Strongly connected direct MBON targets in the CX
 ```{r}
@@ -277,11 +270,34 @@ Notes:
 4) MBON04 has bilateral branches, but more contralaterally relative to the name (although the *_L cell body is just off to the midline on the right side).
 5) MBON12R and MBON13R only have branches ipsilateral to the cell body.
 6) MBON03 has bilateral branches, but more contralaterally relative to the name.
-7) MBON22 has ipsilateral branches in the calyz and bilateral branches in SIP/SMP.
+7) MBON22 has ipsilateral branches in the calyx and bilateral branches in SIP/SMP.
 8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
 
 ### Plot the combined direct and indirect pathways from MBONs to CX_R
 ```{r}
+# Combine MBON to CX_R direct and indirect tables 
+StrongMBON2CXRTgtTable <- StrongMBONTargetInpCdf %>% select(type.from,type.to,weightRelative)
+StrongMBON2CXRTgtDrctIndrctComboTable <- bind_rows(StrongMBON2CXRTgtTable,StrongMBON2nonCXR2CXRTgtComboTable, .id = NULL)
+
+# Set up the layout for the combined pathway plot
+MBONtypes <- unique(c(unique(as.vector(StrongMBON2CXRTgtTable$type.from)),unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from))))
+numMBONs <- length(MBONtypes)
+midNodes <- unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from))
+numMidNodes <- length(midNodes)
+allCXRtargets <- unique(c(unique(as.vector(StrongMBON2CXRTgtTable$type.to)),unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to))))
+numCXtargets <- length(allCXRtargets)
+types <- unique(c(MBONtypes,midNodes,allCXRtargets))
+numTypes <- length(types)
+
+xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
+                      y = c(seq(-1,1,length.out = numMBONs), seq(1.1,3.1,length.out = numMidNodes), seq(-1,1.5,length.out = numCXtargets)))
+
+# Graph the TypeToType ConnTable using the lookupTable
+StrongMBON2CXRTgtDrctIndrctComboPath <- graphConTab_old(StrongMBON2CXRTgtDrctIndrctComboTable,xyLookup,FALSE,TRUE)
+StrongMBON2CXRTgtDrctIndrctComboPath <- StrongMBON2CXRTgtDrctIndrctComboPath + scale_y_reverse()
+print(StrongMBON2CXRTgtDrctIndrctComboPath)
+ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctIndrctComboPath, device="svg", path=PlotDir, scale=1, 
+       width=30, height=90, units="in", dpi=300, limitsize=FALSE)
 
 ```
 
