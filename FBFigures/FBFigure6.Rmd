@@ -22,60 +22,16 @@ source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\conn
 options(nat.plotengine = 'rgl')
 ```
 
-Specify plotting text sizes
+Specify plotting parameters
 ```{r}
-tickLabSz <- 6
-axLabSz <- 8
-legSz <- 6
-legTitSz <- 8
-pltTit <- 8
-
-theme_set(theme(axis.title = element_text(size = axLabSz), 
-      axis.text = element_text(size = tickLabSz),
-      legend.text = element_text(size = legSz),
-      legend.title = element_text(size = legTitSz),
-      plot.title = element_text(size = pltTit)))
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+}
 
 stCols <- supertype2Palette()
-```
-
-Function to rename FB neurons
-```{r}
-FBRename <- function(name,id){
-  
-  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
-  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
-  nameid <- paste(name, as.character(id), sep='-')
-  
-  # Extract the unique names and types
-  allNames = nameid %>% unique() %>% sort()
-  nameLabels = name %>% unique() %>% sort()
-  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
-  types = gsub("([\\(\\)])", "\\\\\\1",types)
-  
-  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
-  newNames = c()
-  for (tp in 1:length(types)){
-    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
-      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
-    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
-    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
-    for (n in 1:length(nms)){
-      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
-      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
-      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
-    }
-    newNames = append(newNames,nmOrder)
-  }
-  # Create a lookup table between the old and new names
-  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
-  
-  # Swap in the new names
-  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
-    factor(levels = nmSwap$newNm)
-  
-  return(nameid)
-}
+stCols$breaks <- append(stCols$breaks,'OA-VPM3')
+stCols$pal <- append(stCols$pal,'#000000FF')
 ```
 
 Get the different types of FB neurons
@@ -103,26 +59,207 @@ FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
                            )]
 ```
 
-Get the FB columnar type to type table
+Create a neuronBag with the FB columnar types and lateralize it
 ```{r}
-# Get the connection table
-conTab_FBCol <- getConnectionTable(getTypesTable(FBTypesCol)$bodyid,
-                                   "POST",
-                                   "FB") %>%
-  filter(type.to %in% FBTypesCol)
-conTab_FBCol$id.from <- FBRename(conTab_FBCol$name.from, conTab_FBCol$from)
-conTab_FBCol$id.to <- FBRename(conTab_FBCol$name.to, conTab_FBCol$to)
-
-T2T_FBCol <- getTypeToTypeTable(conTab_FBCol)
+FBcol_nbag <- neuronBag(getTypesTable(FBTypesCol),slctROI="FB",omitInputs=TRUE)
+types_to_lat <- c(FBcol_nbag$outputs_raw$type.to,FBcol_nbag$outputs_raw$type.from) %>% unique()
+types_to_lat <- types_to_lat[types_to_lat %in% "PFL2" == FALSE]  
+FBcol_nbag_lat <- lateralize_types(FBcol_nbag, typeList = types_to_lat)
 ```
 
+Select only the type-to-type outputs that are also columnar neurons
+```{r}
+T2T_FBCol_filtered_lat <- FBcol_nbag_lat$outputs %>% filter(databaseType.to %in% FBTypesCol)
+```
+
+Check that a chosen percentage of pre and postsynaptic columns are featured for the each of the lateralized type-to-type connections
+```{r}
+# specify the column cut off
+prePercent <- 2/3
+postPercent <- 2/3
+
+# get all the presynaptic types
+preTypes <-  FBcol_nbag_lat$outputs$type.from %>% unique() 
+
+# Step through the presynaptic types
+for (pre in 1:length(preTypes)){
+  
+  # Get information about the presynaptic neurons
+  preType = preTypes[pre]
+  preBIDs <- FBcol_nbag_lat$outputsTableRef %>% filter(type == preType) %>% select(bodyid) %>% unlist() %>% as.numeric()
+  preCols <- FBcol_nbag_lat$outputsTableRef %>% filter(type == preType) %>% select(name) %>%  unlist() %>% as.character() %>%
+    lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+    unlist() %>% unique()
+  
+  # Create a neuron bag for only the presynaptic type and get the neuron to neuron connections
+  nbag_Now <- neuronBag(FBcol_nbag_lat$outputsTableRef %>% filter(type == preType),selfRef=TRUE,omitInputs=TRUE,slctROI="FB")
+  types_to_lat_Now <- c(nbag_Now$outputs_raw$type.to,nbag_Now$outputs_raw$type.from) %>% unique()
+  types_to_lat_Now <- types_to_lat_Now[types_to_lat_Now %in% "PFL2" == FALSE]  
+  nbag_Now <- nbag_Now %>% lateralize_types(typeList = types_to_lat_Now)
+  conTab_Now <- nbag_Now$outputs_raw
+  
+  # Get the postsynaptic columnar neurons for the current presynaptic neuron type
+  postTypes <- T2T_FBCol_filtered_lat %>% filter(type.from == preType) %>% select(type.to) %>%  unlist() %>% as.character() %>% unique()
+  
+  # Step through the postsynaptic neurons
+  for (post in 1:length(postTypes)){
+    
+    # Get information about the postsynaptic neurons
+    postType = postTypes[post]
+    postBIDs <- FBcol_nbag_lat$outputsTableRef %>% filter(type == postType) %>% select(bodyid) %>% unlist() %>% as.numeric()
+    postCols <- FBcol_nbag_lat$outputsTableRef %>% filter(type == postType) %>% select(name) %>%  unlist() %>% as.character() %>%
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    # Get the neuron to neuron connections just between the current pre and postsynaptic types
+    conTab_Specific <- conTab_Now %>% filter(type.to == postType)
+
+    # Get the number of FB columns represtented in the current connection table
+    fromCols <- conTab_Specific$name.from %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    toCols <- conTab_Specific$name.to %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    # Remove type to type connections where the columnar connections fall below the threshold
+    if ((length(fromCols) < (prePercent * length(preCols))) ||
+        (length(toCols) < (postPercent * length(postCols)))) {
+        
+        T2T_FBCol_filtered_lat <- T2T_FBCol_filtered_lat %>% filter(type.from != preType | type.to != postType)
+      }
+  }
+}
+```
+
+Step through the non lateralized type-to-type table, only keeping connections where both the right and left columns exceed the connection threshold
+```{r}
+T2T_FBCol_filtered_RandL <- FBcol_nbag$outputs %>% filter(type.to %in% FBTypesCol)
+
+# get all the presynaptic types
+preTypes <-  FBcol_nbag$outputs %>% filter(type.to %in% FBTypesCol) %>% select(type.from) %>% unlist() %>% unique() 
+preTypes_lat <- T2T_FBCol_filtered_lat$type.from %>% unique()
+postTypes_lat <- T2T_FBCol_filtered_lat$type.to %>% unique()
+
+# Step through the presynaptic types
+for (pre in 1:length(preTypes)){
+  preType <- preTypes[pre]
+  preType_lat = preTypes_lat[which(grepl(preType,preTypes_lat))]
+  
+  postTypes <- FBcol_nbag$outputs %>% filter(type.to %in% FBTypesCol) %>% filter(type.from == preType) %>% select(type.to) %>% unlist() %>% unique()
+  
+  for (post in 1:length(postTypes)){
+    postType <- postTypes[post]
+    postType_lat = postTypes_lat[which(grepl(postType,postTypes_lat))]
+    
+    if ((length(preType_lat) == 2) & (length(postType_lat) == 2)) {
+      if (nrow(T2T_FBCol_filtered_lat %>% filter(type.from %in% preType_lat, type.to %in% postType_lat)) < 4){
+        T2T_FBCol_filtered_RandL <- T2T_FBCol_filtered_RandL %>% filter(type.from != preType | type.to != postType)
+      }
+    } else if (length(preType_lat) == 2){
+      if (nrow(T2T_FBCol_filtered_lat %>% filter(type.from %in% preType_lat, type.to %in% postType_lat)) < 2){
+        T2T_FBCol_filtered_RandL <- T2T_FBCol_filtered_RandL %>% filter(type.from != preType | type.to != postType)
+      }
+    } else if (length(postType_lat) == 2){
+      if (nrow(T2T_FBCol_filtered_lat %>% filter(type.from %in% preType_lat, type.to %in% postType_lat)) < 2){
+        T2T_FBCol_filtered_RandL <- T2T_FBCol_filtered_RandL %>% filter(type.from != preType | type.to != postType)
+      }
+    } else {
+      if (nrow(T2T_FBCol_filtered_lat %>% filter(type.from %in% preType_lat, type.to %in% postType_lat)) < 1){
+        T2T_FBCol_filtered_RandL <- T2T_FBCol_filtered_RandL %>% filter(type.from != preType | type.to != postType)
+      }
+    }
+  }
+}
+```
+
+Convert this to a type to type table
+```{r}
+T2T_FBCol <- FBcol_nbag$outputs %>% filter(databaseType.to %in% FBTypesCol)
+```
+
+Check that a chosen percentage of pre and postsynaptic columnar neurons are featured
+```{r}
+prePercent <- 2/3
+postPercent <- 2/3
+
+T2T_FBCol_filtered <- T2T_FBCol
+
+preTypes <-  T2T_FBCol$type.from %>% unique() 
+for (pre in 1:length(preTypes)){
+  
+  preBIDs <- neuprint_get_meta(getTypesTable(preTypes[pre]))$bodyid
+  preCols <- neuprint_get_meta(getTypesTable(preTypes[pre]))$name %>% 
+    lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+    unlist() %>% unique()
+  
+  conTab_Now <- getConnectionTable(preBIDs,"POST","FB")
+  
+  postTypes <- conTab_Now$type.to %>% unique()
+  postTypes <- postTypes[which(postTypes %in% (T2T_FBCol$type.to %>% unique()))]
+  
+  for (post in 1:length(postTypes)){
+    
+    postBIDs <- neuprint_get_meta(getTypesTable(postTypes[post]))$bodyid
+    postCols <- neuprint_get_meta(getTypesTable(postTypes[post]))$name %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    conTab_Specific <- conTab_Now %>% filter(type.to == postTypes[post])
+    conTab_Specific$id.from <- FBRename(conTab_Specific$name.from, conTab_Specific$from)
+    conTab_Specific$id.to <- FBRename(conTab_Specific$name.to, conTab_Specific$to)
+
+    fromCols <- conTab_Specific$name.from %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    toCols <- conTab_Specific$name.to %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    if ((length(fromCols) < (prePercent * length(preCols))) ||
+        (length(toCols) < (postPercent * length(postCols)))) {
+        #conTab_Plt <- ggplot(conTab_Specific) + 
+        #  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_Now$weightRelative),
+        #                       limits=c(0,max(conTab_Now$weightRelative))) +
+        #  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+        #  theme_paper() + coord_fixed(ratio = 1) + 
+        #  theme(axis.text.x = element_text(angle = 90)) +
+        #  xlab(paste0(postTypes[post],'-n=',length(postBIDs))) + ylab(paste0(preTypes[pre],'-n=',length(preBIDs)))
+        
+        #print(conTab_Plt)
+        
+        T2T_FBCol_filtered <- T2T_FBCol_filtered %>% filter(type.from != preTypes[pre] | type.to != postTypes[post])
+      }
+  }
+}
+```
+
+Save the filtered type to type tables
+```{r}
+save(T2T_FBCol,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol.Rda")
+save(T2T_FBCol_filtered,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered.Rda")
+save(T2T_FBCol_filtered_lat,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_lat.Rda")
+save(T2T_FBCol_filtered_RandL,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_RandL.Rda")
+```
+
+
+Use the filtered type-to-type table for the analysis
+```{r}
+#T2T_FBCol <- FBcol_nbag$outputs %>% filter(databaseType.to %in% FBTypesCol)
+T2T_FBCol <- T2T_FBCol_filtered
+#T2T_FBCol <- T2T_FBCol_filtered_lat 
+#T2T_FBCol <- T2T_FBCol_filtered_RandL
+```
 
 Group the type to type table manually and plot
 ```{r}
 colGps <- c("PFN","PFR_a","PFG","hDelta","vDelta","FC","FS","PFR_b","FR1","FR2","PFL")
+colTypes <- c(T2T_FBCol$type.from,T2T_FBCol$type.to) %>% unique() %>% sort()
 pltOrder <- c()
 for (g in 1:length(colGps)){
-  pltOrder <- c(pltOrder,FBTypesCol[which(grepl(colGps[g],FBTypesCol))] %>% sort())
+  pltOrder <- c(pltOrder,colTypes[which(grepl(colGps[g],colTypes))] %>% sort())
 }
 T2T_FBCol$type.to <- factor(T2T_FBCol$type.to,pltOrder)
 T2T_FBCol$type.from <- factor(T2T_FBCol$type.from,rev(pltOrder))
@@ -136,10 +273,10 @@ T2TPlt_FBCol_Manual <- ggplot(T2T_FBCol) +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBCol$weightRelative),
                        limits=c(0,max(T2T_FBCol$weightRelative))) +
   geom_tile(aes(type.to,type.from,fill=weightRelative)) +
-  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme_paper() + coord_fixed(ratio = 1) + 
   theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
         axis.text.y = element_text(color=txtColsFrom)) +
-  xlab("post-synaptic type") + ylab("pre-synaptic type")
+  xlab("postsynaptic type") + ylab("presynaptic type")
 
 typesFrom <- T2T_FBCol$type.from %>% unique()
 offset = length(typesFrom) + 0.5
@@ -156,7 +293,22 @@ for (g in 1:length(colGps)){
 }
   
 print(T2TPlt_FBCol_Manual)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity_Filtered.pdf", T2TPlt_FBCol_Manual)
 ```
+
+Load the filtered type to type tables
+```{r}
+load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol.Rda")
+load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered.Rda")
+load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_lat.Rda")
+load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_RandL.Rda")
+```
+
+
+```{r}
+connectivityCluster(T2T_FBCol_filtered)
+```
+
 
 Cluster the FB inputs
 ```{r}
@@ -219,7 +371,7 @@ print(T2TPlt_FBCol_Clust)
 Combine, plot, and save
 ```{r}
 t2tplts <- (toDend + T2TPlt_FBCol_Manual) / (T2TPlt_FBCol_Clust + fromDend) 
-ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity.pdf",t2tplts)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity_Filtered.pdf",t2tplts)
 
 ```
 
@@ -270,7 +422,7 @@ print(toCorPlt)
 
 Combine, plot, and save
 ```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColCor.pdf")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColCor_Filtered.pdf")
 grid.arrange(toCorPlt,fromCorPlt,nrow=2)
 dev.off()
 
@@ -360,7 +512,7 @@ source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetwo
 xyLookup <- xyLookupTableInner()
 
 gCT <- graphConTab(T2T_FBCol,xyLookup,FALSE,TRUE)
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\AllColumnarConnections_Static.pdf")
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\AllColumnarConnections_Static_Filtered.pdf")
 print(gCT)
 dev.off()
 ```
@@ -420,7 +572,7 @@ v <- v %>% visLegend(width=0.2, main="super type",ncol=3) %>% visInteraction(mul
 
 # Save the plot
 
-visSave(v, "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\AllColumnarConnections.html",
+visSave(v, "C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\AllColumnarConnections_Filtered.html",
         selfcontained = TRUE, background = "white")
 
 ```
