@@ -123,6 +123,42 @@ print(TCTPlt_AB)
 #ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-AB.pdf",TCTPlt_AB)
 ```
 
+Try the above with the getTypesInROITable function
+```{r}
+AB_R_Type_Info <- getTypesInRoiTable("AB(R)",minTypePercentage = 0.2)
+AB_L_Type_Info <- getTypesInRoiTable("AB(L)",minTypePercentage = 0.2)
+```
+```{r}
+T2T_AB_R <- AB_R_Type_Info$outputs %>% as.data.frame() %>% filter(type.to %in% c(AB_R_Type_Info$names$type %>% unique()))
+
+T2TPlt_AB_R <- ggplot(T2T_AB_R) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_AB_R$weightRelative),
+                       limits=c(0,max(T2T_AB_R$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(R)')
+
+T2T_AB_L <- AB_L_Type_Info$outputs %>% as.data.frame() %>% filter(type.to %in% c(AB_L_Type_Info$names$type %>% unique()))
+
+T2TPlt_AB_L <- ggplot(T2T_AB_L) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_AB_L$weightRelative),
+                       limits=c(0,max(T2T_AB_L$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(L)')
+```
+```{r}
+TCTPlt_AB <- T2TPlt_AB_R + T2TPlt_AB_L + plot_layout(ncol=4)
+print(TCTPlt_AB)
+```
+```{r}
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-AB-neuronbag.pdf",TCTPlt_AB)
+```
+
 Plot the total number of neurons in the AB
 ```{r}
 cts_AB_R_from <- conTab_AB_R %>% select(from) %>% unique() %>% 

@@ -3,6 +3,43 @@
 ############################################################
 library(ggdendro)
 
+#Function to rename FB neurons
+FBRename <- function(name,id){
+  
+  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
+  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
+  nameid <- paste(name, as.character(id), sep='-')
+  
+  # Extract the unique names and types
+  allNames = nameid %>% unique() %>% sort()
+  nameLabels = name %>% unique() %>% sort()
+  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
+  types = gsub("([\\(\\)])", "\\\\\\1",types)
+  
+  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
+  newNames = c()
+  for (tp in 1:length(types)){
+    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
+      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
+    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
+    for (n in 1:length(nms)){
+      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
+      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
+      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
+    }
+    newNames = append(newNames,nmOrder)
+  }
+  # Create a lookup table between the old and new names
+  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
+  
+  # Swap in the new names
+  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
+    factor(levels = nmSwap$newNm)
+  
+  return(nameid)
+}
+
 #Create x and y coordinates for a manual network layout of neurons - FB columnar types
 xyLookupTableCol <- function(){
   superTypes <- c("PFN","Delta0","SAF","Delta6","PFR","PFG","FC","PFL","^FR","FS")
@@ -42,31 +79,30 @@ xyLookupTableCol <- function(){
 xyLookupTableInner <- function(){
   nronGps <- list(c("PFNa"),c("PFNd","PFNv","PFNm"),c("PFNp"),
                   c("FC1"),
-                  c("hDeltaB","hDeltaC","hDeltaD","hDeltaK",
-                    "PFR_a","PFG","FC3"),
+                  c("vDeltaJ","vDeltaK","vDeltaL","vDeltaM","PFR_a"),
+                  c("vDeltaE","vDeltaF","vDeltaG","vDeltaH","vDeltaI","FC3"),
                   c("vDeltaA_a","vDeltaA_b","vDeltaB","vDeltaC","vDeltaD"),
-                  c("hDeltaE","hDeltaF","hDeltaJ","hDeltaL",
-                    "vDeltaF","vDeltaG","vDeltaH","vDeltaI",
-                    "vDeltaE","vDeltaJ","vDeltaK","vDeltaL","vDeltaM"),
-                  c("FC2","hDeltaA","hDeltaG","hDeltaH","hDeltaI","hDeltaM"),
+                  c("hDeltaB","hDeltaC","hDeltaG","hDeltaH","hDeltaJ","hDeltaK","PFG"),
+                  c("hDeltaA","hDeltaD","hDeltaE","hDeltaF","hDeltaI","hDeltaL","hDeltaM","FC2"),
                   c("FR2","PFL1"),
-                  c("FS3","FS4C"),
-                  c("FS4A","FS4B"),
-                  c("PFR_b","FR1","FS2"),
-                  c("PFL2","PFL3","FS1")
+                  c("FS3","FS4"),
+                  c("FR1","FS2"),
+                  c("PFR_b"),
+                  c("FS1"),
+                  c("PFL2","PFL3")
                   )
   lout <- c("p","h","h",
-            "c","c","c","c","c",
-            "h","h","h","h","h")
+            "c","c","c","c","c","c",
+            "h","h","h","h","h","h")
   xOffset <- c(0,0,0,
-               20,10,20,10,20,
-               30,30,30,30,30)
+               15,10,20,10,10,20,
+               30,30,30,30,30,30)
   yOffset <- c(-9,-2,10,
-               -10,-4,2,9,19,
-               -10,-4,3,8,16)
+               -9,9,15,21,-1,4,
+               -9,-1,8,11,15,19)
   rad <- c(0,6,6,
-           2,2,1.5,4,3,
-           1.5,1.5,1.5,3,5)
+           2,2,2,2,3,3,
+           1.5,5,1.5,1,1.5,1.5)
   
   xyLookup <- data.frame(type = c(), x = c(), y = c())
   for (st in 1:length(nronGps)){

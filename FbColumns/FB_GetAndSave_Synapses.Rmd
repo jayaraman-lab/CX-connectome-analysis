@@ -60,17 +60,17 @@ source("FB_SynapseDistribution_Utils.r")
 ```{r}
 
 # get all FB bodies
-NamedBodies = Get_AllNeurons_InRoi(ROI, FALSE)
-NamedBodies=ComputeRelativeSynapseCounts(NamedBodies)
+NamedBodies=getNeuronsInRoiTable("FB",0)
+
 
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","vDelta","hDelta","FR","FS","FC")
-Logica=startsWith(NamedBodies$bodytype, FB_Columnar_Type[1]) | startsWith(NamedBodies$bodytype, FB_Columnar_Type[2]) |
-       startsWith(NamedBodies$bodytype, FB_Columnar_Type[3]) | startsWith(NamedBodies$bodytype, FB_Columnar_Type[4]) |
-       startsWith(NamedBodies$bodytype, FB_Columnar_Type[5]) | startsWith(NamedBodies$bodytype, FB_Columnar_Type[6]) 
-ExcludedTypes=unique(NamedBodies$bodytype[!Logica])
-IncludedTypes=unique(NamedBodies$bodytype[Logica])
-ColumnarBodies=subset(NamedBodies, NamedBodies$bodytype %in% IncludedTypes)
+Logica=startsWith(NamedBodies$type, FB_Columnar_Type[1]) | startsWith(NamedBodies$type, FB_Columnar_Type[2]) |
+       startsWith(NamedBodies$type, FB_Columnar_Type[3]) | startsWith(NamedBodies$type, FB_Columnar_Type[4]) |
+       startsWith(NamedBodies$type, FB_Columnar_Type[5]) | startsWith(NamedBodies$type, FB_Columnar_Type[6]) 
+ExcludedTypes=unique(NamedBodies$type[!Logica])
+IncludedTypes=unique(NamedBodies$type[Logica])
+ColumnarBodies=subset(NamedBodies, NamedBodies$type %in% IncludedTypes)
 
 
 ```
@@ -204,8 +204,8 @@ FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 ```{r}
 
 # Get pre and post body names (to get PB columns later)
-BodyId_And_Names=NamedBodies[c("bodyid","bodyname")]
-BodyId_And_PartnerNames=NamedBodies[c("bodyid","bodyname")]
+BodyId_And_Names=NamedBodies[c("bodyid","name")]
+BodyId_And_PartnerNames=NamedBodies[c("bodyid","name")]
 colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
 FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_Names, by="bodyid")
 FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
