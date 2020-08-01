@@ -23,8 +23,8 @@ neuprint_login()
 
 
 ```{r}
-source("R/connectivityMatricesTools.R")
-source("visualizeConnectivityTables.R")
+source("../R/connectivityMatricesTools.R")
+source("../visualizeConnectivityTables.R")
 
 getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
@@ -48,7 +48,6 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 ```
 
 # Make ROI selection
-
 ```{r}
 roiTree = getRoiTree()
 slctROIs = selectRoiSet(roiTree, default_level = 1, 
@@ -59,12 +58,137 @@ slctROIs = as.character(unique(slctROIs$roi))
 slctROIs
 ```
 
+# Visulaze small neuropiles
+```{r}
+gaMesh = neuprint_ROI_mesh("GA(R)")
+gaMeshPts = data.frame(dotprops(gaMesh)$points)
+names(gaMeshPts) <- c("x","y","z")
+
+ruMesh = neuprint_ROI_mesh("RUB(R)")
+ruMeshPts = data.frame(dotprops(ruMesh)$points)
+names(ruMeshPts) <- c("x","y","z")
+
+roMesh = neuprint_ROI_mesh("ROB(R)")
+roMeshPts = data.frame(dotprops(roMesh)$points)
+names(roMeshPts) <- c("x","y","z")
+
+ebMesh = neuprint_ROI_mesh("EB")
+ebMeshPts = data.frame(dotprops(ebMesh)$points)
+names(ebMeshPts) <- c("x","y","z")
+
+laMesh = neuprint_ROI_mesh("LAL(-GA)(R)")
+laMeshPts = data.frame(dotprops(laMesh)$points)
+names(laMeshPts) <- c("x","y","z")
+
+```
+
+Example neurons
+```{r}
+EPGexample = neuprint_read_skeletons(696362840)
+ELexample = neuprint_read_skeletons(912596952)
+PEGsexample = neuprint_read_skeletons(788461444)
+PFRaexample = neuprint_read_skeletons(819828716) #PFR_b(PB11b)_L4_C5
+FRexample = neuprint_read_skeletons(356670712)  #FR2(FQ4)_C4_L_small
+
+```
+
+```{r}
+EPGexample = neuprint_read_skeletons(neuprint_search("EPG.*",meta = FALSE))
+ELexample = neuprint_read_skeletons(912596952)
+PEGsexample = neuprint_read_skeletons(788461444)
+PFRaexample = neuprint_read_skeletons(819828716) #PFR_b(PB11b)_L4_C5
+FRexample = neuprint_read_skeletons(356670712)  #FR2(FQ4)_C4_L_small
+
+```
+
+```{r}
+plot3d(gaMesh, col='maroon', alpha=0.4, add=TRUE)
+plot3d(roMesh, col='slateblue', alpha=0.4, add=TRUE)
+plot3d(ruMesh, col='goldenrod', alpha=0.4, add=TRUE)
+#plot3d(ebMesh, col='dimgrey',alpha=0.2, add=TRUE)
+#plot3d(laMesh, col='dimgrey',alpha=0.2, add=TRUE)
+
+plot3d(EPGexample, col='maroon', add=TRUE, WithNode=F)
+plot3d(ELexample, col='tomato', add=TRUE, WithNode=F)
+plot3d(PEGsexample, col='purple', add=TRUE, WithNode=F)
+plot3d(PFRaexample, col='slateblue', add=TRUE, WithNode=F)
+plot3d(FRexample, col='goldenrod', add=TRUE, WithNode=F)
+
+
+```
+
+
+# Rubus ########
 # Select neurons to be considered
 Since the Gall is a badly defined region, we can't easily collect neurons that go to the Gall based in the EM ROI.
 ```{r}
-gallTypes = getTypesInRoiTable("GA(R)")
+rubSlctTypes = c("PFR")
+rubSlctIDs = getBodyIdsForList(rubSlctTypes)
+pre = rubSlctIDs$bodyid
+post = pre
+myConnections = getConnectionTable(pre, "POST", by.roi = TRUE)
+myConnections = myConnections %>% filter(to %in% post) 
+
+myConnections = myConnections %>% filter(roi %in% slctROIs) %>% filter(roi != "CX")
+
+#combine data from all ROIs
+myConnectionsCombo = combineRois(myConnections,unique(myConnections$roi),'nonCx')
 
 ```
+
+```{r}
+typesTable <- getTypesTable(unique(myConnectionsCombo$databaseType.to))
+# Subdivide types and build a custom types table
+myConnectionsCombo = lateralize_types(myConnectionsCombo, postfix="to")
+myConnectionsCombo = lateralize_types(myConnectionsCombo, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+
+myConnectionsT2T = getTypeToTypeTable(myConnectionsCombo,typesTable = typesTable)
+```
+
+### Connectivity matrix
+```{r}
+plotW = 25# 45 # 20
+plotH = 21 #4 #40  #17
+cmax = NULL
+connectionMeasures = c("weightRelative")
+preName = "rubus selection"
+postName = preName
+saveName = ""
+roiName = "nonCX_rubusTypes"
+
+for (connectionMeasure in connectionMeasures){
+  
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, roiName, connectionMeasure)
+  
+  print(conMatPlot)
+  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
+    scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, roiName, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+  print(conMatPlot)
+  ggsave(paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byID.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "name", connectionMeasure,cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, roiName, connectionMeasure)
+  #conMatPlot = structureMatrixPlotByType(conMatPlot)
+  print(conMatPlot)
+  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byName.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
+      scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+
+# GA ################
+# Select neurons to be considered
+Since the Gall is a badly defined region, we can't easily collect neurons that go to the Gall based in the EM ROI.
 ```{r}
 gallSlctTypes = c("EPG","PEG","EL","ER6","PFG")
 gallSlctIDs = getBodyIdsForList(gallSlctTypes)
@@ -75,10 +199,7 @@ myConnections = myConnections %>% filter(to %in% post)
 
 myConnections = myConnections %>% filter(roi %in% slctROIs) %>% filter(roi != "CX")
 
-```
-
-combine data from all ROIs
-```{r}
+# combine data from all ROIs
 myConnectionsCombo = combineRois(myConnections,unique(myConnections$roi),'nonCx')
 
 ```
@@ -110,7 +231,7 @@ for (connectionMeasure in connectionMeasures){
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, roiName, connectionMeasure)
   
   print(conMatPlot)
-  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
@@ -118,7 +239,7 @@ for (connectionMeasure in connectionMeasures){
   conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
   print(conMatPlot)
   ggsave(paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byID.pdf', sep=''), 
-    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
     scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "name", connectionMeasure,cmax)
@@ -126,7 +247,7 @@ for (connectionMeasure in connectionMeasures){
   #conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
   ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byName.pdf', sep=''), 
-    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
       scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
@@ -161,7 +282,7 @@ arrowSize= 0
 
 Graph with defined colormap from file
 ```{r, warning=FALSE} 
-cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_PDM21a")
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
 
 myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colorMap_",cmapNames[1],".csv"))
 if(length(cmapNames) > 1){
@@ -198,7 +319,7 @@ l = layout_with_fr(myGraph)#layout_with_dh(myGraph)#
 myGraph$main = paste0("Connectivity within   the ",roiName)
 plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph))
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',roiName,
+dev.print(pdf, paste0("../../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',roiName,
                       "_",connectionMeasure, round(100*cutoff),"perc_custCol.pdf"), width=plotSize, height=plotSize)
 ```
 
@@ -232,7 +353,7 @@ for (connectionMeasure in connectionMeasures){
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, roiName, connectionMeasure)
   
   print(conMatPlot)
-  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+  ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
@@ -240,7 +361,7 @@ for (connectionMeasure in connectionMeasures){
   conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
   print(conMatPlot)
   ggsave(paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byID.pdf', sep=''), 
-    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
     scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
   
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "name", connectionMeasure,cmax)
@@ -248,27 +369,13 @@ for (connectionMeasure in connectionMeasures){
   #conMatPlot = structureMatrixPlotByType(conMatPlot)
   print(conMatPlot)
   ggsave( paste("connectivityMatrix_",saveName,'in_',roiName,'_',connectionMeasure,'_byName.pdf', sep=''), 
-    plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
       scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
 Graph with defined colormap from file
 ```{r, warning=FALSE} 
-cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_PDM21a")
-
-myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colorMap_",cmapNames[1],".csv"))
-if(length(cmapNames) > 1){
-  for(cmapName in cmapNames[2:length(cmapNames)]){ 
-    tmp = read.csv(paste0("~/Documents/code/neuprintR-notebooks/colorMap_",cmapName,".csv"))
-    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
-    }
-}
-
-myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
-myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
-myColorMap= bind_rows(myColorMap_L, myColorMap_R)
-
 myColorMap = myColorMap %>% filter(Simpletype == "no")
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
@@ -292,7 +399,7 @@ l = layout_with_fr(myGraphEB)#layout_with_dh(myGraph)#
 myGraphEB$main = paste0("Connectivity within   the ",roiName)
 plot(myGraphEB,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraphEB))
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',roiName,
+dev.print(pdf, paste0("../../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',roiName,
                       "_",connectionMeasure, round(100*cutoff),"perc_custCol.pdf"), width=plotSize, height=plotSize)
 ```
 
@@ -322,7 +429,6 @@ outOutsideCx = PFGs$outputs_raw %>% filter(roi == "PB")  %>%
   group_by(roi, type.from, type.to) %>% summarise(weight=sum(weight))
 outOutsideCx
 ```
-
 
 
 ```{r}

@@ -1,6 +1,6 @@
-## Most recent node for emdata4 77309
+## Most recent node for emdata4 829d9
 ## Node for version 0.9 34d7a
-newNode <- "20631"
+newNode <- "829d9"
 oldNode <- "34d7a"
 
 getNeuronMesh <- function(bodyid,cloud=FALSE,node=newNode){
