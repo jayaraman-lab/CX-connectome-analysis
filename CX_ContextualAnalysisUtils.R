@@ -77,8 +77,8 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
   nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
   
-  # Assign colors to the supertypes
-  pal <- supertype2Palette()
+  # Assign colors to the supertypes using the CXplusPalette() function for an extended palette
+  pal <- CXplusPalette()
   if (guideOnOff){
     sTScale <- scale_colour_manual(values = pal$pal, drop=TRUE,limits = pal$breaks)
   } else {
@@ -105,8 +105,8 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   graph <- tbl_graph(nodes,edges_Mean)
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    #geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
-    geom_edge_diagonal(aes(width=weightRelative),alpha=0.5,                   
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+    #geom_edge_diagonal(aes(width=weightRelative),alpha=0.5,                   
                        strength=0.2,
                        arrow = arrow(length = unit(0.5, "cm")),
                        end_cap = circle(0.5, 'cm')) + 

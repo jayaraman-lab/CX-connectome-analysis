@@ -301,18 +301,24 @@ ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctInd
 
 ```
 
-
-
-### Find connections from strong direct MBON targets to secondary targets in CX
+### Find connections from strong MBON targets to secondary targets in CX
 ```{r}
 # Find the postsynaptic partners of StrongMBON2CX_TargetNeurons
-StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetNeurons,synapseType="POST")
+# StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CX_TargetNeurons,synapseType="POST")
 # head(StrongMBON2CX_TargetsCnctTable)
-StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_TargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
+# StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_TargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
+
+StrongMBON2CXallTargetsType <- unique(c(StrongMBON2CX_TargetsType,unique(as.vector(StrongMBONnonCXTargetR2CXRtab$databaseType.to))))
+StrongMBON2CXallTargetNeurons <- getTypesTable(StrongMBON2CXallTargetsType)
+StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CXallTargetNeurons,synapseType="POST")
+StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CXallTargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
 
 # Arrange StrongMBON2CXTargetsToPostInFB in the order of StrongMBONTargetInpC$databaseType.to
-StrongMBON2CXTargetsToPostInFB$type.from <- factor(StrongMBON2CXTargetsToPostInFB$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
-StrongMBON2CXTargetsToPostInFB <- arrange(StrongMBON2CXTargetsToPostInFB,type.from)
+# StrongMBON2CXTargetsToPostInFB$type.from <- factor(StrongMBON2CXTargetsToPostInFB$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
+# StrongMBON2CXTargetsToPostInFB <- arrange(StrongMBON2CXTargetsToPostInFB,type.from)
+
+# Sort StrongMBON2CXallTargetNeurons by pathway weight
+
 
 # Plot and save the StrongMBON2CXTargetsToPostInFB based on the connectionMeasure of "weightRelative"
 plotStrongMBON2CXTargetsToPostInFB <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB,byGroup="id")
@@ -331,8 +337,8 @@ StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Ty
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- StrongMBON2CXTargetsToPostInFB_Type2TypeTab %>% filter(type.from != type.to)
 
 # Arrange StrongMBON2CXTargetsToPostInFB_Type2TypeTab in the order of StrongMBONTargetInpC$databaseType.to
-StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from <- factor(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
-StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- arrange(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,type.from)
+# StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from <- factor(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
+# StrongMBON2CXTargetsToPostInFB_Type2TypeTab <- arrange(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,type.from)
 
 # Plot and save the StrongMBON2CXTargetsToPostInFB_Type2TypeTab based on the connectionMeasure of "weightRelative"
 plotStrongMBON2CXTargetsToPostInFB_Type2TypeConn <- plotConnectivityMatrix(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,byGroup="type",connectionMeasure="weightRelative")
@@ -341,7 +347,7 @@ ggsave("StrongMBON2CXTargetsToPostInFB_Type2TypeTable_weightRelative.eps", plot=
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
 ```
 
-### Plot the pathways from strong direct MBON->CX targets to secondary CX targets
+### Plot the pathways from strong MBON->CX targets to secondary CX targets
 ```{r}
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)),sort(unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.to)))  )   )
@@ -384,6 +390,10 @@ StrongMBON2CXTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByFrom <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[1]]
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CXTargetsToPostInFB_Type2Type_clustered[[2]]
 rm(StrongMBON2CXTargetsToPostInFB_Type2Type_clustered);
+
+# Make and plot cosine distance matrix
+StrongMBON2CXTargetsToPostInFB_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2CXTargetsToPostInFB_Type2TypeTab,"StrongMBON2CXTargetsToPostInFB_Type2Type")
+
 ```
 
 
@@ -471,6 +481,10 @@ ggsave("MBON2ndTo3rdCXTargetTab.svg", plot=gg_MBON2ndTo3rdTargetTab, device="svg
 ```{r}
 StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,'StrongMBON2CX_2ndTargetsToPostInFB_Type2Type')
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo <- StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_clustered[[2]]
+
+# Make and plot cosine distance matrix
+StrongMBON2CX_2ndTargetsToPostInFB_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,"StrongMBON2CX_2ndTargetsToPostInFB_Type2Type")
+
 ```
 
 ### Pathway plot based on the clustered and rearranged StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
@@ -561,12 +575,6 @@ ggsave("MBON_nonCXnonMBON_2ndaryCX_Type2TypeComboPath.svg", plot=MBON_nonCXnonMB
        width=30, height=45, units="in", dpi=300, limitsize=FALSE)
 
 ```
-
-### Combine direct and indirect MBON->CX connection tables
-```{r}
-
-```
-
 
 ```{r}
 MBON2ndaryCXTargetTypes <- unique(as.vector(MBON2ndaryTargetInp$databaseType.to))
