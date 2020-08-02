@@ -208,7 +208,7 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
 }
 
 # Modified from Hannah and neuprintrExtra: Function to plot a distance matrix
-HHplot_dist <- function(dd,order=TRUE,colorAxis=FALSE,
+HHplot_dist <- function(dd,order=TRUE,colorAxis=TRUE,
                         axesPalette=paletteer::paletteer_d("Polychrome::palette36")[3:36],
                         theme=theme_classic()){
   ddM <- as.matrix(dd)

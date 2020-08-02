@@ -31,7 +31,7 @@ source("inputOutputRegionsVis.R")
 source("GetNeuronsInRoi.R")
 source("FBNetworkVisUtils.R")
 source("CX_ContextualAnalysisUtils.R")
-source("/Users/danc/repos/neuprintrExtra/R/neuronBag.R")
+# source("/Users/danc/repos/neuprintrExtra/R/neuronBag.R")
 
 options(nat.plotengine = 'rgl')
 ```
@@ -237,7 +237,9 @@ StrongMBON2CX_FromNeurons <- getTypesTable(StrongMBON2CX_FromType)
 # head(StrongMBON2CX_FromNeurons)
 
 # Find neuron to neuron connection table for strong direct MBON to CX connections
-StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeurons$bodyid, StrongMBON2CX_TargetNeurons$bodyid)
+# StrongMBON2CX_ConnTable <- getConnectionTable_forSubset(StrongMBON2CX_FromNeurons$bodyid, StrongMBON2CX_TargetNeurons$bodyid) # getConnectionTable_forSubset() is not included in neuprintrExtra
+StrongMBON2CX_ConnTable <- getConnectionTable(StrongMBON2CX_FromNeurons$bodyid,synapseType = "POST") ## Keeping the default threshold (3)
+StrongMBON2CX_ConnTable <- StrongMBON2CX_ConnTable %>% filter(type.to %in% StrongMBON2CX_TargetsType)
 
 # Arrange StrongMBON2CX_ConnTable in the order of StrongMBONTargetInpC$databaseType.to
 StrongMBON2CX_ConnTable$type.to <- factor(StrongMBON2CX_ConnTable$type.to,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
@@ -315,8 +317,8 @@ ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctInd
 # Combine strong direct and indirect MBON targets in the CX
 StrongMBON2CXallTargetsType <- unique(c(StrongMBON2CX_TargetsType,unique(as.vector(StrongMBONnonCXTargetR2CXRtab$databaseType.to))))
 StrongMBON2CXallTargetNeurons <- getTypesTable(StrongMBON2CXallTargetsType)
-StrongMBON2CX_TargetsCnctTable <- getConnectionTable(StrongMBON2CXallTargetNeurons,synapseType="POST")
-StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CXallTargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
+StrongMBON2CXTargetsToPostInFB <- getConnectionTable(StrongMBON2CXallTargetNeurons$bodyid,synapseType="POST",slctROI="FB")
+# StrongMBON2CXTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CXallTargetNeurons$bodyid, StrongMBON2CX_TargetsCnctTable$to,"FB")
 
 # Arrange StrongMBON2CXTargetsToPostInFB in the order of StrongMBONTargetInpC$databaseType.to
 # StrongMBON2CXTargetsToPostInFB$type.from <- factor(StrongMBON2CXTargetsToPostInFB$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
@@ -412,9 +414,9 @@ StrongMBON2CXTargetsToPostInFB_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,S
 # Find the postsynaptic partners of secondary StrongMBON2CX_TargetNeurons
 StrongMBON2CX_2ndTargetsInFB_Types <- unique(as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$databaseType.to))
 StrongMBON2CX_2ndTargetsInFB_Neurons <- getTypesTable(StrongMBON2CX_2ndTargetsInFB_Types)
-StrongMBON2CX_2ndTargetsCnctTable <- getConnectionTable(StrongMBON2CX_2ndTargetsInFB_Neurons$bodyid,synapseType="POST")
-# head(StrongMBON2CX_2ndTargetsCnctTable)
-StrongMBON2CX_2ndTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_2ndTargetsInFB_Neurons$bodyid, StrongMBON2CX_2ndTargetsCnctTable$to,"FB")
+StrongMBON2CX_2ndTargetsToPostInFB <- getConnectionTable(StrongMBON2CX_2ndTargetsInFB_Neurons$bodyid,synapseType="POST",slctROI="FB")
+# head(StrongMBON2CX_2ndTargetsToPostInFB)
+# StrongMBON2CX_2ndTargetsToPostInFB <- getConnectionTable_forSubset(StrongMBON2CX_2ndTargetsInFB_Neurons$bodyid, StrongMBON2CX_2ndTargetsCnctTable$to,"FB")
 
 # Arrange StrongMBON2CXTargetsToPostInFB in the order of StrongMBONTargetInpC$databaseType.to
 # StrongMBON2CXTargetsToPostInFB$type.from <- factor(StrongMBON2CXTargetsToPostInFB$type.from,levels=unique(StrongMBONTargetInpC$databaseType.to),ordered=TRUE)
