@@ -181,21 +181,6 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   return(Type2TypeConnTab_hc)
 }
 
-# From Hannah: Function to plot a distance matrix
-HHplot_dist <- function(dd,order=TRUE){
-  ddM <- as.matrix(dd)
-  if (order){
-    hcl <- hclust(dd)
-    ddM <- ddM[hcl$order,hcl$order]
-  }
-  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=value)) +
-    theme_classic() +
-    scale_fill_gradient2(low="black", mid="grey", high="white", 
-                         midpoint =0.5, limits=c(0,1)) +
-    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
-    xlab("") + ylab("")+coord_fixed() +xlab("") + ylab("")
-}
-
 # Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
 cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   Type2TypeConnTab_cosDistClusterByInp <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"inputs")
@@ -206,11 +191,47 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
 cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,clusterBy){
   Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(Type2TypeConnTab$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=clusterBy)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
-  Type2TypeConnMatBySide_CosDistPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE)
+  
+  # Segment the clusters at cut = 0.8
+  hcl <- hclust(Type2TypeConnMatBySide_CosDist)
+  cut <- 0.8
+  # tplt <- plot(hcl,hang= -.5,cex = 0.8) # + rect.hclust(hcl, h=cut, border = "red") # dendrogram
+  clu.h <- cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+  typeClusters <- stack(clu.h) %>% rename(type=ind, clust=values) %>% arrange(clust)
+  
+  Type2TypeConnMatBySide_CosDistPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE)
   print(Type2TypeConnMatBySide_CosDistPlot)
   ggsave(paste0(Type2TypeConnTabName,"_cosDistClusterBy",clusterBy,".eps"), plot=Type2TypeConnMatBySide_CosDistPlot, device="eps", path=PlotDir, scale=1, 
          width=24, height=24, units="in", dpi=300, limitsize=FALSE)
-  return(Type2TypeConnMatBySide_CosDist)
+  
+  return(list(Type2TypeConnMatBySide_CosDist,hcl,typeClusters))
+}
+
+# Modified from Hannah and neuprintrExtra: Function to plot a distance matrix
+HHplot_dist <- function(dd,order=TRUE,colorAxis=FALSE,
+                        axesPalette=paletteer::paletteer_d("Polychrome::palette36")[3:36],
+                        theme=theme_classic()){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+    
+    if (colorAxis){
+      clusters <- cutree(hcl,h=0.8)
+      connCols <- axesPalette[clusters[rownames(ddM)]]
+      names(connCols) <- rownames(ddM)
+    }
+  }
+  
+  p <- ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=value)) + theme +
+    scale_fill_gradient2(low="black", mid="grey", high="white", midpoint=0.5, limits=c(0,1)) +
+    theme(axis.text.x = element_text(angle=90,hjust=1,vjust=0.5)) + xlab("") + ylab("") + coord_fixed()
+  
+  if (colorAxis){
+    p <- p + theme(axis.text.x = element_text(angle=90,hjust=1,vjust=0.5,colour=connCols),axis.text.y = element_text(colour=connCols))
+  }
+  
+  return(p)
 }
 
 # From DanTE: Function to plot a dendrogram
