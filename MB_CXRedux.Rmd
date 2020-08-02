@@ -111,11 +111,11 @@ MBONCX2ndaryTargets <- getTypesTable(MBONCX2ndaryTargetsL)
 # MBON2ndaryTargetBagLat <- lateralizeInputOutputList(MBON2ndaryTargetBag)
 
 # Use the functions in the neuprintrExtra package
-MBONTargetBag = neuronBag(as.vector(MBONCXTargetsL))
-MBONTargetBagLat = lateralize_types(MBONTargetBag)
+MBONTargetBag <- neuronBag(MBONCXTargets,slctROI=unique(roiSelection$roi))
+MBONTargetBagLat <- lateralize_types(MBONTargetBag)
 
-MBONnonCXTargetBag = neuronBag(as.vector(MBONnonCXTargetsL))
-MBONnonCXTargetBagLat = lateralize_types(MBONnonCXTargetBag)
+MBONnonCXTargetBag <- neuronBag(MBONnonCXTargets,slctROI=unique(roiSelection$roi))
+MBONnonCXTargetBagLat <- lateralize_types(MBONnonCXTargetBag)
 ```
 
 ### Isolating the MBON primary targets to neurons on the right side
