@@ -203,7 +203,8 @@ xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times 
                       y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
 
 # Graph the TypeToType ConnTable using the lookupTable
-StrongMBON2nonCXR2CXRTgtComboPath <- graphConTab_old(StrongMBON2nonCXR2CXRTgtComboTable,xyLookup,FALSE,TRUE)
+# StrongMBON2nonCXR2CXRTgtComboPath <- graphConTab_old(StrongMBON2nonCXR2CXRTgtComboTable,xyLookup,FALSE,TRUE)
+StrongMBON2nonCXR2CXRTgtComboPath <- graphConTabPolyChrome(StrongMBON2nonCXR2CXRTgtComboTable,xyLookup,FALSE,TRUE)
 StrongMBON2nonCXR2CXRTgtComboPath <- StrongMBON2nonCXR2CXRTgtComboPath + scale_y_reverse()
 print(StrongMBON2nonCXR2CXRTgtComboPath)
 ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtComboPath, device="svg", path=PlotDir, scale=1, 
@@ -263,8 +264,8 @@ xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = 
 # Graph the TypeToType ConnTable using the lookupTable
 StrongMBONTargetInpCdf <- StrongMBONTargetInpC
 StrongMBONTargetInpCdf$type.to <- as.vector(StrongMBONTargetInpCdf$type.to)
-gg_MBON2TargetTab <- graphConTab_old(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
-# gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+# gg_MBON2TargetTab <- graphConTab_old(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
+gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBONTargetInpCdf,xyLookup,FALSE,TRUE)
 gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
@@ -300,10 +301,11 @@ types <- unique(c(MBONtypes,midNodes,allCXRtargets))
 numTypes <- length(types)
 
 xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
-                      y = c(seq(-1,1,length.out = numMBONs), seq(1.1,3.1,length.out = numMidNodes), seq(-1,1.5,length.out = numCXtargets)))
+                      y = c(seq(-1,1,length.out = numMBONs), seq(0.5,2.5,length.out = numMidNodes), seq(-1,1.5,length.out = numCXtargets)))
 
 # Graph the TypeToType ConnTable using the lookupTable
-StrongMBON2CXRTgtDrctIndrctComboPath <- graphConTab_old(StrongMBON2CXRTgtDrctIndrctComboTable,xyLookup,FALSE,TRUE)
+# StrongMBON2CXRTgtDrctIndrctComboPath <- graphConTab_old(StrongMBON2CXRTgtDrctIndrctComboTable,xyLookup,FALSE,TRUE)
+StrongMBON2CXRTgtDrctIndrctComboPath <- graphConTabPolyChrome(StrongMBON2CXRTgtDrctIndrctComboTable,xyLookup,FALSE,TRUE)
 StrongMBON2CXRTgtDrctIndrctComboPath <- StrongMBON2CXRTgtDrctIndrctComboPath + scale_y_reverse()
 print(StrongMBON2CXRTgtDrctIndrctComboPath)
 ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctIndrctComboPath, device="svg", path=PlotDir, scale=1, 
@@ -387,7 +389,8 @@ xyLookup = data.frame(type = types, x = c(xFrom,xTo), y = c(yFrom,yTo))
 
 # Graph the TypeToType ConnTable using the xyLookup lookupTable
 StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from <- as.vector(StrongMBON2CXTargetsToPostInFB_Type2TypeTab$type.from)
-gg_MBON1stTo2ndaryTargetTab <- graphConTab_old(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+# gg_MBON1stTo2ndaryTargetTab <- graphConTab_old(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+gg_MBON1stTo2ndaryTargetTab <- graphConTabPolyChrome(StrongMBON2CXTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
 gg_MBON1stTo2ndaryTargetTab <- gg_MBON1stTo2ndaryTargetTab + scale_y_reverse()
 print(gg_MBON1stTo2ndaryTargetTab)
 ggsave("MBON1stTo2ndaryTargetTab.svg", plot=gg_MBON1stTo2ndaryTargetTab, device="svg", path=PlotDir, scale=1, 
@@ -480,7 +483,8 @@ yTo <-5*cos(angsTo)
 xyLookup = data.frame(type = types, x = c(xFrom,xTo), y = c(yFrom,yTo))
 
 # Graph the TypeToType ConnTable using the xyLookup lookupTable
-gg_MBON2ndTo3rdTargetTab <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+# gg_MBON2ndTo3rdTargetTab <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
+gg_MBON2ndTo3rdTargetTab <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab,xyLookup,FALSE,TRUE)
 gg_MBON2ndTo3rdTargetTab <- gg_MBON2ndTo3rdTargetTab + scale_y_reverse()
 print(gg_MBON2ndTo3rdTargetTab)
 ggsave("MBON2ndTo3rdCXTargetTab.svg", plot=gg_MBON2ndTo3rdTargetTab, device="svg", path=PlotDir, scale=1, 
@@ -509,7 +513,8 @@ xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom),rep(0,times = 
 # Graph the TypeToType ConnTable using the lookupTable
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy$type.to <- as.vector(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy$type.to)
-StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy,xyLookup,FALSE,TRUE)
+# StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- graphConTab_old(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy,xyLookup,FALSE,TRUE)
+StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_copy,xyLookup,FALSE,TRUE)
 # gg_MBON2TargetTab <- graphConTabPolyChrome(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway,xyLookup,FALSE,TRUE)
 StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway <- StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway + scale_y_reverse()
 print(StrongMBON2CX_2ndTargetsToPostInFB_Type2TypeTab_hcByTo_pathway)

@@ -4,8 +4,8 @@
 
 # Modified from supertype2Palette() function in Romain's neuprintrExtra package
 CXplusPalette <- function(){
-  s2 <- c("vDelta","v\u0394","hDelta","h\u0394","Delta7","\u03947","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LNO","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","ER","SA","MBON","CRE","SIP","SMP","SLP","LAL","IB","LH","ATL")
-  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,35,32,32,28,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36,4,5,13,17,29,14,22,24,23)]
+  s2 <- c("vDelta","v\u0394","hDelta","h\u0394","Delta7","\u03947","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LNO","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","ER","SA","MBON","CRE","SIP","SMP","SLP","LAL","IB","LH","LHP","ATL")
+  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,35,32,32,28,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36,4,5,13,17,29,14,22,11,11,23)]
   names(pal) <- s2
   list(pal=pal,breaks=s2)
 }
@@ -105,7 +105,7 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   graph <- tbl_graph(nodes,edges_Mean)
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.75,
     #geom_edge_diagonal(aes(width=weightRelative),alpha=0.5,                   
                        strength=0.2,
                        arrow = arrow(length = unit(0.5, "cm")),
