@@ -269,6 +269,9 @@ gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
+
+# Make and plot cosine distance matrix
+StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
 ```
 Notes: 
 1) MBON05 has no branches ipsilateral to the cell body, only contralateral. FB4R only has dendrites ipsilateral to cell body. Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
