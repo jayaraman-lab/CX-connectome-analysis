@@ -219,6 +219,11 @@ StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongM
 StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
 ```
 
+### Test computing pathway weights
+```{r}
+StrongMBON2nonCXR2CXRPath <- tables2path(StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+```
+
 ### Check if there're cohorts of pathway clusters
 ```{r}
 
@@ -273,6 +278,18 @@ ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path
 
 # Make and plot cosine distance matrix
 StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
+
+# Use the neuprintrExtra functions. Still confusing???
+# StrongMBON2CXR_Type2Type_cosClustByFrom <- connectivityCluster(inputsTable=StrongMBONTargetInpC,grouping="type") # cluster by type.from
+# StrongMBON2CXR_Type2Type_cosClustByFrom <- setClusters(StrongMBON2CXR_Type2Type_cosClustByFrom,h=0.8)  # add a cluster.from column to StrongMBON2CXR_Type2Type_cosClustByFrom 
+# plotClusters(StrongMBON2CXR_Type2Type_cosClustByFrom,colorAxis=T,h=0.8)
+
+# StrongMBON2CXR_Type2Type_cosClustByTo <- connectivityCluster(outputsTable=StrongMBONTargetInpC,grouping="type") # cluster by type.to
+# StrongMBON2CXR_Type2Type_cosClustByTo <- setClusters(StrongMBON2CXR_Type2Type_cosClustByTo,h=0.8)  # add a cluster.to column to StrongMBON2CXR_Type2Type_cosClustByTo
+# plotClusters(StrongMBON2CXR_Type2Type_cosClustByTo,colorAxis=T,h=0.8)
+
+# plotConnectivity(StrongMBON2CXR_Type2Type_cosClustByFrom, grouping="type", connectionMeasure="weightRelative", orderIn=StrongMBON2CXR_Type2Type_cosClustByFrom, orderOut=StrongMBON2CXR_Type2Type_cosClustByTo, facetInputs="cluster.from", facetOutputs="cluster.to", theme=theme_classic()) # + theme(panel.border = element_rect(colour = "grey", fill = NA, size=0.3))
+
 ```
 Notes: 
 1) MBON05 has no branches ipsilateral to the cell body, only contralateral. FB4R only has dendrites ipsilateral to cell body. Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
@@ -301,7 +318,7 @@ types <- unique(c(MBONtypes,midNodes,allCXRtargets))
 numTypes <- length(types)
 
 xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
-                      y = c(seq(-1,1,length.out = numMBONs), seq(0.5,2.5,length.out = numMidNodes), seq(-1,1.5,length.out = numCXtargets)))
+                      y = c(seq(-1,1,length.out = numMBONs), seq(0,2,length.out = numMidNodes), seq(-1,1.5,length.out = numCXtargets)))
 
 # Graph the TypeToType ConnTable using the lookupTable
 # StrongMBON2CXRTgtDrctIndrctComboPath <- graphConTab_old(StrongMBON2CXRTgtDrctIndrctComboTable,xyLookup,FALSE,TRUE)

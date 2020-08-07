@@ -4,8 +4,8 @@
 
 # Modified from supertype2Palette() function in Romain's neuprintrExtra package
 CXplusPalette <- function(){
-  s2 <- c("vDelta","v\u0394","hDelta","h\u0394","Delta7","\u03947","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LNO","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","ER","SA","MBON","CRE","SIP","SMP","SLP","LAL","IB","LH","LHP","ATL")
-  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,35,32,32,28,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36,4,5,13,17,29,14,22,11,11,23)]
+  s2 <- c("vDelta","v\u0394","hDelta","h\u0394","Delta7","\u03947","EL","EPG","EPGt","ExR","FBt","FC","FR","FS","LNO","SPS-PB","LPsP","P","PEG","PEN","PFGs","PFL","PFN","PFR","ER","SA","MBON","CRE","SIP","SMP","SLP","LAL","IB","LH","LHP","LHPV","LHPD","ATL")
+  pal <- paletteer::paletteer_d("Polychrome::palette36")[c(35,35,32,32,28,28,8,12,33,6,10,9,3,25,18,21,30,31,34,16,27,7,26,1,15,36,4,5,13,17,29,14,22,11,11,11,11,23)]
   names(pal) <- s2
   list(pal=pal,breaks=s2)
 }
@@ -105,7 +105,7 @@ graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
   graph <- tbl_graph(nodes,edges_Mean)
   gg <-
     ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) + 
-    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.75,
+    geom_edge_diagonal(aes(width=weightRelative,color=superType),alpha=0.5,
     #geom_edge_diagonal(aes(width=weightRelative),alpha=0.5,                   
                        strength=0.2,
                        arrow = arrow(length = unit(0.5, "cm")),
@@ -183,13 +183,32 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
 
 # Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
 cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
+  # Apply cosine distance clustering separately to the from and to side
   Type2TypeConnTab_cosDistClusterByInp <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"inputs")
-  Type2TypeConnTab_cosDistClusterByOut <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"outputs")
-  return(list(Type2TypeConnTab_cosDistClusterByInp,Type2TypeConnTab_cosDistClusterByOut))
+  Type2TypeConnTab_cosDistClusterByOut <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab_cosDistClusterByInp[[1]],Type2TypeConnTabName,"outputs")
+
+  # Plot the factorized Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative" and grouped by the factors
+  Type2TypeConnTab_hc <- Type2TypeConnTab_cosDistClusterByOut[[1]]
+  plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
+  plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
+  
+  # Facet the matrix
+  plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from~cluster.to"),scale="free",space="free")
+  
+  # Color the row and column labels
+  yConnColors <- Type2TypeConnTab_cosDistClusterByInp[[6]]
+  xConnColors <- Type2TypeConnTab_cosDistClusterByOut[[6]]
+  plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = xConnColors),axis.text.y = element_text(colour = yConnColors))
+  
+  print(plotType2TypeConnTab_hc)
+  ggsave(paste0(Type2TypeConnTabName,"_cosDistClustConnMat",".eps"), plot=plotType2TypeConnTab_hc, device="eps", path=PlotDir, scale=1, 
+         width=24, height=16, units="in", dpi=300, limitsize=FALSE)
+  
+  return(list(Type2TypeConnTab_cosDistClusterByInp,Type2TypeConnTab_cosDistClusterByOut,Type2TypeConnTab_hc))
 }
 
-cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,clusterBy){
-  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(Type2TypeConnTab$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=clusterBy)
+cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,InpOrOutp){
+  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(Type2TypeConnTab$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
   
   # Segment the clusters at cut = 0.8
@@ -197,14 +216,24 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
   cut <- 0.8
   # tplt <- plot(hcl,hang= -.5,cex = 0.8) # + rect.hclust(hcl, h=cut, border = "red") # dendrogram
   clu.h <- cutree(hcl,h=cut) # cut tree/dendrogram from height 80
-  typeClusters <- stack(clu.h) %>% rename(type=ind, clust=values) %>% arrange(clust)
+  typeClusters <- stack(clu.h) %>% rename(type=ind, clust=values) %>% arrange(clust) # convert the cluster vector assignment to a data frame
   
-  Type2TypeConnMatBySide_CosDistPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE)
+  # Reorganize Type2TypeConnTab based on the clustering
+  Type2TypeConnTab_hc <- Type2TypeConnTab
+  clusterBy <- ifelse(InpOrOutp=="inputs","type.from","type.to")
+  clusterCol <- ifelse(InpOrOutp=="inputs","cluster.from","cluster.to")
+  Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[[clusterBy]], levels = hcl$labels[hcl$order], ordered=TRUE)
+  Type2TypeConnTab_hc <- mutate(Type2TypeConnTab_hc,!!sym(clusterCol)=typeClusters$clust[Type2TypeConnTab_hc[[clusterBy]]])
+  
+  # Plot the cosine distance square matrix
+  Type2TypeConnMatBySide_CosDistClustPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE)
+  Type2TypeConnMatBySide_CosDistPlot <- Type2TypeConnMatBySide_CosDistClustPlot[[1]]
+  Type2TypeConnMatBySide_CosDistClustColor <- Type2TypeConnMatBySide_CosDistClustPlot[[2]]
   print(Type2TypeConnMatBySide_CosDistPlot)
   ggsave(paste0(Type2TypeConnTabName,"_cosDistClusterBy",clusterBy,".eps"), plot=Type2TypeConnMatBySide_CosDistPlot, device="eps", path=PlotDir, scale=1, 
          width=24, height=24, units="in", dpi=300, limitsize=FALSE)
   
-  return(list(Type2TypeConnMatBySide_CosDist,hcl,typeClusters))
+  return(list(Type2TypeConnTab_hc,Type2TypeConnMatBySide_CosDist,hcl,clu.h,typeClusters,Type2TypeConnMatBySide_CosDistClustColor))
 }
 
 # Modified from Hannah and neuprintrExtra: Function to plot a distance matrix
@@ -231,7 +260,7 @@ HHplot_dist <- function(dd,order=TRUE,colorAxis=TRUE,
     p <- p + theme(axis.text.x = element_text(angle=90,hjust=1,vjust=0.5,colour=connCols),axis.text.y = element_text(colour=connCols))
   }
   
-  return(p)
+  return(list(p,connCols))
 }
 
 # From DanTE: Function to plot a dendrogram
