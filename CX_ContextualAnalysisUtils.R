@@ -193,7 +193,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
   
   # Facet the matrix
-  plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from~cluster.to"),scale="free",space="free")
+  # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from~cluster.to"),scale="free",space="free")
   
   # Color the row and column labels
   yConnColors <- Type2TypeConnTab_cosDistClusterByInp[[6]]
@@ -223,7 +223,8 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
   clusterBy <- ifelse(InpOrOutp=="inputs","type.from","type.to")
   clusterCol <- ifelse(InpOrOutp=="inputs","cluster.from","cluster.to")
   Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[[clusterBy]], levels = hcl$labels[hcl$order], ordered=TRUE)
-  Type2TypeConnTab_hc <- mutate(Type2TypeConnTab_hc,!!sym(clusterCol)=typeClusters$clust[Type2TypeConnTab_hc[[clusterBy]]])
+  Type2TypeConnTab_hc <- mutate(Type2TypeConnTab_hc, clusterVals = typeClusters$clust[Type2TypeConnTab_hc[[clusterBy]]])
+  colnames(Type2TypeConnTab_hc)[ncol(Type2TypeConnTab_hc)] <- clusterCol
   
   # Plot the cosine distance square matrix
   Type2TypeConnMatBySide_CosDistClustPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE)
