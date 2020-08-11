@@ -193,7 +193,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
   
   # Facet the matrix
-  # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from~cluster.to"),scale="free",space="free")
+  # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from ~ cluster.to"),scale="free",space="free")
   
   # Color the row and column labels
   yConnColors <- Type2TypeConnTab_cosDistClusterByInp[[6]]
@@ -223,11 +223,11 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
   clusterBy <- ifelse(InpOrOutp=="inputs","type.from","type.to")
   clusterCol <- ifelse(InpOrOutp=="inputs","cluster.from","cluster.to")
   Type2TypeConnTab_hc[,clusterBy] <- factor(Type2TypeConnTab_hc[[clusterBy]], levels = hcl$labels[hcl$order], ordered=TRUE)
-  Type2TypeConnTab_hc <- mutate(Type2TypeConnTab_hc, clusterVals = typeClusters$clust[Type2TypeConnTab_hc[[clusterBy]]])
+  Type2TypeConnTab_hc <- mutate(Type2TypeConnTab_hc, clusterVals = clu.h[as.vector(Type2TypeConnTab_hc[[clusterBy]])]) # add a column of cluster numbers matched to the clusterBy types as indexed by de-factorized type names
   colnames(Type2TypeConnTab_hc)[ncol(Type2TypeConnTab_hc)] <- clusterCol
   
   # Plot the cosine distance square matrix
-  Type2TypeConnMatBySide_CosDistClustPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE)
+  Type2TypeConnMatBySide_CosDistClustPlot <- HHplot_dist(Type2TypeConnMatBySide_CosDist, order=TRUE, colorAxis=TRUE, InpOrOutp)
   Type2TypeConnMatBySide_CosDistPlot <- Type2TypeConnMatBySide_CosDistClustPlot[[1]]
   Type2TypeConnMatBySide_CosDistClustColor <- Type2TypeConnMatBySide_CosDistClustPlot[[2]]
   print(Type2TypeConnMatBySide_CosDistPlot)
@@ -238,7 +238,7 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
 }
 
 # Modified from Hannah and neuprintrExtra: Function to plot a distance matrix
-HHplot_dist <- function(dd,order=TRUE,colorAxis=TRUE,
+HHplot_dist <- function(dd,order=TRUE,colorAxis=TRUE,InpOrOutp,
                         axesPalette=paletteer::paletteer_d("Polychrome::palette36")[3:36],
                         theme=theme_classic()){
   ddM <- as.matrix(dd)
@@ -248,6 +248,7 @@ HHplot_dist <- function(dd,order=TRUE,colorAxis=TRUE,
     
     if (colorAxis){
       clusters <- cutree(hcl,h=0.8)
+      if(InpOrOutp=="outputs"){axesPalette <- rev(axesPalette)} # assign color in the reversed order for outputs to avoid overlap with inputs
       connCols <- axesPalette[clusters[rownames(ddM)]]
       names(connCols) <- rownames(ddM)
     }
