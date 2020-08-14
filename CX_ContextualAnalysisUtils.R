@@ -10,6 +10,64 @@ CXplusPalette <- function(){
   list(pal=pal,breaks=s2)
 }
 
+# Read tables of PN to MBON with input modality percentages and return a data frame
+getPN2MBONinputTable <- function(){
+  PN2MBON_InputPc <- read.csv('/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis/MB/PN2MBON.csv', header = FALSE)
+  PN2ATMBON_InputPc <- read.csv('/Users/danc/Dropbox (HHMI)/WorkDrop/Data/FIBSEM_Analysis/MB/PN2ATMBON.csv', header = FALSE)
+  PNtypes <- c('UniGlom', 'MultiGlom', 'ThermoHygro', 'Visual')
+  colnames(PN2MBON_InputPc) <- PNtypes
+  colnames(PN2ATMBON_InputPc) <- PNtypes
+  MBONtypeNames <- c('MBON01', 'MBON02', 'MBON03', 'MBON04', 'MBON05', 'MBON06', 'MBON07', 'MBON09', 'MBON11', 'MBON12', 'MBON13', 'MBON14', 'MBON15', 'MBON16', 'MBON17', 'MBON18', 'MBON19a', 'MBON19b', 'MBON20', 'MBON21', 'MBON22', 'MBON23')
+  atypicalMBONtypeNames <- c('MBON10', 'MBON24', 'MBON25', 'MBON26', 'MBON27', 'MBON29', 'MBON30', 'MBON31', 'MBON32', 'MBON33', 'MBON34', 'MBON35', 'MBON28')
+  allMBONtypeNames <- c(MBONtypeNames,atypicalMBONtypeNames)
+  rownames(PN2MBON_InputPc) <- MBONtypeNames
+  rownames(PN2ATMBON_InputPc) <- atypicalMBONtypeNames
+  PN2allMBON_InputPct <- rbind(PN2MBON_InputPc,PN2ATMBON_InputPc)
+  PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(Olfactory = UniGlom + MultiGlom) # add a column for the sum of UniGlom and MultiGlom as Olfactory
+  PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(MBON = allMBONtypeNames) # add a column for matching MBON type names
+  return(PN2allMBON_InputPct)
+}
+
+# Filter and analyze the MBON to CX direct and indirect tables based on input modality
+filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,filtCol,directConnTab,indirectConnTab1,indirectConnTab2){
+  
+  inputModTabFiltered <- inputModTab %>% filter(!!sym(inputMod) > inputThresh) # filter inputModTab based on inputMod and inputThresh
+  directConnTabFiltered <- directConnTab %>% filter(databaseType.from %in% inputModTabFiltered[[filtCol]]) # filter directConnTab based on filtered inputModTab
+  indirectConnTab1Filtered <- indirectConnTab1 %>% filter(databaseType.from %in% inputModTabFiltered[[filtCol]]) # filter indirectConnTab1 based on filtered inputModTab
+  indirectConnTab2Filtered <- indirectConnTab2 %>% filter(type.from %in% indirectConnTab1Filtered$type.to) # filter indirectConnTab2 based on filtered indirectConnTab1
+  
+  # Combine the filtered direct and indirect tables
+  directConns <- directConnTabFiltered %>% select(type.from,type.to,weightRelative)
+  indirectConns1 <- indirectConnTab1Filtered %>% select(type.from,type.to,weightRelative)
+  indirectConns2 <- indirectConnTab2Filtered %>% select(type.from,type.to,weightRelative)
+  drctIndrctComboTable <- bind_rows(directConns,indirectConns1,indirectConns2, .id = NULL)
+  
+  # Re-plot pathways
+  fromTypes <- unique(c(unique(as.vector(directConns$type.from)),unique(as.vector(indirectConns1$type.from))))
+  numFrom <- length(fromTypes)
+  midNodes <- unique(as.vector(indirectConns2$type.from))
+  numMidNodes <- length(midNodes)
+  allTargets <- unique(c(unique(as.vector(directConns$type.to)),unique(as.vector(indirectConns2$type.to))))
+  numAllTargets <- length(allTargets)
+  types <- unique(c(fromTypes,midNodes,allTargets))
+  numTypes <- length(types)
+  
+  xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom), rep(0,times = numMidNodes), rep(1,times = numAllTargets)), 
+                        y = c(seq(-1,1,length.out = numFrom), seq(0,2,length.out = numMidNodes), seq(-1,1.5,length.out = numAllTargets)))
+  
+  drctIndrctComboPath <- graphConTabPolyChrome(drctIndrctComboTable,xyLookup,FALSE,TRUE) # graph the TypeToType ConnTable using the lookupTable
+  drctIndrctComboPath <- drctIndrctComboPath + scale_y_reverse()
+  print(drctIndrctComboPath)
+  ggsave(paste0(inputMod,filtCol,"drctIndrctComboPath.svg"), plot=drctIndrctComboPath, device="svg", path=PlotDir, scale=1, width=30, height=90, units="in", dpi=300, limitsize=FALSE)
+  
+  # Cluster by cosine distance and plot
+  directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
+  indirectConnTab1Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab1Filtered,paste0(inputMod,filtCol,"indirectConnTab1_Type2Type"))
+  indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
+  
+  return(list(inputModTabFiltered,directConnTabFiltered,indirectConnTab1Filtered,indirectConnTab2Filtered,drctIndrctComboTable,directConnTabFiltered_CosDist,indirectConnTab1Filtered_CosDist,indirectConnTab2Filtered_CosDist))
+}
+
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   # Get the table of nodes (types)
@@ -65,7 +123,6 @@ graphConTab_old <- function(conTab,xyLookup,textRepel,guideOnOff){
   
   return(gg)
 }
-
 
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
 graphConTabPolyChrome <- function(conTab,xyLookup,textRepel,guideOnOff){
@@ -182,7 +239,7 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
 }
 
 # Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
-cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
+cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plotFacet=TRUE){
   # Apply cosine distance clustering separately to the from and to side
   Type2TypeConnTab_cosDistClusterByInp <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"inputs")
   Type2TypeConnTab_cosDistClusterByOut <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab_cosDistClusterByInp[[1]],Type2TypeConnTabName,"outputs")
@@ -190,16 +247,27 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   # Plot the factorized Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative" and grouped by the factors
   Type2TypeConnTab_hc <- Type2TypeConnTab_cosDistClusterByOut[[1]]
   plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
-  plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
+
+  # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
   
   # Facet the matrix
-  # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from ~ cluster.to"),scale="free",space="free")
+  if (plotFacet){
+    # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from ~ cluster.to"),scale="free",space="free")
+    plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(rows=vars(cluster.from),cols=vars(cluster.to),scale="free",space="free") 
+    + theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+            strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+            #strip.text.y.left = element_text(angle = 0),
+            #strip.text.x.bottom = element_text(angle = 90),
+            strip.background = element_blank(), #remove background for facet labels
+            panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add grey border
+            panel.spacing = unit(0.05, "lines")) #space between facets
+  }
   
   # Color the row and column labels
   yConnColors <- Type2TypeConnTab_cosDistClusterByInp[[6]]
   xConnColors <- Type2TypeConnTab_cosDistClusterByOut[[6]]
   plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = xConnColors),axis.text.y = element_text(colour = yConnColors))
-  
+
   print(plotType2TypeConnTab_hc)
   ggsave(paste0(Type2TypeConnTabName,"_cosDistClustConnMat",".eps"), plot=plotType2TypeConnTab_hc, device="eps", path=PlotDir, scale=1, 
          width=24, height=16, units="in", dpi=300, limitsize=FALSE)

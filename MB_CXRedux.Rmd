@@ -329,6 +329,17 @@ ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctInd
        width=30, height=90, units="in", dpi=300, limitsize=FALSE)
 ```
 
+### Pull out connections based on PN->MBON input modality percentages
+```{r}
+# Get the PN2MBON input modality table
+PN2allMBON_InputPct <- getPN2MBONinputTable()
+
+# Filter and analyze the MBON to CX direct and indirect connections based on input modality
+visualMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Visual",25,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+thermoHygroMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"ThermoHygro",20,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+olfMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Olfactory",75,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+```
+
 ### Find connections from strong MBON targets to secondary targets in CX
 ```{r}
 # Find the postsynaptic partners of StrongMBON2CX_TargetNeurons
