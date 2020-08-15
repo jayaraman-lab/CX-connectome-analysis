@@ -25,6 +25,10 @@ getPN2MBONinputTable <- function(){
   PN2allMBON_InputPct <- rbind(PN2MBON_InputPc,PN2ATMBON_InputPc)
   PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(Olfactory = UniGlom + MultiGlom) # add a column for the sum of UniGlom and MultiGlom as Olfactory
   PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(MBON = allMBONtypeNames) # add a column for matching MBON type names
+  
+  PN2allMBON_InputPct[[17,"MBON"]] <- "MBON19" # combine the 2 MBON19 types
+  PN2allMBON_InputPct[[18,"MBON"]] <- "MBON19"
+  
   return(PN2allMBON_InputPct)
 }
 
@@ -61,7 +65,11 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   ggsave(paste0(inputMod,filtCol,"drctIndrctComboPath.svg"), plot=drctIndrctComboPath, device="svg", path=PlotDir, scale=1, width=30, height=90, units="in", dpi=300, limitsize=FALSE)
   
   # Cluster by cosine distance and plot
-  directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
+  directConnTabFiltered_CosDist <- list()
+  if (nrow(directConnTabFiltered)>1){
+    directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
+  }
+  
   indirectConnTab1Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab1Filtered,paste0(inputMod,filtCol,"indirectConnTab1_Type2Type"))
   indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
   
@@ -253,8 +261,8 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
   # Facet the matrix
   if (plotFacet){
     # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(as.formula("cluster.from ~ cluster.to"),scale="free",space="free")
-    plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(rows=vars(cluster.from),cols=vars(cluster.to),scale="free",space="free") 
-    + theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+    plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + facet_grid(rows=vars(cluster.from),cols=vars(cluster.to),scale="free",space="free") + 
+      theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
             strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
             #strip.text.y.left = element_text(angle = 0),
             #strip.text.x.bottom = element_text(angle = 90),
