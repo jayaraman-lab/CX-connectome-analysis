@@ -18,8 +18,8 @@ library(paletteer)
 library(gridExtra)
 
 options(nat.plotengine = 'rgl')
-source("visualizeConnectivityTables.R")
-source("SynapsePCAUtils.R")
+source("../visualizeConnectivityTables.R")
+source("../SynapsePCAUtils.R")
 
 getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
@@ -45,6 +45,110 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 neuprint_login()
 ```
 
+```{r}
+roiTree = getRoiTree()
+```
+
+### AOTU046 to TB connectivity
+```{r}
+myNeurons = getBodyIdsForList(c("AOTU046","TuBu"))
+
+conTab = getConnectionTable(myNeurons, "POST", by.roi = TRUE) 
+
+conTab_AOTU2TB = conTab %>% 
+  filter(type.from == "AOTU046" & supertype2.to == "TuBu" & roi %in% c("AOTU(R)","BU(R)"))
+conTab_TB2AOTU = conTab %>% 
+  filter(type.to == "AOTU046" & supertype2.from == "TuBu" & roi %in% c("AOTU(R)","BU(R)"))
+```
+
+```{r}
+typesTable <- getTypesTable(unique(conTab_AOTU2TB$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="to")
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_AOTU2TB = getTypeToTypeTable(conTab_AOTU2TB, typesTable = typesTable)
+
+
+typesTable <- getTypesTable(unique(conTab_TB2AOTU$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="to")
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_TB2AOTU = getTypeToTypeTable(conTab_TB2AOTU, typesTable = typesTable)
+
+```
+
+```{r}
+plotW = 10
+plotH = 5
+
+conMatPlot = plotConnectivityMatrix(conTabT2T_AOTU2TB, byGroup = "type","weightRelative", cmax=NULL)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)
+print(conMatPlot)
+
+ggsave("AOTU46_2_TuBu_connectivity.pdf", plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+conMatPlot = plotConnectivityMatrix(conTabT2T_TB2AOTU, byGroup = "type","weightRelative", cmax=NULL)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)
+print(conMatPlot)
+
+ggsave("TuBu_2_AOTU46_connectivity.pdf", plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+```{r}
+myNeurons = getBodyIdsForList(c("ExR3","TuBu"))
+
+conTab = getConnectionTable(myNeurons, "POST", by.roi = TRUE) 
+
+conTab_AOTU2TB = conTab %>% 
+  filter(type.from == "ExR3" & supertype2.to == "TuBu" & roi %in% c("BU(R)"))
+conTab_TB2AOTU = conTab %>% 
+  filter(type.to == "ExR3" & supertype2.from == "TuBu" & roi %in% c("BU(R)"))
+```
+
+```{r}
+typesTable <- getTypesTable(unique(conTab_AOTU2TB$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="to")
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_AOTU2TB = getTypeToTypeTable(conTab_AOTU2TB, typesTable = typesTable)
+
+
+typesTable <- getTypesTable(unique(conTab_TB2AOTU$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="to")
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_TB2AOTU = getTypeToTypeTable(conTab_TB2AOTU, typesTable = typesTable)
+
+```
+
+```{r}
+plotW = 4
+plotH = 3
+cmax = 0.35 #NULL
+conMatPlot = plotConnectivityMatrix(conTabT2T_AOTU2TB, byGroup = "type","weightRelative", cmax=cmax)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)
+print(conMatPlot)
+
+ggsave("ExR3_2_TuBu_connectivity.pdf", plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",scale = 2, width = plotW+2, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+conMatPlot = plotConnectivityMatrix(conTabT2T_TB2AOTU, byGroup = "type","weightRelative", cmax=cmax)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)
+print(conMatPlot)
+
+ggsave("TuBu_2_ExR3_connectivity.pdf", plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",scale = 2, width = plotH+2, height =plotW, units ="cm", dpi = 600, limitsize = TRUE)
+```
 
 ### (0) Get some synapse locations
 Choose ROI and get curated list of neurons
@@ -494,40 +598,4 @@ ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf
                 plot = conPatternPlot, device='pdf', path = "../neuprintR_analysis_plots/", 
                 scale = 1, width = 35, height = 18, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
 
-```
-
-
-
-###
-
-```{r}
-FBC3InputsAnatomies <- neuprint_read_neurons(FBC3Real$bodyid,resample=10,meta=FALSE,connectors=FALSE) ## Resampling usually avoids cutting artefacts to appear
-FBC3OutputsAnatomies <- neuprint_read_neurons(FBC3RealOut$bodyid,resample=10,meta=FALSE,connectors=FALSE)
-```
-
-```{r}
-FBC3InputsAnatomies <- bind_rows(list(neuron2polygon(FBC3InputsAnatomies,cl=20),neuron2polygon(FBC3InputsAnatomies,axis=c("x","z"),cl=20)))
-FBC3OutputsAnatomies <- bind_rows(list(neuron2polygon(FBC3OutputsAnatomies,cl=20),neuron2polygon(FBC3OutputsAnatomies,axis=c("x","z"),cl=20)))
-```
-
-```{r}
-FBC3InputsAnatomies <- mutate(FBC3InputsAnatomies,supertype2 = FBC3Real$supertype2[match(bodyid,FBC3Real$bodyid)])
-FBC3OutputsAnatomies <- mutate(FBC3OutputsAnatomies,supertype2 = FBC3RealOut$supertype2[match(bodyid,FBC3RealOut$bodyid)])
-```
-
-```{r}
-ExampleC3Anat <- filter(FBC3InputsAnatomies,bodyid %in% filter(FBC3Real,type=="FC2A")$bodyid)
-```
-
-```{r}
-FBCXExampleAnatomies <- neuprint_read_neurons(filter(FBCXReal,type=="FC2A")$bodyid,resample=10,meta=FALSE,connectors=FALSE)
-```
-
-```{r}
-FBCXExampleAnatomies <- bind_rows(list(neuron2polygon(FBCXExampleAnatomies,cl=20),neuron2polygon(FBCXExampleAnatomies,axis=c("x","z"),cl=20)))
-```
-
-```{r}
-C3Pos <- ggplot() +  geom_path(data=FB,aes(x=x,y=y),inherit.aes = FALSE)   + geom_polygon(data=FBC3,aes(x=x,y=y),linetype=2,alpha=0.3,inherit.aes = FALSE,fill="#908827")+ coord_fixed() +  scale_y_reverse() + theme_map() +facet_grid(.~proj)
-C3Pos
 ```
