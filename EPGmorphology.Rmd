@@ -26,6 +26,12 @@ library(igraph)
 library(ggplot2)
 library(tidyr)
 library(dplyr)
+require(matlib)
+library(neuprintrExtra)
+source("SynapsePCAUtils.R")
+require(alphahull)
+require(RColorBrewer)
+library("paletteer")
 ```
 
 Establish connection with neuprint server
@@ -343,6 +349,7 @@ synapses = synapses %>% group_by(bodyid) %>%
 
 ```
   
+
   
 ## Results 1: Is there a hierarchy among modality types?
 
@@ -600,6 +607,226 @@ grid::grid.draw(g)
 
 
 Obviously, we will want to do this in a more rigorous fashion. In particular, we should calculate the depth/radial position of each synapse separately (rather than grouping them by ring neuron type) and compare to the distance to root of that synapse. This is still to be done.
+
+#----------------- FROM HANNAH'S CODE -----------------
+
+### (1) Import of ROI meshes and get vertices in x,y,z
+```{r}
+roiMeshPts = data.frame(dotprops(mainROI_mesh)$points)
+names(roiMeshPts) <- c("x","y","z")
+```  
+
+### (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
+***Transform mesh  and synapse locations***
+```{r}
+# define new origin from roi center of mass
+origin = getCOM(roiMeshPts)
+
+#reset orgin
+roiMeshPts = resetOrigin(roiMeshPts, origin)
+
+#get eigenvectors
+roiEigen = covPCA(roiMeshPts)
+
+roiMeshPtsRot = changeBasis(roiMeshPts, roiEigen)
+
+#Synapse locations
+synPts = data.frame(x=as.numeric(synapses$x),
+                    y=as.numeric(synapses$y),
+                    z=as.numeric(synapses$z))
+synPtsShift = resetOrigin(synPts, origin)
+synPtsRot = changeBasis(synPtsShift, roiEigen)
+synPtsRot = synPtsRot %>% select(X, Y, Z)
+synPtsRot = cbind(synPts, synPtsRot)
+
+```
+
+***Use 3D plot to choose which reference frame to use and how to rotate points within that reference frame***
+```{r message=FALSE}
+nclear3d()
+#plot3d(roiMeshPtsRot[c('x','y','z')], col='seagreen3')
+#plot3d(roiMeshPtsRot[c('X','Y','Z')], col='maroon', add=TRUE)
+plot3d(synPtsShift[c('x','y','z')], col='maroon', add=TRUE)
+vectors3d(sqrt(roiEigen$values[1])*roiEigen$vectors[1,], col="black", lwd=2, radius=1/25)
+vectors3d(sqrt(roiEigen$values[2])*roiEigen$vectors[2,], col="grey", lwd=2, radius=1/25)
+vectors3d(sqrt(roiEigen$values[3])*roiEigen$vectors[3,], col="blue", lwd=2, radius=1/25)
+
+smallestEV = which(roiEigen$values == min(roiEigen$values), arr.ind = TRUE)
+n_plane =c(roiEigen$vectors[smallestEV,1], roiEigen$vectors[smallestEV,2], roiEigen$vectors[smallestEV,3])
+n_plane =  n_plane / sqrt(sum(n_plane * n_plane))
+
+planes3d(n_plane[1],n_plane[2],n_plane[3], 0, col="gray", alpha=0.2)
+plot3d(mainROI_mesh-origin, alpha=0.2,  add=TRUE)
+decorate3d(box=FALSE)
+```
+
+
+### (3) Plot
+***Select either original or EV coordinates and rotate***
+```{r}
+rot = c(0,0, 180) #BU (45,180, 0) EB: (0,0,180) AOTU: (0,180,0)
+
+flipx = 1
+flipy = -1
+flipz = 1
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
+                             y=roiMeshPtsRot$Y,
+                             z=roiMeshPtsRot$Z)
+synPtsPlane = data.frame(x=synPtsRot$X,
+                             y=synPtsRot$Y,
+                             z=synPtsRot$Z)
+# rotate points
+roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
+synPtsPlane = data.matrix(synPtsPlane)
+
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
+synPtsPlane = synPtsPlane %*% makeRotMatXY(rot[1])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+synPtsPlane = synPtsPlane %*% makeRotMatYZ(rot[2])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+synPtsPlane = synPtsPlane %*% makeRotMatXZ(rot[3])
+
+roiMeshPtsPlane = data.frame(x=flipx*roiMeshPtsPlane[,1],y=flipy*roiMeshPtsPlane[,2],z=flipz*roiMeshPtsPlane[,3])
+synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz*synPtsPlane[,3],
+                         #type = as.factor(my_synapses$type), 
+                         partnerType = as.factor(synapses$partnerType),
+                         #name = as.factor(my_synapses$name), 
+                         #partnerName = as.factor(my_synapses$partnerName),
+                         id = as.factor(synapses$bodyid),
+                         partnerid = as.factor(synapses$partner),
+                         prepost = as.factor(synapses$prepost))
+
+#Add simple type name
+#synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
+```
+
+
+# Frontal view
+***Get outline using alpha shape and plot***
+```{r}
+plotW = 14#12
+plotH =  6# 4
+Cmax = 40#40#20#100#60# #EB col 150
+nbins = 30#40#50# #5
+nlevels = 11 #7
+```
+
+```{r}
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=120)
+outline = data.frame(meshOutline$arcs)
+#outline = bind_rows(outline, outline[1,]) # close the shape
+```
+
+```{r}
+#synCount = synPtsPlane %>% count(type)
+#typeFilter = synCount$type[synCount$n > 10]
+
+# generate color map
+#dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
+dataFilt= synPtsPlane
+
+#myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
+#myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),] %>%
+#  arrange(unique(dataFilt$simpleType))
+
+#mySubtypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$type)) %>% filter(Simpletype == "no")
+#mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),] %>%
+#  arrange(unique(dataFilt$type))
+
+```
+
+```{r}
+nron_info_kept = nron_info[-exclude,]
+EBorder = c('R9','R1','L8','R2','L7','R3','L6','R4','L5','R5','L4','R6','L3','R7','L2','R8','L1','L9')
+
+EBLevels = c()
+for(pat in EBorder){
+  EBLevels = c(EBLevels, nron_info_kept[grepl(pat, nron_info_kept$name),'bodyid'])
+}
+
+```
+
+```{r}
+labName = nron_info_kept$name
+names(labName) = nron_info_kept$bodyid
+labName = gsub(".*_","",labName)
+```
+
+```{r}
+synprojFront = ggplot() + 
+  geom_hex(data=dataFilt, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
+  scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+  facet_wrap(~factor(id, levels = EBLevels), labeller = as_labeller(labName)) +
+  coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojFront)
+```
+
+# Side view
+```{r}
+plotW = 14
+plotH =  6#10
+Cmax = 30##EB col 150
+nbins = 40
+```
+
+```{r}
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$y,alpha=100)
+outline = data.frame(meshOutline$arcs)
+outline = bind_rows(outline, outline[1,]) # close the shape
+```
+
+```{r}
+synprojSide = ggplot() + 
+  geom_hex(data=dataFilt, aes(x=z, y=y), bins=nbins) +   #fill=type, color=type
+  scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+  facet_wrap(~factor(id, levels = EBLevels), labeller = as_labeller(labName)) +
+  coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+
+print(synprojSide)
+
+
+```
+
+
+#---------------------------------------------------
+
+
+```{r}
+
+synapses = merge(synapses, synPtsRot)
+synapses = synapses %>% mutate(radial = sqrt(X^2 + Y^2)/125, depth = -Z/125) %>% mutate(depth = depth - min(depth))
+
+```
+
+```{r}
+source('./R/paperTheme.R')
+```
+
+```{r}
+ggplot(filter(synapses, prepost == 1)) +
+  geom_point(aes(x = normDist, y = radial, color = depth), size = 1, alpha = 0.05) +
+  theme_paper() +
+  scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+  labs(x = 'normalized distance', y = 'radial position')
+
+ggplot(filter(synapses, prepost == 1)) +
+  geom_point(aes(x = normDist, y = depth, color = radial), size = 1, alpha = 0.05) +
+  theme_paper() +
+  scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
+  labs(x = 'normalized distance', y = 'depth')
+
+#synapses = synapses %>% mutate(Z = Z/125, normDist = normDist*100)
+#nclear3d()
+#points3d(synapses[c('radial','Z','normDist')], color = 'maroon')
+#axes3d()
+
+```
+
 
 
 ## Tools for analysing neuron morphology
