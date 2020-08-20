@@ -32,6 +32,8 @@ source("SynapsePCAUtils.R")
 require(alphahull)
 require(RColorBrewer)
 library("paletteer")
+source('./R/paperTheme.R')
+```
 ```
 
 Establish connection with neuprint server
@@ -349,7 +351,22 @@ synapses = synapses %>% group_by(bodyid) %>%
 
 ```
   
+```{r}
+nron_info_kept = nron_info[-exclude,]
+EBorder = c('R9','R1','L8','R2','L7','R3','L6','R4','L5','R5','L4','R6','L3','R7','L2','R8','L1','L9')
 
+EBLevels = c()
+for(pat in EBorder){
+  EBLevels = c(EBLevels, nron_info_kept[grepl(pat, nron_info_kept$name),'bodyid'])
+}
+
+```
+
+```{r}
+labName = nron_info_kept$name
+names(labName) = nron_info_kept$bodyid
+labName = gsub(".*_","",labName)
+```
   
 ## Results 1: Is there a hierarchy among modality types?
 
@@ -404,8 +421,8 @@ A nice one:
 ```{r}
 ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[2], modality %in% c('cv','iv','motor','ms','sleep')), aes(x = normDist, color = modality)) +
     stat_ecdf(geom = "step") +
-    scale_colour_brewer(palette = 'Set3') +
-    theme_dark() +
+    scale_colour_hue(l = 75, c = 60) +
+    theme_paper() +
     labs(x = 'normalized distance', y = 'CDF')
 ```
 
@@ -427,8 +444,8 @@ If we look at the distributions of the medians of the synaptic distributions for
 
 ggplot(filter(medOfDist)) +
   geom_violin(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality)) +
-  theme_dark() +
-  scale_fill_brewer(palette="Set3") +
+  theme_paper() +
+  scale_fill_hue(l = 75, c = 60) +
   labs(x = 'modality', y = 'median')
   
 
@@ -449,10 +466,10 @@ sortingLevel = c(sortingLevel1, sortingLevel2, sortingLevel3, sortingLevel4, sor
 
 ggplot(medOfDist) +
   geom_tile(aes(x = rankOrder, y = factor(bodyid, levels = rev(sortingLevel)), fill = modality)) +
-  theme_dark() +
+  theme_paper_grid() +
   theme(axis.text.y = element_blank(), legend.position="top") +
   labs(y = "neurons", x = "rank order") +
-  scale_fill_brewer(palette="Set3")
+  scale_fill_hue(l = 75, c = 60)
 
 ```
 
@@ -538,10 +555,24 @@ ggplot(distBetween) +
   geom_boxplot(aes(y = dist, x = factor(flag), color = as.factor(flag))) +
   facet_grid(.~betweenWho) +
   scale_color_manual(values = c('black','red')) +
+  theme_paper() +
   theme(legend.position = 'none') +
   labs(y = "median distance", x = "ordering", title = 'Median distance between distributions of rank orders:') +
   scale_x_discrete(labels = c('standard', 'permuted'))
 ```
+
+```{r}
+ggplot(distBetween) +
+  geom_point(aes(y = dist, x = factor(bodyid, levels = EBLevels), color = as.factor(flag)))  +
+  facet_wrap(.~betweenWho, scales = 'free') +
+  scale_color_manual(values = c('black','red')) +
+  #theme_paper() +
+  theme(legend.position = 'none') +
+  scale_x_discrete(labels = as_labeller(labName))
+```
+
+
+
 
 Preferably, we will calculate the electrotonic distance of the synapses to have a better idea of the impact that synapse will have at the spike initiation zone (approximated by the rootpoint). This is still be to be done. In general, we are able to calculate the number of branchpoints between the rootpoint and synapses, the width of the arbor at the synapse, the Strahler order of the arbors, etc.
 
@@ -737,22 +768,6 @@ dataFilt= synPtsPlane
 
 ```
 
-```{r}
-nron_info_kept = nron_info[-exclude,]
-EBorder = c('R9','R1','L8','R2','L7','R3','L6','R4','L5','R5','L4','R6','L3','R7','L2','R8','L1','L9')
-
-EBLevels = c()
-for(pat in EBorder){
-  EBLevels = c(EBLevels, nron_info_kept[grepl(pat, nron_info_kept$name),'bodyid'])
-}
-
-```
-
-```{r}
-labName = nron_info_kept$name
-names(labName) = nron_info_kept$bodyid
-labName = gsub(".*_","",labName)
-```
 
 ```{r}
 synprojFront = ggplot() + 
@@ -804,21 +819,23 @@ synapses = synapses %>% mutate(radial = sqrt(X^2 + Y^2)/125, depth = -Z/125) %>%
 ```
 
 ```{r}
-source('./R/paperTheme.R')
-```
-
-```{r}
-ggplot(filter(synapses, prepost == 1)) +
+radPosVsDistPlot <- ggplot(filter(synapses, prepost == 1)) +
   geom_point(aes(x = normDist, y = radial, color = depth), size = 1, alpha = 0.05) +
   theme_paper() +
   scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
   labs(x = 'normalized distance', y = 'radial position')
 
-ggplot(filter(synapses, prepost == 1)) +
+print(radPosVsDistPlot)
+
+#ggsave('radPosVsDist.pdf', plot = radPosVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
+depthVsDistPlot <-ggplot(filter(synapses, prepost == 1)) +
   geom_point(aes(x = normDist, y = depth, color = radial), size = 1, alpha = 0.05) +
   theme_paper() +
   scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
   labs(x = 'normalized distance', y = 'depth')
+
+print(depthVsDistPlot)
 
 #synapses = synapses %>% mutate(Z = Z/125, normDist = normDist*100)
 #nclear3d()
