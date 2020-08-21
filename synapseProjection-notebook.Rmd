@@ -51,10 +51,10 @@ Choose ROI and get curated list of neurons
 myROI = "EB"
 #load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("ring_in_", myROI)
+saveName = paste0("ExR_in_", myROI)
 my_types = c("ExR")
 my_types = paste0(my_types, ".*")
-cmapName = "colorMap_RingNeurons.csv"
+cmapName = "colorMap_ExR_and_AOTU46.csv"
 
 my_neurons = getBodyIdsForList(my_types)
 # Ring neurons: c("ER1","ER2","ER3","ER4","ER5","ER6")
@@ -541,9 +541,13 @@ outline = data.frame(meshOutline$arcs)
 
 Split into quadrants
 
+
 ```{r}
+dataFilt = dataFilt %>% mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
+
+
 # Uncomment lines below if you'd like to see a vizualization of the definition of syn_angle and syn_dist
-ggplot(dataFilt %>% filter(type == "ER4d"), aes(x=x,y=y, color=angleGroup)) + geom_point()  + theme_classic()
+ggplot(dataFilt %>% filter(type == "ExR1"), aes(x=x,y=y, color=angleGroup)) + geom_point()  + theme_classic()
 ggsave( paste("synapseDistributions_",saveName,'_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
 ```
@@ -564,11 +568,6 @@ for (i in unique(roiMeshPtsPlane$angleGroup)) {
 ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + facet_wrap( ~ angleGroup,  ncol=4) +
   coord_fixed(ratio = 1) + theme_void()
 ```
-
-```{r}
-dataFilt = dataFilt %>% mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
-```
-
 
 ```{r}
 library(cowplot)
