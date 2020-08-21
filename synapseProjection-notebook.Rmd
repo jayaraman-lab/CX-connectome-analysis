@@ -13,6 +13,7 @@ library(natverse)
 require(matlib)
 library(neuprintrExtra)
 source("SynapsePCAUtils.R")
+source("R/paperTheme.R")
 require(alphahull)
 require(RColorBrewer)
 library("paletteer")
@@ -47,23 +48,23 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 ### (0) Get some synapse locations
 Choose ROI and get curated list of neurons
 ```{r}
-myROI = "BU(R)"
+myROI = "EB"
 #load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("contra_in_", myROI)
-my_types = c("ExR","AOTU")
+saveName = paste0("ExR_in_", myROI)
+my_types = c("ExR")
 my_types = paste0(my_types, ".*")
-cmapName = "colorMap_ExR_and_AOTU46"
+cmapName = "colorMap_ExR_and_AOTU46.csv"
 
 my_neurons = getBodyIdsForList(my_types)
-# Ring neurons: c("R1","R2","R3","R4","R5","R6")
+# Ring neurons: c("ER1","ER2","ER3","ER4","ER5","ER6")
 # ExR: #EB_Type[grep("ExR.*", EB_Type)]
 # ExR etc in BU: c("ExR", "PDM21a", "TuTu") "colorMap_ExR_and_PDM21a"
 # Columnar: c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")
 # TuBu:  c("TuBu")
 
 # Load custom color palette
-myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/",cmapName,".csv"))
+myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/",cmapName))
 
 ```
 
@@ -74,41 +75,12 @@ my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types)$bodyi
 ```
 
 ```{r}
-#Filter out synapses that are to TuBu
-#my_synapses = my_synapses %>% mutate(partnerType =neuprint_get_meta(as.numeric(partner))$type ) %>% 
-#  filter(partnerType %in% c("TuBu10",paste0("TuBu0",seq(9))))
-```
 
-```{r}
-useNeuprintTest = FALSE
-
-if(useNeuprintTest){
-  my_ids = my_synapses$bodyid
-  metaid = data.frame(name=neuprint_get_meta(as.numeric(my_ids[1]), all_segments = TRUE)[["name"]],
-                     type=neuprint_get_meta(as.numeric(my_ids[1]), all_segments = TRUE)[["type"]])
-  for(id in my_ids[2:length(my_ids)]){
-    tmp = data.frame(name=neuprint_get_meta(as.numeric(id), all_segments = TRUE)[["name"]],
-                     type=neuprint_get_meta(as.numeric(id), all_segments = TRUE)[["type"]])
-    metaid = rbind(metaid, tmp)
-  }
-  
-  my_partners = my_synapses$partner
-  metapartner = data.frame(partnerName=neuprint_get_meta(as.numeric(my_partners[1]), all_segments = TRUE)[["name"]],
-                           partnertype=neuprint_get_meta(as.numeric(my_partners[1]), all_segments = TRUE)[["type"]])
-  for(part in my_partners[2:length(my_partners)]){
-    tmp = data.frame(partnerName=neuprint_get_meta(as.numeric(part), all_segments = TRUE)[["name"]],
-                     partnertype=neuprint_get_meta(as.numeric(part), all_segments = TRUE)[["type"]])
-    metapartner = rbind(metapartner, tmp)
-  }
-  
-  my_synapses = bind_cols(my_synapses, metaid, metapartner)
-}else{
-  my_synapses = my_synapses %>% mutate(
-  name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
-  type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
-  partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
-  partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
-}
+my_synapses = my_synapses %>% mutate(
+name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
 
 ```
 
@@ -165,7 +137,7 @@ decorate3d(box=FALSE)
 ### (3) Plot
 ***Select either original or EV coordinates and rotate***
 ```{r}
-rot = c(45,0, 0) #BU (45,180, 0) EB: (0,0,180) AOTU: (0,180,0)
+rot = c(0, 0, 180) #BU (45,180, 0) EB: (0,0,180) AOTU: (0,180,0)
 
 flipx = 1
 flipy = -1
@@ -207,9 +179,9 @@ synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
 ```{r}
 plotW = 14#12
 plotH =  6# 4
-Cmax = 40#40#20#100#60# #EB col 150
-nbins = 30#40#50# #5
-nlevels = 11 #7
+Cmax = 160#40#20#100#60# #EB col 150
+nbins = 40#40#50# #5
+nlevels = 5#11 #7 ; for EB: 5
 ```
 
 ```{r}
@@ -217,13 +189,13 @@ nlevels = 11 #7
 if(myROI=="AOTU(R)"){
   meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=200)
 }else{
-  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=120)
+  meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=150)
 }
 outline = data.frame(meshOutline$arcs)
 #outline = bind_rows(outline, outline[1,]) # close the shape
 ```
 
-```{r}
+```{r} 
 synCount = synPtsPlane %>% count(type)
 typeFilter = synCount$type[synCount$n > 10]
 
@@ -252,39 +224,44 @@ ggsave( paste("synapseDistributions_",saveName,'_front.pdf', sep=''), plot = syn
     scale = 1.5, width = plotW, height = plotH*1.5, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-```{r}
-synprojFront = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  facet_wrap(~simpleType, ncol=ceiling(length(unique(dataFilt$simpleType))/2)) +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
-print(synprojFront)
-ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf',
-        path = "../neuprintR_analysis_plots/", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+Helper plotting function
+```{r}
+coloredDensityPlot <- function(mydata, dims, grouping, colorcode){
+  densPlot = ggplot() + stat_density_2d(data = mydata, aes(x=mydata[[dims[1]]], y=mydata[[dims[2]]], fill=mydata[[grouping]], alpha = stat(nlevel)), bins=nlevels,contour_var = "ndensity", geom = "polygon") +
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
+  scale_fill_manual(values = as.character(colorcode), name=grouping)
+  return(densPlot)
+}
 ```
 
-```{r}
-synprojFront = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
+```{r}
+synprojFront = coloredDensityPlot(dataFilt, c("x","y"), "type", mySubtypeCols$hex)
+synprojFront = synprojFront + 
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
+  facet_wrap(~simpleType, ncol=6)
 print(synprojFront)
+
+ggsave( paste("synapseDistributions_",saveName,'_front_simpletype.pdf', sep=''), plot = synprojFront, device='pdf',
+        path = "../neuprintR_analysis_plots/", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+```
+```{r}
+synprojFront = coloredDensityPlot(dataFilt, c("x","y"), "type", mySubtypeCols$hex)
+synprojFront = synprojFront + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+print(synprojFront)
+
 ggsave( paste("synapseDistributions_",saveName,'_front_level.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = 10, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
 
-synprojFront = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=x, y=y, fill=simpleType, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(myTypeCols$hex)) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
-
+synprojFront = coloredDensityPlot(dataFilt, c("x","y"), "simpleType", myTypeCols$hex)
+synprojFront = synprojFront + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojFront)
+ 
 ggsave( paste("synapseDistributions_",saveName,'_front_level_simpletypes.pdf', sep=''), plot = synprojFront, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = 10, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+
 ```
 
 For a given population, plot each neuron separately
@@ -306,7 +283,7 @@ ggsave( paste("synapseDistributions_",saveName,'_idColored_front.pdf', sep=''), 
 ```{r}
 plotW = 14
 plotH =  6#10
-Cmax = 30##EB col 150
+Cmax = 160#30##EB col 150
 nbins = 40
 ```
 
@@ -331,14 +308,9 @@ ggsave( paste("synapseDistributions_",saveName,'_side.pdf', sep=''), plot = synp
 
 ```
 
-
 ```{r}
-synprojSide = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  facet_wrap(~simpleType, ncol=6) +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+synprojSide = coloredDensityPlot(dataFilt, c("z","y"), "type", mySubtypeCols$hex)
+synprojSide = synprojSide + facet_wrap(~simpleType, ncol=6) + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
 ggsave( paste("synapseDistributions_",saveName,'_side_type.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
@@ -348,14 +320,11 @@ ggsave( paste("synapseDistributions_",saveName,'_side_type.pdf', sep=''), plot =
 
 
 ```{r}
-synprojSide = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=y, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+synprojSide = coloredDensityPlot(dataFilt, c("z","y"), "type", mySubtypeCols$hex)
+synprojSide = synprojSide + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
-ggsave( paste("synapseDistributions_",saveName,'_side_level.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
+ggsave( paste("synapseDistributions_",saveName,'_side_all.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*1.2, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
@@ -364,14 +333,14 @@ ggsave( paste("synapseDistributions_",saveName,'_side_level.pdf', sep=''), plot 
 ```{r}
 plotW = 14
 plotH =  6#10
-Cmax = 30##EB col 150
+Cmax = 150##EB col 150
 nbins = 40
 nlevels = 7
 ```
 
 ```{r}
 # get outline
-meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$z,alpha=100)
+meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$z,alpha=150)
 outline = data.frame(meshOutline$arcs)
 outline = bind_rows(outline, outline[1,]) # close the shape
 ```
@@ -380,7 +349,7 @@ outline = bind_rows(outline, outline[1,]) # close the shape
 synprojSide = ggplot() + 
   geom_hex(data=dataFilt, aes(x=x, y=z), bins=nbins) +   #fill=type, color=type
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
-  facet_wrap(~type, ncol=5) +
+  facet_wrap(~type, ncol=6) +
   coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 
@@ -392,12 +361,8 @@ ggsave( paste("synapseDistributions_",saveName,'_top.pdf', sep=''), plot = synpr
 
 
 ```{r}
-synprojSide = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=x, y=z, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  facet_wrap(~simpleType, ncol=5) +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+synprojSide = coloredDensityPlot(dataFilt, c("x","z"), "type", mySubtypeCols$hex)
+synprojSide = synprojSide + facet_wrap(~simpleType, ncol=5) + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
 ggsave( paste("synapseDistributions_",saveName,'_top_type.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
@@ -407,14 +372,11 @@ ggsave( paste("synapseDistributions_",saveName,'_top_type.pdf', sep=''), plot = 
 
 
 ```{r}
-synprojSide = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=x, y=z, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") +
-  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=2)) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
+synprojSide = coloredDensityPlot(dataFilt, c("x","z"), "type", mySubtypeCols$hex)
+synprojSide = synprojSide + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
-ggsave( paste("synapseDistributions_",saveName,'_top_level.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
+ggsave( paste("synapseDistributions_",saveName,'_top_all.pdf', sep=''), plot = synprojSide, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = plotW*0.8, height = plotH*1.2, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
@@ -438,18 +400,28 @@ for (i in seq(1,length(synPtsPlane$x))) {
 synPtsPlane$angle = syn_ang
 synPtsPlane$dist = syn_dist
 
+```
+
+```{r}
 # Uncomment lines below if you'd like to see a vizualization of the definition of syn_angle and syn_dist
-#ggplot(syn_2d, aes(x=x,y=y, color=angle)) + geom_point()
-#ggplot(syn_2d, aes(x=x,y=y, color=dist)) + geom_point()
+#ggplot(synPtsPlane, aes(x=x,y=y, color=angle)) + geom_point()
+#ggplot(synPtsPlane, aes(x=x,y=y, color=dist)) + geom_point()
 ```
 
 ```{r}
 roi_dist = numeric(length(roiMeshPtsPlane$x))
+roi_ang = numeric(length(roiMeshPtsPlane$x))
 for (i in seq(1,length(roiMeshPtsPlane$x))) {
   roi_dist[i] = sqrt(sum(roiMeshPtsPlane[i,1:2] * roiMeshPtsPlane[i,1:2]))
+  roi_ang[i] = angle(as.numeric(roiMeshPtsPlane[i,1:2]), c(0,-1))
+  if (roiMeshPtsPlane[i,1] < 0){
+    roi_ang[i] = 360-roi_ang[i]
+  }
 }
-
 roiMeshPtsPlane$dist = roi_dist
+roiMeshPtsPlane$angle = roi_ang
+roiMeshPtsPlane = roiMeshPtsPlane %>%  mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
+
 ```
 
 ```{r}
@@ -457,11 +429,13 @@ plotW = 12
 plotH =  8
 Cmax = 300#20#500#
 nbins = 50#40
+
+dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
 ```
 
 ```{r}
 # get outline
-meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$dist,alpha=70)
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$dist,alpha=100)
 outline = data.frame(meshOutline$arcs)
 #outline = bind_rows(outline, outline[1,]) # close the shape
 ```
@@ -480,11 +454,12 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_singleCol.pdf', sep=''), 
 ```
 
 ```{r}
-nlevel = 3
+nlevels = 5#3
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + 
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
   scale_alpha(range = c(0.2, 1)) +
-  facet_wrap(~type, ncol=6) +
+  facet_wrap(~type, ncol=4) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=2))
@@ -498,7 +473,8 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels_type.pdf', sep='')
 
 ```{r}
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
   facet_wrap(~simpleType, ncol=4) +
   coord_fixed(ratio = 1) + theme_void() + guides(fill=FALSE) +
   scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
@@ -511,7 +487,9 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels_subtype.pdf', sep=
 
 ```{r}
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
+  scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
   scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=2))
@@ -523,7 +501,9 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels.pdf', sep=''), plo
 
 ```{r}
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
   scale_fill_manual(values = as.character(myTypeCols$hex)) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=2))
@@ -533,10 +513,14 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels2.pdf', sep=''), pl
     scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
+
+
+Color code by region (Ring neurons only)
 ```{r}
 regiondata = left_join(dataFilt, myTypeCols[c("Type","regions","hex")], by = c("simpleType" = "Type"))
 synprojSlice = ggplot() + 
-  stat_density_2d(data=regiondata, aes(x=z, y=syn_dist, fill=regions, alpha = stat(nlevel)), bins=nlevels, geom = "polygon") + scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d(data=regiondata, aes(x=z, y=syn_dist, fill=regions, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon")+ scale_alpha(range = c(0.2, 1)) +
   coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
   scale_fill_manual(values = paletteer_d("basetheme::brutal", length(unique(myTypeCols$regions)))) + 
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
@@ -545,3 +529,78 @@ print(synprojSlice)
 ggsave( paste("synapseDistributions_",saveName,'_slice_levels_byRegion.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
     scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 ```
+
+ 
+```{r}
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$dist,alpha=100)
+outline = data.frame(meshOutline$arcs)
+#outline = bind_rows(outline, outline[1,]) # close the shape
+```
+
+
+Split into quadrants
+
+
+```{r}
+dataFilt = dataFilt %>% mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
+
+
+# Uncomment lines below if you'd like to see a vizualization of the definition of syn_angle and syn_dist
+ggplot(dataFilt %>% filter(type == "ExR1"), aes(x=x,y=y, color=angleGroup)) + geom_point()  + theme_classic()
+ggsave( paste("synapseDistributions_",saveName,'_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+```{r}
+# get outline 
+outline = data.frame()
+for (i in unique(roiMeshPtsPlane$angleGroup)) {
+  roiMeshPtsPlaneSub = roiMeshPtsPlane %>% filter(angleGroup == i)
+  meshOutline <- ahull(x=roiMeshPtsPlaneSub$z,y=roiMeshPtsPlaneSub$dist,alpha=250)
+  outlineGroup = data.frame(meshOutline$arcs) %>% mutate(angleGroup = i)
+  outline = bind_rows(outline,outlineGroup)
+  #outline = bind_rows(outline, outline[1,]) # close the shape
+}
+```
+
+```{r}
+ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + facet_wrap( ~ angleGroup,  ncol=4) +
+  coord_fixed(ratio = 1) + theme_void()
+```
+
+```{r}
+library(cowplot)
+
+synprojSlice = ggplot() + 
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
+  scale_alpha(range = c(0.2, 1)) +
+  facet_wrap( ~ angleGroup,  ncol=4) +
+  coord_fixed(ratio = 1) + theme_void() + theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
+print(synprojSlice)
+
+ggsave( paste("synapseDistributions_",saveName,'_slice_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+```{r}
+library(cowplot)
+
+synprojSlice = ggplot() + 
+  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), 
+                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
+  scale_alpha(range = c(0.2, 1)) +
+  facet_wrap( ~ angleGroup,  ncol=4) +
+  coord_fixed(ratio = 1) + theme_void() + theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
+  scale_fill_manual(values = as.character(myTypeCols$hex)) + 
+  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
+print(synprojSlice)
+
+ggsave( paste("synapseDistributions_",saveName,'_slice_simple_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "../neuprintR_analysis_plots/",
+    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
