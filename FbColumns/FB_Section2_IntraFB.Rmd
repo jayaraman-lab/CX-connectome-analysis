@@ -30,6 +30,8 @@ library(neuprintrExtra)
 library("xlsx")
 library(tidyselect)
 library(paletteer)
+library(reshape2)
+library(scales)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -40,7 +42,7 @@ options(nat.plotengine = 'rgl')
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
 # Directory to save plots to.
-PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Section2/"
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Motifs/"
 
 # Create save/plot directory if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
@@ -133,7 +135,7 @@ PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_to, by="type.to")
 PFX_FB_Outputs_All=inner_join(PFX_FB_Outputs_All, ColumnCounts_from, by="type.from")
 
 
-# Map all neurons into 9 column space (C0 to C9)
+# Map all neurons into 9 column space, including C0 column (C0 to C9)
 PFX_FB_Outputs_All$FBcol.from9=PFX_FB_Outputs_All$FBcol.from
 PFX_FB_Outputs_All$FBcol.from9=as.numeric(sapply(PFX_FB_Outputs_All$FBcol.from9, substring, 2, 4))
 PFX_FB_Outputs_All$FBcol.from9=round(PFX_FB_Outputs_All$FBcol.from9/PFX_FB_Outputs_All$ColNum.from*9)
@@ -202,12 +204,97 @@ motifPCA <- function(PCA_In, Norm, Pre_Post){
 }
 
 
-## Perform PCA
+## Perform PCA on binarized data
 OUT=motifPCA(Vectors, "Binary", Pre_Post)
 Columnar_PC_Motifs=OUT[[1]]
 covEigen=OUT[[2]]
 Var_Explained=sum(covEigen$values[c(1,2)])/sum(covEigen$values)
 sum(covEigen$values[c(3)])/sum(covEigen$values)
+
+
+## Perform PCA on weightRelative data
+OUT_Raw=motifPCA(Vectors, "False", Pre_Post)
+Columnar_PC_Motifs_Raw=OUT_Raw[[1]]
+covEigen_Raw=OUT_Raw[[2]]
+Var_Explained_Raw=sum(covEigen_Raw$values[c(1,2)])/sum(covEigen_Raw$values)
+sum(covEigen_Raw$values[c(3)])/sum(covEigen_Raw$values)
+
+
+# Plot PCs and their variance
+PC_Var=data.frame(PC=seq(from=1,to=length(covEigen$values),by=1), PropVar=covEigen$values/sum(covEigen$values))
+PC_Var_Raw=data.frame(PC=seq(from=1,to=length(covEigen_Raw$values),by=1), PropVar=covEigen_Raw$values/sum(covEigen_Raw$values))
+
+
+P0=ggplot() + geom_line(data=PC_Var[1:10,], aes(x=PC, y=PropVar),color='blueviolet') + 
+  geom_point(data=PC_Var[1:10,], aes(x=PC, y=PropVar),color='blueviolet',size=2) + 
+  #geom_line(data=PC_Var_Raw[1:10, ], aes(x=PC, y=PropVar),color='palegreen4') +
+  #geom_point(data=PC_Var_Raw[1:10, ], aes(x=PC, y=PropVar),color='palegreen4',size=2) +
+  scale_x_continuous(limits = c(0.5, 10.5), expand = c(0,0),  breaks = c(1:10)) +
+  scale_y_continuous(limits = c(0, 0.4), expand = c(0,0),  breaks = c(0,0.2,0.4)) + theme_classic()
+ggsave(paste(PFX_Dir_Connectivity, "FIGURE_PCs_Weights.pdf",sep=""),
+       plot = P0, device='pdf', scale = 1, width =5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+
+
+GetPC <- function(covEigen,PCNUM){
+  PC=covEigen$vectors[,PCNUM]
+  PC=matrix(PC,nrow=10,ncol=10)
+  rownames(PC)=colnames(PC)=paste("C",0:9,sep="")
+  PC=melt(PC)
+  return(PC)
+}
+
+PC1=GetPC(covEigen,1)
+PC2=GetPC(covEigen,2)
+PC3=GetPC(covEigen,3)
+PC4=GetPC(covEigen,4)
+PC5=GetPC(covEigen,5)
+PC6=GetPC(covEigen,6)
+
+
+# Make plot
+P1=ggplot(PC1) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC1", round(PC_Var$PropVar[1]*1000)/1000)) + 
+  xlab("post column") + ylab("pre column")
+P2=ggplot(PC2) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC2", round(PC_Var$PropVar[2]*1000)/1000)) + theme(legend.position="none") +
+  xlab("post column") + ylab("pre column")
+P3=ggplot(PC3) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC3", round(PC_Var$PropVar[3]*1000)/1000)) + theme(legend.position="none") +
+  xlab("post column") + ylab("pre column")
+P4=ggplot(PC4) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC4", round(PC_Var$PropVar[4]*1000)/1000)) + theme(legend.position="none") +
+  xlab("post column") + ylab("pre column")
+P5=ggplot(PC5) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC5", round(PC_Var$PropVar[5]*1000)/1000)) + theme(legend.position="none") +
+  xlab("post column") + ylab("pre column")
+P6=ggplot(PC6) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC6", round(PC_Var$PropVar[6]*1000)/1000)) + theme(legend.position="none") +
+  xlab("post column") + ylab("pre column")
+
+
+PAll=ggarrange(P1,P2,P3,P4,P5,P6,nrow=2,ncol=3)
+
+
+ggsave(paste(PFX_Dir_Connectivity, "FIGURE_PCs.pdf",sep=""),
+       plot = PAll, device='pdf', scale = 1, width =7, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+
+```
+
+
+
+
+# Plot intra-FB connectivity matrices and assign to motifs
+```{r}
 
 # Make supertypes
 Columnar_PC_Motifs$Motif=NA
