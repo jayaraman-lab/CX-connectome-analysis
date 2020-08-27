@@ -1,0 +1,55 @@
+---
+title: "IBSpsP Inputs"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(ggnewscale)
+library(gridExtra)
+
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
+```
+
+Specify plotting text sizes
+```{r}
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+  }
+```
+
+Get the IbSpsP inputs
+```{r}
+IbSpsPs <- neuprint_search("IbSpsP.*")$bodyid
+USNronsIB <- getConnectionTable(IbSpsPs,"PRE","IB")
+USNronsSPS <- getConnectionTable(IbSpsPs,"PRE","SPS(R)")
+USNronsVMNP <- getConnectionTable(IbSpsPs,"PRE","VMNP")
+USNronsINP <- getConnectionTable(IbSpsPs,"PRE","INP")
+USNronsAll <- rbind(rbind(rbind(USNronsIB,USNronsSPS),USNronsVMNP),USNronsINP)
+```
+
+```{r}
+USNronSum <- USNronsAll %>% group_by(from,to,name.from,name.to,type.from,type.to) %>% summarize(ROIweightAll = sum(ROIweight))
+USNronSum$id.from <- paste(USNronSum$name.from,USNronSum$from,sep='-')
+USNronSum$id.to <- paste(USNronSum$name.to,USNronSum$to,sep='-')
+```
+
+```{r}
+conmatPlot <- ggplot(USNronSum) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(USNronSum$ROIweightAll),
+                       limits=c(0,max(USNronSum$ROIweightAll))) +
+  geom_tile(aes(id.to,id.from,fill=ROIweightAll)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  xlab("presynaptic neuron") + ylab("postsynaptic neuron")
+
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\IBSpsP_Inputs.pdf',conmatPlot)
+```
+
