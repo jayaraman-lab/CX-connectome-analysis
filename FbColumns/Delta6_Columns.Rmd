@@ -432,7 +432,6 @@ for (ttt in 1:length(PbFb_Types)){
   
   
   # Make nodes
-
   TempNodeNames=c( paste("R", as.character(seq(from=9,to=1,by=-1)),sep=""), 
                 paste("L", as.character(seq(from=1,to=9,by=1)),sep=""),
                 paste(PlotData$name, PlotData$bodyid,sep="_") )
@@ -447,7 +446,7 @@ for (ttt in 1:length(PbFb_Types)){
 
   
   # Make edges
-  EdgeType="FBcol"
+  EdgeType="PBglom"
   if (EdgeType=="PBglom"){
     EDGES=data.frame(from=PlotData$PBglom, to=paste(PlotData$name, PlotData$bodyid,sep="_") , weight=1, COLORZ=PlotData$PBglom)
     EDGES$COLORZ=factor(EDGES$COLORZ, levels=c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
@@ -460,6 +459,7 @@ for (ttt in 1:length(PbFb_Types)){
     ColumnColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
   }
   
+  
   # Make ggraph object
   NODES$name=as.character(NODES$name)
   EDGES$from=as.character(EDGES$from)
@@ -467,8 +467,7 @@ for (ttt in 1:length(PbFb_Types)){
   graph = tbl_graph(NODES, EDGES)
 
   
-  # columns colors
-  
+  # Node Colors
   NodeColors=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
   
   
@@ -482,12 +481,14 @@ for (ttt in 1:length(PbFb_Types)){
     theme_classic() + 
     geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
     scale_edge_color_manual(values=ColumnColors,drop=FALSE) +
-    scale_edge_width(range = c(0.75,0.9))
+    scale_edge_width(range = c(0.75,0.9)) + xlim(-80,80) + ylim(-50,80)
     
-  ggsave(paste(FigDirOffset, "ColumnLocs_", PbFb_Types[ttt], "_", as.character(CurrentLayer), ".png", sep=""),
+  ggsave(paste(FigDirOffset, "ColumnLocs_", PbFb_Types[ttt], "_", as.character(CurrentLayer),"_",EdgeType, ".png", sep=""),
          plot = P1, device='png', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(FigDirOffset, "ColumnLocs_", PbFb_Types[ttt], "_", as.character(CurrentLayer),"_",EdgeType, ".pdf", sep=""),
+         plot = P1, device='pdf', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
-
+  
 }
 
   
