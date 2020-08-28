@@ -31,6 +31,11 @@ PBRename <- function(name,id){
   name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
   name  <- gsub("PEN_a","PEN1",as.character(name))
   name  <- gsub("PEN_b","PEN2",as.character(name))
+  name  <- gsub("PFNp_a","PFNpa",as.character(name))
+  name  <- gsub("PFNp_b","PFNpb",as.character(name))
+  name  <- gsub("PFNp_c","PFNpc",as.character(name))
+  name  <- gsub("PFNp_d","PFNpd",as.character(name))
+  name  <- gsub("PFNp_e","PFNpe",as.character(name))
   nameid <- paste(name, as.character(id), sep='-')
   
   # Extract the unique names and types

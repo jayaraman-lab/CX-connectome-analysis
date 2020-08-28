@@ -30,7 +30,7 @@ theme_paper <- function(...){
 }
 
 stCols <- supertype2Palette()
-stCols$breaks <- append(stCols$breaks,'OA-VPM3')
+stCols$breaks <- append(stCols$breaks,'OA')
 stCols$pal <- append(stCols$pal,'#000000FF')
 ```
 
@@ -181,8 +181,8 @@ T2T_FBCol <- FBcol_nbag$outputs %>% filter(databaseType.to %in% FBTypesCol)
 
 Check that a chosen percentage of pre and postsynaptic columnar neurons are featured
 ```{r}
-prePercent <- 2/3
-postPercent <- 2/3
+prePercent <- 0.75#2/3
+postPercent <- 0.75#2/3
 
 T2T_FBCol_filtered <- T2T_FBCol
 
@@ -239,7 +239,7 @@ for (pre in 1:length(preTypes)){
 Save the filtered type to type tables
 ```{r}
 save(T2T_FBCol,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol.Rda")
-save(T2T_FBCol_filtered,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered.Rda")
+save(T2T_FBCol_filtered,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_75.Rda")
 save(T2T_FBCol_filtered_lat,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_lat.Rda")
 save(T2T_FBCol_filtered_RandL,file="C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_RandL.Rda")
 ```
@@ -304,11 +304,157 @@ load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures
 load("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBFigures\\T2T_FBCol_filtered_RandL.Rda")
 ```
 
-
+Cluster the types by their upstream or downstream connectivity
 ```{r}
-connectivityCluster(T2T_FBCol_filtered)
+inClust <- connectivityCluster(inputs = T2T_FBCol_filtered)
+outClust <- connectivityCluster(outputs = T2T_FBCol_filtered)
+
+# Order by cluster
+fromOrder <- inClust$hc$labels[inClust$hc$order]
+toOrder <- outClust$hc$labels[outClust$hc$order]
+
+plotConnectivity(outClust, orderIn = inClust)
 ```
 
+Cut the cluster tree
+```{r}
+inGps <- cutree(inClust$hc,h = 0.8)
+inGps <- inGps[fromOrder]
+outGps <- cutree(outClust$hc,h = 0.8)
+outGps <- outGps[toOrder]
+```
+
+Plot the tree
+```{r}
+dIn_Plt <- dendPlot(inClust$hc,FALSE) + geom_hline(yintercept = 0.8)
+
+dOut_Plt <- dendPlot(outClust$hc,FALSE) + geom_hline(yintercept = 0.8)
+
+clustPlts <- dIn_Plt / dOut_Plt
+print(clustPlts)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\clustTrees.pdf",clustPlts)
+```
+
+Look at the cosine distance between cluster
+```{r}
+txtCols <- lapply(fromOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+inClustPlt <- plotClusters(inClust) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtCols),
+        axis.text.y = element_text(color=txtCols))
+numPerGp <- sapply(unique(inGps,fromLast=TRUE), function(x) length(which(inGps == x)))
+offset <- 0.5
+inClustPlt <- inClustPlt + 
+    geom_vline(xintercept=offset) +
+    geom_hline(yintercept=offset)
+for (n in 1:(length(numPerGp)+1)){
+  offset <- offset + numPerGp[n]
+  inClustPlt <- inClustPlt + 
+    geom_vline(xintercept=offset) +
+    geom_hline(yintercept=offset)
+}
+print(inClustPlt)
+
+txtCols <- lapply(toOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+outClustPlt <- plotClusters(outClust) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtCols),
+        axis.text.y = element_text(color=txtCols))
+numPerGp <- sapply(unique(outGps,fromLast=TRUE), function(x) length(which(outGps == x)))
+offset <- 0.5
+outClustPlt <- outClustPlt + 
+    geom_vline(xintercept=offset) +
+    geom_hline(yintercept=offset)
+for (n in 1:(length(numPerGp)+1)){
+  offset <- offset + numPerGp[n]
+  outClustPlt <- outClustPlt + 
+    geom_vline(xintercept=offset) +
+    geom_hline(yintercept=offset)
+}
+print(outClustPlt)
+```
+
+Reorder the out clusters to match up with the in group clusters
+```{r}
+# Specify the spacing for the cluster plot
+yOffset <- 2
+
+# Specify the output groups and their position
+outGpSize <- data.frame(gpID = unique(outGps), 
+                        gpNum = unique(outGps) %>% lapply(function(x) length(which(outGps == x))) %>% unlist())
+outGpSize$gpOrd <- rownames(outGpSize) %>% as.numeric()
+outGpSize$xPos <- rownames(outGpSize) %>% as.numeric()
+outGpSize$yPos <- 0
+
+# Specify the output groups and their y position
+inGpSize <- data.frame(gpID = unique(inGps), 
+                       gpNum = unique(inGps) %>% lapply(function(x) length(which(inGps == x))) %>% unlist())
+inGpSize$gpOrd <- rownames(inGpSize) %>% as.numeric()
+inGpSize$yPos <- -yOffset
+
+# Look at the in and out groups for each type
+typeGp <- right_join(data.frame(type = names(inGps), inGp = inGps),data.frame(type = names(outGps), outGp = outGps))
+
+# Set the position of the output group based off of the input cluster with the most connections
+inForOut <- lapply(inGpSize$gpID, function(g) typeGp[which(typeGp$inGp == g),]$outGp) %>%
+  lapply(function(g) unlist(lapply(g[!is.na(g)], function(x) outGpSize[which(outGpSize$gpID == x),]$xPos))) %>%
+  lapply(function(x) mean(x)) %>% unlist()
+
+inGpSize$xPos <- c(5,8,2,12,10,13,7,3,4,1,11,6,9,14,15,16)-0.5
+
+```
+
+
+Create a cluster to cluster plot
+```{r}
+outClustIDs <- intersect(names(outGps),names(inGps)) %>% lapply(function(x) {outGps[x]}) %>% unlist() %>% as.data.frame()
+colnames(outClustIDs) <- c('outIDs')
+outClustIDs$type <- rownames(outClustIDs)
+rownames(outClustIDs) <- NULL
+inClustIDs <- intersect(names(inGps),names(outGps)) %>% lapply(function(x) {inGps[x]}) %>% unlist() %>% as.data.frame()
+colnames(inClustIDs) <- c('inIDs')
+inClustIDs$type <- rownames(inClustIDs)
+rownames(inClustIDs) <- NULL
+
+clustData <- merge(outClustIDs,inClustIDs)
+clustData <- melt(clustData, id.vars = "type")
+clustData$supertype <- supertype(clustData$type, unicodeDelta = FALSE)
+clustData$color <- lapply(clustData$supertype, function(s) stCols$pal[which(stCols$breaks == s)]) %>% unlist()
+clustData$xPos <- 0
+clustData[which(clustData$variable == "inIDs"),]$xPos <- clustData[which(clustData$variable == "inIDs"),]$value %>%
+  lapply(function(x) inGpSize[which(x == inGpSize$gpID),]$xPos) %>% unlist()
+clustData[which(clustData$variable == "outIDs"),]$xPos <- clustData[which(clustData$variable == "outIDs"),]$value %>%
+  lapply(function(x) outGpSize[which(x == outGpSize$gpID),]$xPos) %>% unlist()
+clustData$yPos <- 0
+clustData[which(clustData$variable == "inIDs"),]$yPos <- -yOffset
+
+
+clustPlt <- ggplot() + 
+  geom_line(data = clustData, aes(x=xPos,y=yPos,color=as.factor(type))) + 
+  geom_point(data = outGpSize, aes(x=xPos,y=yPos,size=gpNum),color="black") +
+  geom_text(data = outGpSize, aes(x=xPos,y=yPos,label=gpOrd),hjust=0, vjust=-2) +
+  geom_point(data = inGpSize, aes(x=xPos,y=yPos,size=gpNum),color="black") + 
+  geom_text(data = inGpSize, aes(x=xPos,y=yPos,label=gpOrd),hjust=0, vjust=2) +
+  scale_color_manual(values = clustData$color,labels=clustData$supertype) + 
+  annotate("text", x=-4, y=0, label= "ds clustering") + 
+  annotate("text", x=-4, y=-yOffset, label= "us clustering") + 
+  theme_paper() +
+  theme(line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank()) + 
+  coord_fixed(ratio = 1,clip='off') +
+  scale_size(limits = c(1,15))
+
+print(clustPlt)
+```
+
+Combine, plot, and save
+```{r}
+allClustPlts <- outClustPlt / inClustPlt
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\FBColCor_Filtered.pdf",allClustPlts)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\FBColCor_clust2clust.pdf",clustPlt)
+
+```
 
 Cluster the FB inputs
 ```{r}
@@ -372,59 +518,6 @@ Combine, plot, and save
 ```{r}
 t2tplts <- (toDend + T2TPlt_FBCol_Manual) / (T2TPlt_FBCol_Clust + fromDend) 
 ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity_Filtered.pdf",t2tplts)
-
-```
-
-Resort the matrix and plot the correlation matrix - grouped by from connections
-```{r}
-# Order the FB tangential cells according to their clustering
-Data4Corr <- dcast(T2T_FBCol %>% select(type.from,type.to,weightRelative),type.to~type.from)
-Data4Corr[is.na(Data4Corr)] <- 0.0
-rownames(Data4Corr) <- Data4Corr$type.to
-Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1)) %>% as.matrix()
-
-fromCor <- cor(Data4Corr) %>% melt()
-fromCor$Var1 <- factor(fromCor$Var1, levels = fromOrder)
-fromCor$Var2 <- factor(fromCor$Var2, levels = fromOrder)
-
-txtCols <- lapply(fromOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
-
-fromCorPlt <- ggplot(fromCor) + geom_tile(aes(x = Var1, y = Var2, fill=value)) +
-  scale_fill_gradient2(low='red',mid="white", high="blue", limits=c(-1,1)) +
-  theme_cowplot() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,color=txtCols),
-        axis.text.y = element_text(color=txtCols))
-
-print(fromCorPlt)
-```
-
-Resort the matrix and plot the correlation matrix - grouped by to connections
-```{r}
-# Order the FB tangential cells according to their clustering
-Data4Corr <- dcast(T2T_FBCol %>% select(type.from,type.to,weightRelative),type.from~type.to)
-Data4Corr[is.na(Data4Corr)] <- 0
-rownames(Data4Corr) <- Data4Corr$type.from
-Data4Corr <- Data4Corr %>% select(tail(colnames(Data4Corr),ncol(Data4Corr)-1))# Plot the correlation matrix
-
-toCor <- cor(Data4Corr) %>% melt()
-toCor$Var1 <- factor(toCor$Var1, levels = toOrder)
-toCor$Var2 <- factor(toCor$Var2, levels = toOrder)
-
-txtCols <- lapply(toOrder, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
-
-toCorPlt <- ggplot(toCor) + geom_tile(aes(x = Var1, y = Var2, fill=value)) +
-  scale_fill_gradient2(low='red',mid="white", high="blue", limits=c(-1,1)) +
-  theme_cowplot() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,color=txtCols),
-        axis.text.y = element_text(color=txtCols))
-print(toCorPlt)
-```
-
-Combine, plot, and save
-```{r}
-pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColCor_Filtered.pdf")
-grid.arrange(toCorPlt,fromCorPlt,nrow=2)
-dev.off()
 
 ```
 
@@ -505,6 +598,108 @@ Combine and save
 exPlt <- FBCol_Ex + gCT
 ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColExample.pdf",exPlt)
 ```
+
+
+Plot PFNp_d, FC2A, and PFL2,3 matrices as an example
+```{r}
+typesFrom <- c("PFNp_d","FC2A")
+typesTo <- c("FC2A","PFL2","PFL3")
+
+exConTab <- getConnectionTable(getTypesTable(typesFrom),'POST','FB') %>% filter(type.to %in% typesTo)
+exConTab$id.from <- FBRename(exConTab$name.from,exConTab$from)
+exConTab$id.to <- FBRename(exConTab$name.to,exConTab$to)
+exConTab$id.from <- factor(exConTab$id.from,
+                           levels = c(exConTab$id.from[which(grepl("FC2A",as.character(exConTab$id.from)))] %>% 
+                                        unique() %>% as.character() %>% sort() %>% rev(),
+                           exConTab$id.from[which(grepl("PFNp_d",as.character(exConTab$id.from)))] %>%
+                                        unique() %>% as.character() %>% sort()))
+
+txtLabsTo <- exConTab$id.to %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsTo <- lapply(txtLabsTo,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+txtLabsFrom <- exConTab$id.from %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsFrom <- lapply(txtLabsFrom,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+
+FBCol_Ex <- ggplot(exConTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(exConTab$weightRelative),
+                       limits=c(0,max(exConTab$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset = 0.5
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(grepl(typesTo[g],typLabsTo)))
+  FBCol_Ex <- FBCol_Ex + geom_vline(xintercept = offset)
+}
+
+offset = length(typLabsFrom)+0.5
+for (g in 1:length(typesFrom)){
+  FBCol_Ex <- FBCol_Ex + geom_hline(yintercept = offset)
+  offset <- offset - length(which(grepl(typesFrom[g],typLabsFrom)))
+}
+print(FBCol_Ex)
+```
+
+Plot the PFNp_d downstream partners
+```{r}
+exConTab <- getConnectionTable(getTypesTable('PFNp_d'),'POST','FB') %>% filter(!is.na(type.to))
+exConTab$id.from <- FBRename(exConTab$name.from,exConTab$from)
+exConTab$id.to <- FBRename(exConTab$name.to,exConTab$to)
+
+
+txtLabsTo <- exConTab$id.to %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsTo <- lapply(txtLabsTo,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+txtLabsFrom <- exConTab$id.from %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsFrom <- lapply(txtLabsFrom,function(t) strsplit(t,'_')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+
+FBCol_Ex <- ggplot(exConTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(exConTab$weightRelative),
+                       limits=c(0,max(exConTab$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
+
+offset <- 0.5
+typesTo <- exConTab$type.to %>% unique() %>% sort()
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(grepl(typesTo[g],typLabsTo)))
+  FBCol_Ex <- FBCol_Ex + geom_vline(xintercept = offset)
+}
+
+print(FBCol_Ex)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\PFNp_d-Outputs.pdf",FBCol_Ex)
+```
+
+
 
 Specify an x and y lookup table of the location for each neuron type
 ```{r}

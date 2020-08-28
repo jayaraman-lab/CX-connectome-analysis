@@ -1,0 +1,150 @@
+---
+title: "FB Figure - Information flows up"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting parameters
+```{r}
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+}
+
+stCols <- supertype2Palette()
+stCols$breaks <- append(stCols$breaks,'OA-VPM3')
+stCols$pal <- append(stCols$pal,'#000000FF')
+```
+
+Get the FB outline
+```{r}
+FBOutline <- roiOutline("FB")
+```
+
+Plot the FB outline
+```{r}
+FBOutline_plt <- FBOutline %>% filter(proj == 'xz')
+FBOutline_plt <- FBOutline_plt[1:1076,]
+ggplot(
+```
+
+Get the PFN synapses
+```{r}
+PFNSyns <- neuprint_get_synapses(neuprint_search('PFN.*',field='type'),roi='FB')
+```
+
+Plot the PFN presynapses in the FB
+```{r}
+PFNPrePlt <- ggplot() + stat_bin2d(data = PFNSyns %>% filter(prepost == 0),
+                                    aes(x,-z),
+                                    bins = 100) +
+  scale_fill_continuous(low='white',high='gold') +
+  geom_path(data=FBOutline_plt,aes(x,-y)) + 
+  theme_paper() + coord_equal(ratio=1) + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  ggtitle('PFN postsynapses')
+
+print(PFNPrePlt)
+
+PFNSynsPlt <- plot_spacer() + PFNPrePlt
+```
+
+Get the vDelta synapses
+```{r}
+vDeltaSyns <- neuprint_get_synapses(neuprint_search('vDelta.*',field='type'),roi='FB')
+```
+
+Plot the vDelta synapses in the FB
+```{r}
+vDeltaPrePlt <- ggplot() + stat_bin2d(data = vDeltaSyns %>% filter(prepost == 1),
+                                    aes(x,-z),
+                                    bins = 100) +
+  scale_fill_continuous(low='white',high='steelblue') +
+  geom_path(data=FBOutline_plt,aes(x,-y)) + 
+  theme_paper() + coord_equal(ratio=1) + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  ggtitle('vDelta presynapses')
+
+vDeltaPostPlt <- ggplot() + stat_bin2d(data = vDeltaSyns %>% filter(prepost == 0),
+                                    aes(x,-z),
+                                    bins = 100) +
+  scale_fill_continuous(low='white',high='gold') +
+  geom_path(data=FBOutline_plt,aes(x,-y)) + 
+  theme_paper() + coord_equal(ratio=1) + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  ggtitle('vDelta postsynapses')
+
+vDeltaSynsPlt <- vDeltaPrePlt + vDeltaPostPlt
+
+print(vDeltaSynsPlt)
+```
+
+Get the hDelta synapses
+```{r}
+hDeltaSyns <- neuprint_get_synapses(neuprint_search('hDelta.*',field='type'),roi='FB')
+```
+
+Plot the hDelta synapses in the FB
+```{r}
+hDeltaPrePlt <- ggplot() + stat_bin2d(data = hDeltaSyns %>% filter(prepost == 1),
+                                    aes(x,-z),
+                                    bins = 100) +
+  scale_fill_continuous(low='white',high='steelblue') +
+  geom_path(data=FBOutline_plt,aes(x,-y)) + 
+  theme_paper() + coord_equal(ratio=1) + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  ggtitle('hDelta presynapses')
+
+hDeltaPostPlt <- ggplot() + stat_bin2d(data = hDeltaSyns %>% filter(prepost == 0),
+                                    aes(x,-z),
+                                    bins = 100) +
+  scale_fill_continuous(low='white',high='gold') +
+  geom_path(data=FBOutline_plt,aes(x,-y)) + 
+  theme_paper() + coord_equal(ratio=1) + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank()) +
+  ggtitle('vDelta postsynapses')
+
+hDeltaSynsPlt <- hDeltaPrePlt + hDeltaPostPlt
+
+print(hDeltaSynsPlt)
+```
+
+Combine the plots and save
+```{r}
+synPlts <- PFNSynsPlt / vDeltaSynsPlt / hDeltaSynsPlt
+print(synPlts)
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_InfoFlowsUp\\SynDists.pdf',synPlts)
+```

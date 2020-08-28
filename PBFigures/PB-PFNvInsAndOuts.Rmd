@@ -1,0 +1,117 @@
+---
+title: "PFNvs"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting parameters
+```{r}
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+}
+```
+
+Get the FB inputs for the PFNvs
+```{r}
+
+PFNvConTab_FB <- getConnectionTable(getTypesTable('PFNv'),'PRE','FB')
+PFNvConTab_FB$id.from <- FBRename(PFNvConTab_FB$name.from, PFNvConTab_FB$from)
+PFNvConTab_FB$id.to <- FBRename(PFNvConTab_FB$name.to, PFNvConTab_FB$to)
+
+
+PFNv_FB_ins <- ggplot(PFNvConTab_FB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(PFNvConTab_FB$weightRelative),
+                       limits=c(0,max(PFNvConTab_FB$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
+  ggtitle('PFNv FB inputs')
+
+print(PFNv_FB_ins)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PFNv_FBIns.pdf",
+       PFNv_FB_ins)
+```
+
+Get the FB outputs for the PFNvs
+```{r}
+
+PFNvConTab_FB_POST <- getConnectionTable(getTypesTable('PFNv'),'POST','FB')
+PFNvConTab_FB_POST$id.from <- FBRename(PFNvConTab_FB_POST$name.from, PFNvConTab_FB_POST$from)
+PFNvConTab_FB_POST$id.to <- FBRename(PFNvConTab_FB_POST$name.to, PFNvConTab_FB_POST$to)
+
+
+PFNv_FB_outs <- ggplot(PFNvConTab_FB_POST) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(PFNvConTab_FB_POST$weightRelative),
+                       limits=c(0,max(PFNvConTab_FB_POST$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
+  ggtitle('PFNv FB outputs')
+
+print(PFNv_FB_outs)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PFNv_FBOuts.pdf",
+       PFNv_FB_outs)
+```
+
+Get the PB outputs for the PFNvs
+```{r}
+
+PFNvConTab_PB <- getConnectionTable(getTypesTable('PFNv'),'POST','PB')
+PFNvConTab_PB$id.from <- PBRename(PFNvConTab_PB$name.from, PFNvConTab_PB$from)
+PFNvConTab_PB$id.to <- PBRename(PFNvConTab_PB$name.to, PFNvConTab_PB$to)
+
+
+PFNv_PB_outs <- ggplot(PFNvConTab_PB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(PFNvConTab_PB$weightRelative),
+                       limits=c(0,max(PFNvConTab_PB$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
+  ggtitle('PFNv PB outputs')
+
+
+idsTo <- PFNvConTab_PB$id.to %>% unique()
+typesTo <- c('Delta7','P6-8P9','PEN1','PEN2','PFNa','PFNd','PFNpa','PFNpb','PFNpc','PFNpd','PFNpe','PFNv')
+
+offset = 0.5
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(grepl(typesTo[g],idsTo)))
+  PFNv_PB_outs <- PFNv_PB_outs + geom_vline(xintercept = offset)
+}
+
+print(PFNv_PB_outs)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PFNv_PBOuts.pdf",
+       PFNv_PB_outs)
+```
+
+```{r}
+PFNvPlts <- PFNv_FB_ins / PFNv_PB_ins
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PFNv_InsAndOuts.pdf",
+       PFNvPlts)
+```
+

@@ -23,17 +23,10 @@ options(nat.plotengine = 'rgl')
 
 Specify plotting text sizes
 ```{r}
-tickLabSz <- 2
-axLabSz <- 2
-legSz <- 2
-legTitSz <- 3
-pltTit <- 3
-
-theme_set(theme(axis.title = element_text(size = axLabSz), 
-      axis.text = element_text(size = tickLabSz),
-      legend.text = element_text(size = legSz),
-      legend.title = element_text(size = legTitSz),
-      plot.title = element_text(size = pltTit)))
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+}
 
 stCols <- supertype2Palette()
 stCols$breaks <- append(stCols$breaks,'OA-VPM3')
@@ -625,3 +618,128 @@ print(OAV_T2T_Pre_Plt)
 
 #ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FB4Z_Downstream.pdf",FB4Z_T2T_Post_Plt)
 ```
+
+Get the FB4Z connections
+```{r}
+FB4ZCons <- neuronBag(getTypesTable("FB4Z"),slctROI="FB")
+```
+
+Plot their inputs
+```{r}
+FB4ZIns <- FB4ZCons$inputs_raw
+FB4ZIns$id.from <- FBRename(FB4ZIns$name.from,FB4ZIns$from)
+FB4ZIns$id.to <- FBRename(FB4ZIns$name.to,FB4ZIns$to)
+
+txtLabsFrom <- FB4ZIns$id.from %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsFrom <- lapply(txtLabsFrom,function(t) strsplit(t,'-')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+typLabsFrom <- gsub("_R[0-9]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_R","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_L[0-9]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_L","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_C[0-9][0-9][a-z]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_C[0-9][0-9]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_C[0-9][a-z]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_C[0-9]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_[0-9][0-9]","",as.character(typLabsFrom))
+typLabsFrom <- gsub("_irreg","",as.character(typLabsFrom))
+typLabsFrom <- gsub("OA","OA-VPM3",as.character(typLabsFrom))
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+txtLabsTo <- FB4ZIns$id.to %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsTo <- lapply(txtLabsTo,function(t) strsplit(t,'-')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+typLabsTo <- gsub("_C[0-9]","",as.character(typLabsTo))
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+FB4ZIns_Plt <- ggplot(FB4ZIns) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(FB4ZIns$weightRelative),
+                       limits=c(0,max(FB4ZIns$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+
+offset <- 0.5
+typesTo <- FB4ZIns$type.to %>% unique() %>% sort()
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(typesTo[g] == typLabsTo))
+  FB4ZIns_Plt <- FB4ZIns_Plt + geom_vline(xintercept = offset)
+}
+
+offset <- 0.5
+typesFrom <- FB4ZIns$type.from %>% unique() %>% sort()
+for (g in 1:length(typesFrom)){
+  offset <- offset + length(which(typesFrom[g] == typLabsFrom))
+  FB4ZIns_Plt <- FB4ZIns_Plt + geom_hline(yintercept = offset)
+}
+
+print(FB4ZIns_Plt)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FB4Z_Inputs.pdf",FB4ZIns_Plt)
+```
+
+```{r}
+FB4ZOuts <- FB4ZCons$outputs_raw
+FB4ZOuts$id.from <- FBRename(FB4ZOuts$name.from,FB4ZOuts$from)
+FB4ZOuts$id.to <- FBRename(FB4ZOuts$name.to,FB4ZOuts$to)
+
+txtLabsTo <- FB4ZOuts$id.to %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsTo <- lapply(txtLabsTo,function(t) strsplit(t,'-')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+typLabsTo <- gsub("_R[0-9]","",as.character(typLabsTo))
+typLabsTo <- gsub("_R","",as.character(typLabsTo))
+typLabsTo <- gsub("_L[0-9]","",as.character(typLabsTo))
+typLabsTo <- gsub("_L","",as.character(typLabsTo))
+typLabsTo <- gsub("_C[0-9][0-9]","",as.character(typLabsTo))
+typLabsTo <- gsub("_C[0-9]","",as.character(typLabsTo))
+typLabsTo <- gsub("_[0-9][0-9]","",as.character(typLabsTo))
+typLabsTo <- gsub("_irreg","",as.character(typLabsTo))
+typLabsTo <- gsub("OA","OA-VPM3",as.character(typLabsTo))
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+txtLabsFrom <- FB4ZOuts$id.from %>% unlist() %>% unique() %>% as.character() %>% sort()
+typLabsFrom <- lapply(txtLabsFrom,function(t) strsplit(t,'-')[[1]][1]) %>% unlist() %>% as.character() %>% unlist()
+typLabsFrom <- gsub("_C[0-9]","",as.character(typLabsFrom))
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+FB4ZOuts_Plt <- ggplot(FB4ZOuts) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(FB4ZOuts$weightRelative),
+                       limits=c(0,max(FB4ZOuts$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+
+offset <- 0.5
+typesTo <- FB4ZOuts$type.to %>% unique() %>% sort()
+for (g in 1:length(typesTo)){
+  offset <- offset + length(which(typesTo[g] == typLabsTo))
+  FB4ZOuts_Plt <- FB4ZOuts_Plt + geom_vline(xintercept = offset)
+}
+
+offset <- 0.5
+typesFrom <- FB4ZOuts$type.from %>% unique() %>% sort()
+for (g in 1:length(typesFrom)){
+  offset <- offset + length(which(typesFrom[g] == typLabsFrom))
+  FB4ZOuts_Plt <- FB4ZOuts_Plt + geom_hline(yintercept = offset)
+}
+
+print(FB4ZOuts_Plt)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FB4Z_Outputs.pdf",FB4ZOuts_Plt)
+```
+
