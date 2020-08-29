@@ -187,6 +187,15 @@ StrongMBONnonCXTargetR2CXRtab <- MBONnonCXTargetR2CXRInpCombined %>% filter(type
 # Filter StrongMBON2nonCXwCXRTgtInpCombSort for those connecting to StrongMBONnonCXTargetR2CXRtab$type.from
 StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort %>% filter(type.to %in% StrongMBONnonCXTargetR2CXRtab$type.from)
 
+# Make and plot cosine distance matrix
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
+StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
+
+# Get the connection tables re-arranged by cosine distance clustering
+StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[3]]
+StrongMBONnonCXTargetR2CXRtab <- StrongMBONnonCXTargetR2CXR_CosDist[[3]]
+
+
 # Make a combined table
 StrongMBON2nonCXwCXRTgtTable <- StrongMBON2nonCXwCXRTgtInpCombSort %>% select(type.from,type.to,weightRelative)
 StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.from,type.to,weightRelative)
@@ -214,9 +223,6 @@ ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtCom
 StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
 StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
 
-# Make and plot cosine distance matrix
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
-StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
 ```
 
 ### Test computing pathway weights
