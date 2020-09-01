@@ -11,24 +11,21 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
+library(gridExtra)
 
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
 ```
 
-Specify plotting text sizes
+Specify plotting parameters
 ```{r}
-tickLabSz <- 6
-axLabSz <- 8
-legSz <- 6
-legTitSz <- 8
-pltTit <- 8
+update_geom_defaults("text", list(size = 6*0.35))
+theme_paper <- function(...){
+  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
+}
 
-theme_set(theme(axis.title = element_text(size = axLabSz), 
-      axis.text = element_text(size = tickLabSz),
-      legend.text = element_text(size = legSz),
-      legend.title = element_text(size = legTitSz),
-      plot.title = element_text(size = pltTit)))
-
+stCols <- supertype2Palette()
+stCols$breaks <- append(stCols$breaks,'OA')
+stCols$pal <- append(stCols$pal,'#000000FF')
 ```
 
 Get the connection matrix between the EPGs, EPGts, D7s, and IbSpsPs
@@ -492,4 +489,76 @@ EPGToD7Prof <- g_D7ToEPG / gStats_all
 EPGToD7Prof
 save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\D7ToEPGMeanProfile.pdf',EPGToD7Prof,ncol=1,
           base_asp = 1.25,base_height = 3.5)
+```
+
+
+Plot a cosine fit for the D7 inputs onto PEG neurons from EPG neurons assuming a von Mises input
+```{r}
+typesToPlot <- c("PEG","PFGs")
+
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+
+tpPlts <- list()
+for (t in 1:length(typesToPlot)){
+   # Get the von Mises profiles
+  vMOut <- EPGToD7Transform(typesToPlot[t],actProfvM)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+  g_D7ToTp_vM <- ggplot(D7OutputShape_stats) + geom_line(aes(x=glom,y=mean,group=1),color='black') +
+  geom_line(aes(x=glom,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=glom,y=mean+sd,group=1),color='gray')
+
+  # Fit a cosine to the profile and plot it
+  df = data.frame(pts = seq(1,length(D7OutputShape_stats$glom)), wMean = D7OutputShape_stats$mean)
+  fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+    start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+  dffit <- data.frame(pts = seq(1,length(D7OutputShape_stats$glom)))
+  dffit$wMean <- predict(fit, newdata=dffit)
+  
+  g_D7ToTp_vM <- g_D7ToTp_vM + geom_line(data=dffit,aes(x=pts,y=wMean,group=1),color='red')
+  g_D7ToTp_vM <- g_D7ToTp_vM + theme_paper() + xlab('EPG input position') + ylab('# of synapses') + 
+    scale_y_continuous(expand = c(0, 0)) + ggtitle(paste0(typesToPlot[t],'-von Mises'))
+  
+  tpPlts[[t]] <- g_D7ToTp_vM
+  
+  
+  # Get the impulse profiles
+  impOut <- EPGToD7Transform(typesToPlot[t],actProfImp)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+
+  g_D7ToTp_imp <- ggplot(D7OutputShape_stats) + geom_line(aes(x=glom,y=mean,group=1),color='black') +
+  geom_line(aes(x=glom,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=glom,y=mean+sd,group=1),color='gray')
+
+  # Fit a cosine to the profile and plot it
+  df = data.frame(pts = seq(1,length(D7OutputShape_stats$glom)), wMean = D7OutputShape_stats$mean)
+  fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+    start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+  dffit <- data.frame(pts = seq(1,length(D7OutputShape_stats$glom)))
+  dffit$wMean <- predict(fit, newdata=dffit)
+  
+  g_D7ToTp_imp <- g_D7ToTp_imp + geom_line(data=dffit,aes(x=pts,y=wMean,group=1),color='red')
+  g_D7ToTp_imp <- g_D7ToTp_imp + theme_paper() + xlab('EPG input position') + ylab('# of synapses') + 
+    scale_y_continuous(expand = c(0, 0)) + ggtitle(paste0(typesToPlot[t],'-impulse'))
+  
+  tpPlts[[t + 2]] <- g_D7ToTp_imp
+}
+
+pdf('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PEGPFGFits.pdf')
+grid.arrange(grobs=tpPlts,nrow=2)
+dev.off()
 ```

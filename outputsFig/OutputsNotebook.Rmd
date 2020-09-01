@@ -17,6 +17,7 @@ library(paletteer)
 
 ```{r message=FALSE}
 source("../synapseDistsTools.R")
+source("outputFunctions.R")
 source("../R/paperTheme.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
 ```
@@ -31,7 +32,7 @@ CXNeurons <- getTypesTable(CXtypes$databaseType)
 CXNeurons <- cxRetyping(CXNeurons,postfix="raw")
 CXNeurons <- supertype(CXNeurons)
 
-outputRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
+outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
                                      exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
 
 CXPerROI <- getROISummary(CXNeurons,threshold=0)
@@ -42,9 +43,45 @@ CXPerROIRedux <- filter(CXPerROI,roi %in% outputRegions) %>% group_by(type,datab
              fullWeight=sum(fullWeight),
              downstreamRatio=downstream/fullWeight) %>%
    ungroup() %>% distinct()
-CXPotentialOutputs <- filter(CXPerROIRedux,downstream>20 & downstreamRatio>0.5)
+CXOutsideTypes <- filter(CXPerROIRedux,fullWeight>20)
+CXPotentialOutputs <- filter(CXPerROIRedux,downstream>20 & downstreamRatio>0.1)
+CXPotentialInputs <- filter(CXPerROIRedux,upstream>20 & downstreamRatio<=0.1)
 CXPotentialOutputNeurons <- filter(CXNeurons,type %in% CXPotentialOutputs$type)
+CXPotentialInputNeurons <- filter(CXNeurons,type %in% CXPotentialInputs$type)
+CXOutsideNeurons <- filter(CXNeurons,type %in% CXOutsideTypes$type)
 ```
+```{r}
+CXoutsideBag <- neuronBag(CXOutsideNeurons,selfRef=TRUE,slctROI=outputRegions,verbose=TRUE,computeKnownRatio=TRUE)
+CXOutsideBag <- cxRetyping(CXoutsideBag)
+CXOutsideBagCompressed <- combineRois(CXOutsideBag,outputRegions,"Outside_regions")
+
+
+## Re-filter on the "known weights". Filters out neurons that don't really innervate those regions
+CXOutTable <- CXOutsideBagCompressed$outputs
+CXOutTable <- filter(CXOutTable,knownTotalROIweight>20 & knownTotalPreWeight>20)
+
+## Filter for inputs "proper": they're not receiving from CX neurons
+CXInTable <- CXOutsideBagCompressed$inputs
+CXInTable <- filter(CXInTable,knownTotalROIweight>20 & knownTotalPreWeight>20 & !(type.from %in% CXNeurons$type))
+
+sort(unique(CXInTable$type.to))
+unique(CXOutTable$type.from)
+
+
+unidentifiedOutputs <- filter(CXOutsideBagCompressed$outputsTableRef,(type %in% CXOutTable$type.to) & !(type %in% CXNeurons$type))
+knownInputs <- filter(CXOutsideBagCompressed$names,type %in% CXInTable$type.to)
+reafferentPathways <- get_type2typePath(unidentifiedOutputs,knownInputs,ROI = list("Outside_regions"=outputRegions),n_steps = 1:2,stat = "knownOutputContribution")
+## Of output neurons that are also inputs, how much do they contribute to the CX vs other neurons. 
+CXInContrib <- filter(CXInTable,type.from %in% CXOutTable$type.to) %>% group_by(type.from) %>% summarize(CXContribIn = sum(knownOutputContribution)) %>% rename(type=type.from)
+
+#CXOutTable <- mutate(CXOutTable,reafference1Index = CXInContrib$CXContribIn[match(type.to,CXInContrib$type)])
+#CXOutTable$reafference1Index[is.na(CXOutTable$reafference1Index)] <- 0
+
+CXContrib <- left_join(CXInContrib,CXOutContrib)
+ggplot(CXOutTable,aes(x=reafference1Index,group=type.from)) + geom_histogram() + facet_wrap(type.from~.)
+```
+
+
 
 Get everything connecting to those in the output regions
 ```{r}
@@ -63,8 +100,6 @@ outputTable <- outputTable %>% group_by(type.from) %>% mutate(pureFeedbacks = al
 
 CXOutputs <- filter(CXPotentialOutputs,type %in% filter(outputTable,pureFeedbacks==FALSE)$type.from)
 CXOutputNeurons <- filter(CXPotentialOutputNeurons,type %in% filter(outputTable,pureFeedbacks==FALSE)$type.from)
-
-
 ```
 
 
@@ -72,65 +107,93 @@ CXOutputNeurons <- filter(CXPotentialOutputNeurons,type %in% filter(outputTable,
 ### Cluster on the connectivity
 
 ```{r}
-cxClOnOut <- connectivityCluster(outputsTable = outputTable,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
-n1OnCxIn <- connectivityCluster(inputsTable = outputTable,ROIs="Output_Regions",knownStats = TRUE,grouping="type")
-cxClCl <- cutree(cxClOnOut$hc,h=0.8)
+cxClOnOut <- connectivityCluster(outputsTable = CXOutTable,ROIs="Outside_regions",knownStats = TRUE,grouping="type")
+cxClOnOut <- setClusters(cxClOnOut)
 ```
 
 ```{r}
-outputTable <- outputTable %>% mutate(type.fromF = factor(type.from,levels=unique(type.from,levels=unique(type.from)[cxClCl$hc$order])))
-outputKind <- ggplot(outputTable,aes(x=type.fromF,y=knownOutputContribution)) + geom_col(aes(fill=category)) + theme_paper_hgrid() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + scale_fill_paletteer_d("ggthemes::Classic_Gray_5",name="Output kind") +xlab("") + ylab("Fraction of significant output weights")
+outputTable <- cxClOnOut$outputsTable %>% mutate(type.fromF = factor(type.from,levels=cxClOnOut$hc$labels[cxClOnOut$hc$order]))
+outputTable <- outputTable %>% group_by(type.from) %>% mutate(normOutputContrib = knownOutputContribution/sum(knownOutputContribution))
+
+outputKind <- ggplot(outputTable,aes(x=type.fromF,y=normOutputContrib)) + geom_col(aes(fill=category)) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Partner type") +xlab("Central complex output type") + ylab("Fraction of significant output weights")
+outputKind <- outputKind + facet_grid(.~supertype2.from,scales="free",space = "free")
 outputKind
 ```
+Per type categories:
 ```{r}
-outputTable <- mutate(outputTable,cluster.from=cxClCl[type.from])
+categorySwap <- function(cats){
+   cats <- unique(cats)
+   if ("CX loop" %in% cats){return("Feedback")}
+   if (length(cats)==1){return(cats)}
+}
+
+outputTable <- outputTable %>% group_by(type.to) %>%
+   mutate(type_category=categorySwap(category))   
+```
+
+Most targets are receiving from a single cluster. 
+```{r}
 outputTablePerCluster <- outputTable %>% group_by(cluster.from,type.to,category) %>% summarize(clusterContrib=sum(knownWeightRelative)) %>% ungroup()
+
 outputTableClusterInfluences <- outputTablePerCluster %>% group_by(type.to,category) %>% summarize(mainContrib=cluster.from[which.max(clusterContrib)],mainContribFraction=clusterContrib[which.max(clusterContrib)]/sum(clusterContrib))
-ggplot(outputTableClusterInfluences,aes(x=mainContribFraction)) + geom_histogram() + facet_wrap(category ~.)
-outputTable <- mutate(outputTable,clusterEq.to=outputTableClusterInfluences$mainContrib[match(type.to,outputTableClusterInfluences$type.to)])
+
+outputSparsenessPlot <- ggplot(outputTableClusterInfluences,aes(x=mainContribFraction)) + geom_histogram() + facet_wrap(category ~.) + theme_paper()
+outputSparsenessPlot
+```
+We can assign the targets to their main input cluster (column `clusterEq.to`), and give cluster names based on the input innervation (columns `clusterName.from` and `clusterNameEq.to`)
+```{r}
+outputTable <- mutate(outputTable,clusterEq.to=outputTableClusterInfluences$mainContrib[match(type.to,outputTableClusterInfluences$type.to)]) 
+
+outputTable <- outputTable %>% group_by(cluster.from) %>% mutate(clusterName.from=paste(unique(type.from),collapse="/"))
+outputTable <- outputTable %>% mutate(clusterNameEq.to=outputTable$clusterName.from[match(clusterEq.to,outputTable$cluster.from)])
 ```
 
 
+Plot the clustering results
+```{r}
+outClusterPlot <- plotClusters(cxClOnOut,colorAxis = T,theme = theme_paper_map(),h=0.8)
+outClusterPlot
+```
+
+
+And the connection tables sorted by category:
+```{r}
+outputConnectivity <- plotConnectivity(filter(outputTable,type_category=="output"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95")),orderIn=cxClOnOut,connectionMeasure ="knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to") #+ scale_x_discrete(labels=NULL)
+loopConnectivity <- plotConnectivity(filter(outputTable,category=="CX loop" | category=="self" | category=="Efference"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95")),orderIn=cxClOnOut,connectionMeasure = "knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to")
+
+outputConnectivity
+loopConnectivity
+```
+
 
 ```{r}
-plotClusters(cxClOnOut,colorAxis = T,theme = theme_paper_map(),h=0.8)
-plotClusters(n1OnCxIn,colorAxis = T,theme = theme_paper_map(),h=0.8)
-
-clCol <- paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2]
-plotConnectivity(filter(outputTable,category=="output"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95"),strip.text.x=element_text(colour=clCol)),orderIn=cxClOnOut$hc$order,orderOut=n1OnCxIn$hc$order,value="knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to") + scale_x_discrete(labels=NULL)
-plotConnectivity(filter(outputTable,category=="CX loop" | category=="self" | category=="Efference"),xaxis="outputs",theme=theme_paper(panel.background=element_rect(fill="gray95")),orderIn=cxClOnOut$hc$order,orderOut=n1OnCxIn$hc$order,value="knownWeightRelative",facetInputs = "cluster.from",facetOutputs = "clusterEq.to")
+save_plot("~/loopConnectivity.svg",loopConnectivity,ncol=1.5,nrow=1.5)
+save_plot("~/outputConnectivity.svg",outputConnectivity,ncol=1.5,nrow=1.5)
+save_plot("~/outputKind.svg",outputKind,ncol=1.5,nrow=1)
 ```
 
 
 ## Plotting output synapses of CX "output" neurons
-```{r,warning=FALSE}
-CXOutSyn <- dplyr::bind_rows(pbapply::pblapply(outputRegionsStrict,function(r){
-   synSet <- neuprint_get_synapses(CXOutputNeurons$bodyid,roi=r,chunk=5,progress=FALSE) 
-   if (!is.null(synSet)){
-      synSet <- filter(mutate(synSet,roi=r),prepost==0)
-      }                
-   return(synSet)                
-                             }))
-CXOutSyn <- mutate(CXOutSyn,
-                   type=CXOutputNeurons$type[match(bodyid,CXOutputNeurons$bodyid)],
-                   databaseType=CXOutputNeurons$databaseType[match(bodyid,CXOutputNeurons$bodyid)],
-                   supertype = CXOutputNeurons$supertype2[match(bodyid,CXOutputNeurons$bodyid)]
-                   )
+First augment the references with the "cluster" information
+```{r}
+CXTargets <- outputBagCompressed$outputsTableRef %>% filter(type %in% outputBagCompressed$outputs$type.to) %>%
+   mutate(type_category=outputTable$type_category[match(type,outputTable$type.to)])   
 
-
-CXN1OutSyn <- dplyr::bind_rows(pbapply::pblapply(outputRegionsStrict,function(r){
-   synSet <- neuprint_get_synapses($bodyid,roi=r,chunk=5,progress=FALSE) 
-   if (!is.null(synSet)){
-      synSet <- filter(mutate(synSet,roi=r),prepost==0)
-      }                
-   return(synSet)                
-                             }))
-CXOutSyn <- mutate(CXOutSyn,
-                   type=CXOutputNeurons$type[match(bodyid,CXOutputNeurons$bodyid)],
-                   databaseType=CXOutputNeurons$databaseType[match(bodyid,CXOutputNeurons$bodyid)],
-                   supertype = CXOutputNeurons$supertype2[match(bodyid,CXOutputNeurons$bodyid)]
-                   )
+CXOutputNeurons <- mutate(CXOutputNeurons,cluster=outputTable$cluster.from[match(type,outputTable$type.from)],
+                                          clusterName=outputTable$clusterName.from[match(type,outputTable$type.from)])
+CXTargets <- mutate(CXTargets,cluster=outputTable$clusterEq.to[match(type,outputTable$type.to)],
+                              clusterName=outputTable$clusterNameEq.to[match(type,outputTable$type.to)])
 ```
+
+Then make tables of synapses
+```{r,warning=FALSE}
+CXOutSyn <- collectSynapses(CXOutputNeurons,outputRegionsStrict,polarity="post")
+
+targetOutputSyn <- collectSynapses(filter(CXTargets,type_category=="output"),outputRegions,polarity="post")
+
+targetFeedback <- collectSynapses(filter(CXTargets,type_category=="Feedback"),"CX",polarity="post")
+```
+
 
 ```{r}
 rPal <- roisPalette()
@@ -154,6 +217,7 @@ GORMesh <- neuprint_ROI_mesh("GOR(R)")
 IBMesh <- neuprint_ROI_mesh("IB")
 ICLMesh <- neuprint_ROI_mesh("ICL(R)")
 ```
+
 ```{r}
 nopen3d()
 par3d(windowRect = c(30, 30, 1530, 1530))
@@ -170,13 +234,37 @@ plot3d(SLPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FA
 plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 par3d(scale=c(1,1,1))
-for (t in unique(CXOutputNeurons$type)){
-   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2],add=T)
+for (cl in unique(CXOutSyn$cluster)){
+   plot3d(filter(CXOutSyn,cluster==cl)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cl+2],add=T)
 }
 nview3d("ventral")
 rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
 nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
 rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
+```
+```{r}
+nopen3d()
+par3d(windowRect = c(30, 30, 1530, 1530))
+plot3d(EBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+plot3d(FBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(PBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(NOMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(LALRMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(GARMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(CREMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SMPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(WEDMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SLPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
+par3d(scale=c(1,1,1))
+for (cl in unique(CXTargets$cluster)){
+   plot3d(filter(targetOutputSyn,cluster==cl)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cl+2],add=T)
+}
+nview3d("ventral")
+rgl.snapshot(paste0(outputsFolder,"frontAllOutputTargets.png"))
+nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
+rgl.snapshot(paste0(outputsFolder,"sideAllOutputTargets.png"))
 ```
 
 ```{r}
@@ -191,22 +279,14 @@ plot3d(EBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE
 plot3d(FBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 plot3d(PBMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 plot3d(NOMesh,color=CXCol,alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(LALRMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(GARMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(CREMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SMPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(WEDMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SLPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SIPMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SPSMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
 par3d(scale=c(1,1,1))
-for (t in unique(filter(outputTable,category="output")$type.to)){
-   plot3d(filter(CXOutSyn,type==t)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cxClCl[t]+2],add=T)
+for (cl in unique(CXTargets$cluster)){
+   plot3d(filter(targetFeedback,cluster==cl)[,c("x","y","z")],col=paletteer::paletteer_d("Polychrome::palette36")[cl+2],add=T)
 }
 nview3d("ventral")
-rgl.snapshot(paste0(outputsFolder,"frontAllOuts.png"))
+rgl.snapshot(paste0(outputsFolder,"frontAllFeedbackTargets.png"))
 nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
-rgl.snapshot(paste0(outputsFolder,"sideAllOuts.png"))
+rgl.snapshot(paste0(outputsFolder,"sideAllFeedbackTargets.png"))
 ```
 
 Summaries of those different types/clusters

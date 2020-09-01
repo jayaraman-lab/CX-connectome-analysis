@@ -69,17 +69,28 @@ structureMatrixPlotByType = function(conmatPlot){
   return(conmatPlot)
 }
 
-structureMatrixPlotByType_lines = function(conmatPlot){
-  conmatPlot = conmatPlot +
-    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
-    theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
-          strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
-          strip.text.y.left = element_text(angle = 0),
-          strip.text.x.bottom = element_text(angle = 90),
-          strip.background = element_blank(), #remove background for facet labels
-          panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add black border
-          panel.spacing = unit(0.1, "lines")) #remove space between facets
-  return(conmatPlot)
+structureMatrixPlotByType_lines = function(conmatPlot, yonly=FALSE){
+  if (yonly){
+    conmatPlot = conmatPlot +
+      facet_grid(reorder(type.from, desc(type.from)) ~ ., space="free", scales="free",switch="y") +
+      theme(axis.text.y = element_blank(), 
+            strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+            strip.text.y.left = element_text(angle = 0),
+            strip.text.x.bottom = element_text(angle = 90),
+            strip.background = element_blank()) #remove background for facet labels
+    return(conmatPlot)
+  }else{
+    conmatPlot = conmatPlot +
+      facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
+      theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+            strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+            strip.text.y.left = element_text(angle = 0),
+            strip.text.x.bottom = element_text(angle = 90),
+            strip.background = element_blank(), #remove background for facet labels
+            panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add black border
+            panel.spacing = unit(0.1, "lines")) #remove space between facets
+    return(conmatPlot)
+  }
 }
 
 
@@ -126,7 +137,9 @@ getSelfFBGraphData = function(graphData){
 
 # convenient graph plotting
 constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap=NULL, useRandCol=FALSE){
+  old_dir <- setwd("/Users/haberkernh/Documents/code/neuprintR-notebooks")
   source("colorCodeLookup.R")
+  setwd(old_dir)
   
   connectGraph = graph_from_data_frame(graphData)
   
@@ -153,6 +166,7 @@ constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale
   V(connectGraph)$label.dist=0
 
   V(connectGraph)$size = vertexSize
+  V(connectGraph)$vertex.label.family="Arial"
   V(connectGraph)$vertex.frame.color="gray"
   V(connectGraph)$color=nodeCols
 

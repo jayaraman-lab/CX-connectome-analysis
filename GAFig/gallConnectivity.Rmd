@@ -93,24 +93,24 @@ FRexample = neuprint_read_skeletons(356670712)  #FR2(FQ4)_C4_L_small
 ```
 
 ```{r}
-EPGexample = neuprint_read_skeletons(neuprint_search("EPG.*",meta = FALSE))
-ELexample = neuprint_read_skeletons(912596952)
-PEGsexample = neuprint_read_skeletons(788461444)
-PFRaexample = neuprint_read_skeletons(819828716) #PFR_b(PB11b)_L4_C5
-FRexample = neuprint_read_skeletons(356670712)  #FR2(FQ4)_C4_L_small
+EPGexample = neuprint_read_skeletons(neuprint_search("EPG.*_L.*",meta = FALSE))
+ELexample = neuprint_read_skeletons(neuprint_search("EL.*_L.*",meta = FALSE))
+PFGsexample = neuprint_read_skeletons(neuprint_search("PFGs.*_L.*",meta = FALSE))
+PFRaexample = neuprint_read_skeletons(neuprint_search("PFR_b.*_L.*",meta = FALSE))
+FRexample = neuprint_read_skeletons(neuprint_search("FR2.*_L.*",meta = FALSE))
 
 ```
 
 ```{r}
-plot3d(gaMesh, col='maroon', alpha=0.4, add=TRUE)
+plot3d(gaMesh, col='seagreen', alpha=0.4, add=TRUE)
 plot3d(roMesh, col='slateblue', alpha=0.4, add=TRUE)
 plot3d(ruMesh, col='goldenrod', alpha=0.4, add=TRUE)
 #plot3d(ebMesh, col='dimgrey',alpha=0.2, add=TRUE)
 #plot3d(laMesh, col='dimgrey',alpha=0.2, add=TRUE)
 
-plot3d(EPGexample, col='maroon', add=TRUE, WithNode=F)
+plot3d(EPGexample, col='seagreen', add=TRUE, WithNode=F)
 plot3d(ELexample, col='tomato', add=TRUE, WithNode=F)
-plot3d(PEGsexample, col='purple', add=TRUE, WithNode=F)
+plot3d(PFGsexample, col='maroon', add=TRUE, WithNode=F)
 plot3d(PFRaexample, col='slateblue', add=TRUE, WithNode=F)
 plot3d(FRexample, col='goldenrod', add=TRUE, WithNode=F)
 
@@ -127,9 +127,10 @@ rubSlctIDs = getBodyIdsForList(rubSlctTypes)
 pre = rubSlctIDs$bodyid
 post = pre
 myConnections = getConnectionTable(pre, "POST", by.roi = TRUE)
-myConnections = myConnections %>% filter(to %in% post) 
+#myConnections = myConnections %>% filter(to %in% post) 
 
-myConnections = myConnections %>% filter(roi %in% slctROIs) %>% filter(roi != "CX")
+myConnections = myConnections %>% filter(roi %in% slctROIs) %>% filter(roi != "CX") %>% 
+  filter( roi %in% unique(myConnections$roi)[ grep("\\(R\\)",unique(myConnections$roi))])
 
 #combine data from all ROIs
 myConnectionsCombo = combineRois(myConnections,unique(myConnections$roi),'nonCx')

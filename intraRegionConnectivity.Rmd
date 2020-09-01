@@ -48,8 +48,8 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 ### Make selection of neurons to be used in connecitivy analysis
 This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
 ```{r}
-ROI = "AOTU"
-slctROI ="AOTU(R)"# "EB"#LAL(-GA)
+ROI = "BU"
+slctROI ="BU(R)"# "EB"#LAL(-GA)
 
 splitLR = TRUE
 
@@ -61,9 +61,9 @@ useCuratedListPre = FALSE#
 curatedList = paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",ROI,"/",ROI,"_Types.RData")
 
 #only relevant if one of the above is false:
-useCustomPostSelection = TRUE
+useCustomPostSelection = FALSE
 useCustomPreSelection = FALSE
-usenbag = TRUE
+usenbag = FALSE
 inCX = FALSE
 
 if(!useCustomPostSelection & !useCustomPreSelection){
@@ -283,7 +283,7 @@ dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName
 
 Graph with defined colormap from file
 ```{r, warning=FALSE} 
-cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_PDM21a")
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
 
 myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colorMap_",cmapNames[1],".csv"))
 if(length(cmapNames) > 1){
@@ -315,14 +315,22 @@ if (showself){
   graphName = paste(saveName, "_noSelf")
 }
 
-myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap = myColorMap, useRandCol = FALSE)
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, 
+                                     colormap = myColorMap, useRandCol = FALSE)
 
 myGraph$main = paste0("Connectivity within   the ",slctROI)
-plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph))
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), legend=TRUE)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)),  bty = "n", seg.len=0.5)
+#legend("topleft", legend = levels(as.factor(vertex_attr(myGraph, "comp"))), pch = 16, col = pal, bty = "n")
 
 dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
                       "_",connectionMeasure, round(100*cutoff),"perc_custCol.pdf"), width=plotSize, height=plotSize)
 ```
+
 
 ***Hierarchy graph with node size indicating input/output ratio and sorted by EPG weight***
 
