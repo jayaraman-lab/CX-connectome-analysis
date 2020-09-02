@@ -311,6 +311,7 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
   ggsave(paste0(Type2TypeConnTabName,"_cosDistClusterBy",clusterBy,".eps"), plot=Type2TypeConnMatBySide_CosDistPlot, device="eps", path=PlotDir, scale=1, 
          width=24, height=24, units="in", dpi=300, limitsize=FALSE)
   
+  Type2TypeConnTab_hc[,clusterBy] <- as.vector(Type2TypeConnTab_hc[[clusterBy]])
   return(list(Type2TypeConnTab_hc,Type2TypeConnMatBySide_CosDist,hcl,clu.h,typeClusters,Type2TypeConnMatBySide_CosDistClustColor))
 }
 
