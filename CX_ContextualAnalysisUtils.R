@@ -40,6 +40,18 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   indirectConnTab1Filtered <- indirectConnTab1 %>% filter(databaseType.from %in% inputModTabFiltered[[filtCol]]) # filter indirectConnTab1 based on filtered inputModTab
   indirectConnTab2Filtered <- indirectConnTab2 %>% filter(type.from %in% indirectConnTab1Filtered$type.to) # filter indirectConnTab2 based on filtered indirectConnTab1
   
+  # Cluster by cosine distance and plot
+  directConnTabFiltered_CosDist <- list()
+  if (nrow(directConnTabFiltered)>1){
+    directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
+    directConnTabFiltered <- directConnTabFiltered_CosDist[[3]]
+  }
+  
+  indirectConnTab1Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab1Filtered,paste0(inputMod,filtCol,"indirectConnTab1_Type2Type"))
+  indirectConnTab1Filtered <- indirectConnTab1Filtered_CosDist[[3]]
+  indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
+  indirectConnTab2Filtered <- indirectConnTab2Filtered_CosDist[[3]]
+  
   # Combine the filtered direct and indirect tables
   directConns <- directConnTabFiltered %>% select(type.from,type.to,weightRelative)
   indirectConns1 <- indirectConnTab1Filtered %>% select(type.from,type.to,weightRelative)
