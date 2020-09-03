@@ -94,6 +94,24 @@ structureMatrixPlotByType_lines = function(conmatPlot, yonly=FALSE){
 }
 
 
+### Bar plot
+inOutContributionPlot <- function(data){
+  source("R/paperTheme.R")
+  ncol = length(unique(data$partner))
+  data = data %>% ungroup() %>% group_by(partner, roi, dir, ref) %>% summarise(measure = sum(measure))
+  bar = ggplot(data, aes(x=ref, y=measure, fill=partner)) + 
+    geom_bar(position = "fill", stat="identity") + 
+    theme_classic() + theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+  
+  if(ncol <= 31){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(data$partner)))[c(-seq(5))])
+  }else if(ncol <= 36){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=length(unique(data$partner))))
+  }#else{ ...add a better colormap than the default}
+  return(bar)
+}
+
+
 ### Graph
 #Reroganize to make graph with types instead of bodyids
 reorganizeGraphData = function(fromData, toData, fromTypeData, toTypeData, weightData,relWeightData, cutoff){
