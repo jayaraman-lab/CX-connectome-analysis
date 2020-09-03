@@ -122,10 +122,11 @@ myTypes_out_filt = bind_cols(myTypes_out_filt, data.frame(dir = rep("out", lengt
 # Visualize in bar graph different input types
 ```{r}
 inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
-
-  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","outputContribution", "dir")) %>% mutate(ref = type.to, measure=weightRelative)
+  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","outputContribution", "dir")) %>% 
+    mutate(ref = type.to, measure=weightRelative)
   
-  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "outputContribution", "dir")) %>% mutate(ref = type.from, measure=outputContribution)
+  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "outputContribution", "dir")) %>% 
+    mutate(ref = type.from, measure=outputContribution)
   
   if(supertypeLevel == 0){
     sttable = supertype(getBodyIdsForList(unique(myTypes_in_filt$databaseType.from)) %>% mutate(databaseType=type))
@@ -139,19 +140,6 @@ inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supert
     
     inData = inData %>% mutate(partner = supertype, partner2=supertype(type.from,2))
     outData = outData %>% mutate(partner = supertype, partner2=supertype(type.to,2))
-  }else if(supertypeLevel == -1){
-    sttable = supertype(getBodyIdsForList(unique(myTypes_in_filt$databaseType.from)) %>% mutate(databaseType=type))
-    inData = left_join(inData,selectSupertypeSet(sttable,default_level = 2,
-                        exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>% 
-                         select(c("type","supertype")), by = c("databaseType.from" = "type"))
-    sttable = supertype(getBodyIdsForList(unique(myTypes_out_filt$databaseType.to)) %>% mutate(databaseType=type))
-    outData = left_join(outData,selectSupertypeSet(sttable,default_level = 2,
-                        exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>%
-                          select(c("type","supertype")), by = c("databaseType.to" = "type")) 
-    
-    inData = inData %>% mutate(partner = supertype)
-    outData = outData  %>% mutate(partner = supertype)
-    
   }else{
     inData = inData %>% mutate(partner=supertype(type.from,supertypeLevel))
     outData = outData %>% mutate(partner=supertype(type.to,supertypeLevel))
@@ -180,7 +168,5 @@ for(st in c(0,2,3)){
 ```{r}
 myTypes_filt0 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  0) %>% filter(roi %in% slctROIs_r)
 myTypes_filt0 = myTypes_filt0  %>% mutate(partner = coalesce(partner, "Other"))
-myTypes_filt2 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  2) %>% filter(roi %in% slctROIs_r)
-myTypes_filt3 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  3) %>% filter(roi %in% slctROIs_r)
 tmp  = myTypes_filt0 %>% ungroup() %>% select(type.to, type.from,partner, partner2) %>% unique()
 ```
