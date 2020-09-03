@@ -187,7 +187,20 @@ StrongMBONnonCXTargetR2CXRtab <- MBONnonCXTargetR2CXRInpCombined %>% filter(type
 # Filter StrongMBON2nonCXwCXRTgtInpCombSort for those connecting to StrongMBONnonCXTargetR2CXRtab$type.from
 StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort %>% filter(type.to %in% StrongMBONnonCXTargetR2CXRtab$type.from)
 
+# Make and plot cosine distance matrix
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
+StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
+
+# Get the connection tables re-arranged by cosine distance clustering
+StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[3]]
+StrongMBONnonCXTargetR2CXRtab <- StrongMBONnonCXTargetR2CXR_CosDist[[3]]
+
 # Make a combined table
+StrongMBON2nonCXwCXRTgtInpCombSort$type.from <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.from)
+StrongMBON2nonCXwCXRTgtInpCombSort$type.to <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.to)
+StrongMBONnonCXTargetR2CXRtab$type.from <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)
+StrongMBONnonCXTargetR2CXRtab$type.to <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.to)
+
 StrongMBON2nonCXwCXRTgtTable <- StrongMBON2nonCXwCXRTgtInpCombSort %>% select(type.from,type.to,weightRelative)
 StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.from,type.to,weightRelative)
 StrongMBON2nonCXR2CXRTgtComboTable <- bind_rows(StrongMBON2nonCXwCXRTgtTable,StrongMBONnonCXTgtR2CXRTable, .id = NULL)
@@ -214,10 +227,30 @@ ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtCom
 StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
 StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
 
-# Make and plot cosine distance matrix
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSort,"StrongMBON2nonCXwCXRTgtInpCombSort")
-StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtab,"StrongMBONnonCXTargetR2CXR")
 ```
+```{r}
+# Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtab for clustering based on inputs to the type.from types
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[2]]
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut[[4]]
+StrongMBONnonCXTargetR2CXRtab <- mutate(StrongMBONnonCXTargetR2CXRtab, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)])
+
+# Re-plot the connectivity matrix based on cluster.toFrom for rows and cluster.to for columns
+plotStrongMBONnonCXTargetR2CXRtab <- plotConnectivityMatrix(StrongMBONnonCXTargetR2CXRtab,byGroup="type",connectionMeasure="weightRelative")
+
+plotStrongMBONnonCXTargetR2CXRtab <- plotStrongMBONnonCXTargetR2CXRtab + facet_grid(rows=vars(cluster.toFrom),cols=vars(cluster.to),scale="free",space="free") + 
+      theme(strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+            #strip.text.y.left = element_text(angle = 0),
+            #strip.text.x.bottom = element_text(angle = 90),
+            strip.background = element_blank(), #remove background for facet labels
+            panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add grey border
+            panel.spacing = unit(0.05, "lines")) #space between facets
+
+print(plotStrongMBONnonCXTargetR2CXRtab)
+ggsave("StrongMBONnonCXTargetR2CXRtab_cosDistClustConnMat_rowsByMBONto.eps", plot=plotStrongMBONnonCXTargetR2CXRtab, device="eps", path=PlotDir, scale=1, 
+         width=24, height=16, units="in", dpi=300, limitsize=FALSE)
+
+```
+
 
 ### Test computing pathway weights
 ```{r}
