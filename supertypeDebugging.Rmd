@@ -1,0 +1,186 @@
+---
+title: "Visualization of shared input or output"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(paletteer)
+library(neuprintrExtra)
+library(gridExtra)
+options(nat.plotengine = 'rgl')
+
+```
+
+```{r}
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+
+myplot_dist <- function(dd,order=TRUE){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+  }
+  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=1-value)) +
+    theme_classic() +
+    scale_fill_gradient2(low="white", mid="grey", high="black", 
+                         midpoint =0.5, limits=c(0,1), name="Similarity") +
+    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
+    xlab("") + ylab("")+coord_fixed() 
+  
+}
+```
+
+```{r}
+neuprint_login()
+```
+
+### Select types for comparison
+```{r}
+myTypeList = c("LNO1","LNO2")
+side ="_R" # "_L"#
+myTypeList_lat = paste0(myTypeList, side)
+minWeightRel = 0.01 #used to filter connectivity tables
+```
+
+```{r}
+myTypes_bag_full = neuronBag(myTypeList)
+
+# Filter out neurons from left side?
+splitLR = TRUE
+if(splitLR){
+  myTypes_bag_full = lateralize_types(myTypes_bag_full)
+  }
+```
+
+### Filter neuron bag to contain only subset of types (considering lateralization)
+```{r}
+myTypes_bag =  filter(myTypes_bag_full, filterPartners = FALSE, type %in% myTypeList_lat)
+```
+
+### Generate list of ROIs to consider
+```{r}
+roiTree = getRoiTree()
+slctROIs = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+                                          "VMNP"=1,"INP"=1, "LX(R)"=3, "LX(L)"=3), exceptionLevelMatch = 1)
+slctROIs = unique(slctROIs$roi)
+slctROIs_r = slctROIs[!grepl("\\(L\\)",slctROIs)]
+slctROIs_r
+```
+
+# Use raw inputs as few connections in non-CX ROIs are significant according to general criteria??
+```{r}
+myTypes_in = myTypes_bag$inputs
+myTypes_out = myTypes_bag$outputs
+myTypes = myTypes_bag$names
+```
+
+
+### Generate dataframe of inputs to types of interest
+# Filter based on rois to use
+```{r}
+minsyn = 10
+
+myTypes_in_filt = myTypes_in %>% filter(roi %in% slctROIs) %>%
+  #filter(type.to %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.to) %>% filter(sum(weight) >= minsyn) %>% filter(weightRelative >= minWeightRel)
+
+myTypes_in_filt = bind_cols(myTypes_in_filt, data.frame(dir = rep("in", length(myTypes_in_filt$roi))))
+
+myTypes_out_filt = myTypes_out %>% filter(roi %in% slctROIs) %>%
+  #filter(type.from %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.from) %>% filter(sum(weight) >= minsyn) %>% filter(outputContribution >= minWeightRel)
+
+myTypes_out_filt = bind_cols(myTypes_out_filt, data.frame(dir = rep("out", length(myTypes_out_filt$roi))))
+```
+
+# Visualize in bar graph different input types
+```{r}
+inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
+
+  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","outputContribution", "dir")) %>% mutate(ref = type.to, measure=weightRelative)
+  
+  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "outputContribution", "dir")) %>% mutate(ref = type.from, measure=outputContribution)
+  
+  if(supertypeLevel == 0){
+    sttable = supertype(getBodyIdsForList(unique(myTypes_in_filt$databaseType.from)) %>% mutate(databaseType=type))
+    inData = left_join(inData,selectSupertypeSet(sttable,default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% 
+                         select(c("type","supertype")), by = c("databaseType.from" = "type"))
+    sttable = supertype(getBodyIdsForList(unique(myTypes_out_filt$databaseType.to)) %>% mutate(databaseType=type))
+    outData = left_join(outData,selectSupertypeSet(sttable,default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>%
+                          select(c("type","supertype")), by = c("databaseType.to" = "type")) 
+    
+    inData = inData %>% mutate(partner = supertype, partner2=supertype(type.from,2))
+    outData = outData %>% mutate(partner = supertype, partner2=supertype(type.to,2))
+  }else if(supertypeLevel == -1){
+    sttable = supertype(getBodyIdsForList(unique(myTypes_in_filt$databaseType.from)) %>% mutate(databaseType=type))
+    inData = left_join(inData,selectSupertypeSet(sttable,default_level = 2,
+                        exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>% 
+                         select(c("type","supertype")), by = c("databaseType.from" = "type"))
+    sttable = supertype(getBodyIdsForList(unique(myTypes_out_filt$databaseType.to)) %>% mutate(databaseType=type))
+    outData = left_join(outData,selectSupertypeSet(sttable,default_level = 2,
+                        exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>%
+                          select(c("type","supertype")), by = c("databaseType.to" = "type")) 
+    
+    inData = inData %>% mutate(partner = supertype)
+    outData = outData  %>% mutate(partner = supertype)
+    
+  }else{
+    inData = inData %>% mutate(partner=supertype(type.from,supertypeLevel))
+    outData = outData %>% mutate(partner=supertype(type.to,supertypeLevel))
+  }
+  data = bind_rows(inData,outData)
+  return(data)
+}
+```
+
+
+```{r}
+source("R/visualizeConnectivityTables.R")
+
+for(st in c(0,2,3)){
+  myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
+  
+  if(sum(is.na(myTypes_filt$partner)) > 0){
+    myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
+  }
+  bar = inOutContributionPlot(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free")
+  show(bar)
+}
+
+```
+
+```{r}
+myTypes_filt0 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  0) %>% filter(roi %in% slctROIs_r)
+myTypes_filt0 = myTypes_filt0  %>% mutate(partner = coalesce(partner, "Other"))
+myTypes_filt2 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  2) %>% filter(roi %in% slctROIs_r)
+myTypes_filt3 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  3) %>% filter(roi %in% slctROIs_r)
+tmp  = myTypes_filt0 %>% ungroup() %>% select(type.to, type.from,partner, partner2) %>% unique()
+```
