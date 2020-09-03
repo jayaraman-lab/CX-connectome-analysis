@@ -19,7 +19,7 @@ Here, we look at EPGs and the input they receive in the EB. The following code w
 ## Setup
 
 First, the packages we need
-```{r, message=FALSE, warning=FALSE}
+```{r packages, message=FALSE, warning=FALSE}
 library(natverse)
 library(neuprintr)
 library(igraph)
@@ -29,13 +29,7 @@ library(dplyr)
 require(matlib)
 library(neuprintrExtra)
 source("SynapsePCAUtils.R")
-```
-
-```{r, message=FALSE, warning=FALSE}
 require(alphahull)
-```
-
-```{r, message=FALSE, warning=FALSE}
 require(RColorBrewer)
 library("paletteer")
 source('./R/paperTheme.R')
@@ -52,8 +46,7 @@ conn = neuprint_login()
 Load in info about EPGs, Ring neurons, and other neuron types we're interested in.
 ```{r neuron info}
 # neurons for which you care about the synaptic locations
-nronType = 'EPG'
-nron_info = neuprint_search(paste(".*", nronType, ".*", sep = ""))
+nron_info = neuprint_search(".*EL.*")
 head(nron_info)
 ```
 
@@ -79,23 +72,17 @@ Note, the neurons whose graphs are oriented incorrectly is a subset of the neuro
 
 ```{r read in neurons}
 # 15-18, 21, 23 are not oriented correctly, hence are not currently appropriate for this analysis
-if(nronType == 'EPG'){
-  disoriented = c(15:18,21,23)
-  epgt = grep('EPGt',nron_info$name)
-  epgR1 = grep('R1',nron_info$name)
-  exclude = unique(c(disoriented, epgt, epgR1))
-  ignore = FALSE
-} else {
-  # set ignore = TRUE to ignore EPG specific stuff
-  ignore = TRUE
-  exclude = c()
-}
+disoriented = c(15:18,21,23)
+epgt = grep('EPGt',nron_info$name)
+epgR1 = grep('R1',nron_info$name)
+exclude = unique(c(disoriented, epgt, epgR1))
+#nronList = neuprint_read_neurons(nron_info$bodyid[-exclude])
 
-if(is.null(exclude)){
-  nronList = neuprint_read_neurons(nron_info$bodyid)
-} else {
-  nronList = neuprint_read_neurons(nron_info$bodyid[-exclude])
-}
+exclude = c()
+nronList = neuprint_read_neurons(nron_info$bodyid)
+
+# set ignore = TRUE to ignore EPG specific stuff
+ignore = TRUE
 
 ```
 
@@ -467,9 +454,10 @@ modalityCDFPlot = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','
   facet_wrap(~bodyid)
 
 print(modalityCDFPlot)
+
+ggsave('modalityCDF_EL.pdf', plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 }
 
-#ggsave(paste('modalityCDF_', nronType, '.pdf', sep = ""), plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 
@@ -497,7 +485,7 @@ medViolinPlot = ggplot(filter(medOfDist)) +
 
 print(medViolinPlot)
   
-#ggsave(paste('medianDists_', nronType, '.pdf', sep = ""), plot = medViolinPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+ggsave('medianDists_EL.pdf', plot = medViolinPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 
@@ -532,9 +520,11 @@ print(rankOrderingPlot)
   scale_fill_manual(values = modalityCMap)
 
 print(rankOrderingPlot)
+
+ggsave('rankOrdering_EL.pdf', plot = rankOrderingPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 }
 
-#ggsave(paste('rankOrdering_', nronType, '.pdf', sep = ""), plot = rankOrderingPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
 
 ```
 
@@ -628,7 +618,7 @@ print(distDistancePlot)
 }
 
 
-#ggsave(paste('distDistance_', nronType, '.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+#ggsave('distDistance.pdf', plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 ```
 
 ```{r}
@@ -818,7 +808,7 @@ radPosVsDistPlot <- ggplot(filter(synapses, prepost == 1)) +
 
 print(radPosVsDistPlot)
 
-#ggsave('radPosVsDist.pdf', plot = radPosVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+#ggsave('radPosVsDist_quads.pdf', plot = radPosVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 depthVsDistPlot <-ggplot(filter(synapses, prepost == 1)) +
   geom_point(aes(y = normDist, x = depth, color = radial), size = 1, alpha = 0.05) +
@@ -829,7 +819,7 @@ depthVsDistPlot <-ggplot(filter(synapses, prepost == 1)) +
 
 print(depthVsDistPlot)
 
-#ggsave('depthVsDist.pdf', plot = depthVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+#ggsave('depthVsDist_quads.pdf', plot = depthVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 depthVsRadialPlot <- ggplot(filter(synapses, prepost == 1)) +
   geom_point(aes(x = radial, y = depth, color = normDist), size = 1, alpha = 0.05) +
@@ -908,7 +898,7 @@ depthVRadDensPlot = ggplot() +
 
 print(depthVRadDensPlot)
 
-#ggsave(paste('depthVsRadial_', nronType, '.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_EL.pdf', plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 
@@ -926,7 +916,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms
 
 print(depthVRadMod)
 
-#ggsave(paste('depthVsRadial_modalities_',nronType,'.pdf', sep = ""), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_EL.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 ```
@@ -1008,7 +998,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms
 
 print(depthVRadMod)
 
-#ggsave('depthVsRadial_modalities_perm23-0.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_perm23-0.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'), perm23 == '1')) +
   stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
@@ -1020,7 +1010,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms
 
 print(depthVRadMod)
 
-#ggsave('depthVsRadial_modalities_perm23-1.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_perm23-1.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 }
 
 ```
@@ -1032,26 +1022,26 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[4]) +
   theme_paper() +
-  #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
+  geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
+  scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
   facet_wrap(~perm23)
 
 print(depthVRadMod)
 
-#ggsave('depthVsRadial_ms_perm23_noContour.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_ms_perm23.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
   stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[2]) +
   theme_paper() +
-  #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1))  +
+  geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
+  scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1))  +
   facet_wrap(~perm23)
 
 print(depthVRadMod)
 
-#ggsave('depthVsRadial_iv_perm23_noContour.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_iv_perm23.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
