@@ -266,7 +266,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 
   # Plot the factorized Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative" and grouped by the factors
   Type2TypeConnTab_hc <- Type2TypeConnTab_cosDistClusterByOut[[1]]
-  Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(cluster.from,type.from,cluster.to,type.to) # re-arrange the rows of Type2TypeConnTab_hc
+  Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(cluster.from,cluster.to,type.from,type.to) # re-arrange the rows of Type2TypeConnTab_hc
   plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
 
   # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
