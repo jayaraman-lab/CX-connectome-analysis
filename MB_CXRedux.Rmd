@@ -206,11 +206,11 @@ StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.fr
 StrongMBON2nonCXR2CXRTgtComboTable <- bind_rows(StrongMBON2nonCXwCXRTgtTable,StrongMBONnonCXTgtR2CXRTable, .id = NULL)
 
 # Set up the layout for the pathway plot
-types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)),
+types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.to)),
                   unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to))))
 numTypes <- length(types)
 numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)))
-numMidNodes <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)))
+numMidNodes <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.to)))
 numCXtargets <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to)))
 xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
                       y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
@@ -367,10 +367,11 @@ ggsave("StrongMBON2CXRTgtDrctIndrctComboPath.svg", plot=StrongMBON2CXRTgtDrctInd
 # Get the PN2MBON input modality table
 PN2allMBON_InputPct <- getPN2MBONinputTable()
 
-# Filter and analyze the MBON to CX direct and indirect connections based on input modality
-visualMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Visual",25,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
-thermoHygroMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"ThermoHygro",20,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
-olfMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Olfactory",75,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+# Filter and analyze the MBON to CX direct and indirect connections based on input modality; Not clear why not working now
+# visualMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Visual",25,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+# thermoHygroMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"ThermoHygro",20,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+# olfMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Olfactory",75,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+
 ```
 
 ### Find connections from strong MBON targets to secondary targets in CX
