@@ -61,7 +61,7 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   # Re-plot pathways
   fromTypes <- unique(c(unique(as.vector(directConns$type.from)),unique(as.vector(indirectConns1$type.from))))
   numFrom <- length(fromTypes)
-  midNodes <- unique(as.vector(indirectConns2$type.from))
+  midNodes <- unique(as.vector(indirectConns1$type.to))
   numMidNodes <- length(midNodes)
   allTargets <- unique(c(unique(as.vector(directConns$type.to)),unique(as.vector(indirectConns2$type.to))))
   numAllTargets <- length(allTargets)
