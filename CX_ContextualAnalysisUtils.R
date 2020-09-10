@@ -320,7 +320,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 }
 
 cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,InpOrOutp){
-  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(as.vector(Type2TypeConnTab$roi)),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
+  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,slctROIs=unique(as.vector(Type2TypeConnTab$roi)),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
   
   # Segment the clusters at cut = 0.8
