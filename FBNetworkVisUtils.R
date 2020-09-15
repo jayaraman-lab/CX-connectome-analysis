@@ -310,15 +310,19 @@ dendPlot <- function(hc,rotate){
   HClabels <- dend_data$labels
   HClabels$supertype <- HClabels$label %>% as.character() %>% supertype() %>% as.factor()
   
+  # Map colors to supertypes
+  cols <- supertype2Palette()
+  cols$breaks[which(cols$breaks == 'PFGs')] <- 'PFG'
+  
   p <- ggplot(dend_data$segments)
   if (rotate){
     p <- p + geom_segment(aes(x = y, y = x, xend = yend, yend = xend)) +
       geom_text(data = HClabels, aes(y, x, label = label,color=supertype),
-                hjust = 1, size = 1)
+                hjust = 1, size = 2)
   } else {
     p <- p + geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
       geom_text(data = HClabels, aes(x, y, label = label,color=supertype),
-                hjust = 1, angle = 90, size = 1)
+                hjust = 1, angle = 90, size = 2)
   }
   p <- p + theme_classic() +
     theme(axis.title.x=element_blank(),
@@ -327,7 +331,8 @@ dendPlot <- function(hc,rotate){
           axis.title.y=element_blank(),
           axis.text.y=element_blank(),
           axis.ticks.y=element_blank(),
-          axis.line=element_blank())
+          axis.line=element_blank()) +
+    scale_color_manual(breaks=cols$breaks, values=cols$pal)
   
   return(p)
 }
