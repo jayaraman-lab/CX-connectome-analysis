@@ -22,6 +22,7 @@ First, the packages we need
 ```{r, message=FALSE, warning=FALSE}
 library(natverse)
 library(neuprintr)
+library(hemibrainr)
 library(igraph)
 library(ggplot2)
 library(tidyr)
@@ -83,18 +84,25 @@ if(nronType == 'EPG'){
   disoriented = c(15:18,21,23)
   epgt = grep('EPGt',nron_info$name)
   epgR1 = grep('R1',nron_info$name)
-  exclude = unique(c(disoriented, epgt, epgR1))
+  exclude = unique(c(epgt, epgR1))
   ignore = FALSE
 } else {
   # set ignore = TRUE to ignore EPG specific stuff
   ignore = TRUE
   exclude = c()
+  disoriented = c()
 }
 
 if(is.null(exclude)){
   nronList = neuprint_read_neurons(nron_info$bodyid)
 } else {
   nronList = neuprint_read_neurons(nron_info$bodyid[-exclude])
+}
+
+if(!is.null(disoriented)){
+  adjustRP = hemibrain_reroot(nronList[disoriented])
+  nronList = nronList[-disoriented]
+  nronList = c(nronList, adjustRP)
 }
 
 ```
@@ -158,6 +166,9 @@ for(g in compList){
 
 
 ```
+
+
+
 
 
 Functions for fixing the graph and identifying an appropriate rootpoint.
@@ -305,6 +316,47 @@ Let's update our subsetted neurons now that we have the correct graphs for them.
 nronMainROI = nmapply(function(nron,g) subset(nron, PointNo %in% V(g)$name), nronList, g = nronGraphs)
 ```
 
+
+```{r}
+Vivid_Red = '#F6222E'
+
+PB_mesh = neuprint_ROI_mesh(roi = 'PB')
+GA_mesh = neuprint_ROI_mesh(roi = 'GA(R)')
+
+nopen3d()
+plot3d(mainROI_mesh, add = T, alpha = 0.25, col = 'grey')
+plot3d(PB_mesh, add = T, alpha = 0.25, col = 'grey')
+plot3d(GA_mesh, add = T, alpha = 0.25, col = 'grey')
+exInd = 2
+nron = nronList[[exInd]]
+plot3d(nron, add = T, WithNodes = F, col = 'black')
+rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
+points3d(rp$X, rp$Y, rp$Z, col = Vivid_Red, cex = 1)
+
+exInd = 9
+nron = nronList[[exInd]]
+plot(nron, WithNodes = F)
+rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
+points(rp$X, rp$Y, col = Vivid_Red, cex = 1)
+```
+
+```{r}
+exInd = 2
+nron = nronList[[exInd]]
+rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
+pdf('../neuprintR_analysis_plots/EPG_example.pdf')
+plot(nron, WithNodes = F)
+points(rp$X, rp$Y, col = '#1CFFCEFF', cex = 1, pch = 19)
+dev.off()
+
+```
+
+
+
+
+
+
+
 The previous example shows a fairly simple fracturing, but there are other cases that are a lot more involved. These cases involve neurons that have a somewhat different morphology. Specifically, some EPGs actually have multiple arbors coming off of the main arbor and entering the EB (as opposed to EPGs with what I would call a stereotyped morphology that only have a single arbor leaving the main arbor to enter the EB).
 
 In the following example, we have a neuron that has three arbors entering the EB (shown in cyan, red, and yellow). The rootpoint (shown in purple) that is selected for neurons like this is the point at which the first arbor (coming from PB) branches off from the main arbor in order to enter the EB. Note the y-axis label is there to indicate which directions the PB (down) and the Gall (up) are in plot.
@@ -443,6 +495,8 @@ pink = '#FA0087'
 
 modalityCMap =c(Vivid_Violet,Very_Light_Yellowish_Green,Vivid_Blue,Strong_Purplish_Blue,pink)
 
+modalityCMap =c(Strong_Purplish_Blue,Vivid_Blue,Vivid_Violet,Very_Light_Yellowish_Green,pink)
+
 
 ```
 
@@ -466,8 +520,10 @@ modalityCDFPlot = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','
     labs(x = 'normalized distance', y = 'CDF') +
   facet_wrap(~bodyid)
 
-print(modalityCDFPlot)
+
 }
+
+print(modalityCDFPlot)
 
 #ggsave(paste('modalityCDF_', nronType, '.pdf', sep = ""), plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
@@ -485,19 +541,46 @@ medOfDist = filter(synapses, prepost == 1) %>% group_by(bodyid, modality) %>%
 
 ```
 
+```{r}
+
+medOfDist = medOfDist %>% mutate(modNum = case_when(
+  modality == 'motor' ~ 1,
+  modality == 'ms' ~ 2,
+  modality == 'iv' ~ 3,
+  modality == 'cv' ~ 4,
+  modality == 'sleep' ~ 5
+)) %>%
+  mutate(eg = case_when(
+    bodyid == nron_info_kept$bodyid[2] ~ 1,
+    TRUE ~ 0
+  ))
+
+```
 
 If we look at the distributions of the medians of the synaptic distributions for each modality, we see a general trend.
 ```{r}
 
-medViolinPlot = ggplot(filter(medOfDist)) +
+medViolinPlot = ggplot(medOfDist) +
   geom_violin(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156') +
   theme_paper() +
   scale_fill_manual(values = modalityCMap) +
   labs(x = 'modality', y = 'median')
 
 print(medViolinPlot)
+
+medHivePlot = ggplot(medOfDist) +
+  #geom_dotplot(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156', binaxis = 'y', stackdir = 'center', binwidth = 1/54) +
+  geom_line(aes(x = modNum, y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_point(aes(x = modNum, y = med, fill = modality, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
+  theme_paper() +
+  guides(fill = 'legend') +
+  scale_fill_manual(values = modalityCMap) +
+  scale_color_manual(values = c('lightgray','black',modalityCMap)) +
+  labs(x = 'modality', y = 'median')
+
+print(medHivePlot)
   
-#ggsave(paste('medianDists_', nronType, '.pdf', sep = ""), plot = medViolinPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+#ggsave(paste('medianDists_hive_jitter_', nronType, '.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 
@@ -508,15 +591,17 @@ Using these medians, we can also rank order modality for each EPG seperately. No
 ```{r}
 if(!ignore){
 currentOrdering = sort(nron_info_kept$bodyid, decreasing = T)
-sortingLevel1 = currentOrdering[c(1:2,4:7,9,12,14:20,25,27,29:36)]
-sortingLevel2 = currentOrdering[c(3,10,23,28,37)]
-sortingLevel3 = currentOrdering[c(8,11,21:22,24,38)]
-sortingLevel4 = currentOrdering[c(13)]
-sortingLevel5 = currentOrdering[c(26)]
-sortingLevel = c(sortingLevel1, sortingLevel2, sortingLevel3, sortingLevel4, sortingLevel5)
+sortingLevel2 = currentOrdering[c(3,9,13,29,34,43)]
+sortingLevel3 = currentOrdering[c(11,15,27,28,30,44)]
+sortingLevel4 = currentOrdering[c(17)]
+sortingLevel5 = currentOrdering[c(32)]
+sortingLevel = c(sortingLevel2, sortingLevel3, sortingLevel4, sortingLevel5)
+sortingLevel1 = setdiff(currentOrdering, sortingLevel)
+sortingLevel = c(sortingLevel1, sortingLevel)
 
 rankOrderingPlot = ggplot(medOfDist) +
   geom_tile(aes(x = rankOrder, y = factor(bodyid, levels = rev(sortingLevel)), fill = modality), color = '#5A5156') +
+  #geom_tile(aes(x = rankOrder, y = as.factor(bodyid), fill = modality), color = '#5A5156') +
   theme_paper() +
   theme(axis.text.y = element_blank(), legend.position="top") +
   labs(y = "neurons", x = "rank order") +
@@ -558,11 +643,11 @@ medOfDist = medOfDist %>% group_by(bodyid) %>%
 
 ```{r}
 
-dfRank1 = filter(medOfDist, rankOrder == 1) %>% select(-rankOrder) %>% rename(modality1 = modality, med1 = med)
-dfRank2 = filter(medOfDist, rankOrder == 2) %>% select(-rankOrder) %>% rename(modality2 = modality, med2 = med)
-dfRank3 = filter(medOfDist, rankOrder == 3) %>% select(-rankOrder) %>% rename(modality3 = modality, med3 = med)
-dfRank4 = filter(medOfDist, rankOrder == 4) %>% select(-rankOrder) %>% rename(modality4 = modality, med4 = med)
-dfRank5 = filter(medOfDist, rankOrder == 5) %>% select(-rankOrder) %>% rename(modality5 = modality, med5 = med)
+dfRank1 = filter(medOfDist, rankOrder == 1) %>% select(-c(rankOrder,modNum)) %>% rename(modality1 = modality, med1 = med)
+dfRank2 = filter(medOfDist, rankOrder == 2) %>% select(-c(rankOrder,modNum)) %>% rename(modality2 = modality, med2 = med)
+dfRank3 = filter(medOfDist, rankOrder == 3) %>% select(-c(rankOrder,modNum)) %>% rename(modality3 = modality, med3 = med)
+dfRank4 = filter(medOfDist, rankOrder == 4) %>% select(-c(rankOrder,modNum)) %>% rename(modality4 = modality, med4 = med)
+dfRank5 = filter(medOfDist, rankOrder == 5) %>% select(-c(rankOrder,modNum)) %>% rename(modality5 = modality, med5 = med)
 
 medOfDistWide = merge(dfRank1, dfRank2)
 medOfDistWide = merge(medOfDistWide, dfRank3)
@@ -628,7 +713,7 @@ print(distDistancePlot)
 }
 
 
-#ggsave(paste('distDistance_', nronType, '.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+ggsave(paste('distDistance_', nronType, '.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 ```
 
 ```{r}
@@ -749,7 +834,7 @@ synPtsRot = cbind(synPts, synPtsRot)
 
 
 
-rootPtsCoord = lapply(nronList, function(nron) nron$d[rootpoints(nron), c('X','Y','Z')])
+rootPtsCoord = lapply(nronMainROI, function(nron) nron$d[rootpoints(nron), c('X','Y','Z')])
 rootPtsCoord = bind_rows(rootPtsCoord)
 rootPtsCoord = data.frame(x = as.numeric(rootPtsCoord$X),
                           y = as.numeric(rootPtsCoord$Y),
@@ -768,8 +853,13 @@ rootPtsRot = rootPtsRot %>% select(X, Y, Z)
 
 synapses = merge(synapses, synPtsRot)
 synapses = synapses %>% mutate(radial = sqrt(X^2 + Y^2)/125, depth = -Z/125)
+#synapses = synapses %>% mutate(radial = sqrt(X^2 + Y^2), depth = -Z)
 
 rootPtsNewCoord = rootPtsRot %>% mutate(radial = sqrt(X^2 + Y^2)/125, depth = -Z/125) %>% mutate(depth = depth - min(synapses$depth))
+#rootPtsNewCoord = rootPtsRot %>% mutate(radial = sqrt(X^2 + Y^2), depth = -Z) %>% mutate(depth = depth - min(synapses$depth))
+
+roiMeshPtsNewCoord = roiMeshPtsRot %>% mutate(radial = sqrt(X^2 + Y^2)/125, depth = -Z/125) %>% mutate(depth = depth - min(synapses$depth))
+#roiMeshPtsNewCoord = roiMeshPtsRot %>% mutate(radial = sqrt(X^2 + Y^2), depth = -Z) %>% mutate(depth = depth - min(synapses$depth))
 
 synapses = synapses %>% mutate(depth = depth - min(depth))
 
@@ -806,6 +896,14 @@ while(any(abs(distBetweenPts) > 5)){
 }
 
 outline = bind_rows(outline, outline[1,]) # close the shape
+```
+
+```{r}
+# get outline
+meshOutline <- ahull(x=roiMeshPtsNewCoord$depth,y=roiMeshPtsNewCoord$radial,alpha=100/125)
+outline = data.frame(meshOutline$arcs)
+#outline = bind_rows(outline, outline[1,]) # close the shape
+
 ```
 
 ```{r}
@@ -876,17 +974,20 @@ print(depthVsRadialPlot)
 
 
 ```{r}
-xmax = ceiling(max(synapses$radial))
-ymax = ceiling(max(synapses$depth))
+
+xmax = ceiling(max(synapses$depth))
+ymax = ceiling(max(synapses$radial))
 dx = 0.75
 dy = 0.75
+#dx = 100
+#dy = 100
 sampsx = seq(dx,xmax-dx,2*dx)
 sampsy = seq(dy,ymax-dy,2*dy)
 meanNormDist = data.frame(x = rep(sampsx, times = length(sampsy)), y = rep(sampsy, each = length(sampsx)))
 z = rep(NA, length(meanNormDist$x))
 for(i in seq(1,length(meanNormDist$x))){
-  r = meanNormDist$x[i]
-  d = meanNormDist$y[i]
+  d = meanNormDist$x[i]
+  r = meanNormDist$y[i]
   z[i] = mean(synapses$normDist[(synapses$radial < r + dx) & (synapses$radial >= r - dx) & (synapses$depth < d + dx) & (synapses$depth >= d - dx)])
 }
 
@@ -899,16 +1000,17 @@ meanNormDist = cbind(meanNormDist, z)
 ```{r}
 
 depthVRadDensPlot = ggplot() +
-  stat_density_2d(data = filter(synapses, prepost == 1), aes(x = radial, y = depth, alpha = stat(nlevel)), fill = 'grey', bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(data = filter(synapses, prepost == 1), aes(x = depth, y = radial, alpha = stat(nlevel)), fill = 'grey', bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
   scale_colour_gradientn(colours = rev(brewer.pal(9,"Blues")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper() #+
-  #geom_point(data = rootPtsNewCoord, aes(x = radial, y = depth), color = '#5A5156')
+  theme_paper() +
+  coord_fixed(ratio = 1) +
+  geom_point(data = rootPtsNewCoord, aes(y = radial, x = depth), color = '#5A5156', alpha = 0.75)
 
 print(depthVRadDensPlot)
 
-#ggsave(paste('depthVsRadial_', nronType, '.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave(paste('depthVsRadial_', nronType, '.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 
@@ -919,64 +1021,70 @@ print(depthVRadDensPlot)
 
 ```{r}
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(x = depth, y = radial, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
 
-#ggsave(paste('depthVsRadial_modalities_',nronType,'.pdf', sep = ""), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave(paste('depthVsRadial_modalities_',nronType,'.pdf', sep = ""), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 ```
 
 ```{r}
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[3]) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-#ggsave('depthVsRadial_modalities_motor.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_motor.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[4]) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-#ggsave('depthVsRadial_modalities_ms.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_ms.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[2]) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-#ggsave('depthVsRadial_modalities_iv.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_iv.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('cv'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[1]) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-#ggsave('depthVsRadial_modalities_cv.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_cv.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('sleep'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[5]) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-#ggsave('depthVsRadial_modalities_sleep.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave('depthVsRadial_modalities_sleep.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 ```
@@ -999,24 +1107,26 @@ synapses = synapses %>% mutate(permGroup = case_when(
 ```{r}
 if(!ignore){
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'), perm23 == '0')) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap) +
   geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
   scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
 
 #ggsave('depthVsRadial_modalities_perm23-0.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'), perm23 == '1')) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap) +
   geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
   scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper()
+  theme_paper() +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
 
@@ -1028,26 +1138,28 @@ print(depthVRadMod)
 ```{r}
 if(!ignore){
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[4]) +
   theme_paper() +
   #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
   #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  facet_wrap(~perm23)
+  facet_wrap(~perm23) +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
 
 #ggsave('depthVsRadial_ms_perm23_noContour.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
-  stat_density_2d(aes(x = radial, y = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
+  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
   scale_fill_manual(values = modalityCMap[2]) +
   theme_paper() +
   #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
   #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1))  +
-  facet_wrap(~perm23)
+  facet_wrap(~perm23) +
+  coord_fixed(ratio = 1)
 
 print(depthVRadMod)
 
