@@ -62,7 +62,7 @@ neuprint_login()
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
-source("../visualizeConnectivityTables.r", chdir = TRUE)
+#source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
 source("../R/connectivityMatricesTools.R")
 
@@ -403,34 +403,92 @@ remove(EDGES,NODES,graph,P1)
 
 
 
-# Get everything downstream of 23E10 neurons
+# Get everything downstream and upstream of 23E10 neurons
 ```{r}
 
+# Get meta data on sleep-wake types
 SW_Types_Table=getTypesTable(SleepWakeTypes)
+
+
+# Get downstream connections
 SW_Downstream_Raw <- get_type2typePath_raw(type.from=SW_Types_Table, type.to = NULL, n_steps=1:3, by.roi=FALSE)
 SW_Downstream=tableChain2path(SW_Downstream_Raw)
 SW_Downstream_Graph=distinct(rbind(SW_Downstream_Raw[[1]], SW_Downstream_Raw[[2]],  SW_Downstream_Raw[[3]]))
 
 
+# Get upstream connections
+SW_Upstream_Raw <- get_type2typePath_raw(type.from=NULL, type.to = SW_Types_Table, n_steps=1:3, by.roi=FALSE)
+SW_Upstream=tableChain2path(SW_Upstream_Raw)
+SW_Upstream=subset(SW_Upstream, type.to %in% SW_Types_Table$type)
+SW_Upstream_Graph=distinct(rbind(SW_Upstream_Raw[[1]], SW_Upstream_Raw[[2]],  SW_Upstream_Raw[[3]]))
+
+
+# Save data since query takes a while
 save(SW_Types_Table, SW_Downstream_Raw, SW_Downstream, SW_Downstream_Graph,
-     file = paste(PlotDir,"SW_Downstream.RData",sep=""))
+                     SW_Upstream_Raw, SW_Upstream, SW_Upstream_Graph, file = paste(PlotDir,"SW_DownstreamUpstream.RData",sep=""))
 
 
 ```
 
 
+# Function for custom retyping of input and output types
+```{r}
+
+
+OutputTyping <- function(DF_ToType){
+  
+  # Group output types
+  DF_ToType$SuperType_Custom=NA
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"5-HT") |
+                                                startsWith(DF_ToType$type.to,"SI") |
+                                                startsWith(DF_ToType$type.to,"SL") |
+                                                startsWith(DF_ToType$type.to,"SM") |
+                                                startsWith(DF_ToType$type.to,"DGI") |
+                                                startsWith(DF_ToType$type.to,"IB042") ]="SNP"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"EL") |
+                                                startsWith(DF_ToType$type.to,"ER") |
+                                                startsWith(DF_ToType$type.to,"Ex") |
+                                                startsWith(DF_ToType$type.to,"TuB")|
+                                                startsWith(DF_ToType$type.to,"AOT")]="EB and BU"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"PF") |
+                                                startsWith(DF_ToType$type.to,"hDelta") |
+                                                startsWith(DF_ToType$type.to,"vDelta") |
+                                                startsWith(DF_ToType$type.to,"FS") |
+                                                startsWith(DF_ToType$type.to,"FR") |
+                                                startsWith(DF_ToType$type.to,"FC")]="FB Columnar"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"FB")]="FB Tangential"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"LAL")]="LAL"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"CRE")]="CRE"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"ATL") |
+                                                startsWith(DF_ToType$type.to,"PAM09")]="Olfactory"
+  DF_ToType$SuperType_Custom[is.na(DF_ToType$SuperType_Custom)]="Unknown Type"
+  
+  DF_ToType$SuperType_Custom=factor(DF_ToType$SuperType_Custom, 
+            levels=rev(c("FB Tangential","FB Columnar","EB and BU","SNP","LAL","CRE","Olfactory","Unknown Type")))
+
+  
+  return(DF_ToType)
+  
+}
+
+
+```
+
+
+
+
 # Plot the downstream neurons
 ```{r}
 
+
 # Get pathways, grouped by type.from and type.to
-SW_Downstream_Filt=subset(SW_Downstream, !is.na(SW_Downstream$databaseType.to))
+SW_Downstream_Filt=SW_Downstream  #subset(SW_Downstream, !is.na(SW_Downstream$databaseType.to)) # to exclude single bodyIDs with no type
 SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% summarize(weightRelative_path=sum(weightRelative_path))
 SW_Downstream_Filt_Sum_All=subset(SW_Downstream_Filt_Sum, weightRelative_path>0.001)
 
 
 
-
-# Make plots 
+# Make unformatted plots to see all the types downstream of the sleep-wake types 
 P1=ggplot(SW_Downstream_Filt_Sum_All) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
   scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
@@ -452,84 +510,240 @@ P3=ggplot(subset(SW_Downstream_Filt_Sum_All, startsWith(type.to,"FB"))) +
          plot = P3, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
   
+# Group downstream neurons into custom supertypes 
+SW_Downstream_Filt_Sum_All=OutputTyping(SW_Downstream_Filt_Sum_All)
 
-# Group output types
-SW_Downstream_Filt_Sum_All$SuperType_Custom=NA
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"5-HT") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"SI") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"SL") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"SM") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"DGI") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"IB042") ]="SNP"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"EL") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"ER") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"Ex") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"TuB")|
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"AOT")]="EB"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"PF") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"hDelta") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"vDelta") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"FS") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"FR") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"FC")]="FB Columnar"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"FB")]="FB Tangential"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"LAL")]="LAL"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"CRE")]="CRE"
-SW_Downstream_Filt_Sum_All$SuperType_Custom[startsWith(SW_Downstream_Filt_Sum_All$type.to,"ATL") |
-                                       startsWith(SW_Downstream_Filt_Sum_All$type.to,"PAM09")]="Olfactory"
-
-SW_Downstream_Filt_Sum_All$type.to[is.na(SW_Downstream_Filt_Sum_All$SuperType_Custom)]
-
-
+  
+# Group downstream types by supertype and compute average pathway weight and the number of target types
 SW_Downstream_Filt_Sum_All_Bar=SW_Downstream_Filt_Sum_All %>% 
   group_by(type.from, SuperType_Custom) %>% 
   summarize(weightRelative_path=mean(weightRelative_path), n=n())
 
 
-SW_Downstream_Filt_Sum_All_Bar$SuperType_Custom=factor(SW_Downstream_Filt_Sum_All_Bar$SuperType_Custom, 
-            levels=rev(c("FB Tangential","FB Columnar","EB","SNP","LAL","CRE","Olfactory")))
+
+####################################################################################################
+##### Bar plots of downstream supertpe average pathway weight and the number of target types #######
+####################################################################################################
 
 
 # Set palette
 library(prismatic)
-Palette2=rev(color(c("dodgerblue2","dodgerblue4","violetred3","darkorange1","bisque3","gray50","black")))
+BarPalette=rev(color(c("dodgerblue2","dodgerblue4","violetred3","darkorange1","bisque3","gray50","thistle4","black")))
 
 
 # Make bar plot of downstream targets, plotting both mean pathway weight and the number of types targeted
 P4=ggplot(SW_Downstream_Filt_Sum_All_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
-  scale_fill_manual(values=Palette2) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-  ylab("Mean pathway relative weight ")
+  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  ylab("Mean pathway relative weight ") + ylim(0,0.1)
   ggsave(paste(PlotDir, "SW_Output_PathwayWeight_Bar.pdf",sep=""),
          plot = P4, device='pdf', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
 
 P5=ggplot(SW_Downstream_Filt_Sum_All_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
-  scale_fill_manual(values=Palette2) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-  ylab("# downstream types")
+  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  ylab("# downstream types") + ylim(0,250)
   ggsave(paste(PlotDir, "SW_Output_NumberOfTypes_Bar.pdf",sep=""),
          plot = P5, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
+
   
-  # remake matrix plots but with faceting
-  P2=ggplot(subset(SW_Downstream_Filt_Sum_All, !startsWith(type.to,"FB"))) +
-    geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
-    theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed()
-  ggsave(paste(PlotDir, "SW_Output_noFBt.png",sep=""),
-         plot = P2, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
-  
-  P3=ggplot(subset(SW_Downstream_Filt_Sum_All, startsWith(type.to,"FB"))) +
-    geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
-    theme_classic() + theme(axis.text.x = element_text(angle = 90)) + coord_fixed()
-  ggsave(paste(PlotDir, "SW_Output_FBt.png",sep=""),
-         plot = P3, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+####################################################################################################
+##### Matrix plots of downstream targets types #####################################################
+#################################################################################################### 
   
   
+# remake matrix plots but with faceting by region 
+PlotData=subset(SW_Downstream_Filt_Sum_All, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
+P6=ggplot(PlotData) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  facet_grid(cols=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+ggsave(paste(PlotDir, "SW_Output_noFBt_FIGURE.pdf",sep=""),
+        plot = P6, device='pdf', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
+
+# remake matrix plots but with faceting by region 
+PlotData=subset(SW_Downstream_Filt_Sum_All, startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+MaxInput= PlotData %>% group_by(type.to) %>% slice(which.max(weightRelative_path))
+MaxInput$Layer=substr(MaxInput$type.from, 3, 3) 
+MaxInput=MaxInput[c("type.to","Layer")]
+PlotData=merge(PlotData, MaxInput, by="type.to")
+PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
+
+P7=ggplot(PlotData) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+   facet_grid(cols=vars(Layer),space = "free",  scales = "free" ) + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+ggsave(paste(PlotDir, "SW_Output_FBt_FIGURE.pdf",sep=""),
+        plot = P7, device='pdf', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
 
 ```
 
+
+# Function for custom typing of inputs
+```{r}
+
+InputTyping <- function(DF_ToType){
+  
+  # Group output types
+  DF_ToType$SuperType_Custom=NA
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"5-HT") |
+                                                startsWith(DF_ToType$type.from,"SI") |
+                                                startsWith(DF_ToType$type.from,"SL") |
+                                                startsWith(DF_ToType$type.from,"SM") |
+                                                startsWith(DF_ToType$type.from,"DGI") |
+                                                startsWith(DF_ToType$type.from,"IB042") ]="SNP"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"EL") |
+                                                startsWith(DF_ToType$type.from,"ER") |
+                                                startsWith(DF_ToType$type.from,"Ex") |
+                                                startsWith(DF_ToType$type.from,"TuB")|
+                                                startsWith(DF_ToType$type.from,"AOT")|
+                                                startsWith(DF_ToType$type.from,"PEN")|
+                                                startsWith(DF_ToType$type.from,"EPG")|
+                                                startsWith(DF_ToType$type.from,"Delta7")]="EB + PB + BU"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"PF") |
+                                                startsWith(DF_ToType$type.from,"hDelta") |
+                                                startsWith(DF_ToType$type.from,"vDelta") |
+                                                startsWith(DF_ToType$type.from,"FS") |
+                                                startsWith(DF_ToType$type.from,"FR") |
+                                                startsWith(DF_ToType$type.from,"FC") |
+                                                startsWith(DF_ToType$type.from,"PFN")]="FB Columnar"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"FB") | startsWith(DF_ToType$type.from,"OA-VPM3")]="FB Tangential"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"CRE")]="CRE"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.from,"LCN")]="LAL"
+  DF_ToType$SuperType_Custom[is.na(DF_ToType$SuperType_Custom)]="Unknown Type"
+  
+  DF_ToType$SuperType_Custom=factor(DF_ToType$SuperType_Custom, 
+            levels=rev(c("FB Tangential","FB Columnar","EB + PB + BU","SNP","LAL","CRE","Unknown Type")))
+
+  
+  return(DF_ToType)
+  
+}
+
+```
+
+
+# Plot the upstream neurons neurons
+```{r}
+
+
+# Get pathways, grouped by type.from and type.to
+SW_Upstream_Filt=SW_Upstream  #subset(SW_Upstream, !is.na(SW_Upstream$databaseType.to)) # to exclude single bodyIDs with no type
+SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>% summarize(weightRelative_path=sum(weightRelative_path))
+SW_Upstream_Filt_Sum_All=subset(SW_Upstream_Filt_Sum, weightRelative_path>0.001)
+
+
+
+# Make unformatted plots to see all the types Upstream of the sleep-wake types 
+PlotData=subset(SW_Upstream_Filt_Sum_All, !supertype3.from=="Unassigned" & startsWith(type.from,"FB"))
+P1=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
+  ggsave(paste(PlotDir, "SW_Inputs_FBt.png",sep=""),
+         plot = P1, device='png', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+PlotData=subset(SW_Upstream_Filt_Sum_All, !supertype3.from=="Unassigned" & !startsWith(type.from,"FB"))
+P2=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
+  ggsave(paste(PlotDir, "SW_Inputs_NotFBt.png",sep=""),
+         plot = P2, device='png', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)  
+  
+  
+
+# Group Upstream neurons into custom supertypes 
+SW_Upstream_Filt_Sum_All=InputTyping(SW_Upstream_Filt_Sum_All)
+
+  
+# Group Upstream types by supertype and compute average pathway weight and the number of target types
+SW_Upstream_Filt_Sum_All_Bar=SW_Upstream_Filt_Sum_All %>% 
+  group_by(type.to, SuperType_Custom) %>% 
+  summarize(weightRelative_path=mean(weightRelative_path), n=n())
+
+
+
+####################################################################################################
+##### Bar plots of Upstream supertpe average pathway weight and the number of target types #######
+####################################################################################################
+
+sort(unique(SW_Upstream_Filt_Sum_All_Bar$SuperType_Custom))
+
+# Set palette
+library(prismatic)
+BarPalette=rev(color(c("dodgerblue2","dodgerblue4","violetred3","darkorange1","bisque3","gray50","black")))
+
+
+# Make bar plot of Upstream targets, plotting both mean pathway weight and the number of types targeted
+P4=ggplot(SW_Upstream_Filt_Sum_All_Bar, aes(type.to)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  ylab("Mean pathway relative weight ") + ylim(0,0.1)
+  ggsave(paste(PlotDir, "SW_Input_PathwayWeight_Bar.pdf",sep=""),
+         plot = P4, device='pdf', scale = 1, width =10, height =10, units ="in", dpi = 500, limitsize = TRUE)
+
+P5=ggplot(SW_Upstream_Filt_Sum_All_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  ylab("# Upstream types") + ylim(0,100)
+  ggsave(paste(PlotDir, "SW_Input_NumberOfTypes_Bar.pdf",sep=""),
+         plot = P5, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+
+  
+####################################################################################################
+##### Matrix plots of Upstream targets types #####################################################
+#################################################################################################### 
+  
+  
+# remake matrix plots but with faceting by region 
+PlotData=subset(SW_Upstream_Filt_Sum_All, !startsWith(type.from,"FB") & !startsWith(type.from,"OA") & !supertype3.from=="Unassigned")
+PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
+P6=ggplot(PlotData) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  facet_grid(rows=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+ggsave(paste(PlotDir, "SW_Input_noFBt_FIGURE.pdf",sep=""),
+        plot = P6, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+  
+
+
+# remake matrix plots but with faceting by region 
+PlotData=subset(SW_Upstream_Filt_Sum_All, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
+MaxInput= PlotData %>% group_by(type.from) %>% slice(which.max(weightRelative_path))
+MaxInput$Layer=substr(MaxInput$type.to, 3, 3) 
+MaxInput=MaxInput[c("type.from","Layer")]
+PlotData=merge(PlotData, MaxInput, by="type.from")
+PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
+
+P7=ggplot(PlotData) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  facet_grid(rows=vars(Layer),space = "free",  scales = "free" ) + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+ggsave(paste(PlotDir, "SW_Input_FBt_FIGURE.pdf",sep=""),
+        plot = P7, device='pdf', scale = 1, width =10, height = 14, units ="in", dpi = 500, limitsize = TRUE)
+  
+
+```
 
 
 
