@@ -69,12 +69,12 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   numTypes <- length(types)
   
   xyLookup = data.frame(type = types, x = c(rep(-1,times = numFrom), rep(0,times = numMidNodes), rep(1,times = numAllTargets)), 
-                        y = c(seq(-1,1,length.out = numFrom), seq(0,2,length.out = numMidNodes), seq(-1,1.5,length.out = numAllTargets)))
+                        y = c(seq(-0.5,0.5,length.out = numFrom), seq(-1,1,length.out = numMidNodes), seq(-0.9,0.9,length.out = numAllTargets)))
   
   drctIndrctComboPath <- graphConTabPolyChrome(drctIndrctComboTable,xyLookup,FALSE,TRUE) # graph the TypeToType ConnTable using the lookupTable
   drctIndrctComboPath <- drctIndrctComboPath + scale_y_reverse()
   print(drctIndrctComboPath)
-  ggsave(paste0(inputMod,filtCol,"drctIndrctComboPath.svg"), plot=drctIndrctComboPath, device="svg", path=PlotDir, scale=1, width=30, height=90, units="in", dpi=300, limitsize=FALSE)
+  ggsave(paste0(inputMod,filtCol,"drctIndrctComboPath.svg"), plot=drctIndrctComboPath, device="svg", path=PlotDir, scale=1, width=8, height=10, units="in", dpi=300, limitsize=FALSE)
   
   return(list(inputModTabFiltered,directConnTabFiltered,indirectConnTab1Filtered,indirectConnTab2Filtered,drctIndrctComboTable,directConnTabFiltered_CosDist,indirectConnTab1Filtered_CosDist,indirectConnTab2Filtered_CosDist))
 }
