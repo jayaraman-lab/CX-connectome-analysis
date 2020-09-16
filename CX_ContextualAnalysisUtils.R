@@ -40,6 +40,18 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   indirectConnTab1Filtered <- indirectConnTab1 %>% filter(databaseType.from %in% inputModTabFiltered[[filtCol]]) # filter indirectConnTab1 based on filtered inputModTab
   indirectConnTab2Filtered <- indirectConnTab2 %>% filter(type.from %in% indirectConnTab1Filtered$type.to) # filter indirectConnTab2 based on filtered indirectConnTab1
   
+  # Cluster by cosine distance and plot
+  directConnTabFiltered_CosDist <- list()
+  if (nrow(directConnTabFiltered)>1){
+    directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
+    directConnTabFiltered <- directConnTabFiltered_CosDist[[3]]
+  }
+  
+  indirectConnTab1Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab1Filtered,paste0(inputMod,filtCol,"indirectConnTab1_Type2Type"))
+  indirectConnTab1Filtered <- indirectConnTab1Filtered_CosDist[[3]]
+  indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
+  indirectConnTab2Filtered <- indirectConnTab2Filtered_CosDist[[3]]
+  
   # Combine the filtered direct and indirect tables
   directConns <- directConnTabFiltered %>% select(type.from,type.to,weightRelative)
   indirectConns1 <- indirectConnTab1Filtered %>% select(type.from,type.to,weightRelative)
@@ -64,16 +76,39 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   print(drctIndrctComboPath)
   ggsave(paste0(inputMod,filtCol,"drctIndrctComboPath.svg"), plot=drctIndrctComboPath, device="svg", path=PlotDir, scale=1, width=30, height=90, units="in", dpi=300, limitsize=FALSE)
   
-  # Cluster by cosine distance and plot
-  directConnTabFiltered_CosDist <- list()
-  if (nrow(directConnTabFiltered)>1){
-    directConnTabFiltered_CosDist <- cosDistClusterPlot(PlotDir,directConnTabFiltered,paste0(inputMod,filtCol,"directConnTab_Type2Type"))
-  }
-  
-  indirectConnTab1Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab1Filtered,paste0(inputMod,filtCol,"indirectConnTab1_Type2Type"))
-  indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
-  
   return(list(inputModTabFiltered,directConnTabFiltered,indirectConnTab1Filtered,indirectConnTab2Filtered,drctIndrctComboTable,directConnTabFiltered_CosDist,indirectConnTab1Filtered_CosDist,indirectConnTab2Filtered_CosDist))
+}
+
+checkClusterRemixing <- function(PlotDir,indirectConnTab1_CosDist,indirectConnTab1_CosDis2,indirectConnTab1Name,indirectConnTab2Name){
+  
+  
+  indirectConnTab2 <- indirectConnTab2_CosDist[[3]]
+  
+}
+
+checkClusterRemixingByLeg <- function(PlotDir,indirectConnTab1_CosDist,indirectConnTab2,indirectConnTab2Name){
+  # Add a cluster.toFrom column in indirectConnTab2 for clustering based on inputs to the type.from types
+  indirectConnTab1_CosDistClusterByOut <- indirectConnTab1_CosDist[[2]]
+  indirectConnTab1_CosDistClusterByOutVec <- indirectConnTab1_CosDistClusterByOut[[4]]
+  indirectConnTab2 <- mutate(indirectConnTab2, cluster.toFrom = indirectConnTab1_CosDistClusterByOutVec[as.vector(indirectConnTab2$type.from)])
+  
+  # Re-plot the connectivity matrix based on cluster.toFrom for rows and cluster.to for columns
+  plotIndirectConnTab2 <- plotConnectivityMatrix(indirectConnTab2,byGroup="type",connectionMeasure="weightRelative")
+  
+  plotIndirectConnTab2 <- plotIndirectConnTab2 + facet_grid(rows=vars(cluster.toFrom),cols=vars(cluster.to),scale="free",space="free") + 
+    theme(strip.placement = "outside", #strip.background = element_rect(fill=NA, colour="grey50"),
+          #strip.text.y.left = element_text(angle = 0),
+          #strip.text.x.bottom = element_text(angle = 90),
+          strip.background = element_blank(), #remove background for facet labels
+          panel.border = element_rect(colour = "grey", fill = NA, size=0.3), #add grey border
+          panel.spacing = unit(0.05, "lines")) #space between facets
+  
+  print(plotIndirectConnTab2)
+  ggsave(paste0(indirectConnTab2Name,"_cosDistClustConnMat_rowsByClustToFrom.eps"), plot=plotIndirectConnTab2, device="eps", path=PlotDir, scale=1, 
+         width=24, height=16, units="in", dpi=300, limitsize=FALSE)
+  
+  
+  
 }
 
 # From DanTE: Get edges and nodes and plot graph from a given connection matrix
@@ -254,7 +289,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 
   # Plot the factorized Type2TypeConnTab_hc based on the connectionMeasure of "weightRelative" and grouped by the factors
   Type2TypeConnTab_hc <- Type2TypeConnTab_cosDistClusterByOut[[1]]
-  Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(cluster.from,type.from,cluster.to,type.to) # re-arrange the rows of Type2TypeConnTab_hc
+  Type2TypeConnTab_hc <- Type2TypeConnTab_hc %>% arrange(cluster.from,cluster.to,type.from,type.to) # re-arrange the rows of Type2TypeConnTab_hc
   plotType2TypeConnTab_hc <- plotConnectivityMatrix(Type2TypeConnTab_hc,byGroup="type",connectionMeasure="weightRelative")
 
   # plotType2TypeConnTab_hc <- plotType2TypeConnTab_hc + scale_x_discrete(breaks=levels(Type2TypeConnTab_hc$type.to)) + scale_y_discrete(breaks=levels(Type2TypeConnTab_hc$type.from))
@@ -285,7 +320,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 }
 
 cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,InpOrOutp){
-  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(Type2TypeConnTab$roi),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
+  Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,unique(as.vector(Type2TypeConnTab$roi)),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
   
   # Segment the clusters at cut = 0.8
@@ -311,6 +346,7 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
   ggsave(paste0(Type2TypeConnTabName,"_cosDistClusterBy",clusterBy,".eps"), plot=Type2TypeConnMatBySide_CosDistPlot, device="eps", path=PlotDir, scale=1, 
          width=24, height=24, units="in", dpi=300, limitsize=FALSE)
   
+  Type2TypeConnTab_hc[,clusterBy] <- as.vector(Type2TypeConnTab_hc[[clusterBy]])
   return(list(Type2TypeConnTab_hc,Type2TypeConnMatBySide_CosDist,hcl,clu.h,typeClusters,Type2TypeConnMatBySide_CosDistClustColor))
 }
 
