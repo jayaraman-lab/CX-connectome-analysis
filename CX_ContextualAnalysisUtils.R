@@ -350,7 +350,7 @@ cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabNa
          width=24, height=24, units="in", dpi=300, limitsize=FALSE)
   
   Type2TypeConnTab_hc[,clusterBy] <- as.vector(Type2TypeConnTab_hc[[clusterBy]])
-  Type2TypeConnTab_hc[,clusterCol] <- as.vector(Type2TypeConnTab_hc[[clusterCol]])
+  # Type2TypeConnTab_hc[,clusterCol] <- as.vector(Type2TypeConnTab_hc[[clusterCol]])
   return(list(Type2TypeConnTab_hc,Type2TypeConnMatBySide_CosDist,hcl,clu.h,typeClusters,Type2TypeConnMatBySide_CosDistClustColor))
 }
 
