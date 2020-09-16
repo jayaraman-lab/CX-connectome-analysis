@@ -52,6 +52,15 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   indirectConnTab2Filtered_CosDist <- cosDistClusterPlot(PlotDir,indirectConnTab2Filtered,paste0(inputMod,filtCol,"indirectConnTab2_Type2Type"))
   indirectConnTab2Filtered <- indirectConnTab2Filtered_CosDist[[3]]
   
+  # Rearrange indirectConnTab1Filtered based on cluster.to
+  indirectConnTab1Filtered <- arrange(indirectConnTab1Filtered,cluster.to,cluster.from,type.to,type.from)
+  
+  # Rearrange indirectConnTab2Filtered based on cluster.to of indirectConnTab1Filtered
+  indirectConnTab1Filtered_CosDistClusterByOut <- indirectConnTab1Filtered_CosDist[[2]]
+  indirectConnTab1Filtered_CosDistClusterByOutVec <- indirectConnTab1Filtered_CosDistClusterByOut[[4]]
+  indirectConnTab2Filtered <- mutate(indirectConnTab2Filtered, cluster.toFrom = indirectConnTab1Filtered_CosDistClusterByOutVec[as.vector(indirectConnTab2Filtered$type.from)])
+  indirectConnTab2Filtered <- arrange(indirectConnTab2Filtered,cluster.toFrom,cluster.to,cluster.from,type.from,type.to)
+  
   # Combine the filtered direct and indirect tables
   directConns <- directConnTabFiltered %>% select(type.from,type.to,weightRelative)
   indirectConns1 <- indirectConnTab1Filtered %>% select(type.from,type.to,weightRelative)
@@ -61,7 +70,7 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   # Re-plot pathways
   fromTypes <- unique(c(unique(as.vector(directConns$type.from)),unique(as.vector(indirectConns1$type.from))))
   numFrom <- length(fromTypes)
-  midNodes <- unique(as.vector(indirectConns1$type.to))
+  midNodes <- unique(as.vector(indirectConns2$type.from))
   numMidNodes <- length(midNodes)
   allTargets <- unique(c(unique(as.vector(directConns$type.to)),unique(as.vector(indirectConns2$type.to))))
   numAllTargets <- length(allTargets)
