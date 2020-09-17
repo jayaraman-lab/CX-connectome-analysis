@@ -62,7 +62,6 @@ neuprint_login()
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
-#source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
 source("../R/connectivityMatricesTools.R")
 
@@ -476,46 +475,70 @@ OutputTyping <- function(DF_ToType){
 
 
 
+# Get which layer each Sleep-wake neuron projects most strongly to, for keeping plot axes the same across steps
+```{r}
+
+SW_Downstream_Layer=subset(SW_Downstream, weightRelative_path>0.001)
+SW_Downstream_Layer_Sum=SW_Downstream_Layer %>% group_by(type.from, type.to, supertype3.to) %>%
+  summarize(weightRelative_path=sum(weightRelative_path))
+
+SW_Downstream_Layer_Sum=subset(SW_Downstream_Layer_Sum, (startsWith(type.to,"FB") |  startsWith(type.to,"OA-")) & 
+                                 !supertype3.to=="Unassigned")
+MaxInputDownstream= SW_Downstream_Layer_Sum %>% group_by(type.to) %>% slice(which.max(weightRelative_path))
+MaxInputDownstream$Layer=substr(MaxInputDownstream$type.from, 3, 3) 
+MaxInputDownstream=MaxInputDownstream[c("type.to","Layer")]
+remove(SW_Downstream_Layer, SW_Downstream_Layer_Sum)
+
+```
+
+
 
 # Plot the downstream neurons
 ```{r}
 
 
+# Chose number of steps to consider
+Step=3
+
+
 # Get pathways, grouped by type.from and type.to
-SW_Downstream_Filt=SW_Downstream  #subset(SW_Downstream, !is.na(SW_Downstream$databaseType.to)) # to exclude single bodyIDs with no type
-SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% summarize(weightRelative_path=sum(weightRelative_path))
-SW_Downstream_Filt_Sum_All=subset(SW_Downstream_Filt_Sum, weightRelative_path>0.001)
+SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path>0.001)
+SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=NA
+SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% 
+  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE))
+SW_Downstream_Filt_Sum$weightRelative_path[SW_Downstream_Filt_Sum$weightRelative_path==0]=NA
 
 
 
 # Make unformatted plots to see all the types downstream of the sleep-wake types 
-P1=ggplot(SW_Downstream_Filt_Sum_All) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+P1=ggplot(SW_Downstream_Filt_Sum) +  
+  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
-  ggsave(paste(PlotDir, "SW_OutputAll.png",sep=""),
+  ggsave(paste(PlotDir, "SW_OutputAll","_Step",as.character(Step),".png",sep=""),
          plot = P1, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
-P2=ggplot(subset(SW_Downstream_Filt_Sum_All, !startsWith(type.to,"FB"))) +
+P2=ggplot(subset(SW_Downstream_Filt_Sum, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed()
-  ggsave(paste(PlotDir, "SW_Output_noFBt.png",sep=""),
+  ggsave(paste(PlotDir, "SW_Output_noFBt","_Step",as.character(Step),".png",sep=""),
          plot = P2, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
-P3=ggplot(subset(SW_Downstream_Filt_Sum_All, startsWith(type.to,"FB"))) +
+P3=ggplot(subset(SW_Downstream_Filt_Sum, startsWith(type.to,"FB"))) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) + coord_fixed()
-  ggsave(paste(PlotDir, "SW_Output_FBt.png",sep=""),
+  ggsave(paste(PlotDir, "SW_Output_FBt","_Step",as.character(Step),".png",sep=""),
          plot = P3, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
   
 # Group downstream neurons into custom supertypes 
-SW_Downstream_Filt_Sum_All=OutputTyping(SW_Downstream_Filt_Sum_All)
+SW_Downstream_Filt_Sum=OutputTyping(SW_Downstream_Filt_Sum)
 
   
 # Group downstream types by supertype and compute average pathway weight and the number of target types
-SW_Downstream_Filt_Sum_All_Bar=SW_Downstream_Filt_Sum_All %>% 
+SW_Downstream_Filt_Sum_Bar=subset(SW_Downstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
   group_by(type.from, SuperType_Custom) %>% 
   summarize(weightRelative_path=mean(weightRelative_path), n=n())
 
@@ -528,20 +551,20 @@ SW_Downstream_Filt_Sum_All_Bar=SW_Downstream_Filt_Sum_All %>%
 
 # Set palette
 library(prismatic)
-BarPalette=rev(color(c("dodgerblue2","dodgerblue4","violetred3","darkorange1","bisque3","gray50","thistle4","black")))
+BarPalette=rev(color(c("mediumpurple4","mediumpurple1","forestgreen","darkorange1","bisque3","gray50","thistle4","black")))
 
 
 # Make bar plot of downstream targets, plotting both mean pathway weight and the number of types targeted
-P4=ggplot(SW_Downstream_Filt_Sum_All_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
-  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+P4=ggplot(SW_Downstream_Filt_Sum_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("Mean pathway relative weight ") + ylim(0,0.1)
-  ggsave(paste(PlotDir, "SW_Output_PathwayWeight_Bar.pdf",sep=""),
+  ggsave(paste(PlotDir, "SW_Output_PathwayWeight_Bar","_Step",as.character(Step),".pdf",sep=""),
          plot = P4, device='pdf', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
 
-P5=ggplot(SW_Downstream_Filt_Sum_All_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
-  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+P5=ggplot(SW_Downstream_Filt_Sum_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("# downstream types") + ylim(0,250)
-  ggsave(paste(PlotDir, "SW_Output_NumberOfTypes_Bar.pdf",sep=""),
+  ggsave(paste(PlotDir, "SW_Output_NumberOfTypes_Bar","_Step",as.character(Step),".pdf",sep=""),
          plot = P5, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
 
@@ -552,39 +575,36 @@ P5=ggplot(SW_Downstream_Filt_Sum_All_Bar, aes(type.from)) +   geom_bar( aes(weig
   
   
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Downstream_Filt_Sum_All, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+PlotData=subset(SW_Downstream_Filt_Sum, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
 PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
 P6=ggplot(PlotData) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
   facet_grid(cols=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
-ggsave(paste(PlotDir, "SW_Output_noFBt_FIGURE.pdf",sep=""),
+ggsave(paste(PlotDir, "SW_Output_noFBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
         plot = P6, device='pdf', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
 
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Downstream_Filt_Sum_All, startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
-MaxInput= PlotData %>% group_by(type.to) %>% slice(which.max(weightRelative_path))
-MaxInput$Layer=substr(MaxInput$type.from, 3, 3) 
-MaxInput=MaxInput[c("type.to","Layer")]
-PlotData=merge(PlotData, MaxInput, by="type.to")
+PlotData=subset(SW_Downstream_Filt_Sum, startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+PlotData=merge(PlotData, MaxInputDownstream, by="type.to")
 PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
 
 P7=ggplot(PlotData) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
    facet_grid(cols=vars(Layer),space = "free",  scales = "free" ) + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
-ggsave(paste(PlotDir, "SW_Output_FBt_FIGURE.pdf",sep=""),
+ggsave(paste(PlotDir, "SW_Output_FBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
         plot = P7, device='pdf', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   
 
@@ -635,40 +655,60 @@ InputTyping <- function(DF_ToType){
 ```
 
 
+# Get which layer each upstream neuron projects most strongly to, for keeping plot axes the same across steps
+```{r}
+
+SW_Upstream_Layer=subset(SW_Upstream, weightRelative_path>0.001)
+SW_Upstream_Layer_Sum=SW_Upstream_Layer %>% group_by(type.from, type.to, supertype3.from) %>%
+  summarize(weightRelative_path=sum(weightRelative_path))
+SW_Upstream_Layer_Sum=subset(SW_Upstream_Layer_Sum, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
+MaxInput= SW_Upstream_Layer_Sum %>% group_by(type.from) %>% slice(which.max(weightRelative_path))
+MaxInput$Layer=substr(MaxInput$type.to, 3, 3) 
+MaxInput=MaxInput[c("type.from","Layer")]
+remove(SW_Upstream_Layer,SW_Upstream_Layer_Sum)
+
+```
+
+
+
 # Plot the upstream neurons neurons
 ```{r}
 
+# Chose number of steps to consider
+Step=3
+
 
 # Get pathways, grouped by type.from and type.to
-SW_Upstream_Filt=SW_Upstream  #subset(SW_Upstream, !is.na(SW_Upstream$databaseType.to)) # to exclude single bodyIDs with no type
-SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>% summarize(weightRelative_path=sum(weightRelative_path))
-SW_Upstream_Filt_Sum_All=subset(SW_Upstream_Filt_Sum, weightRelative_path>0.001)
-
+SW_Upstream_Filt=subset(SW_Upstream, weightRelative_path>0.001)
+SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=NA
+SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>%
+  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE))
+SW_Upstream_Filt_Sum$weightRelative_path[SW_Upstream_Filt_Sum$weightRelative_path==0]=NA
 
 
 # Make unformatted plots to see all the types Upstream of the sleep-wake types 
-PlotData=subset(SW_Upstream_Filt_Sum_All, !supertype3.from=="Unassigned" & startsWith(type.from,"FB"))
+PlotData=subset(SW_Upstream_Filt_Sum, !supertype3.from=="Unassigned" & startsWith(as.character(type.from),"FB") | startsWith(type.from,"OA"))
 P1=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
-  ggsave(paste(PlotDir, "SW_Inputs_FBt.png",sep=""),
+  ggsave(paste(PlotDir, "SW_Inputs_FBt","_Step",as.character(Step),".png",sep=""),
          plot = P1, device='png', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
 
-PlotData=subset(SW_Upstream_Filt_Sum_All, !supertype3.from=="Unassigned" & !startsWith(type.from,"FB"))
+  
+PlotData=subset(SW_Upstream_Filt_Sum, !supertype3.from=="Unassigned" & !(startsWith(as.character(type.from),"FB") | startsWith(type.from,"OA")) ) 
 P2=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
-  ggsave(paste(PlotDir, "SW_Inputs_NotFBt.png",sep=""),
+  ggsave(paste(PlotDir, "SW_Inputs_NotFBt","_Step",as.character(Step),".png",sep=""),
          plot = P2, device='png', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)  
   
   
-
 # Group Upstream neurons into custom supertypes 
-SW_Upstream_Filt_Sum_All=InputTyping(SW_Upstream_Filt_Sum_All)
+SW_Upstream_Filt_Sum=InputTyping(SW_Upstream_Filt_Sum)
 
   
 # Group Upstream types by supertype and compute average pathway weight and the number of target types
-SW_Upstream_Filt_Sum_All_Bar=SW_Upstream_Filt_Sum_All %>% 
+SW_Upstream_Filt_Sum_Bar=subset(SW_Upstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
   group_by(type.to, SuperType_Custom) %>% 
   summarize(weightRelative_path=mean(weightRelative_path), n=n())
 
@@ -678,24 +718,25 @@ SW_Upstream_Filt_Sum_All_Bar=SW_Upstream_Filt_Sum_All %>%
 ##### Bar plots of Upstream supertpe average pathway weight and the number of target types #######
 ####################################################################################################
 
-sort(unique(SW_Upstream_Filt_Sum_All_Bar$SuperType_Custom))
+
+sort(unique(SW_Upstream_Filt_Sum_Bar$SuperType_Custom))
 
 # Set palette
 library(prismatic)
-BarPalette=rev(color(c("dodgerblue2","dodgerblue4","violetred3","darkorange1","bisque3","gray50","black")))
+BarPalette=rev(color(c("mediumpurple4","mediumpurple1","forestgreen","darkorange1","bisque3","gray50","black")))
 
 
 # Make bar plot of Upstream targets, plotting both mean pathway weight and the number of types targeted
-P4=ggplot(SW_Upstream_Filt_Sum_All_Bar, aes(type.to)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
-  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+P4=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("Mean pathway relative weight ") + ylim(0,0.1)
-  ggsave(paste(PlotDir, "SW_Input_PathwayWeight_Bar.pdf",sep=""),
+  ggsave(paste(PlotDir, "SW_Input_PathwayWeight_Bar","_Step",as.character(Step),".pdf",sep=""),
          plot = P4, device='pdf', scale = 1, width =10, height =10, units ="in", dpi = 500, limitsize = TRUE)
 
-P5=ggplot(SW_Upstream_Filt_Sum_All_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
-  scale_fill_manual(values=BarPalette) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+P5=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
+  scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("# Upstream types") + ylim(0,100)
-  ggsave(paste(PlotDir, "SW_Input_NumberOfTypes_Bar.pdf",sep=""),
+  ggsave(paste(PlotDir, "SW_Input_NumberOfTypes_Bar","_Step",as.character(Step),".pdf",sep=""),
          plot = P5, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
 
 
@@ -706,40 +747,37 @@ P5=ggplot(SW_Upstream_Filt_Sum_All_Bar, aes(type.to)) +   geom_bar( aes(weight=n
   
   
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Upstream_Filt_Sum_All, !startsWith(type.from,"FB") & !startsWith(type.from,"OA") & !supertype3.from=="Unassigned")
+PlotData=subset(SW_Upstream_Filt_Sum, !startsWith(type.from,"FB") & !startsWith(type.from,"OA") & !supertype3.from=="Unassigned")
 PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
 P6=ggplot(PlotData) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
   facet_grid(rows=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
-ggsave(paste(PlotDir, "SW_Input_noFBt_FIGURE.pdf",sep=""),
+ggsave(paste(PlotDir, "SW_Input_noFBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
         plot = P6, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
   
 
 
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Upstream_Filt_Sum_All, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
-MaxInput= PlotData %>% group_by(type.from) %>% slice(which.max(weightRelative_path))
-MaxInput$Layer=substr(MaxInput$type.to, 3, 3) 
-MaxInput=MaxInput[c("type.from","Layer")]
+PlotData=subset(SW_Upstream_Filt_Sum, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
 PlotData=merge(PlotData, MaxInput, by="type.from")
 PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
 
 P7=ggplot(PlotData) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
   facet_grid(rows=vars(Layer),space = "free",  scales = "free" ) + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
-ggsave(paste(PlotDir, "SW_Input_FBt_FIGURE.pdf",sep=""),
+ggsave(paste(PlotDir, "SW_Input_FBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
         plot = P7, device='pdf', scale = 1, width =10, height = 14, units ="in", dpi = 500, limitsize = TRUE)
   
 
