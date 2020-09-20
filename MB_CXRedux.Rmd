@@ -325,6 +325,10 @@ ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, devi
 
 ### Plot the strong direct pathways from MBONs to CX
 ```{r}
+# Make and plot cosine distance matrix
+StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
+StrongMBONTargetInpC <- StrongMBON2CXTargetR_Type2Type_CosDist[[3]]
+
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
 numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
@@ -340,9 +344,6 @@ gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-
-# Make and plot cosine distance matrix
-StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
 
 # Use the neuprintrExtra functions. Still confusing???
 # StrongMBON2CXR_Type2Type_cosClustByFrom <- connectivityCluster(inputsTable=StrongMBONTargetInpC,grouping="type") # cluster by type.from
