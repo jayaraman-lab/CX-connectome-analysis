@@ -475,13 +475,12 @@ OutputTyping <- function(DF_ToType){
 
 
 
-# Get which layer each Sleep-wake neuron projects most strongly to, for keeping plot axes the same across steps
+# Get which FB layer each Sleep-wake neuron projects most strongly to, for keeping plot with FBt axes across steps
 ```{r}
 
 SW_Downstream_Layer=subset(SW_Downstream, weightRelative_path>0.001)
 SW_Downstream_Layer_Sum=SW_Downstream_Layer %>% group_by(type.from, type.to, supertype3.to) %>%
   summarize(weightRelative_path=sum(weightRelative_path))
-
 SW_Downstream_Layer_Sum=subset(SW_Downstream_Layer_Sum, (startsWith(type.to,"FB") |  startsWith(type.to,"OA-")) & 
                                  !supertype3.to=="Unassigned")
 MaxInputDownstream= SW_Downstream_Layer_Sum %>% group_by(type.to) %>% slice(which.max(weightRelative_path))
@@ -496,17 +495,24 @@ remove(SW_Downstream_Layer, SW_Downstream_Layer_Sum)
 # Plot the downstream neurons
 ```{r}
 
+# First show that steps 2 and 3 are the same (i.e. no new known types are reached; though this depends on the threshold)
+SW_KnownDownstream=subset(SW_Downstream, !supertype3.to == "Unassigned" & weightRelative_path>0.001)
+Downstream_Step1_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==1])
+Downstream_Step2_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==2])
+Downstream_Step3_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==3])
+Downstream_Step3_Types %in% Downstream_Step2_Types # All neurons reach by step3 were already in step2
+
 
 # Chose number of steps to consider
 Step=3
 
 
 # Get pathways, grouped by type.from and type.to
-SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path>0.001)
-SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=NA
+SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path>0.001) # threshold out weak paths
+SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=NA # Set pathways greater than Step length to NA
 SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% 
-  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE))
-SW_Downstream_Filt_Sum$weightRelative_path[SW_Downstream_Filt_Sum$weightRelative_path==0]=NA
+  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) # Nan-Sum over all pathways
+SW_Downstream_Filt_Sum$weightRelative_path[SW_Downstream_Filt_Sum$weightRelative_path==0]=NA # set nan pathways that turned to 0 to nan again
 
 
 
@@ -518,14 +524,14 @@ P1=ggplot(SW_Downstream_Filt_Sum) +
   ggsave(paste(PlotDir, "SW_OutputAll","_Step",as.character(Step),".png",sep=""),
          plot = P1, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
-P2=ggplot(subset(SW_Downstream_Filt_Sum, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")) +
+P2=ggplot(subset(SW_Downstream_Filt_Sum, !(startsWith(type.to,"FB") |  startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
   scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed()
   ggsave(paste(PlotDir, "SW_Output_noFBt","_Step",as.character(Step),".png",sep=""),
          plot = P2, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
-P3=ggplot(subset(SW_Downstream_Filt_Sum, startsWith(type.to,"FB"))) +
+P3=ggplot(subset(SW_Downstream_Filt_Sum, (startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
   scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) + coord_fixed()
@@ -533,15 +539,15 @@ P3=ggplot(subset(SW_Downstream_Filt_Sum, startsWith(type.to,"FB"))) +
          plot = P3, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
   
-# Group downstream neurons into custom supertypes 
+# Group downstream neurons into custom supertypes, and see which custom types are included in the unknown category to make sure none were missed
 SW_Downstream_Filt_Sum=OutputTyping(SW_Downstream_Filt_Sum)
-
+print(unique(SW_Downstream_Filt_Sum$type.to[SW_Downstream_Filt_Sum$SuperType_Custom == "Unknown Type"]))
   
+
 # Group downstream types by supertype and compute average pathway weight and the number of target types
 SW_Downstream_Filt_Sum_Bar=subset(SW_Downstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
   group_by(type.from, SuperType_Custom) %>% 
   summarize(weightRelative_path=mean(weightRelative_path), n=n())
-
 
 
 ####################################################################################################
@@ -575,7 +581,7 @@ P5=ggplot(SW_Downstream_Filt_Sum_Bar, aes(type.from)) +   geom_bar( aes(weight=n
   
   
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Downstream_Filt_Sum, !startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+PlotData=subset(SW_Downstream_Filt_Sum, !(startsWith(type.to,"FB") |startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
 PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
 P6=ggplot(PlotData) +
   geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
@@ -591,7 +597,7 @@ ggsave(paste(PlotDir, "SW_Output_noFBt_FIGURE","_Step",as.character(Step),".pdf"
   
 
 # remake matrix plots but with faceting by region 
-PlotData=subset(SW_Downstream_Filt_Sum, startsWith(type.to,"FB") & !supertype3.to=="Unassigned")
+PlotData=subset(SW_Downstream_Filt_Sum, (startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
 PlotData=merge(PlotData, MaxInputDownstream, by="type.to")
 PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
 
@@ -609,6 +615,7 @@ ggsave(paste(PlotDir, "SW_Output_FBt_FIGURE","_Step",as.character(Step),".pdf",s
   
 
 ```
+
 
 
 # Function for custom typing of inputs
@@ -674,20 +681,27 @@ remove(SW_Upstream_Layer,SW_Upstream_Layer_Sum)
 # Plot the upstream neurons neurons
 ```{r}
 
+# Analysis to show that SW neurons receive almost all their input from known types
+SW_KnownUpstream=subset(SW_Upstream,  weightRelative_path>0.001)
+AllUpstream=unique(SW_KnownUpstream$type.from) # list of all upstream types
+print(AllUpstream)
+sum(AllUpstream %in% unique(SW_KnownUpstream$type.from[SW_KnownUpstream$supertype3.from=="Unassigned"]))/length(AllUpstream) # only 5% of upstream unknown
+
+
 # Chose number of steps to consider
 Step=3
 
 
 # Get pathways, grouped by type.from and type.to
-SW_Upstream_Filt=subset(SW_Upstream, weightRelative_path>0.001)
-SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=NA
+SW_Upstream_Filt=subset(SW_Upstream, weightRelative_path>0.001) # threshold out weak paths
+SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=NA # Set pathways greater than Step length to NA
 SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>%
-  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE))
-SW_Upstream_Filt_Sum$weightRelative_path[SW_Upstream_Filt_Sum$weightRelative_path==0]=NA
+  summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) # Nan-Sum over all pathways
+SW_Upstream_Filt_Sum$weightRelative_path[SW_Upstream_Filt_Sum$weightRelative_path==0]=NA # set nan pathways that turned to 0 to nan again
 
 
 # Make unformatted plots to see all the types Upstream of the sleep-wake types 
-PlotData=subset(SW_Upstream_Filt_Sum, !supertype3.from=="Unassigned" & startsWith(as.character(type.from),"FB") | startsWith(type.from,"OA"))
+PlotData=subset(SW_Upstream_Filt_Sum, !supertype3.from=="Unassigned" & (startsWith(as.character(type.from),"FB") | startsWith(type.from,"OA")) )
 P1=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
   scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + coord_fixed() 
@@ -705,13 +719,13 @@ P2=ggplot(PlotData) +  geom_tile(aes(type.to,type.from,fill=weightRelative_path)
   
 # Group Upstream neurons into custom supertypes 
 SW_Upstream_Filt_Sum=InputTyping(SW_Upstream_Filt_Sum)
-
+print(unique(SW_Upstream_Filt_Sum$type.from[SW_Upstream_Filt_Sum$SuperType_Custom == "Unknown Type"]))
   
+
 # Group Upstream types by supertype and compute average pathway weight and the number of target types
 SW_Upstream_Filt_Sum_Bar=subset(SW_Upstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
   group_by(type.to, SuperType_Custom) %>% 
   summarize(weightRelative_path=mean(weightRelative_path), n=n())
-
 
 
 ####################################################################################################
@@ -731,13 +745,13 @@ P4=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=weigh
   scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("Mean pathway relative weight ") + ylim(0,0.1)
   ggsave(paste(PlotDir, "SW_Input_PathwayWeight_Bar","_Step",as.character(Step),".pdf",sep=""),
-         plot = P4, device='pdf', scale = 1, width =10, height =10, units ="in", dpi = 500, limitsize = TRUE)
+         plot = P4, device='pdf', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
 
 P5=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
   scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
   ylab("# Upstream types") + ylim(0,100)
   ggsave(paste(PlotDir, "SW_Input_NumberOfTypes_Bar","_Step",as.character(Step),".pdf",sep=""),
-         plot = P5, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+         plot = P5, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
 
   
@@ -759,7 +773,7 @@ P6=ggplot(PlotData) +
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
 ggsave(paste(PlotDir, "SW_Input_noFBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
-        plot = P6, device='pdf', scale = 1, width =10, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+        plot = P6, device='pdf', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   
 
 
@@ -778,12 +792,287 @@ P7=ggplot(PlotData) +
         panel.spacing = unit(0, "lines"),#remove space between facets
         aspect.ratio = 1) 
 ggsave(paste(PlotDir, "SW_Input_FBt_FIGURE","_Step",as.character(Step),".pdf",sep=""),
-        plot = P7, device='pdf', scale = 1, width =10, height = 14, units ="in", dpi = 500, limitsize = TRUE)
+        plot = P7, device='pdf', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   
 
 ```
 
 
+
+# ####################################################################################################################
+# ######### Make graph of core sleep circuit #########################################################################
+# ####################################################################################################################
+
+
+
+# Make graph of core sleep network
+```{r}
+
+
+# Define core sleep pathway types connecting EB to FB
+SleepWakeTypes_EbFb=c("FB6A","PFGs","hDeltaK","hDeltaF","ExR3","ExR1","ER5",
+                      "PEN_b(PEN2)","ER3d_a","ER3d_b","ER3d_c","ER3d_d","FB8B",
+                      "hDeltaD","FB7A","FB7B","FB7K")
+SleepWakeTypes_EbFb_Table=getTypesTable(SleepWakeTypes_EbFb)
+
+
+# Get connection table just between these types
+SW_EbFb_Bag=neuronBag(SleepWakeTypes_EbFb_Table, by.roi=TRUE)
+SW_EbFb_N2N=SW_EbFb_Bag$inputs_raw
+SW_EbFb_N2N_Sub=subset(SW_EbFb_N2N, type.to %in% SleepWakeTypes_EbFb & type.from %in% SleepWakeTypes_EbFb)
+SW_EbFb_N2N_Sub=subset(SW_EbFb_N2N_Sub, weightRelative > 0.01)
+
+
+# Compute neuron-to-neuron connectivity
+SW_EbFb_T2T=SW_EbFb_Bag$inputs
+SW_EbFb_T2T_Sub=subset(SW_EbFb_T2T, type.to %in% SleepWakeTypes_EbFb & type.from %in% SleepWakeTypes_EbFb)
+SW_EbFb_T2T_Sub=subset(SW_EbFb_T2T_Sub, weightRelative>0.01)
+
+
+# Plot EB connectivity matrix
+P1=ggplot(subset(SW_EbFb_T2T_Sub, roi=="EB")) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                        midpoint=0.2,limits=c(0,0.4),oob=squish,breaks = c(0,0.2,0.4)) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+
+
+# Plot EB connectivity matrix
+P2=ggplot(subset(SW_EbFb_T2T_Sub, roi=="FB")) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                        midpoint=0.2,limits=c(0,0.4),oob=squish,breaks = c(0,0.2,0.4)) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) 
+
+P3=ggarrange(P1,P2,ncol=1,nrow=2)
+
+ggsave(paste(PlotDir, "EbFb_Matrix.png",sep=""),
+        plot = P3, device='png', scale = 1, width =6, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+ 
+
+
+
+```
+
+
+
+
+
+# Make graphs for the EB
+```{r}
+
+# Get input data
+GraphTable=subset(SW_EbFb_T2T_Sub, roi=="EB" & weightRelative >0.01)
+
+# remove self connections
+GraphTable=subset(GraphTable, !(type.from == type.to) )
+
+
+# Set node IDs
+IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
+NODES=data.frame(name=IDs_Type)
+
+
+# Set node positions
+NODES$name=NODES$name
+NODES$x=NA
+NODES$y=NA
+NODES[NODES$name == "ER3d_a",c(2,3)]=c(-150,-10)
+NODES[NODES$name == "ER3d_b",c(2,3)]=c(-130,-15)
+NODES[NODES$name == "ER3d_c",c(2,3)]=c(-95,-15)
+NODES[NODES$name == "ER3d_d",c(2,3)]=c(-75,-10)
+NODES[NODES$name == "ER5",c(2,3)]=c(-175,-5)
+NODES[NODES$name == "ExR1",c(2,3)]=c(-137.5,0)
+NODES[NODES$name == "ExR3",c(2,3)]=c(-87.5,0)
+NODES[NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
+NODES[NODES$name == "PEN_b(PEN2)",c(2,3)]=c(-40,-10)
+NODES$y=NODES$y*5+50
+
+
+# NODES
+NODES$COLORZ="gray50"
+NODES$COLORZ[NODES$name == "ExR1" | NODES$name == "ExR3" | NODES$name == "hDeltaK"]="cyan3"
+NODES$COLORZ[startsWith(as.character(NODES$name),"ER3")]="seagreen3"
+NODES$COLORZ[startsWith(as.character(NODES$name),"ER5")]="plum3"
+NODES$COLORZ[startsWith(as.character(NODES$name),"PEN")]="lightseagreen"
+
+# edges
+EDGES=GraphTable[c("type.from","type.to","weightRelative")]
+
+
+# edges
+colnames(EDGES)=c("from","to","weight")
+EDGES$from=as.character(EDGES$from)
+EDGES$to=as.character(EDGES$to)
+EDGES$COLORZ=NA
+EDGES$COLORZ[EDGES$from == "ExR1" | EDGES$from == "ExR3" | EDGES$from == "hDeltaK"]="cyan3"
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"ER3")]="seagreen3"
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"ER5")]="plum3"
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"PEN")]="lightseagreen"
+EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
+
+# Make ggraph object
+graph = tbl_graph(NODES, EDGES)
+
+
+# colors
+col_vector=levels(EDGES$COLORZ)
+
+
+# Make plot and save
+P4=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=COLORZ), 
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
+  geom_node_point(color=NODES$COLORZ, size=15) +
+  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
+   xlim(-220,20) + ylim(-50,100)
+
+ggsave(paste(PlotDir, "EB_Graph_V1.pdf",sep=""),
+        plot = P4, device='pdf', scale = 1, width =10, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+ 
+
+
+
+
+# Plot neuron-to-neuron connection matrix
+EB_N2N=subset(SW_EbFb_N2N, roi=="EB" & type.to %in% c("ExR1","ExR3","hDeltaK"))
+
+
+P3=ggplot(EB_N2N) +
+  geom_tile(aes(name.to, name.from, fill=weightRelative)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                        midpoint=0.05,limits=c(0,0.1),oob=squish,breaks = c(0,0.05,0.1)) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        aspect.ratio = 1) +
+  facet_grid(rows=vars(type.from), cols=vars(type.to), space="free", scales="free")
+
+ggsave(paste(PlotDir, "Eb_N2N_Matrix.png",sep=""),
+        plot = P3, device='png', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+ 
+
+
+
+```
+
+
+
+# Make graphs for the FB
+```{r}
+
+# Get input data
+GraphTable=subset(SW_EbFb_T2T_Sub, roi=="FB" & weightRelative >0.01)
+
+
+# remove self connections
+GraphTable=subset(GraphTable, !(type.from == type.to) )
+
+
+# Set node IDs
+IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
+NODES=data.frame(name=IDs_Type)
+
+
+# Set node positions
+NODES$name=NODES$name
+NODES$x=NA
+NODES$y=NA
+NODES[NODES$name == "ExR1",c(2,3)]=c(-137.5,0)
+NODES[NODES$name == "ExR3",c(2,3)]=c(-87.5,0)
+NODES[NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
+NODES[NODES$name == "PFGs",c(2,3)]=c(-87.5-20,10)
+NODES[NODES$name == "FB6A",c(2,3)]=c(-20,10)
+NODES[NODES$name == "hDeltaF",c(2,3)]=c(-110,15)
+NODES[NODES$name == "FB7K",c(2,3)]=c(-150-35-10,12)
+NODES[NODES$name == "FB7B",c(2,3)]=c(-137.5-35-5,17)
+NODES[NODES$name == "FB7A",c(2,3)]=c(-125-35,14)
+NODES[NODES$name == "FB8B",c(2,3)]=c(-175,5)
+NODES[NODES$name == "hDeltaD",c(2,3)]=c(-200,5)
+
+NODES$y=NODES$y*5
+
+
+# Get sleep wake colors
+pcCols <- paletteer_d("Polychrome::palette36")
+col_vector=c(pcCols[15],pcCols[13])
+
+
+# NODES
+NODES$COLORZ=NA
+NODES$COLORZ[startsWith(as.character(NODES$name),"hDelta")]="salmon1"
+NODES$COLORZ[NODES$name == "ExR1" | NODES$name == "ExR3" | NODES$name == "hDeltaK"]="cyan3"
+NODES$COLORZ[startsWith(as.character(NODES$name),"FB")]="seagreen3"
+NODES$COLORZ[startsWith(as.character(NODES$name),"PFG")]="slateblue1"
+NODES$COLORZ[NODES$name == "FB6A" | NODES$name=="FB7A" | NODES$name=="FB7K"]=col_vector[1]
+NODES$COLORZ[NODES$name == "FB7B"]=col_vector[2]
+
+# edges
+EDGES=GraphTable[c("type.from","type.to","weightRelative")]
+
+
+# edges
+colnames(EDGES)=c("from","to","weight")
+EDGES$from=as.character(EDGES$from)
+EDGES$to=as.character(EDGES$to)
+EDGES$COLORZ=NA
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"hDelta")]="salmon1"
+EDGES$COLORZ[EDGES$from == "ExR1" | EDGES$from == "ExR3" | EDGES$from == "hDeltaK"]="cyan3"
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"FB")]="seagreen3"
+EDGES$COLORZ[startsWith(as.character(EDGES$from),"PFG")]="slateblue1"
+EDGES$COLORZ[EDGES$from == "FB6A" | EDGES$from=="FB7A" | EDGES$from=="FB7K"]=col_vector[1]
+EDGES$COLORZ[EDGES$from == "FB7B"]=col_vector[2]
+
+# make factor
+EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
+
+# Make ggraph object
+graph = tbl_graph(NODES, EDGES)
+
+
+# colors
+col_vector=levels(EDGES$COLORZ)
+
+
+# Make plot and save
+P4=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=COLORZ), 
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
+  geom_node_point(color=NODES$COLORZ, size=15) +
+  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
+  xlim(-220,20) + ylim(-50,100)
+
+ggsave(paste(PlotDir, "fB_Graph_V1.pdf",sep=""),
+        plot = P4, device='pdf', scale = 1, width =10, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+ 
+
+
+
+ 
+
+
+```
 
 # ####################################################################################################################
 # ######### Old Graph-based analysis #################################################################################
