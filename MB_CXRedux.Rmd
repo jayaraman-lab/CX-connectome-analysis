@@ -195,18 +195,24 @@ StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCX
 StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[3]]
 StrongMBONnonCXTargetR2CXRtab <- StrongMBONnonCXTargetR2CXR_CosDist[[3]]
 
-# Make a combined table
-# StrongMBON2nonCXwCXRTgtInpCombSort$type.from <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.from)
-# StrongMBON2nonCXwCXRTgtInpCombSort$type.to <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.to)
-# StrongMBONnonCXTargetR2CXRtab$type.from <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)
-# StrongMBONnonCXTargetR2CXRtab$type.to <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.to)
+# Rearrange StrongMBON2nonCXwCXRTgtInpCombSort based on cluster.to
+StrongMBON2nonCXwCXRTgtInpCombSort <- arrange(StrongMBON2nonCXwCXRTgtInpCombSort,cluster.to,cluster.from,type.to,type.from)
 
+# Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtab for clustering based on inputs to the type.from types
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[2]]
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut[[4]]
+StrongMBONnonCXTargetR2CXRtab <- mutate(StrongMBONnonCXTargetR2CXRtab, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)])
+
+# Rearrange StrongMBONnonCXTargetR2CXRtab based on cluster.to of StrongMBON2nonCXwCXRTgtInpCombSort
+StrongMBONnonCXTargetR2CXRtab <- arrange(StrongMBONnonCXTargetR2CXRtab,cluster.toFrom,cluster.to,cluster.from,type.from,type.to)
+
+# Make a combined table
 StrongMBON2nonCXwCXRTgtTable <- StrongMBON2nonCXwCXRTgtInpCombSort %>% select(type.from,type.to,weightRelative)
 StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.from,type.to,weightRelative)
 StrongMBON2nonCXR2CXRTgtComboTable <- bind_rows(StrongMBON2nonCXwCXRTgtTable,StrongMBONnonCXTgtR2CXRTable, .id = NULL)
 
 # Set up the layout for the pathway plot
-types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.to)),
+types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)),
                   unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to))))
 numTypes <- length(types)
 numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)))
@@ -226,14 +232,9 @@ ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtCom
 # Cluster the tables by type.from and type.to
 # StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
 # StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
-
 ```
-```{r}
-# Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtab for clustering based on inputs to the type.from types
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[2]]
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut[[4]]
-StrongMBONnonCXTargetR2CXRtab <- mutate(StrongMBONnonCXTargetR2CXRtab, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)])
 
+```{r}
 # Re-plot the connectivity matrix based on cluster.toFrom for rows and cluster.to for columns
 plotStrongMBONnonCXTargetR2CXRtab <- plotConnectivityMatrix(StrongMBONnonCXTargetR2CXRtab,byGroup="type",connectionMeasure="weightRelative")
 

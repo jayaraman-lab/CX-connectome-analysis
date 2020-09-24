@@ -295,6 +295,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
   # Remove previous cluster.from and cluster.to columns
   if("cluster.from" %in% colnames(Type2TypeConnTab)){Type2TypeConnTab <- select(Type2TypeConnTab,-cluster.from)}
   if("cluster.to" %in% colnames(Type2TypeConnTab)){Type2TypeConnTab <- select(Type2TypeConnTab,-cluster.to)}
+  if("cluster.toFrom" %in% colnames(Type2TypeConnTab)){Type2TypeConnTab <- select(Type2TypeConnTab,-cluster.toFrom)}
 
   # Apply cosine distance clustering separately to the from and to side
   Type2TypeConnTab_cosDistClusterByInp <- cosDistClusterPlotBySide(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,"inputs")
