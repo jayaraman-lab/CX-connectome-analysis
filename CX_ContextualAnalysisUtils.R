@@ -88,6 +88,58 @@ filterConnTabsByInputMod <- function(PlotDir,inputModTab,inputMod,inputThresh,fi
   return(list(inputModTabFiltered,directConnTabFiltered,indirectConnTab1Filtered,indirectConnTab2Filtered,drctIndrctComboTable,directConnTabFiltered_CosDist,indirectConnTab1Filtered_CosDist,indirectConnTab2Filtered_CosDist))
 }
 
+filterIndirectConnections <- function(midTypes,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab,PlotDir){
+  # midTypes <- c("CRE042_R","CRE054_R","LHPV4m1_R","LHPV5e3_R","SIP029_R","SIP087_R");
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt <- StrongMBON2nonCXwCXRTgtInpCombSort %>% filter(type.to %in% midTypes)
+  StrongMBONnonCXTargetR2CXRtabFilt <- StrongMBONnonCXTargetR2CXRtab %>% filter(type.from %in% midTypes)
+  
+  # Make and plot cosine distance matrix
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDist <- cosDistClusterPlot(PlotDir,StrongMBON2nonCXwCXRTgtInpCombSortFilt,"StrongMBON2nonCXwCXRTgtInpCombSortFilt")
+  StrongMBONnonCXTargetR2CXRtabFilt_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCXTargetR2CXRtabFilt,"StrongMBONnonCXTargetR2CXRtabFilt")
+  
+  # Get the connection tables re-arranged by cosine distance clustering
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt <- StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDist[[3]]
+  StrongMBONnonCXTargetR2CXRtabFilt <- StrongMBONnonCXTargetR2CXRtabFilt_CosDist[[3]]
+  
+  # Rearrange StrongMBON2nonCXwCXRTgtInpCombSortFilt based on cluster.to
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt <- arrange(StrongMBON2nonCXwCXRTgtInpCombSortFilt,cluster.to,desc(cluster.from),type.to,type.from)
+  
+  # Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtabFilt for clustering based on inputs to the type.from types
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDist[[2]]
+  StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDistClusterByOut[[4]]
+  StrongMBONnonCXTargetR2CXRtabFilt <- mutate(StrongMBONnonCXTargetR2CXRtabFilt, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSortFilt_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtabFilt$type.from)])
+  
+  # Rearrange StrongMBONnonCXTargetR2CXRtabFilt based on cluster.to of StrongMBON2nonCXwCXRTgtInpCombSortFilt
+  StrongMBONnonCXTargetR2CXRtabFilt <- arrange(StrongMBONnonCXTargetR2CXRtabFilt,cluster.toFrom,cluster.to,cluster.from,type.from,type.to)
+  
+  # Make a combined table
+  StrongMBON2nonCXwCXRTgtTableFilt <- StrongMBON2nonCXwCXRTgtInpCombSortFilt %>% select(type.from,type.to,weightRelative)
+  StrongMBONnonCXTgtR2CXRTableFilt <- StrongMBONnonCXTargetR2CXRtabFilt %>% select(type.from,type.to,weightRelative)
+  StrongMBON2nonCXR2CXRTgtComboTableFilt <- bind_rows(StrongMBON2nonCXwCXRTgtTableFilt,StrongMBONnonCXTgtR2CXRTableFilt, .id = NULL)
+  
+  # Set up the layout for the pathway plot
+  types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTableFilt$type.from)), unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.from)),
+                    unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.to))))
+  numTypes <- length(types)
+  numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTableFilt$type.from)))
+  numMidNodes <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.from)))
+  numCXtargets <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.to)))
+  xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
+                        y = c(seq(-0.8,0.8,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-0.8,0.8,length.out = numCXtargets)))
+  
+  # Graph the TypeToType ConnTable using the lookupTable
+  StrongMBON2nonCXR2CXRTgtComboPathFilt <- graphConTabPolyChrome(StrongMBON2nonCXR2CXRTgtComboTableFilt,xyLookup,FALSE,TRUE)
+  StrongMBON2nonCXR2CXRTgtComboPathFilt <- StrongMBON2nonCXR2CXRTgtComboPathFilt + scale_y_reverse()
+  print(StrongMBON2nonCXR2CXRTgtComboPathFilt)
+  ggsave("StrongMBON2nonCXR2CXRTgtComboPathFiltered.svg", plot=StrongMBON2nonCXR2CXRTgtComboPathFilt, device="svg", path=PlotDir, scale=1, 
+         width=8, height=10, units="in", dpi=300, limitsize=FALSE)
+  
+  # Plot the connection table
+  plotStrongMBON2nonCXR2CXRTgtComboTableFilt <- plotConnectivityMatrix(StrongMBON2nonCXR2CXRTgtComboTableFilt,byGroup="type",connectionMeasure="weightRelative")
+  print(plotStrongMBON2nonCXR2CXRTgtComboTableFilt)
+  
+}
+
 checkClusterRemixing <- function(PlotDir,indirectConnTab1_CosDist,indirectConnTab1_CosDis2,indirectConnTab1Name,indirectConnTab2Name){
   
   

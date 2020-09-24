@@ -255,31 +255,9 @@ ggsave("StrongMBONnonCXTargetR2CXRtab_cosDistClustConnMat_rowsByMBONto.eps", plo
 ### Plot an example of indirect connections
 ```{r}
 midTypes <- c("CRE042_R","CRE054_R","LHPV4m1_R","LHPV5e3_R","SIP029_R","SIP087_R");
-StrongMBON2nonCXwCXRTgtTableFilt <- StrongMBON2nonCXwCXRTgtTable %>% filter(type.to %in% midTypes)
-StrongMBONnonCXTgtR2CXRTableFilt <- StrongMBONnonCXTgtR2CXRTable %>% filter(type.from %in% midTypes)
-StrongMBON2nonCXR2CXRTgtComboTableFilt <- bind_rows(StrongMBON2nonCXwCXRTgtTableFilt,StrongMBONnonCXTgtR2CXRTableFilt, .id = NULL)
-
-# Set up the layout for the pathway plot
-types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTableFilt$type.from)), unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.from)),
-                  unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.to))))
-numTypes <- length(types)
-numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTableFilt$type.from)))
-numMidNodes <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTableFilt$type.to)))
-numCXtargets <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTableFilt$type.to)))
-xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
-                      y = c(seq(-0.8,0.8,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
-
-# Graph the TypeToType ConnTable using the lookupTable
-StrongMBON2nonCXR2CXRTgtComboPathFilt <- graphConTabPolyChrome(StrongMBON2nonCXR2CXRTgtComboTableFilt,xyLookup,FALSE,TRUE)
-StrongMBON2nonCXR2CXRTgtComboPathFilt <- StrongMBON2nonCXR2CXRTgtComboPathFilt + scale_y_reverse()
-print(StrongMBON2nonCXR2CXRTgtComboPathFilt)
-ggsave("StrongMBON2nonCXR2CXRTgtComboPathFiltered.svg", plot=StrongMBON2nonCXR2CXRTgtComboPathFilt, device="svg", path=PlotDir, scale=1, 
-       width=8, height=10, units="in", dpi=300, limitsize=FALSE)
-
-# Plot the connection table
-plotStrongMBON2nonCXR2CXRTgtComboTableFilt <- plotConnectivityMatrix(StrongMBON2nonCXR2CXRTgtComboTableFilt,byGroup="type",connectionMeasure="weightRelative")
-print(plotStrongMBON2nonCXR2CXRTgtComboTableFilt)
-
+# midTypes <- c("SMP354_R","SLP396_R");
+# midTypes <- c("LAL039_R","LAL051_R");
+filterIndirectConnections(midTypes,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab,PlotDir)
 ```
 
 
