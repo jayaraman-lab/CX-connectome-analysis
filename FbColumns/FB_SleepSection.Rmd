@@ -89,25 +89,15 @@ FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 # Bodyids of neurons with 23E10-like morphologies (including FB7B and FB6H, the putative dopamine neurons). Important to keep
 # bodyid information in case names change in the future.
-dFB23E10_Like=c(294800293,  297183251,  327203386,  327730878,  329289084,  420842989,  422191200,  422876942,  452029745,  513788774,
-           762222901,  915960391,  915964590,  916288456,  916292026,  946308203,  946641212,  946645313,  946978006,  979065964,
-           1105955480, 5813019588, 5813020684, 5813020735, 5813026514, 5813049824, 5813050747, 5813055834, 5813057169, 5813058367,
-           5813058368, 5813061177, 5813061495, 5813069331, 5813071027, 5813071028, 5813081818, 948346463, 5813020698)
-dFB23E10_Like_Meta=neuprint_get_meta(dFB23E10_Like)
+dFB23E10_Types=c("FB7A","FB7K", "FB6A", "FB6C_a", "FB6C_b", "FB6E", "FB6G", "FB6I", "FB6Z")
+dFB23E10_MetaAll=getTypesTable(dFB23E10_Types)
 
 
 # FB7B (1 neuron per hemisphere) and FB6H (1 neurons per hemisphere)
 # are the two PPL1 DANs in the dFB that have direct connections with 23E10 neurons.
 # FB5H (1 neuron per hemisphere) is also a PPL1 DAN but does not talk directly with the sleep-wake neurons
 dFBdan_Types=c("FB6H","FB7B")
-dFBdan=c(5813020698, 948346463, 915960391, 5813020684) 
-dFBdan_Meta=neuprint_get_meta(dFBdan)
-
-
-# Include only the nine cell types found in 23E10
-dFB23E10_Types=c("FB7A","FB7K", "FB6A", "FB6C_a", "FB6C_b", "FB6E", "FB6G", "FB6I", "FB6Z")
-dFB23E10_Meta=subset(dFB23E10_Like_Meta, type %in% dFB23E10_Types)
-dFB23E10_MetaAll=subset(NamedBodies, type %in% dFB23E10_Types) # Get meta data for all 23E10-like types to make sure there are 39 neurons.
+dFBdan_Meta=getTypesTable(dFBdan_Types)
 
 
 # Cell types in sleep/wake circuit
@@ -169,8 +159,6 @@ dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
 
 # Compute input and output vectors, then concatenate
 dFB23E10_Thresh=0.008 #0.008 is a good threshold
-#dFB23E10_Outputs$from=as.character(dFB23E10_Outputs$from)
-#dFB23E10_Outputs$to=as.character(dFB23E10_Outputs$to)
 dFB23E10_Outputs_Vectors= connectivityMatrix(subset(dFB23E10_Outputs, weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to")
 dFB23E10_Inputs_Vectors=t(connectivityMatrix(subset(dFB23E10_Inputs,  weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to"))
 dFB23E10_Outputs_Vectors=dFB23E10_Outputs_Vectors[order(rownames(dFB23E10_Outputs_Vectors)),]
@@ -258,9 +246,17 @@ P1=ggplot(SleepWake_N2N_InputOutput) +
 # Now look at type-to-type connectivity of dFB 23E10 and PPL1 dopamine neurons
 ```{r}
 
-
-# Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
-SleepWake_T2T_Output=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
+# Get type-to-type connections. Better to use N2N method, because type-to-type criteria behaves odd for small neuron
+# numbers. For example the FB6H to FB6Z connection gets dropped, even though the connection is strong. 
+T2T_Method="N2N"
+if (T2T_Method=="T2T"){
+  # Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
+  SleepWake_T2T_Output=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
+} else if (T2T_Method=="N2N"){
+  SleepWake_T2T_Output=getTypeToTypeTable(FB_N2N_Output, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.0, 
+                                          singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
+  SleepWake_T2T_Output=subset(SleepWake_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
+}
 
 
 # Group presynaptic 23E10 types by FB layer
@@ -293,7 +289,7 @@ P2b=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) +
         panel.spacing = unit(0, "lines"),#remove space between facets
         #axis.ticks = element_blank(),
         aspect.ratio = 1)  
-ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
+ggsave(paste(PlotDir, "FIGURE_23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
          plot = P2b, device='pdf', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
@@ -307,8 +303,10 @@ ggsave(paste(PlotDir, "23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
 # Load libraries
 library(paletteer)
 
+
 # Get input data
 GraphTable=SleepWake_T2T_Output
+
 
 # remove self connections
 GraphTable=subset(GraphTable, !(type.from == type.to) )
@@ -320,7 +318,7 @@ NODES=data.frame(name=IDs_Type)
 
 
 # Set node positions
-NODES$name=NODES$name[c(1,3,7,4,8,2,5,9,11,6,10)]
+NODES$name=NODES$name[c(7,3,1,4,8,2,5,9,11,6,10)]
 NODES$angle=NA
 NODES$x=NA
 NODES$y=NA
@@ -337,7 +335,7 @@ NODES$x[7]=125
 NODES$y[7]=0
 
 NODES$x[8]=0
-NODES$y[8]=-200/1.2
+NODES$y[8]=-220/1.2
 
 NODES$x[9]=100
 NODES$y[9]=-300/1.3
@@ -347,6 +345,7 @@ NODES$y[10]=-100/1.2
 
 NODES$x[11]=-100
 NODES$y[11]=-300/1.3
+
 
 # NODES
 NODES$y=-NODES$y
@@ -366,21 +365,23 @@ EDGES$to=as.character(EDGES$to)
 EDGES$COLORZ="Sleep to Sleep"
 EDGES$COLORZ[EDGES$from == "FB6H" | EDGES$from == "FB7B"]="Wake to sleep"
 EDGES$COLORZ[EDGES$to   == "FB6H" | EDGES$to   == "FB7B"]="Sleep to Wake"
-EDGES$COLORZ=factor(EDGES$COLORZ,levels=c("Sleep to Wake", "Wake to sleep", "Sleep to Sleep"))
+EDGES$COLORZ=factor(EDGES$COLORZ,levels=(rev(c("Sleep to Wake", "Wake to sleep", "Sleep to Sleep"))))
 
 
 # Make ggraph object
 graph = tbl_graph(NODES, EDGES)
 
+
 # colors
 pcCols <- paletteer_d("Polychrome::palette36")
-col_vector=c(pcCols[15],pcCols[13],"gray50")
+col_vector=rev(c(pcCols[15],pcCols[13],"gray50"))
+
 
 # Make plot and save
 P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
   geom_edge_fan( aes(width=weight, color=COLORZ), 
                  arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(1, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=20) +
+  geom_node_point(color=NODES$COLORZ, size=16) +
   geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
   theme_classic() + 
   theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
@@ -389,6 +390,7 @@ P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) +
         axis.title.x=element_blank(),axis.title.y=element_blank()) +
   scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
 ggsave(paste(PlotDir, "FIGURE_SleepWake_N2N_Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8.2, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+
 
 remove(EDGES,NODES,graph,P1)
 
@@ -410,16 +412,16 @@ SW_Types_Table=getTypesTable(SleepWakeTypes)
 
 
 # Get downstream connections
-SW_Downstream_Raw <- get_type2typePath_raw(type.from=SW_Types_Table, type.to = NULL, n_steps=1:3, by.roi=FALSE)
+SW_Downstream_Raw <- get_type2typePath_raw(type.from=SW_Types_Table, type.to = NULL, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
 SW_Downstream=tableChain2path(SW_Downstream_Raw)
-SW_Downstream_Graph=distinct(rbind(SW_Downstream_Raw[[1]], SW_Downstream_Raw[[2]],  SW_Downstream_Raw[[3]]))
+SW_Downstream_Graph=distinct(rbind(SW_Downstream_Raw[[1]], SW_Downstream_Raw[[2]]))
 
 
 # Get upstream connections
-SW_Upstream_Raw <- get_type2typePath_raw(type.from=NULL, type.to = SW_Types_Table, n_steps=1:3, by.roi=FALSE)
+SW_Upstream_Raw <- get_type2typePath_raw(type.from=NULL, type.to = SW_Types_Table, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
 SW_Upstream=tableChain2path(SW_Upstream_Raw)
-SW_Upstream=subset(SW_Upstream, type.to %in% SW_Types_Table$type)
-SW_Upstream_Graph=distinct(rbind(SW_Upstream_Raw[[1]], SW_Upstream_Raw[[2]],  SW_Upstream_Raw[[3]]))
+SW_Upstream=subset(SW_Upstream, databaseType.to %in% SW_Types_Table$type)
+SW_Upstream_Graph=distinct(rbind(SW_Upstream_Raw[[1]], SW_Upstream_Raw[[2]]))
 
 
 # Save data since query takes a while
@@ -428,6 +430,29 @@ save(SW_Types_Table, SW_Downstream_Raw, SW_Downstream, SW_Downstream_Graph,
 
 
 ```
+
+
+# Chose only the right sleep-wake types as the starting (for downstream tracing) or stoping (for upstream tracing) points,
+# Then chose whicher upstream/downstream types gives largest input
+```{r}
+
+# Get only right sleep wake types and chose whichever L/R type.to is largest
+SW_Downstream=subset(SW_Downstream, grepl("_R",SW_Downstream$type.from))
+SW_Downstream=SW_Downstream %>% group_by(databaseType.from, databaseType.to, type_N1, n_steps) %>%
+  filter(weightRelative_path == max(weightRelative_path)) 
+SW_Downstream$type.from=SW_Downstream$databaseType.from
+SW_Downstream$type.to=SW_Downstream$databaseType.to
+
+  
+# Get only right sleep wake types and chose whichever L/R type.to is largest
+SW_Upstream=subset(SW_Upstream, grepl("_R",SW_Upstream$type.to))
+SW_Upstream=SW_Upstream %>% group_by(databaseType.from, databaseType.to, type_N1, n_steps) %>%
+  filter(weightRelative_path == max(weightRelative_path)) 
+SW_Upstream$type.from=SW_Upstream$databaseType.from
+SW_Upstream$type.to=SW_Upstream$databaseType.to
+  
+```
+
 
 
 # Function for custom retyping of input and output types
@@ -455,7 +480,7 @@ OutputTyping <- function(DF_ToType){
                                                 startsWith(DF_ToType$type.to,"FS") |
                                                 startsWith(DF_ToType$type.to,"FR") |
                                                 startsWith(DF_ToType$type.to,"FC")]="FB Columnar"
-  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"FB")]="FB Tangential"
+  DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"FB") | startsWith(DF_ToType$type.to,"OA")]="FB Tangential"
   DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"LAL")]="LAL"
   DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"CRE")]="CRE"
   DF_ToType$SuperType_Custom[startsWith(DF_ToType$type.to,"ATL") |
@@ -496,7 +521,7 @@ remove(SW_Downstream_Layer, SW_Downstream_Layer_Sum)
 ```{r}
 
 # First show that steps 2 and 3 are the same (i.e. no new known types are reached; though this depends on the threshold)
-SW_KnownDownstream=subset(SW_Downstream, !supertype3.to == "Unassigned" & weightRelative_path>0.001)
+SW_KnownDownstream=subset(SW_Downstream, !supertype3.to == "Unassigned" & weightRelative_path>0.001) #0.001
 Downstream_Step1_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==1])
 Downstream_Step2_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==2])
 Downstream_Step3_Types=unique(SW_KnownDownstream$type.to[SW_KnownDownstream$n_steps==3])
@@ -885,14 +910,14 @@ NODES=data.frame(name=IDs_Type)
 NODES$name=NODES$name
 NODES$x=NA
 NODES$y=NA
+NODES[NODES$name == "ExR1",c(2,3)]=c(-140,0)
+NODES[NODES$name == "ExR3",c(2,3)]=c(-90,0)
+NODES[NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
 NODES[NODES$name == "ER3d_a",c(2,3)]=c(-150,-10)
 NODES[NODES$name == "ER3d_b",c(2,3)]=c(-130,-15)
 NODES[NODES$name == "ER3d_c",c(2,3)]=c(-95,-15)
 NODES[NODES$name == "ER3d_d",c(2,3)]=c(-75,-10)
 NODES[NODES$name == "ER5",c(2,3)]=c(-175,-5)
-NODES[NODES$name == "ExR1",c(2,3)]=c(-137.5,0)
-NODES[NODES$name == "ExR3",c(2,3)]=c(-87.5,0)
-NODES[NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
 NODES[NODES$name == "PEN_b(PEN2)",c(2,3)]=c(-40,-10)
 NODES$y=NODES$y*5+50
 
@@ -993,10 +1018,10 @@ NODES=data.frame(name=IDs_Type)
 NODES$name=NODES$name
 NODES$x=NA
 NODES$y=NA
-NODES[NODES$name == "ExR1",c(2,3)]=c(-137.5,0)
-NODES[NODES$name == "ExR3",c(2,3)]=c(-87.5,0)
+NODES[NODES$name == "ExR1",c(2,3)]=c(-140,0)
+NODES[NODES$name == "ExR3",c(2,3)]=c(-90,0)
 NODES[NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
-NODES[NODES$name == "PFGs",c(2,3)]=c(-87.5-20,10)
+NODES[NODES$name == "PFGs",c(2,3)]=c(-90-20,10)
 NODES[NODES$name == "FB6A",c(2,3)]=c(-20,10)
 NODES[NODES$name == "hDeltaF",c(2,3)]=c(-110,15)
 NODES[NODES$name == "FB7K",c(2,3)]=c(-150-35-10,12)
