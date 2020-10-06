@@ -12,8 +12,9 @@ library(neuprintrExtra)
 library(cowplot)
 library(patchwork)
 ```
+
 ```{r}
-source("R/paperTheme.R")
+source("../R/paperTheme.R")
 ```
 
   
@@ -280,12 +281,15 @@ BUSummary_ttFiltered <- filterROISummary(BUSummary,BUTypesTable,BURTypes,BURois)
 ```{r}
 haneschBUR <- haneschPlot(BUSummary %>% filter(type %in% BURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschBUR_ttF <- haneschPlot(BUSummary_ttFiltered %>% filter(type %in% BURTypes$type),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschBUR_ttFCustom <- haneschPlot(BUSummary_ttFiltered %>% filter(type %in% BURTypes$type & !(databaseType %in% c("CRE013","LHCENT11","LHPV5l1","ExR7","SMP238"))),grouping="supertype2",flip=T,roiSelect = BURois,roiLabel = labelRoisBU,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
 haneschBUR
 haneschBUR_ttF
+haneschBUR_ttFCustom
 ```
 ```{r}
 save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes.svg"),haneschBUR,ncol=2,nrow=1.5,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes_filtered.svg"),haneschBUR_ttF,ncol=2,nrow=1.5,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"BU/BU_RTypes_filteredCustom.svg"),haneschBUR_ttFCustom,ncol=2,nrow=1.5,base_width = 8.5/2)
 ```
 
 # AOTU
@@ -363,9 +367,11 @@ PBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("PB"=2,"LAL(R)"=
 
 labelRoisPB <- selectRoiSet(roiH,default_level = 0,exceptions = list("PB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
 
-PBTypes <- mutate(PBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
-PBSummary <- getROISummary(PBTypesTable,threshold=0)  %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+
+PBSummary <- getROISummary(PBTypesTable,threshold=0)
 PBSummary_ttFiltered <- filterROISummary(PBSummary,PBTypesTable,PBTypes,PBRois) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+PBSummary <- PBSummary %>%  mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+PBTypes <- mutate(PBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
@@ -398,6 +404,7 @@ PBRoisDetailedOnly <- filter(PBRoisDetailed,startsWith(as.character(roi),"PB("))
 
 PBSummaryNonLat <- getROISummary(PBTypesTableNonLat,threshold=0) %>% filter(startsWith(roi,"PB(")) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
 PBSummaryNonLat_ttFiltered <- filterROISummary(PBSummaryNonLat,PBTypesTableNonLat,PBTypesNonLat,filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")),renaming=identity) %>% mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")")))) %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+PBSummaryNonLat <- PBSummaryNonLat %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 
 ```{r}
@@ -482,13 +489,23 @@ haneschFB79R_ttF
 ```
 
 ```{r}
+haneschFBSleep <- haneschPlot(FBSummary %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) + scale_size_area(max_size = 9)
+haneschFBSleep_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())+ scale_size_area(max_size = 9)
+haneschFBSleep
+haneschFBSleep_ttF
+```
+
+
+```{r}
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight1-4.svg"),haneschFB14R,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight5-6.svg"),haneschFB56R,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight7-9.svg"),haneschFB79R,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRightSleep.svg"),haneschFBSleep,nrow=1,ncol=1,base_width = 8.5/2)
 
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight1-4_filtered.svg"),haneschFB14R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight5-6_filtered.svg"),haneschFB56R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
 save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRight7-9_filtered.svg"),haneschFB79R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(paste0(haneschSaveFolder,"FB/FBTangentialsRightSleep_filtered.svg"),haneschFBSleep_ttF,nrow=1,ncol=1,base_width = 8.5/2)
 ```
 
 ```{r}
