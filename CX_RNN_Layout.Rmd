@@ -1,0 +1,163 @@
+---
+title: "Layered CX layout"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(neuprintr)
+library(neuprintrExtra)
+library(tidyverse)
+library(cowplot)
+library(reshape2)
+library(igraph)
+library(ggraph)
+library(paletteer)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+```
+
+Specify the types of interest and get the neuronBag for them
+```{r}
+nrons <- c("TuBu01", "TuBu02", "TuBu08", "TuBu09", "LAL138", "WED016",
+          "ER4m", "ER3a_a", "ER3a_d", "ER3m", "ER4d", "ER2_a", "ER2_b", "ER2_d", "ER1_b", "ER1_a",
+          "EPG", "PEN_a(PEN1)", "PEG", "Delta7",
+          "PFNp_d", "PFNa", "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F",
+          "PFL1", "PFL2","PFL3")
+CXBag <- neuronBag(getTypesTable(nrons),by.roi=FALSE)
+```
+
+Laterialize specific types from the neuronBag
+```{r}
+nrons2lat <- c("TuBu01", "TuBu02", "TuBu08", "TuBu09", "LAL138", "WED016",
+          "ER4m", "ER3a_a", "ER3a_d", "ER3m", "ER4d", "ER2_a", "ER2_b", "ER2_d", "ER1_b", "ER1_a",
+          "EPG", "PEN_a(PEN1)", "PEG")
+CXBag_lat <- lateralize_types(CXBag,typeList=nrons2lat)
+```
+
+Get the connectivity tables
+```{r}
+types4plt <- c("TuBu01_R", "TuBu02_R", "TuBu08_R", "TuBu09_R", "LAL138_L", "WED016_R",
+          "ER4m_R", "ER3a_a_R", "ER3a_d_R", "ER3m_R", "ER4d_R", "ER2_a_R", "ER2_b_R", "ER2_d_R", "ER1_b_R", "ER1_a_R",
+          "EPG_L", "EPG_R", "PEN_a(PEN1)_L", "PEN_a(PEN1)_R", "PEG_L", "PEG_R", "Delta7",
+          "PFNp_d", "PFNa", "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F",
+          "PFL1", "PFL2","PFL3")
+layers <- c(1,1,1,1,1,1,
+            2,2,2,2,2,2,2,2,2,2,
+            3,3,3,3,3,3,3,
+            4,4,4,4,4,4,4,4,
+            5,5,5)
+layerMap <- data.frame(type = types4plt,
+                       layer=layers)
+CX_T2T <- CXBag_lat$outputs %>% 
+  filter(type.from %in% types4plt,
+         type.to %in% types4plt)
+```
+
+Now, convert it into an igraph function
+```{r}
+CXNodes <- c(as.character(CX_T2T$type.to),as.character(CX_T2T$type.from)) %>% unique() %>% as.data.frame()
+colnames(CXNodes) <- "nodes"
+CXNodes$supertype <- CXNodes$nodes %>% supertype()
+CXNodes$layer <- CXNodes$nodes %>% sapply(function(n) layerMap[which(n==layerMap$type),]$layer)
+
+CXEdges <- CX_T2T %>% mutate(from = type.from, to = type.to, weight = weightRelative) %>%
+  select(from,to,weight)
+CXEdges$supertype.from <- CXEdges$from %>% supertype()
+
+g <- graph_from_data_frame(CXEdges, directed = TRUE, vertices = CXNodes)
+
+#lay <- create_layout(g, layout = 'igraph', algorithm = 'sugiyama')
+
+# Assign colors to the supertypes
+sTs <- supertype2Palette()
+sTs$breaks <- c(sTs$breaks,c("TuBu","WED","LAL"))
+sTs$pal <- c(sTs$pal, c(paletteer_d("Polychrome::palette36")[1:3]))
+names(sTs$pal) <- sTs$breaks
+sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
+sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
+
+
+CXRNN <- ggraph(g,layout='sugiyama', layers=CXNodes$layer,vgap=2) +
+  geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
+                      strength=1,
+                      end_cap = circle(0.2, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=weight,color=supertype.from,strength=1),alpha=0.5) +
+  geom_node_point(aes(color=supertype),size=4) + 
+  scale_edge_width(range = c(0, 2)) +
+  sTScale_edge +
+  sTScale +
+  geom_node_text(aes(label=CXNodes$nodes)) +
+  theme_paper() +
+  coord_fixed(ratio = 1,clip="off") + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+#print(CXRNN)
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\CXRNN_V2.pdf',CXRNN)
+```
+
+
+Specify the types of interest and get the neuronBag for them
+```{r}
+nrons <- c("ER3a_a", "ER3a_b", "ER3a_c", "ER3a_d",
+           "ER3d_a", "ER3d_b", "ER3d_c", "ER3d_d",
+           "ER3m","EPG")
+layers <- c(1,1,1,1,
+            1,1,1,1,
+            1,2)
+layerMap <- data.frame(type = nrons,
+                       layer=layers)
+ER3Bag <- neuronBag(getTypesTable(nrons),by.roi=FALSE)
+```
+
+Get the connectivity tables
+```{r}
+ER3_CT <- ER3Bag$outputs_raw %>% 
+  filter(type.from %in% nrons,
+         type.to %in% nrons)
+ER3_CT$id.from <- EBGlomOrder(ER3_CT$name.from,ER3_CT$from,"EB") 
+ER3_CT$id.to <- EBGlomOrder(ER3_CT$name.to,ER3_CT$to,"EB") 
+```
+
+Now, convert it into an igraph function
+```{r}
+ER3Nodes <- c(as.character(ER3_CT$id.to),as.character(ER3_CT$id.from)) %>% unique() %>% as.data.frame()
+colnames(ER3Nodes) <- "nodes"
+ER3Nodes$type <- ER3Nodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]-1))
+ER3Nodes$supertype <- ER3Nodes$type %>% supertype()
+ER3Nodes$layer <- ER3Nodes$type %>% sapply(function(t) layerMap[which(t==layerMap$type),]$layer)
+
+ER3Edges <- ER3_CT %>% mutate(from = id.from, to = id.to, weight = ROIweight) %>%
+  select(from,to,weight)
+ER3Edges$supertype.from <- ER3Edges$from %>% sapply(function(f) supertype(substring(as.character(f),1,gregexpr("_L|_R",f)[[1]][1]-1)))
+
+g <- graph_from_data_frame(ER3Edges, directed = TRUE, vertices = ER3Nodes)
+
+# Assign colors to the supertypes
+sTs <- supertype2Palette()
+sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
+sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
+
+
+ER3RNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
+  geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
+                      strength=1,
+                      end_cap = circle(0.2, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=weight,color=supertype.from,strength=1),alpha=0.5) +
+  geom_node_point(aes(color=supertype),size=4) + 
+  scale_edge_width(range = c(0, 2)) +
+  sTScale_edge +
+  sTScale +
+  theme_paper() +
+  coord_fixed(ratio = 1,clip="off") + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+print(ER3RNN)
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ER3RNN_force.pdf',ER3RNN)
+```
