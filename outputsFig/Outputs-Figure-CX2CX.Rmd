@@ -1,0 +1,89 @@
+---
+title: "CX2CX connections figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("../R/paperTheme.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure3-CX2CX/"
+load("outputsBasics.RData")
+```
+
+
+```{r}
+CXOutputTypes <- unique(CXOutputNeurons$type)
+CXInfluence <- readRDS("cx-influence.rds")
+CXoutFull <- readRDS("pathwayWeightsTable.rds")
+CXoutAllSteps <- readRDS("pathways-allsteps.rds")
+```
+
+
+```{r}
+CXInfluenceSummary <- group_by(filter(CXInfluence,type.from %in% CXOutputTypes),type.from,kind) %>% summarize(totalOC=sum(Path_weight)) %>% ungroup() %>% mutate(databaseType.from=type.from) %>% supertype()
+CXInfluenceSummaryPlot <- ggplot(CXInfluenceSummary,aes(x=type.from,y=totalOC)) + geom_col(aes(fill=kind)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + scale_fill_paletteer_d("ggthemes::Tableau_20",name="Target type") + ylab("Fraction of pathways to CX")
+CXInfluenceSummaryPlot
+```
+
+```{r}
+CXInfluenceAD <- filter(CXInfluence,kind=="To dendritic",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
+
+backCXComposition <- ggplot(CXInfluenceAD,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to dendrites") + ylab("Pathway weight") + xlab("CX output type")
+backCXCompositionNorm <- ggplot(CXInfluenceAD,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to axons")
+backCXComposition
+```
+
+The connectivity matrix for axo-dendritic connections:
+```{r}
+CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+
+CX2CXaxDendMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxDendMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxDendPlot <- plotConnectivity(CX2CXaxDendMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,cmax=0.7,theme=theme_paper_grid())+ xlab("Target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) +theme(legend.position=c(0.1,0.2),strip.text.x=element_blank(),strip.text.y=element_blank()) + scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxDendPlot1 <- plotConnectivity(CX2CXaxDendMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("Target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxDendPlot
+```
+
+```{r}
+CXInfluenceAA <- filter(CXInfluence,kind=="To axonal",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(totalWeight=sum(Path_weight),normalizedWeight=Path_weight/totalWeight) %>% ungroup()
+backCXCompositionAA <- ggplot(filter(CXInfluenceAA,Path_weight>0.005),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Axo-axonal connections")+ ylab("Pathway weight") + xlab("CX output type")
+backCXCompositionAANorm <- ggplot(CXInfluenceAA,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Axo-axonal connections")
+backCXCompositionAA
+#backCXCompositionAANorm
+```
+
+The connectivity matrix for axo-axonal connections:
+```{r}
+CX2CXaxAxMat <- filter(CXoutFull,databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxAxMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxAxPlot <- plotConnectivity(CX2CXaxAxMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",cmax=0.7,theme=theme_paper_grid())+ xlab("Target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) + theme(strip.text.x=element_blank(),strip.text.y=element_blank())+ scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxAxPlot1 <- plotConnectivity(CX2CXaxAxMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight")+ xlab("Target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxAxPlot
+```
+```{r}
+figure3 <- CXInfluenceSummaryPlot / backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,1,3,1.5)) + plot_annotation(tag_levels="A")
+figure3
+```
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3.pdf"),figure3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+## SI1 A large fraction of those are one step connections
+```{r}
+compAllTo1 <- (CX2CXaxDendPlot + ggtitle("All steps")) / (CX2CXaxDendPlot1 + ggtitle("1 step"))
+```
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI1.pdf"),compAllTo1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
