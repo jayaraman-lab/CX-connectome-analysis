@@ -29,7 +29,7 @@ library(tidyr)
 library(dplyr)
 require(matlib)
 library(neuprintrExtra)
-source("SynapsePCAUtils.R")
+source("./R/SynapsePCAUtils.R")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
@@ -104,6 +104,8 @@ if(!is.null(disoriented)){
   nronList = nronList[-disoriented]
   nronList = c(nronList, adjustRP)
 }
+
+ignore = TRUE
 
 ```
 
@@ -341,6 +343,8 @@ points(rp$X, rp$Y, col = Vivid_Red, cex = 1)
 ```
 
 ```{r}
+
+if(!ignore){
 exInd = 2
 nron = nronList[[exInd]]
 rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
@@ -348,6 +352,7 @@ pdf('../neuprintR_analysis_plots/EPG_example.pdf')
 plot(nron, WithNodes = F)
 points(rp$X, rp$Y, col = '#1CFFCEFF', cex = 1, pch = 19)
 dev.off()
+}
 
 ```
 
@@ -408,12 +413,44 @@ nronMainROI_synapses = mapply(function(nron,syn){
 
 ```
 
+```{r}
+
+electrotonicDist <- function(nron,syn){
+g = as.ngraph(nron,weights = T)
+edgePath = shortest_paths(g, from = as.character(nron$d$PointNo[rootpoints(nron)]), to = as.character(unique(syn$treenode_id)), mode = 'out', output = 'epath')
+
+electroDist = sapply(edgePath$epath, function(edges){
+  edgeLength = edge_attr(g,'weight',index = edges)/125
+  ver = ends(g,edges,names=T)[,2]
+  verDiam = vertex_attr(g,'diam',index = as.character(ver))/125
+
+  lengthConst = sqrt(verDiam/4)
+  electroLength = edgeLength/lengthConst
+  electroDist = sum(electroLength)
+})
+
+electroDist = electroDist[match(syn$treenode_id, unique(syn$treenode_id))]
+
+syn = cbind(syn, electroDist)
+}
+
+```
+
+```{r}
+nronMainROI_synapses = mapply(electrotonicDist, nron = nronMainROI, syn = nronMainROI_synapses, SIMPLIFY = F)
+
+```
+
+
 Turn this into one big dataframe:
 ```{r}
 
 synapses = suppressWarnings(bind_rows(nronMainROI_synapses))
 
 ```
+
+
+
 
 It's useful to also have a normalized representation of the distance to the rootpoint for better comparison across neurons.
 ```{r}
@@ -447,7 +484,8 @@ labName = gsub(".*_","",labName)
 First, we can group synaptic partners of interest into groups of different input modalities. The modality types and the neurons that fall under each type are:
     Mechanosensory: ER1's.
     Contralateral visual: ER3d's, ER3a's, ER3p's, ER3m.
-    Ipsilateral visual: ER2's, ER3w, ER4m, ER4d.
+    Ipsilateral visual: ER2's, ER3w, ER4d.
+    Polarized light: ER4m
     Sleep: ER5.
     Motor: PEN's.
 
@@ -455,7 +493,8 @@ First, we can group synaptic partners of interest into groups of different input
 
 ms = c('ER1_a','ER1_b')
 cv = c('ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d','ER3m','ER3p_a','ER3p_b')
-iv = c('ER2_a','ER2_b','ER2_c','ER2_d','ER3w','ER4m', 'ER4d')
+iv = c('ER2_a','ER2_b','ER2_c','ER2_d','ER3w', 'ER4d','ER4m')
+#pol = c('ER4m')
 sleep = c('ER5')
 other = c('ER6')
 ex = c('ExR1','ExR2','ExR3','ExR4','ExR5','ExR6','ExR7','ExR8')
@@ -467,6 +506,7 @@ synapses = synapses %>%
     partnerType %in% ms ~ 'ms',
     partnerType %in% cv ~ 'cv',
     partnerType %in% iv ~ 'iv',
+    #partnerType %in% pol ~ 'pol',
     partnerType %in% sleep ~ 'sleep',
     partnerType %in% other ~ 'other',
     partnerType %in% ex ~ 'ex',
@@ -500,6 +540,21 @@ modalityCMap =c(Strong_Purplish_Blue,Vivid_Blue,Vivid_Violet,Very_Light_Yellowis
 
 ```
 
+Do distance to rootpoint and electrotonic distance correlate?
+```{r}
+
+elecVsDist = ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[2], modality %in% c('cv','iv','motor','ms','sleep'))) +
+  geom_point(aes(x = distToRoot, y = electroDist, color = modality),alpha = 0.3) + 
+  scale_colour_manual(values = modalityCMap) +
+  theme_paper() #+
+  #facet_wrap(~factor(bodyid))
+
+print(elecVsDist)
+
+ggsave(paste('elecVsDist_eg', nronType, '.pdf', sep = ""), plot = elecVsDist, device='pdf', path = "../neuprintR_analysis_plots/")
+
+```
+
 Look at the CDF's of the synapse distributions for a single neuron where synapses are grouped into modality types. Here we're only looking at the synapses ONTO this particular EPG (i.e., pre not post).
 
 A nice one:
@@ -525,12 +580,15 @@ modalityCDFPlot = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','
 
 print(modalityCDFPlot)
 
-#ggsave(paste('modalityCDF_', nronType, '.pdf', sep = ""), plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+ggsave(paste('modalityCDF_', nronType, '.pdf', sep = ""), plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 
 In order to get a sense of what these distributions look like across all of the EPGs, one thing we can do is compare the medians of the distributions. 
 ```{r}
+medOfDist_nronType = filter(synapses, prepost == 1, modality %in% c('cv','iv','motor','ms','sleep')) %>% 
+  group_by(bodyid, partnerType) %>%
+  summarize(med = median(normDist))
 
 medOfDist = filter(synapses, prepost == 1) %>% group_by(bodyid, modality) %>%
             summarize(med = median(normDist)) %>%
@@ -547,21 +605,32 @@ medOfDist = medOfDist %>% mutate(modNum = case_when(
   modality == 'motor' ~ 1,
   modality == 'ms' ~ 2,
   modality == 'iv' ~ 3,
+  #modality == 'pol' ~ 4,
   modality == 'cv' ~ 4,
   modality == 'sleep' ~ 5
-)) %>%
-  mutate(eg = case_when(
+)) #%>%
+  #mutate(eg = case_when(
+  #  bodyid == nron_info_kept$bodyid[2] ~ 1,
+  #  TRUE ~ 0
+  #))
+
+```
+
+```{r}
+
+medOfDist_nronType = medOfDist_nronType %>% mutate(eg = case_when(
     bodyid == nron_info_kept$bodyid[2] ~ 1,
     TRUE ~ 0
   ))
 
 ```
 
+
 If we look at the distributions of the medians of the synaptic distributions for each modality, we see a general trend.
 ```{r}
 
 medViolinPlot = ggplot(medOfDist) +
-  geom_violin(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156') +
+  geom_violin(aes(x = factor(modality, levels = c('motor','ms','iv','pol','cv','sleep')), y = med, fill = modality), color = '#5A5156') +
   theme_paper() +
   scale_fill_manual(values = modalityCMap) +
   labs(x = 'modality', y = 'median')
@@ -570,20 +639,84 @@ print(medViolinPlot)
 
 medHivePlot = ggplot(medOfDist) +
   #geom_dotplot(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156', binaxis = 'y', stackdir = 'center', binwidth = 1/54) +
-  geom_line(aes(x = modNum, y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = modNum, y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
   geom_point(aes(x = modNum, y = med, fill = modality, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
   theme_paper() +
   guides(fill = 'legend') +
   scale_fill_manual(values = modalityCMap) +
-  scale_color_manual(values = c('lightgray','black',modalityCMap)) +
-  labs(x = 'modality', y = 'median')
+  scale_color_manual(values = c('black','lightgray',modalityCMap)) +
+  labs(x = 'modality', y = 'median') #+
+  #ylim(0.25,0.95)
 
 print(medHivePlot)
   
-#ggsave(paste('medianDists_hive_jitter_', nronType, '.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+ggsave(paste('medianDists_hive_jitter_', nronType, '.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 
+
+```{r}
+medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% motor)) +
+  #geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
+  geom_point(aes(x = factor(partnerType), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
+  theme_paper() +
+  guides(fill = 'legend') +
+  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
+  scale_color_manual(values = c('lightgray','black')) +
+  labs(x = 'partner type', y = 'median') +
+  ylim(0.05,0.85)
+
+print(medHivePlot)
+  
+ggsave(paste('medianDists_hive_jitter_', nronType, '_motor.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
+medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% ms)) +
+  #geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid)),color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
+  geom_point(aes(x = factor(partnerType), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
+  theme_paper() +
+  guides(fill = 'legend') +
+  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
+  scale_color_manual(values = c('lightgray','black')) +
+  labs(x = 'partner type', y = 'median') +
+  ylim(0.05,0.85)
+
+print(medHivePlot)
+  
+ggsave(paste('medianDists_hive_jitter_', nronType, '_ms.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
+medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% iv)) +
+  #geom_line(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med,  group = factor(bodyid)),color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
+  geom_point(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
+  theme_paper() +
+  guides(fill = 'legend') +
+  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
+  scale_color_manual(values = c('lightgray','black')) +
+  labs(x = 'partner type', y = 'median') +
+  ylim(0.05,0.85)
+
+print(medHivePlot)
+  
+ggsave(paste('medianDists_hive_jitter_', nronType, '_iv.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
+medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% cv)) +
+  #geom_line(aes(x = factor(partnerType, levels = c('ER3p_a','ERp_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = factor(partnerType, levels = c('ER3p_a','ER3p_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med,  group = factor(bodyid)), color = 'lightgray',position = position_dodge(0.5), size = 0.5) +
+  geom_point(aes(x = factor(partnerType, levels = c('ER3p_a','ER3p_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
+  theme_paper() +
+  guides(fill = 'legend') +
+ # scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
+  scale_color_manual(values = c('lightgray','black')) +
+  labs(x = 'partner type', y = 'median') +
+  ylim(0.05,0.85)
+
+print(medHivePlot)
+  
+ggsave(paste('medianDists_hive_jitter_', nronType, '_cv.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+
+```
 
 
 Using these medians, we can also rank order modality for each EPG seperately. Notice that there are 5 orderings in all, the first ordering (motor, ms, iv, cv, sleep) is the most common and will be called the standard ordering. The second (motor, iv, ms, cs, sleep), third (motor, ms, cv, iv, sleep), and fourth (ms, motor, iv, cv, sleep) groups all constitute only one perturbation from the first group. The last group (iv, motor, ms, cv, sleep) is two perturbations away from the first group.
@@ -619,7 +752,7 @@ print(rankOrderingPlot)
 print(rankOrderingPlot)
 }
 
-#ggsave(paste('rankOrdering_', nronType, '.pdf', sep = ""), plot = rankOrderingPlot, device='pdf', path = "../neuprintR_analysis_plots/")
+ggsave(paste('rankOrdering_', nronType, '.pdf', sep = ""), plot = rankOrderingPlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
 

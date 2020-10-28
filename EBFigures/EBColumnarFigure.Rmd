@@ -14,6 +14,7 @@ library(patchwork)
 library(ggnewscale)
 library(gridExtra)
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
 ```
 
 Specify plotting text sizes
@@ -228,5 +229,65 @@ T2T_conmatPlot_EB_POST <- ggplot(T2T_PENs_EB_POST) +
 PEN1VsPEN2 <- (T2T_conmatPlot_PB + T2T_conmatPlot_EB_PRE) / T2T_conmatPlot_EB_POST
 ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\PEN1VsPEN2.pdf',
        PEN1VsPEN2, width = 8, height = 4)
+```
+
+Plot a force network of the EPG and PEN1 connections
+First, get the connectivity tables
+```{r}
+nrons = c("EPG","PEN_a(PEN1)","EPGt")
+EBColBag = neuronBag(getTypesTable(nrons))
+EBCol_CT <- EBColBag$outputs_raw %>% 
+  filter(type.to %in% nrons,
+         roi %in% c("PB","EB"))
+EBCol_CT$id.from <- EBGlomOrder(EBCol_CT$name.from,EBCol_CT$from,"EB")
+EBCol_CT$id.to <- EBGlomOrder(EBCol_CT$name.to,EBCol_CT$to,"EB")
+```
+
+Now, convert it into an igraph function
+```{r}
+library(igraph)
+library(ggraph)
+
+EBColNodes <- c(as.character(EBCol_CT$id.to),as.character(EBCol_CT$id.from)) %>% unique() %>% as.data.frame()
+colnames(EBColNodes) <- "nodes"
+EBColNodes$supertype <- EBColNodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
+EBColNodes$label <- EBColNodes$nodes %>% sapply(function(n) substring(n,gregexpr("_L|_R",n)[[1]][1]+1,gregexpr("_L|_R",n)[[1]][1]+2))
+
+EBColEdges <- EBCol_CT %>% mutate(from = id.from, to = id.to, weight = ROIweight) %>%
+  select(from,to,weight)
+EBColEdges$supertype.from <- EBColEdges$from %>% as.character() %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
+
+g <- graph_from_data_frame(EBColEdges, directed = TRUE, vertices = EBColNodes)
+
+# Assign colors to the supertypes
+colBreaks = c("EPG_L","EPG_R","PEN1_L","PEN1_R","EPGt_L","EPGt_R")
+colPal = c("purple","purple4","red","skyblue","mediumpurple","mediumpurple4")
+sTScale <- scale_colour_manual(values=colPal,breaks = colBreaks)
+sTScale_edge <- scale_edge_colour_manual(values=colPal,breaks = colBreaks, guide = FALSE)
+
+#sTs <- supertype2Palette()
+#sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
+#sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
+
+
+EBColForceGraph <- ggraph(g) +
+  geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
+                      strength=1,
+                      end_cap = circle(0.2, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=weight,color=supertype.from,strength=1),alpha=0.5) +
+  geom_node_point(aes(color=supertype),size=4) + 
+  scale_edge_width(range = c(0, 2)) +
+  sTScale_edge +
+  sTScale +
+  geom_node_text(aes(label=EBColNodes$label)) +
+  theme_paper() +
+  coord_fixed(ratio = 1,clip="off") + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+print(EBColForceGraph)
+ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\EB_PB\\EBColForceNetwork_wLabels_wEPGt.pdf',EBColForceGraph)
 ```
 

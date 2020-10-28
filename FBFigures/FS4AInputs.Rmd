@@ -1,0 +1,65 @@
+---
+title: "FB4A and B FB connectivity"
+output: html_notebook
+---
+Load the libraries
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Get the FB4A and B neuron bags
+```{r}
+FS4AB_Bags <- neuronBag(getTypesTable(c("FS4A","FS4B")))
+```
+
+Plot the FB inputs by neuron
+```{r}
+FS4AB_CT_ins <- FS4AB_Bags$inputs_raw %>% filter(roi=="FB")
+FS4AB_CT_ins$id.from <- FBRename(FS4AB_CT_ins$name.from,FS4AB_CT_ins$from)
+FS4AB_CT_ins$id.to <- FBRename(FS4AB_CT_ins$name.to,FS4AB_CT_ins$to)
+
+FS4AB_ins_Plt <- ggplot(FS4AB_CT_ins) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(FS4AB_CT_ins$weightRelative),
+                       limits=c(0,max(FS4AB_CT_ins$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + 
+  facet_grid(cols=vars(type.to),rows=vars(supertype2.from),scales = "free",space="free_y") +
+  theme(axis.text.x = element_text(angle=90),
+        panel.border = element_rect(color="black",size=0.5)) +
+  xlab("presynaptic neuron") + ylab("postsynaptic neuron")
+
+print(FS4AB_ins_Plt)
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FS4AB_ins.pdf",
+       FS4AB_ins_Plt,
+       width=8.5,height=11,units=c("in"))
+```
+
+Plot the FB outputs by neuron
+```{r}
+FS4AB_CT_outs <- FS4AB_Bags$outputs_raw %>% filter(roi=="FB")
+FS4AB_CT_outs$id.from <- FBRename(FS4AB_CT_outs$name.from,FS4AB_CT_outs$from)
+FS4AB_CT_outs$id.to <- FBRename(FS4AB_CT_outs$name.to,FS4AB_CT_outs$to)
+
+FS4AB_outs_Plt <- ggplot(FS4AB_CT_outs) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                       midpoint =0.5*max(FS4AB_CT_outs$weightRelative),
+                       limits=c(0,max(FS4AB_CT_outs$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + 
+  #facet_grid(rows=vars(type.from),scales = "free") +
+  theme(axis.text.x = element_text(angle=90)) +
+  xlab("presynaptic neuron") + ylab("postsynaptic neuron")
+
+print(FS4AB_outs_Plt)
+```

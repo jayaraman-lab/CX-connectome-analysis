@@ -31,11 +31,15 @@ PBRename <- function(name,id){
   name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
   name  <- gsub("PEN_a","PEN1",as.character(name))
   name  <- gsub("PEN_b","PEN2",as.character(name))
+  name  <- gsub("PFNm_a","PFNma",as.character(name))
+  name  <- gsub("PFNm_b","PFNmb",as.character(name))
   name  <- gsub("PFNp_a","PFNpa",as.character(name))
   name  <- gsub("PFNp_b","PFNpb",as.character(name))
   name  <- gsub("PFNp_c","PFNpc",as.character(name))
   name  <- gsub("PFNp_d","PFNpd",as.character(name))
   name  <- gsub("PFNp_e","PFNpe",as.character(name))
+  name  <- gsub("PFR_a","PFRa",as.character(name))
+  name  <- gsub("PFR_b","PFRb",as.character(name))
   nameid <- paste(name, as.character(id), sep='-')
   
   # Extract the unique names and types
@@ -94,7 +98,7 @@ WMFromConTab <- function(conTab, preids, postids){
   
   for (i in 1:length(preids)){
     for (j in 1:length(postids)){
-      w = conTab[which(conTab$nameid == preids[i] & conTab$partnerid == postids[j]),]$ROIweight
+      w = conTab[which(conTab$id.from == preids[i] & conTab$id.to == postids[j]),]$ROIweight
       if (length(w) > 0)
         justWeights[i,j] = w
     }
