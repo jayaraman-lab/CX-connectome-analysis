@@ -62,7 +62,7 @@ neuprint_login()
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
-source("../visualizeConnectivityTables.r", chdir = TRUE)
+#source("../visualizeConnectivityTables.r", chdir = TRUE)
 source("../inputOutputRegionsVis.r")
 
 ```
@@ -79,14 +79,117 @@ Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" 
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
+
+
+
+
 ```
 
+
+
+
+```{r}
+
+TempBag=neuronBag(Columnar_Types, slctROI="FB")
+
+TempInputs_N2N=TempBag$inputs_raw
+TempInputs_N2N=subset(TempInputs_N2N, ROIweight>12)
+
+Neuron_Num=TempInputs_N2N %>% group_by(to, name.to, type.to) %>% summarize(numIn=n())
+
+A=subset(Neuron_Num, type.to=="FC1A")
+
+
+P0=ggplot()+
+  geom_jitter(aes(type.to, numIn), data = Neuron_Num, colour = I("black"), 
+              position = position_jitter(width = 0.05)) + theme(axis.text.x =element_text(angle = 90, colour="black"),
+                              axis.text.y=element_text(colour="black"))
+ ggsave(paste(PlotDir, 'NeuronNum' ,".pdf",sep=""),
+           plot = P0, device='pdf', scale = 1, width =10, height = 4, units ="in", dpi = 300, limitsize = TRUE)
+  
+  
+
+```
 
 
 
 # ##################################################################################################################
 # ######### Figure 1: Intra-FB connectivity motifs #################################################################
 # ##################################################################################################################
+
+
+
+# Plot phase shifts to show that they impact connectivity
+```{r}
+
+
+# Other plotting directories
+PFX_Dir_PhaseShifts=paste(PlotDir,"PbFb_PhaseShifts","/",sep="")
+if (!dir.exists(PFX_Dir_PhaseShifts)){dir.create(PFX_Dir_PhaseShifts)}
+
+
+# Get columnar output connectivity table
+PFX_Bag=neuronBag(Columnar_Types, slctROI="FB")
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+
+
+# Get just PB-FB-XX types
+PbFb_Types=Columnar_Types[startsWith(Columnar_Types,"PF")]
+
+
+# Subset data on columnar types
+PbFbXX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.from %in% PbFb_Types & databaseType.to %in% Columnar_Types)
+
+
+# Assign PBglom, FBcol, and Side from neuron names
+PbFbXX_FB_Outputs_All=Assign_FBcol_PBglom(PbFbXX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+PbFbXX_FB_Outputs_All=Assign_FBcol_PBglom(PbFbXX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+
+
+# Order ouput table
+PbFbXX_FB_Outputs_All$PBglom.from=factor(PbFbXX_FB_Outputs_All$PBglom.from, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PbFbXX_FB_Outputs_All$FBcol.from=factor(PbFbXX_FB_Outputs_All$FBcol.from, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+PbFbXX_FB_Outputs_All$PBglom.to=factor(PbFbXX_FB_Outputs_All$PBglom.to, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PbFbXX_FB_Outputs_All$FBcol.to=factor(PbFbXX_FB_Outputs_All$FBcol.to, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+
+
+PbFbXX_FB_Outputs_Shift=PbFbXX_FB_Outputs_All %>% 
+     group_by(PBglom.from, FBcol.to, type.from, type.to) %>%
+     summarize(weightRelative=mean(weightRelative))
+
+
+
+ToPlotPairs=distinct(PbFbXX_FB_Outputs_Shift[c("type.from","type.to")])
+for (ppp in 1:length(ToPlotPairs$type.from)){
+  
+  Temp_Data=subset(PbFbXX_FB_Outputs_Shift, type.from == ToPlotPairs$type.from[ppp] & type.to == ToPlotPairs$type.to[ppp])
+  
+  if (length(unique(Temp_Data$PBglom.from))>12 & length(unique(Temp_Data$FBcol.to))>=8){
+    
+    
+    P1=ggplot(Temp_Data) + 
+      theme_classic() + theme(axis.text.x =element_text(angle = 90, colour="black"),
+                              axis.text.y=element_text(colour="black")) +
+      scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                           midpoint =0.03, limits=c(0,0.06), oob=squish) +
+      geom_tile(aes(FBcol.to,PBglom.from,fill=weightRelative)) + ylab(ToPlotPairs$type.from[ppp]) + xlab(ToPlotPairs$type.to[ppp]) +
+      scale_y_discrete(drop=FALSE) + coord_fixed()
+    
+  
+    ggsave(paste(PFX_Dir_PhaseShifts, ToPlotPairs$type.from[ppp], "_to_", ToPlotPairs$type.to[ppp] ,".pdf",sep=""),
+           plot = P1, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 300, limitsize = TRUE)
+    
+    
+    
+  }
+}
+
+
+
+
+
+
+```
 
 
 
@@ -100,18 +203,7 @@ PFX_Dir_Connectivity=paste(PlotDir,"Columnar_Motifs","/",sep="")
 if (!dir.exists(PFX_Dir_Connectivity)){dir.create(PFX_Dir_Connectivity)}
 
 
-# Get columnar output connectivity table
-PFX_Bag=create_neuronBag(Columnar_Types, slctROI="FB")
-PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
 
-
-# Subset data on columnar types
-PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
-
-
-# Assign PBglom, FBcol, and Side from neuron names
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
 
 
 # Order ouput table
