@@ -342,6 +342,7 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   return(Type2TypeConnTab_hc)
 }
 
+
 # Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
 cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plotFacet=TRUE){
   # Remove previous cluster.from and cluster.to columns
@@ -386,6 +387,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 }
 
 cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,InpOrOutp){
+  
   Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,slctROIs=unique(as.vector(Type2TypeConnTab$roi)),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
   
