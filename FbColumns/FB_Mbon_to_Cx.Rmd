@@ -168,38 +168,54 @@ MB_Paper_Direct_Types
 
 ```{r}
 
+# Questions:
+# SHOULD I average by databaseType.from and .to? 
+# CD has MBON12 and MBON13 going to FB5J. I don't. Why? Because both are below the 0.01 threshold I'm using.
+Test=subset(Downstream_T2T_L1, databaseType.to == "FB5J")
+
 
 # Get direct MBON to CX connections
 MB2CX_Direct=subset(Downstream_T2T_L1, weightRelative > 0.01 & databaseType.to %in% CXTypes)
-sort(unique(MB2CX_Direct$databaseType.to))
+
+
+# Cluster the FB neurons by their input vectors
+MB2CX_Dir_Clust=connectivityCluster(inputsTable = MB2CX_Direct, outputsTable = NULL) %>% setClusters(h = 0.8, k = NULL)
+MB2CX_Dir_Clust=MB2CX_Dir_Clust$inputsTable %>% arrange(cluster.to)
+PostOrder=distinct(MB2CX_Dir_Clust[c("type.to","cluster.to")])
+
+
+# Now sort inputs (MBONs) by which cluster they project most strongly to
+PreOrder=MB2CX_Dir_Clust %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative))
+PreOrder=PreOrder[c("type.from","cluster.to")]
+colnames(PreOrder)=c("type.from","cluster.from")
+MB2CX_Dir_Clust=merge(MB2CX_Dir_Clust,PreOrder, by="type.from")
+
+  
+
+plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, 
+  orderIn = PreOrder$type.from, 
+  orderOut = PostOrder$type.to,
+  legendName = NULL, showTable = "inputs")
+
+
+plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  legendName = NULL, showTable = "inputs")
 
 
 
-
-
-A=connectivityCluster(inputsTable = NULL, outputsTable = MB2CX_Direct)
-B=setClusters(A, h = 0.8, k = NULL)
-
-
-
-
-
-
-
-AA=addClusters(A, partnerClusters, h = 0.8, k = NULL)
-
-
-
-AA=A$inputsTable
-
-
-setClusters(connCl, h = 0.8, k = NULL)
-
-
-
-
-
-
+source("../CX_ContextualAnalysisUtils.R")
+types_all=c(PreOrder$type.from, PostOrder$type.to)
+numMBONs=length(PreOrder$type.from)
+numMidNodes=0
+numCXtargets=length(PostOrder$type.to)
+xyLookup = data.frame(type = types_all, 
+                      x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
+                      y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
+graphConTabPolyChrome(MB2CX_Direct,xyLookup,FALSE,TRUE)
 
 
 
