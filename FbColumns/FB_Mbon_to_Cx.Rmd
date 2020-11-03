@@ -66,7 +66,7 @@ neuprint_login()
 # Get list of MBONS
 MB_NamedBodies=getNeuronsInRoiTable("MB(R)",0)
 MB_NamedBodies=subset(MB_NamedBodies, startsWith(name,"MBON"))
-
+MBONs_Types_Table=getTypesTable(unique(MB_NamedBodies$type))
 
 ```
 
@@ -75,8 +75,7 @@ MB_NamedBodies=subset(MB_NamedBodies, startsWith(name,"MBON"))
 ```{r}
 
 
-# Get meta data on sleep-wake types
-MBONs_Types_Table=getTypesTable(unique(MB_NamedBodies$type))
+
 
 
 # Get downstream connections
@@ -85,8 +84,9 @@ Ttest_Thresh=1
 if (Method=="no thresh"){
   
   # Get first layer outputs
-  DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
+  DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
   DownBag_L1=lateralize_types(DownBag_L1)
+  
   DownTypes_L1=getTypesTable(unique(c(DownBag_L1$outputs_raw$databaseType.from,
                                       DownBag_L1$outputs_raw$databaseType.to))) %>% lateralize_types()
   Downstream_T2T_L1=getTypeToTypeTable(DownBag_L1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
@@ -94,7 +94,7 @@ if (Method=="no thresh"){
   
   # Get second layer outputs
   DownType_L1=getTypesTable(unique(Downstream_T2T_L1$databaseType.to))
-  DownBag_L2=neuronBag(DownType_L1, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
+  DownBag_L2=neuronBag(DownType_L1, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
   DownBag_L2=lateralize_types(DownBag_L2)
   DownTypes_L2=getTypesTable(unique(c(DownBag_L2$outputs_raw$databaseType.from,
                                       DownBag_L2$outputs_raw$databaseType.to))) %>% lateralize_types()
@@ -157,6 +157,7 @@ sort(unique(Li_Direct$type.to)) %in% MB_Paper_Direct_Types
 sort(unique(Li_Direct$type.to))
 MB_Paper_Direct_Types
 
+
 ```
 
 
@@ -164,18 +165,72 @@ MB_Paper_Direct_Types
 # ####################################################################################################################
 # ######### Figure 1: MBON to CX direct connections ##################################################################
 # ####################################################################################################################
+CD's Notes: 
+1) MBON05 has no branches ipsilateral to the cell body, only contralateral. 
+   FB4R only has dendrites ipsilateral to cell body. 
+   Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
+2) MBON09 has bilateral branches, but only makes contact with ipsilateral FB4R, i.e., MBON09_R onto FB4R_R.
+3) MBON21 has bilateral branches, and synapses onto FB4R bilaterally.
+4) MBON04 has bilateral branches, but more contralaterally relative to the name 
+   (although the *_L cell body is just off to the midline on the right side).
+5) MBON12R and MBON13R only have branches ipsilateral to the cell body.
+6) MBON03 has bilateral branches, but more contralaterally relative to the name.
+7) MBON22 has ipsilateral branches in the calyx and bilateral branches in SIP/SMP.
+8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
 
 
+# Get MBON to CX direct connections
 ```{r}
 
-# Questions:
+# Questions and to-do:
 # SHOULD I average by databaseType.from and .to? 
-# CD has MBON12 and MBON13 going to FB5J. I don't. Why? Because both are below the 0.01 threshold I'm using.
-Test=subset(Downstream_T2T_L1, databaseType.to == "FB5J")
+# If not, I need to cluster by type, no lateralized type, orthewise L/R pairs end up apart in graphs
+# CD has MBON12 and MBON13 going to FB5J. I don't. Why? 
+# Look at antomy of every MBON, can we just take those from the right hemi?
+# Understand CD's criteria and replicate
+# How to average across just those ROIs where a neuron receives input (ROI level matters)
+# Should I only include ROI outside the CX in computing weight relative, as CD does?
 
 
-# Get direct MBON to CX connections
-MB2CX_Direct=subset(Downstream_T2T_L1, weightRelative > 0.01 & databaseType.to %in% CXTypes)
+# Load CD's direct data
+load(paste(SaveDir,"CD_Direct.Rda",sep=""))
+
+
+# Get first layer lateralized outputs
+DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
+DownBag_L1=lateralize_types(DownBag_L1) # Lateralize to take into account projections that may be missing from the volume
+
+
+# Get sum of relative weights across non-CX ROIs, which accounts for FBt polarity. 
+# That is, since most FBt types receive a lot of input in the CX, the roi-independent relative weight can be very low.
+roisH <- getRoiTree() %>% subset(level1!="CX") # Get list of ROIs that are not the CX
+DownBag_L1 <- combineRois(DownBag_L1, unique(roisH$level1), newRoi="NonCX") # Sum synapses across all non-CX ROIs
+
+
+
+#Romain uses the below, which restricts ROIs to those on the right, so that we don't miss crosses (see his slack message)
+# But, may have to do something more complicated for 2 step pathways.
+roiH <- getRoiTree()
+outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE), exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
+                                     
+
+
+DownTypes_L1=getTypesTable(unique(c(DownBag_L1$outputs_raw$databaseType.from,
+                                    DownBag_L1$outputs_raw$databaseType.to))) %>% lateralize_types()
+Downstream_T2T_L1=getTypeToTypeTable(DownBag_L1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
+                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = DownTypes_L1, oldTable = NULL) # No t-test type-to-type tables 
+
+
+# Restrict to just CX targets in the right hemisphere
+MB2CX_Direct=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & grepl("_R",type.to) & weightRelative>0.01 & weight>10)
+
+
+```
+
+
+
+# Plot MBON to CX direct connections
+```{r}
 
 
 # Cluster the FB neurons by their input vectors
@@ -194,16 +249,19 @@ MB2CX_Dir_Clust=merge(MB2CX_Dir_Clust,PreOrder, by="type.from")
 
 plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  legendName = NULL, showTable = "inputs")
+
+
+plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, 
   orderIn = PreOrder$type.from, 
   orderOut = PostOrder$type.to,
   legendName = NULL, showTable = "inputs")
 
 
-plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
-  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
-  legendName = NULL, showTable = "inputs")
+
 
 
 
@@ -218,21 +276,15 @@ xyLookup = data.frame(type = types_all,
 graphConTabPolyChrome(MB2CX_Direct,xyLookup,FALSE,TRUE)
 
 
+sort(unique(MB2CX_Direct$databaseType.from))
 
+sort(unique(MB2CX_Direct$databaseType.to)) %in% MB_Paper_Direct_Types
 
-
-
+sort(unique(MB2CX_Direct$type.to))
+MB_Paper_Direct_Types
 
 
 ```
-
-
-
-
-
-
-
-
 
 
 
