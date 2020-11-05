@@ -235,32 +235,121 @@ MB2CX_Direct_Exclude=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & !(
 
 # Average over left/right pairs
 Graph_Data=MB2CX_Direct %>% group_by(databaseType.from, databaseType.to) %>%
-  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight))
- 
-
-# Pre Nodes
-MBON_Nodes=data.frame(name=sort(unique(Graph_Data$databaseType.from) %>% as.character())) 
-MBON_Nodes$x=0
-MBON_Nodes$y=seq(from = 1, to = length(MBON_Nodes$name), by = 1)
+  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
+colnames(Graph_Data)=c("type.from","type.to","weightRelative","outputContribution","weight")
+Graph_Data$roi="All"
 
 
-# Post Nodes
-CX_Nodes=data.frame(name=sort(unique(Graph_Data$databaseType.to) %>% as.character())) 
-CX_Nodes$x=1
-CX_Nodes$y=seq(from = 1, to = length(CX_Nodes$name), by = 1)
+# Cluster the FB neurons by their input vectors
+Graph_Data_Clust=connectivityCluster(inputsTable = Graph_Data, outputsTable = NULL) %>% setClusters(h = 0.8, k = NULL)
+Graph_Data_Clust=Graph_Data_Clust$inputsTable %>% arrange(cluster.to)
+PostOrder=distinct(Graph_Data_Clust[c("type.to","cluster.to")])
+
+
+# Now sort inputs (MBONs) by which cluster they project most strongly to
+PreOrder=Graph_Data_Clust %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative))
+PreOrder=PreOrder[c("type.from","cluster.to")]
+colnames(PreOrder)=c("type.from","cluster.from")
+Graph_Data_Clust=merge(Graph_Data_Clust,PreOrder, by="type.from")
+
+  
+
+plotConnectivity(Graph_Data_Clust, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  legendName = NULL, showTable = "inputs")
+
+
+plotConnectivity(Graph_Data, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, 
+  orderIn = PreOrder$type.from, 
+  orderOut = PostOrder$type.to,
+  legendName = NULL, showTable = "inputs")
+
+
+
+
+
+# Get node sizes
+PostSize=Graph_Data_Clust %>% group_by(type.to) %>% summarize(Syns=sum(weight))
+colnames(PostSize)=c("name","Size")
+PreSize=Graph_Data_Clust %>% group_by(type.from) %>% summarize(Syns=sum(weight))
+colnames(PreSize)=c("name","Size")
+AllSize=rbind(PostSize, PreSize)
+AllSize$name[startsWith(AllSize$name,"MBON")]=substr(AllSize$name[startsWith(AllSize$name,"MBON")], 5, 6)
+
+
+
+
+Lout=2
+if (Lout==1){
+  
+  # Pre Nodes
+  MBON_Nodes=data.frame(name=sort(unique(Graph_Data_Clust$type.from) %>% as.character()))
+  MBON_Nodes$name=substr(MBON_Nodes$name,5, 6)
+  MBON_Nodes$x=0
+  MBON_Nodes$y=(seq(from = 1, to = length(MBON_Nodes$name), by = 1)*1.8)
+  
+  # Post Nodes
+  CX_Nodes=data.frame(name=rev(sort(unique(Graph_Data_Clust$type.to) %>% as.character()))) 
+  L1to4=grepl("1",CX_Nodes$name) | grepl("2",CX_Nodes$name) | grepl("3",CX_Nodes$name) | grepl("4",CX_Nodes$name)
+  CX_Nodes$x=NA
+  CX_Nodes$x[L1to4]=-1
+  CX_Nodes$x[!L1to4]=1
+  CX_Nodes$y=NA
+  CX_Nodes$y[L1to4]=rev(seq(from = 1, to = sum(L1to4), by = 1))
+  CX_Nodes$y[!L1to4]=rev(seq(from = 1, to = sum(!L1to4), by = 1))
+  
+} else if (Lout==2){
+  
+  # Pre Nodes
+  MBON_Nodes=data.frame(name=(unique(Graph_Data_Clust$type.from) %>% as.character()))
+  MBON_Nodes$name=substr(MBON_Nodes$name,5, 6)
+  MBON_Nodes$x=0
+  MBON_Nodes$y=(seq(from = 1, to = length(MBON_Nodes$name), by = 1))
+  MBON_Nodes$y=(MBON_Nodes$y-mean(MBON_Nodes$y))*1.2
+  
+  # Post Nodes
+  CX_Nodes=data.frame(name=rev((unique(Graph_Data_Clust$type.to) %>% as.character()))) 
+  CX_Nodes$x=1
+  CX_Nodes$y=rev(seq(from = 1, to = length(CX_Nodes$name), by = 1))
+  CX_Nodes$y=CX_Nodes$y-mean(CX_Nodes$y)
+}
 
 
 # edges
-EDGES=Graph_Data[c("databaseType.from","databaseType.to","weightRelative")]
+EDGES=Graph_Data_Clust[c("type.from","type.to","weightRelative")]
 colnames(EDGES)=c("from","to","weight")
+EDGES$from[startsWith(EDGES$from,"MBON")]=substr(EDGES$from[startsWith(EDGES$from,"MBON")], 5, 6)
+
 
 # nodes
 NODES=rbind(MBON_Nodes, CX_Nodes)
+NODES=merge(NODES, AllSize, by="name")
 
 
-#
+# Node Colors
+TransmitterColor=c("#F26629","#20B685","#3668AC") #ACH, GLU
+NODES$COLORZ="gray50"
+NODES$COLORZ[NODES$name %in% c("12","13","15","21","22","23","24","26","27","29","33","35")]=TransmitterColor[1]
+NODES$COLORZ[NODES$name %in% c("01 ","03","04","05","06","30","34")]=TransmitterColor[2]
+NODES$COLORZ[NODES$name %in% c("09","11")]=TransmitterColor[3]
+
+
+# Node fills
+NODES$FILLZ=NODES$COLORZ
+NODES$FILLZ[NODES$name %in% c("21","22","23","24","26","27","29","33","35")]="white"
+
+
+#Edge colors
 EDGES$COLORZ="black"
-NODES$COLORZ="black"
+EDGES$COLORZ[EDGES$from %in% c("12","13","15","21","22","23","24","26","27","29","33","35")]=TransmitterColor[1]
+EDGES$COLORZ[EDGES$from %in% c("01 ","03","04","05","06","30","34")]=TransmitterColor[2]
+EDGES$COLORZ[EDGES$from %in% c("09","11")]=TransmitterColor[3]
+EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
+col_vector=levels(EDGES$COLORZ)
+
 
 
 # Make graph
@@ -268,37 +357,22 @@ graph = tbl_graph(NODES, EDGES)
 
 
 
-
-ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
-  geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=15) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=COLORZ),
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"),
+                 end_cap = circle(0.66, 'cm'), alpha=1,strength=1, n=2, linemitre=1) +
+  geom_node_point(aes(size = Size), color=NODES$COLORZ, fill=NODES$FILLZ) + scale_size(range = c(7,13)) +
+  geom_node_text(aes(label=name),angle=0,size=3, nudge_x = NODES$x*0.08, color='black' ) +
   theme_classic() + 
   theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
         axis.line=element_blank(),axis.text.x=element_blank(),
         axis.text.y=element_blank(),axis.ticks=element_blank(),
         axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
+  scale_edge_width(range = c(0.5,4)) + scale_edge_color_manual(values=col_vector)
+print(P1)
+ggsave(paste(SaveDir, "Graph_V1.pdf",sep=""),
+        plot = P1, device='pdf', scale = 1, width =8, height = 13, units ="in", dpi = 500, limitsize = TRUE)
 
-
-
-# Make plot and save
-P4=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
-  geom_edge_fan(end_cap = circle(3,"mm"),linejoin = "mitre",linemitre=3,arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(color=NODES$COLORZ, size=2) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
-  theme_classic() + 
-  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
-        axis.line=element_blank(),axis.text.x=element_blank(),
-        axis.text.y=element_blank(),axis.ticks=element_blank(),
-        axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
-   xlim(-220,20) + ylim(-50,100)
-
-ggsave(paste(PlotDir, "EB_Graph_V1.pdf",sep=""),
-        plot = P4, device='pdf', scale = 1, width =10, height = 6, units ="in", dpi = 500, limitsize = TRUE)
- 
 
 
 ```
@@ -412,6 +486,8 @@ EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"PEN")]="lightseagreen"
 
 # edges
 EB_EDGES=GraphTable[c("type.from","type.to","weightRelative")]
+
+
 
 
 # edges
