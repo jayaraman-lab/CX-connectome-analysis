@@ -224,7 +224,6 @@ MB2CX_Direct=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes  & weightRel
 MB2CX_Direct_Exclude=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & !(weightRelative>0.01 & weight>10) )
 
 
-
 ```
 
 
@@ -331,7 +330,7 @@ NODES=merge(NODES, AllSize, by="name")
 
 # Node Colors
 TransmitterColor=c("#F26629","#20B685","#3668AC") #ACH, GLU
-NODES$COLORZ="gray50"
+NODES$COLORZ="Black"
 NODES$COLORZ[NODES$name %in% c("12","13","15","21","22","23","24","26","27","29","33","35")]=TransmitterColor[1]
 NODES$COLORZ[NODES$name %in% c("01 ","03","04","05","06","30","34")]=TransmitterColor[2]
 NODES$COLORZ[NODES$name %in% c("09","11")]=TransmitterColor[3]
@@ -361,14 +360,14 @@ P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) +
   geom_edge_fan( aes(width=weight, color=COLORZ),
                  arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"),
                  end_cap = circle(0.66, 'cm'), alpha=1,strength=1, n=2, linemitre=1) +
-  geom_node_point(aes(size = Size), color=NODES$COLORZ, fill=NODES$FILLZ) + scale_size(range = c(7,13)) +
+  geom_node_point(aes(size = Size), color=NODES$COLORZ, fill=NODES$FILLZ) + scale_size(range = c(7,12)) +
   geom_node_text(aes(label=name),angle=0,size=3, nudge_x = NODES$x*0.08, color='black' ) +
   theme_classic() + 
   theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
         axis.line=element_blank(),axis.text.x=element_blank(),
         axis.text.y=element_blank(),axis.ticks=element_blank(),
         axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,4)) + scale_edge_color_manual(values=col_vector)
+  scale_edge_width(range = c(1,6)) + scale_edge_color_manual(values=col_vector)
 print(P1)
 ggsave(paste(SaveDir, "Graph_V1.pdf",sep=""),
         plot = P1, device='pdf', scale = 1, width =8, height = 13, units ="in", dpi = 500, limitsize = TRUE)
@@ -380,362 +379,79 @@ ggsave(paste(SaveDir, "Graph_V1.pdf",sep=""),
 
 
 
-# Plot MBON to CX direct connections
+
+
+
+# Look at indirect connections
 ```{r}
 
+# Get strong connections from MBONs to non-CX neurons
+MB2NonCX=subset(Downstream_T2T_L1, !(databaseType.to %in% CXTypes)  & weightRelative>0.01 & weight>10)
 
 
-# Cluster the FB neurons by their input vectors
-MB2CX_Dir_Clust=connectivityCluster(inputsTable = MB2CX_Direct, outputsTable = NULL) %>% setClusters(h = 0.8, k = NULL)
-MB2CX_Dir_Clust=MB2CX_Dir_Clust$inputsTable %>% arrange(cluster.to)
-PostOrder=distinct(MB2CX_Dir_Clust[c("type.to","cluster.to")])
+# Get type table
+L2_Types=sort(unique(MB2NonCX$databaseType.to))
+L2_Types=L2_Types[is.na(as.numeric(L2_Types))]
+L2_Types=L2_Types[! (startsWith(L2_Types,"(") | startsWith(L2_Types,"Ascending") )]
+L2_Types_Table=getTypesTable(L2_Types)
 
 
-# Now sort inputs (MBONs) by which cluster they project most strongly to
-PreOrder=MB2CX_Dir_Clust %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative))
-PreOrder=PreOrder[c("type.from","cluster.to")]
-colnames(PreOrder)=c("type.from","cluster.from")
-MB2CX_Dir_Clust=merge(MB2CX_Dir_Clust,PreOrder, by="type.from")
+# Get second layer lateralized outputs
+DownBag_L2=neuronBag(L2_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
+DownBag_L2=lateralize_types(DownBag_L2) # Lateralize to take into account projections that may be missing from the volume
 
-  
 
-plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals polarity and lateralization issue.
+# Polarity, since most FBt types receive a lot of input in the CX, the roi-independent relative weight can be very low.
+# Lateralization, since some CX targets could have some on the left and dendrites on the right. So it makes sense to use all MBONs (L and R)
+#   and just look at their targets in right ROIs (which should be more complete).
+DownBag_L2 <- combineRois(DownBag_L2, outsideRegions, newRoi="NonCX") # Sum synapses across all non-CX ROIs on the right side
+           
+                       
+# Recompute type-to-type table
+DownTypes_L2=getTypesTable(unique(c(DownBag_L2$outputs_raw$databaseType.from,
+                                    DownBag_L2$outputs_raw$databaseType.to))) %>% lateralize_types()
+Downstream_T2T_L2=getTypeToTypeTable(DownBag_L2$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
+                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = DownTypes_L2, oldTable = NULL) # No t-test type-to-type tables 
+
+
+
+# Get first and second layer of projections
+L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>0.02 & weight>20 & !startsWith(type.from,"MBON"))
+L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>0.02 & weight>20 & !startsWith(type.to,"MBON"))
+
+
+# Average over left and right 
+L2_to_Cx_Ave=L2_to_Cx %>% group_by(databaseType.from, databaseType.to) %>%  
+  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight))
+colnames(L2_to_Cx_Ave)=c("type.from","type.to","weightRelative","outputContribution","weight")
+L2_to_Cx_Ave$roi="R"
+
+
+L1_to_L2_Ave=L1_to_L2 %>% group_by(databaseType.from, databaseType.to) %>%  
+  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
+colnames(L1_to_L2_Ave)=c("type.from","type.to","weightRelative","outputContribution","weight")
+L1_to_L2_Ave$roi="R"
+
+
+P1=plotConnectivity(L1_to_L2_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
+  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  legendName = NULL, showTable = "inputs")
+P1 + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+
+
+
+P2=plotConnectivity(L2_to_Cx_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
   legendName = NULL, showTable = "inputs")
 
-
-plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
-  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, 
-  orderIn = PreOrder$type.from, 
-  orderOut = PostOrder$type.to,
-  legendName = NULL, showTable = "inputs")
-
-
-
-
-
-
-source("../CX_ContextualAnalysisUtils.R")
-types_all=c(sort(PreOrder$type.from), sort(PostOrder$type.to) )
-numMBONs=length(PreOrder$type.from)
-numMidNodes=0
-numCXtargets=length(PostOrder$type.to)
-xyLookup = data.frame(type = types_all, 
-                      x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
-                      y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
-graphConTabPolyChrome(MB2CX_Direct,xyLookup,FALSE,TRUE)
-
-
-sort(unique(MB2CX_Direct$databaseType.from))
-
-sort(unique(MB2CX_Direct$databaseType.to)) %in% MB_Paper_Direct_Types
-
-sort(unique(MB2CX_Direct$type.to))
-MB_Paper_Direct_Types
-
-
-```
-
-
-
-
-
-
-
-
-
-# Make graphs for the EB
-```{r}
-
-# Get input data
-GraphTable=subset(SW_EbFb_T2T_Sub, roi=="EB" & weightRelative >0.01)
-
-# remove self connections
-GraphTable=subset(GraphTable, !(type.from == type.to) )
-
-
-# Set node IDs
-IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
-EB_NODES=data.frame(name=IDs_Type)
-
-
-# Set node positions
-EB_NODES$name=EB_NODES$name
-EB_NODES$x=NA
-EB_NODES$y=NA
-EB_NODES[EB_NODES$name == "ExR1",c(2,3)]=c(-140,0)
-EB_NODES[EB_NODES$name == "ExR3",c(2,3)]=c(-90,0)
-EB_NODES[EB_NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
-EB_NODES[EB_NODES$name == "ER3d_a",c(2,3)]=c(-150,-10)
-EB_NODES[EB_NODES$name == "ER3d_b",c(2,3)]=c(-130,-15)
-EB_NODES[EB_NODES$name == "ER3d_c",c(2,3)]=c(-95,-15)
-EB_NODES[EB_NODES$name == "ER3d_d",c(2,3)]=c(-75,-10)
-EB_NODES[EB_NODES$name == "ER5",c(2,3)]=c(-175,-5)
-EB_NODES[EB_NODES$name == "PEN_b(PEN2)",c(2,3)]=c(-40,-10)
-EB_NODES$y=EB_NODES$y*5+50
-
-
-# EB_NODES
-EB_NODES$COLORZ="gray50"
-EB_NODES$COLORZ[EB_NODES$name == "ExR1" | EB_NODES$name == "ExR3" | EB_NODES$name == "hDeltaK"]="cyan3"
-EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"ER3")]="seagreen3"
-EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"ER5")]="plum3"
-EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"PEN")]="lightseagreen"
-
-# edges
-EB_EDGES=GraphTable[c("type.from","type.to","weightRelative")]
-
-
-
-
-# edges
-colnames(EB_EDGES)=c("from","to","weight")
-EB_EDGES$from=as.character(EB_EDGES$from)
-EB_EDGES$to=as.character(EB_EDGES$to)
-EB_EDGES$COLORZ=NA
-EB_EDGES$COLORZ[EB_EDGES$from == "ExR1" | EB_EDGES$from == "ExR3" | EB_EDGES$from == "hDeltaK"]="cyan3"
-EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"ER3")]="seagreen3"
-EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"ER5")]="plum3"
-EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"PEN")]="lightseagreen"
-EB_EDGES$COLORZ=factor(EB_EDGES$COLORZ, levels=unique(EB_EDGES$COLORZ))
-
-# Make ggraph object
-graph = tbl_graph(EB_NODES, EB_EDGES)
-
-
-# colors
-col_vector=levels(EB_EDGES$COLORZ)
-
-
-# Make plot and save
-P4=ggraph(graph,layout="manual",x=EB_NODES$x,y=EB_NODES$y) + 
-  geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=EB_NODES$COLORZ, size=15) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
-  theme_classic() + 
-  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
-        axis.line=element_blank(),axis.text.x=element_blank(),
-        axis.text.y=element_blank(),axis.ticks=element_blank(),
-        axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
-   xlim(-220,20) + ylim(-50,100)
-
-ggsave(paste(PlotDir, "EB_Graph_V1.pdf",sep=""),
-        plot = P4, device='pdf', scale = 1, width =10, height = 6, units ="in", dpi = 500, limitsize = TRUE)
- 
-
-
-# Plot neuron-to-neuron connection matrix
-EB_N2N=subset(SW_EbFb_N2N, roi=="EB" & type.to %in% c("ExR1","ExR3","hDeltaK"))
-
-
-P3=ggplot(EB_N2N) +
-  geom_tile(aes(name.to, name.from, fill=weightRelative)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                        midpoint=0.05,limits=c(0,0.1),oob=squish,breaks = c(0,0.05,0.1)) +
-  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        aspect.ratio = 1) +
-  facet_grid(rows=vars(type.from), cols=vars(type.to), space="free", scales="free")
-
-ggsave(paste(PlotDir, "Eb_N2N_Matrix.png",sep=""),
-        plot = P3, device='png', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
- 
-
-
-
-```
-
-
-
-# Make graphs for the FB
-```{r}
-
-# Get input data
-GraphTable=subset(SW_EbFb_T2T_Sub, roi=="FB" & weightRelative >0.01)
-
-
-# remove self connections
-GraphTable=subset(GraphTable, !(type.from == type.to) )
-
-
-# Set node IDs
-IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
-FB_NODES=data.frame(name=IDs_Type)
-
-
-# Set node positions
-FB_NODES$name=FB_NODES$name
-FB_NODES$x=NA
-FB_NODES$y=NA
-FB_NODES[FB_NODES$name == "ExR1",c(2,3)]=c(-140,0)
-FB_NODES[FB_NODES$name == "ExR3",c(2,3)]=c(-90,0)
-FB_NODES[FB_NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
-FB_NODES[FB_NODES$name == "PFGs",c(2,3)]=c(-90-20,10)
-FB_NODES[FB_NODES$name == "FB6A",c(2,3)]=c(-20,10)
-FB_NODES[FB_NODES$name == "hDeltaF",c(2,3)]=c(-110,15.25)
-FB_NODES[FB_NODES$name == "FB7K",c(2,3)]=c(-150-38-10,12)
-FB_NODES[FB_NODES$name == "FB7B",c(2,3)]=c(-137.5-35-5,17)
-FB_NODES[FB_NODES$name == "FB7A",c(2,3)]=c(-125-35,14)
-FB_NODES[FB_NODES$name == "FB8B",c(2,3)]=c(-175,5)
-FB_NODES[FB_NODES$name == "hDeltaD",c(2,3)]=c(-200,5)
-FB_NODES[FB_NODES$name == "FB6H",c(2,3)]=c(-15,17.5)
-FB_NODES[FB_NODES$name == "OA-VPM3",c(2,3)]=c(-35,14)
-
-FB_NODES$y=FB_NODES$y*5
-
-
-# Get sleep wake colors
-pcCols <- paletteer_d("Polychrome::palette36")
-col_vector=c(pcCols[15],pcCols[13])
-
-
-# FB_NODES
-FB_NODES$COLORZ=NA
-FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"hDelta")]="salmon1"
-FB_NODES$COLORZ[FB_NODES$name == "ExR1" | FB_NODES$name == "ExR3" | FB_NODES$name == "hDeltaK"]="cyan3"
-FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"FB")]="seagreen3"
-FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"PFG")]="slateblue1"
-FB_NODES$COLORZ[FB_NODES$name == "FB6A" | FB_NODES$name=="FB7A" | FB_NODES$name=="FB7K"]=col_vector[1]
-FB_NODES$COLORZ[FB_NODES$name == "FB7B" | FB_NODES$name == "FB6H"]=col_vector[2]
-FB_NODES$COLORZ[FB_NODES$name == "OA-VPM3"]="red"
-
-# edges
-FB_EDGES=GraphTable[c("type.from","type.to","weightRelative")]
-
-
-# FB_EDGES
-colnames(FB_EDGES)=c("from","to","weight")
-FB_EDGES$from=as.character(FB_EDGES$from)
-FB_EDGES$to=as.character(FB_EDGES$to)
-FB_EDGES$COLORZ=NA
-FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"hDelta")]="salmon1"
-FB_EDGES$COLORZ[FB_EDGES$from == "ExR1" | FB_EDGES$from == "ExR3" | FB_EDGES$from == "hDeltaK"]="cyan3"
-FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"FB")]="seagreen3"
-FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"PFG")]="slateblue1"
-FB_EDGES$COLORZ[FB_EDGES$from == "FB6A" | FB_EDGES$from=="FB7A" | FB_EDGES$from=="FB7K"]=col_vector[1]
-FB_EDGES$COLORZ[FB_EDGES$from == "FB7B" | FB_EDGES$from == "FB6H"]=col_vector[2]
-FB_EDGES$COLORZ[FB_EDGES$from == "OA-VPM3"]="red"
-
-# make factor
-FB_EDGES$COLORZ=factor(FB_EDGES$COLORZ, levels=unique(FB_EDGES$COLORZ))
-
-# Make ggraph object
-graph = tbl_graph(FB_NODES, FB_EDGES)
-
-
-# colors
-col_vector=levels(FB_EDGES$COLORZ)
-
-
-# Make plot and save
-P4=ggraph(graph,layout="manual",x=FB_NODES$x,y=FB_NODES$y) + 
-  geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=FB_NODES$COLORZ, size=15) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
-  theme_classic() + 
-  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
-        axis.line=element_blank(),axis.text.x=element_blank(),
-        axis.text.y=element_blank(),axis.ticks=element_blank(),
-        axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
-  xlim(-220,20) + ylim(-50,100)
-
-ggsave(paste(PlotDir, "FB_Graph_V1.pdf",sep=""),
-        plot = P4, device='pdf', scale = 1, width =10, height = 6, units ="in", dpi = 500, limitsize = TRUE)
- 
-
-
-
-```
-
-
-
-
-# Make combined graph
-```{r}
-
-# Change names for ExR3, ExR1, and hDeltaK
-EB_NODES_New=EB_NODES
-EB_NODES_New$name=as.character(EB_NODES_New$name)
-EB_NODES_New$name[EB_NODES_New$name=="ExR1"]="EB_ExR1"
-EB_NODES_New$name[EB_NODES_New$name=="ExR3"]="EB_ExR3"
-EB_NODES_New$name[EB_NODES_New$name=="hDeltaK"]="EB_hDeltaK"
-
-EB_EDGES_New=EB_EDGES
-EB_EDGES_New$from=as.character(EB_EDGES_New$from)
-EB_EDGES_New$from[EB_EDGES_New$from=="ExR1"]="EB_ExR1"
-EB_EDGES_New$from[EB_EDGES_New$from=="ExR3"]="EB_ExR3"
-EB_EDGES_New$from[EB_EDGES_New$from=="hDeltaK"]="EB_hDeltaK"
-
-EB_EDGES_New$to=as.character(EB_EDGES_New$to)
-EB_EDGES_New$to[EB_EDGES_New$to=="ExR1"]="EB_ExR1"
-EB_EDGES_New$to[EB_EDGES_New$to=="ExR3"]="EB_ExR3"
-EB_EDGES_New$to[EB_EDGES_New$to=="hDeltaK"]="EB_hDeltaK"
-
-
-FB_NODES_New=FB_NODES
-FB_NODES_New$name=as.character(FB_NODES_New$name)
-FB_NODES_New$name[FB_NODES_New$name=="ExR1"]="FB_ExR1"
-FB_NODES_New$name[FB_NODES_New$name=="ExR3"]="FB_ExR3"
-FB_NODES_New$name[FB_NODES_New$name=="hDeltaK"]="FB_hDeltaK"
-
-FB_EDGES_New=FB_EDGES
-FB_EDGES_New$from=as.character(FB_EDGES_New$from)
-FB_EDGES_New$from[FB_EDGES_New$from=="ExR1"]="FB_ExR1"
-FB_EDGES_New$from[FB_EDGES_New$from=="ExR3"]="FB_ExR3"
-FB_EDGES_New$from[FB_EDGES_New$from=="hDeltaK"]="FB_hDeltaK"
-
-FB_EDGES_New$to=as.character(FB_EDGES_New$to)
-FB_EDGES_New$to[FB_EDGES_New$to=="ExR1"]="FB_ExR1"
-FB_EDGES_New$to[FB_EDGES_New$to=="ExR3"]="FB_ExR3"
-FB_EDGES_New$to[FB_EDGES_New$to=="hDeltaK"]="FB_hDeltaK"
-
-
-
-
-EB_NODES_New$y=EB_NODES_New$y-100
-
-
-NODES=rbind(EB_NODES_New,FB_NODES_New)
-EDGES=rbind(EB_EDGES_New,FB_EDGES_New)
-
-
-# make factor
-EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
-
-
-# Make ggraph object
-graph = tbl_graph(NODES, EDGES)
-
-
-# colors
-col_vector=levels(EDGES$COLORZ)
-
-
-# Make plot and save
-P4=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
-  geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=15) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
-  theme_classic() + 
-  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
-        axis.line=element_blank(),axis.text.x=element_blank(),
-        axis.text.y=element_blank(),axis.ticks=element_blank(),
-        axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
-  #xlim(-220,20) + ylim(-50,100)
-
-ggsave(paste(PlotDir, "FIGURE_Graph_V1.pdf",sep=""),
-        plot = P4, device='pdf', scale = 1, width =7, height = 8, units ="in", dpi = 500, limitsize = TRUE)
- 
 
 
 ```
