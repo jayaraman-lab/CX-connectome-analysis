@@ -605,3 +605,44 @@ for (n in 2:5){
 
 pathways <- do.call(rbind,pathways)
 ```
+
+Shared targets between LC33 and PFL3
+```{r}
+sharedG <- (CX_outGraph %E>% filter(type.from=="PFL3_L*" | type.from=="LC33_R")) %N>% filter(type %in% .E()$type.from | type %in% .E()$type.to)
+sharedPFLC <- baseGraph(sharedG)
+```
+```{r}
+PFL3LC33Fig <- (PFLtoLC33Plot + plot_spacer() + plot_layout(widths = c(1,2)))/PFL3LC33Anat /sharedPFLC+ plot_annotation(title="PFL3 to LC33",tag_levels = "A") + plot_layout(heights = c(1,3,3))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PFL3toLC33.pdf"),PFL3LC33Fig,ncol=1,nrow=7,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
+```
+
+
+
+
+Looking at those shared targets: neuron to neuron LC33 connectivity:
+```{r}
+LC33Bag <- neuronBag(filter(mainFFTargetsNeurons,type=="LC33_R"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping)
+LC33Bag <- combineRois(LC33Bag,outsideRegions,"Outside")
+sharedG %N>% as_tibble()
+LC33toPFLTargets <- filter(LC33Bag$outputs_raw,type.to %in% (filter(sharedG %E>% as_tibble(),type.from=="PFL3_L*")$type.to) & type.to != "LC33_R" ) %>% mutate(PFTarg = from %in% PFL3Bag$outputs_raw$to)
+LC33TargetsClusters <-  connectivityCluster(LC33toPFLTargets,ROIs="Outside",grouping="neuron")
+LC33Clusters <- connectivityCluster(outputsTable = LC33toPFLTargets,ROIs="Outside",grouping="neuron")
+plotConnectivity(LC33toPFLTargets,slctROI="Outside",xaxis="outputs",theme=theme_paper_grid(),grouping = "neuron",orderOut = LC33TargetsClusters,facetInputs="PFTarg",replacementLabels = "name")
+```
+
+### PFR to mALD and MBON20
+Network graph
+```{r}
+PFR2mALDMBON20_2 <- getLocalSubgraph(c("PFR_b_L*","ExR7_R","ExR7_L"),c("mALD1_L","MBON20_R"),CX_outGraphRed,order=2) 
+
+```
+
+```{r}
+FRtoMB30<- getLocalSubgraph(c("FR1_L"),c("PPL102_L"),CX_outGraphRed,order=2) 
+FR1toMB30Plot <- baseGraph(FRtoMB30) 
+FR1toMB30Plot
+```
+

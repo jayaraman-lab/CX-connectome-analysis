@@ -69,7 +69,7 @@ typesCXOrder <- c(typesCX[startsWith(typesCX,"EL")],
 ## Get type to type connection tables up to 5 hops out
 Calculate a massive pathway table of everything postsynaptic to those neurons outside of the CX, in 5(!!) steps or less (doing it "raw" for more flexibility afterwards):
 ```{r}
-CX_outGraphBi <- get_type2typePath_raw(type.from=CXOutsideNeurons,ROI=list("Outside_regions(R)"=outsideRegions),n_steps=1:5,addContraPaths = T,thresholdPerROI = 20,verbose=TRUE,renaming=customRetyping,overruleThreshold=50)
+CX_outGraphBi <- get_type2typePath_raw(type.from=CXOutsideNeurons,ROI=list("Outside_regions(R)"=outsideRegions),n_steps=1:5,addContraPaths = T,thresholdPerROI = 20,verbose=TRUE,renaming=customRetyping,overruleThreshold=50,largeOnly=TRUE)
 ```
 
 List all the neurons we know about -- following Ito's classification
@@ -133,12 +133,18 @@ saveRDS(CX_outPaths,"output_paths.rds")
 
 Get a good supertyping for coloring to come
 ```{r}
-CXOutputNeurons <- selectSupertypeSet(CXOutputNeurons,exceptions=list("PFL"=1,"EL"=3,"EPG"=3,"PEG"=3))
+CXOutputNeurons <- selectSupertypeSet(CXOutputNeurons,default_level = 1) %>%
+   customOutputSupertype(postfix = "raw")
+   #mutate(customSupertype = case_when(supertype=="PFL" ~ databaseType,
+   #                         grepl("ExR[2-7]",supertype) ~ "ExR2-7",
+   #                         supertype3=="EB Columnar" ~ "EB Columnar",
+   #                         TRUE ~ as.character(supertype)))
 ```
 
 Then make tables of synapses
 ```{r,warning=FALSE}
 CXOutSyn <- collectSynapses(CXOutputNeurons,outsideRegions,polarity="post")
+CXOutSyn <-  mutate(CXOutSyn,customSupertype=CXOutputNeurons$customSupertype[match(type,CXOutputNeurons$type)])
 saveRDS(CXOutSyn,"CX-outsideSynapses.rds")
 ```
 
@@ -190,6 +196,7 @@ CXNeuronsReached <- allNodes$type[allNodes$type %in% CXNeurons$type]
 CXInfluence <- endpointConnections(CXout_AdjOCWR,endpoint=CXNeuronsReached,polarity = "downstream",maxIt=100,eps=10^-8)
 #CXInfluence <- CXInfluence[CXOutputTypes,]
 CXInfluence <- reshape2::melt(as.matrix(CXInfluence),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
+CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
 CXInfluence <- mutate(CXInfluence,type.from=as.character(type.from),type.to=as.character(type.to),
                       databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
@@ -239,25 +246,66 @@ saveRDS(CX_outGraph,"output_graph.rds")
 saveRDS(CX_outGraphBi,"output_graph_FullBilateral.rds")
 ```
 
+## Cluster the output neurons at different depths
+```{r}
+outClustersFull <- connectivityCluster(outputsTable=CXoutFull %>% mutate(roi="Outside",outputContribution=Path_weight))
+outClustersFull$outputsTable <- 1 ## Memory saving
+outClusters <- lapply(1:8,function(i) {ret <- connectivityCluster(outputsTable=CXoutAllSteps %>% filter(n_steps==i) %>% mutate(roi="Outside",outputContribution=Path_weight))
+                                       ret$outputsTable <- 1 ## Save memory as we're not using this here
+                                       ret})
+saveRDS(outClustersFull,"clusters-paths.rds")
+saveRDS(outClusters,"cluster-alldephts.rds")
+```
+
+
 ## Strongest partners connectivity matrix
 ```{r}
 targetsSummary <- group_by(CXoutFull,type.to) %>% summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
 mainTargets <- filter(targetsSummary,fullCXwr>0.005) %>% mutate(databaseType.to = allNodes$databaseType[match(type.to,allNodes$type)])
+
+mainCXTargets <- filter(mainTargets,databaseType.to %in% CXOutsideNeurons$databaseType)
+mainFFTargets <- filter(mainTargets,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from)
+
+mainFFConns <- filter(CXoutFull,type.to %in% mainFFTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
+                                                                                                                                               mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
+allMainConns <- filter(CXoutFull,type.to %in% mainTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
+                                                                                                                                               mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
+
+allMainConnsFilt <- filter(allMainConns,Path_weight>0.005)
+mainFFConnsFilt <- filter(mainFFConns, Path_weight>0.005)
+
 ```
 
+
+## Graph reduced to the strong targets
 ```{r}
-saveRDS(mainTargets,"main-targets.rds")
+CX_outGraphRed <- as_tbl_graph(induced_subgraph(CX_outGraph,c(mainFFConnsFilt$type.to,mainFFConnsFilt$type.from))) %N>% mutate(mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
+                                                                                                                             customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)],
+                                                                                                                             customContributor = ifelse(type %in% mainFFConnsFilt$type.from,"Source",as.character(customContributor)),
+                                                                                                                             label=ifelse(customContributor=="Source",type,NA)) 
+
+CX_outCommunitiesRed <- cluster_infomap(CX_outGraphRed,e.weights=E(CX_outGraphRed)$weightRelative)
+CX_outCommunitiesRedLP <- cluster_label_prop(CX_outGraphRed,weights=E(CX_outGraphRed)$weightRelative)
+
+CX_outGraphRed <- CX_outGraphRed %N>% mutate(imCommunity=membership(CX_outCommunitiesRed)[type],
+                                           lpCommunity=membership(CX_outCommunitiesRedLP)[type])
+saveRDS(CX_outGraphRed,"output_graph_reduced.rds")
 ```
+
 
 ## Synapses of the main targets
 ```{r,warning=FALSE}
-mainFFTargets <- filter(mainTargets,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from)
-mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to)
+mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to) %>% customRetyping() %>% filter(type %in% mainFFTargets$type.to)
 
 CXTargetsSyn <- collectSynapses(mainFFTargetsNeurons,NULL,polarity="post")
 
 
 saveRDS(CXTargetsSyn,"CX-targets-synapses.rds")
+```
+
+```{r}
+#saveRDS(mainTargets,"main-targets.rds")
+save(mainTargets,mainCXTargets,mainFFTargets,mainFFConns,allMainConns,allMainConnsFilt,mainFFConnsFilt,mainFFTargetsNeurons,file="mainTargetsAndConns.Rdata")
 ```
 ## Pathways to endpoints
 ```{r}
@@ -273,638 +321,15 @@ endpointsInfluence <- mutate(endpointsInfluence,type.from=as.character(type.from
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
                       supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)]
                       ) %>% supertype()
+endpointsInfluenceFull <- reshape2::melt(as.matrix(endpointsInfluenceM),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
+endpointsInfluenceFull <- mutate(endpointsInfluenceFull,type.from=as.character(type.from),type.to=as.character(type.to),
+                      databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
+                      supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)]
+                      ) %>% supertype()
+
+endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,type.from,databaseType.from,supertype1.from,supertype2.from,supertype3.from,supertype.to) %>% summarize(Path_weight=sum(Path_weight))
+saveRDS(endpointsInfluenceFullSummary,"endpoints-influenceFullSummary.rds")
 saveRDS(endpointsInfluence,"endpoints-influence.rds")
 saveRDS(mainEndpointInfluencers,"main-endpoints.rds")
 ```
-
-
-## Main targets in the CX?
-
-# Per type analysis
-A custom palette
-```{r}
-customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
-extraPal <- p36[!p36 %in% customGraphPalette]
-extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
-extraPal <- extraPal[1:length(extraLevs)]
-names(extraPal) <- extraLevs
-customGraphPalette <- c(customGraphPalette,extraPal)
-names(customGraphPalette)[2] <- "Source"
-```
-
-```{r}
-mainFFTargetsS <- mainFFTargets %>% rename(type=type.to,databaseType=databaseType.to) %>% supertype() %>% selectSupertypeSet(default_level = 3,exceptions=list("Terra incognita"=2))
-```
-
-```{r}
-CXOutSyn <-  mutate(CXOutSyn,customSupertype=targetFFSourceTable$supertype[match(databaseType,targetFFSourceTable$type)])
-```
-
-```{r}
-baseGraph <- function(g,minW=0.005,...){
-   ggraph(g,...) + geom_edge_fan(aes(color=supertype3.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype3),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=supertype3Palette)+ scale_edge_color_manual(values=supertype3Palette) + scale_edge_width(range=c(0.2,3),limits=c(minW,NA),name="Relative weight") + guides(color="none",edge_color="none")}
-```
-
-
-## Circuits to known types
-### PFR to mALD and MBON20
-Network graph
-```{r}
-PFR2mALDMBON20_2 <- getLocalSubgraph(c("PFR_b_L*","ExR7_R","ExR7_L"),c("mALD1_L","MBON20_R"),CX_outGraphRed,order=2) 
-PFR2mALDMBON20_1 <- getLocalSubgraph(c("PFR_b_L*","ExR7_R","ExR7_L"),c("mALD1_L","MBON20_R"),CX_outGraphRed,order=1)
-PFR2mALDMBON20Plot <- baseGraph(PFR2mALDMBON20_1)
-PFR2mALDMBON20Plot
-```
-Anatomy
-
-```{r}
-displayMeshes(list("FB Columnar"=filter(CXNeurons,type=="PFR_b_L*")$bodyid,
-                   "Terra incognita"=filter(mainFFTargetsNeurons,type=="LAL002_R")$bodyid),ROIs = c("FB","PB","CRE(R)"),saveName = "PFR-LAL002",neuronPalette = supertype3Palette)
-```
-```{r}
-displayMeshes(list("Terra incognita"=filter(mainFFTargetsNeurons,type=="LAL002_R")$bodyid,
-                   "Antennal lobe"=filter(mainFFTargetsNeurons,type=="mALD1_L")$bodyid,
-                   "MBON"=filter(mainFFTargetsNeurons,type=="MBON20_R")$bodyid),ROIs = c("FB","PB","CRE(R)"),saveName = "LAL002-MBONAL",neuronPalette = supertype3Palette)
-
-```
-
-```{r}
-PFRStep1 <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFR-LAL002-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFR-LAL002-side.png"),scale=1.6,hjust=-1.1,clip="on") + theme_paper_map()
-#PFRStep1
-```
-```{r}
-PFRStep2 <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"LAL002-MBONAL-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"LAL002-MBONAL-side.png"),scale=1.6,hjust=-1.1,clip="on") + theme_paper_map()
-#PFRStep2
-```
-```{r}
-PFRKnownOutputsFig <- (PFR2mALDMBON20Plot + plot_spacer()+ plot_layout(widths=c(2,1)))/ PFRStep1 / PFRStep2 + plot_annotation(title="PRR_b to mALD1 and MBON20",tag_level = "A") + plot_layout(heights = c(1,3,3))
-
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-mALD1-MBON20.pdf"),PFRKnownOutputsFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-
-
-### FS2 to PPL104
-Network graph
-```{r}
-FS2PPL104 <- getLocalSubgraph(c("FS2_R","FS2_L"),c("PPL104_R","PPL104_L"),CX_outGraphBi,order=1) 
-FS2PPL104Plot <- baseGraph(FS2PPL104,layout="grid") + scale_y_continuous(trans="reverse")
-FS2PPL104Plot
-```
-Anatomy
-
-```{r}
-displayMeshes(list("FB Output"=filter(CXNeurons,type=="FS2_L")$bodyid,
-                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL104_R")$bodyid),ROIs = c("FB","SMP(R)"),saveName = "FS2PPL104",neuronPalette = supertype3Palette)
-```
-
-```{r}
-FS2PPLAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FS2PPL104-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FS2PPL104-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-
-```{r}
-FS2KnownOutputsFig <- (FS2PPL104Plot + plot_spacer() + plot_layout(widths=c(1,2))) / FS2PPLAnat + plot_annotation(title="FS2 to PPL104",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PPL104.pdf"),FS2KnownOutputsFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-### FB8F to PPL105
-Network graph
-```{r}
-FB8PPL105 <- getLocalSubgraph(c("FB8F_a_R"),c("PPL105_R","MBON23_R"),CX_outGraphBi,order=1) 
-FB8PPL105Plot <- baseGraph(FB8PPL105,layout="sugiyama")
-FB8PPL105Plot
-```
-```{r}
-mb23 <- getTypesTable("MBON23") %>% cxRetyping()
-
-displayMeshes(list("FB Tangential"=filter(CXNeurons,type=="FB8F_a_R")$bodyid,
-                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL105_R")$bodyid,
-                   "MBON"=filter(mb23,type=="MBON23_R")$bodyid),ROIs = c("FB","SMP(R)"),saveName = "FB8PPL105",neuronPalette = supertype3Palette)
-```
-```{r}
-FB8PPLAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FB8PPL105-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FB8PPL105-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-FB8KnownOutputsFig <- (FB8PPL105Plot + plot_spacer()) / FB8PPLAnat + plot_annotation(title="FB8 to PPL105",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6-SI1-PPL105.pdf"),FB8KnownOutputsFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-
-### FR2 to PPL107
-```{r}
-FR2PPL107 <- getLocalSubgraph(c("FR2_L"),c("PPL107_R"),CX_outGraphRed,order=1) 
-FR2PPL107Plot <- baseGraph(FR2PPL107,layout="sugiyama")
-FR2PPL107Plot
-```
-
-```{r}
-displayMeshes(list("FB Output"=filter(CXNeurons,type=="FR2_L")$bodyid,
-                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL107_R")$bodyid,
-                   "Terra incognita"=filter(mainFFTargetsNeurons,type=="CRE054_R")$bodyid
-                   ),ROIs = c("FB","CRE(R)"),saveName = "FR2PPL107",neuronPalette = supertype3Palette)
-```
-```{r}
-FR2PPLAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FR2PPL107-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FR2PPL107-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-FR2KnownOutputsFig <- (FR2PPL107Plot + plot_spacer()) / FR2PPLAnat + plot_annotation(title="FR2 to PPL107",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PPL107.pdf"),FR2KnownOutputsFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-
-### Paths to oviIN and MBON27
-
-```{r}
-FCFStoOviMBON27<- getLocalSubgraph(c("FC2B_L","FS1A_L","FS1A_R","FS1B_L","FS1B_R"),c("oviIN_R","MBON27_R"),CX_outGraphRed,order=2) 
-FCFStoOviPlot <- baseGraph(FCFStoOviMBON27,layout="sugiyama")
-FCFStoOviPlot
-```
-
-```{r}
-displayMeshes(list("FB Output"=CXNeurons$bodyid[match( c("FS1A_L","FS1A_R","FC2B_L","FS1B_L"),CXNeurons$type)],
-                   "Fru"=filter(mainFFTargetsNeurons,type=="oviIN_R")$bodyid,
-                   "MBON"=filter(mainFFTargetsNeurons,type=="MBON27_R")$bodyid
-                   ),ROIs = c("FB","CRE(R)"),saveName = "FCFSOvi",neuronPalette = supertype3Palette)
-```
-
-```{r}
-FCFSOviAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FCFSOvi-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FCFSOvi-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-FCFSKnownOutputsFig <- (FCFStoOviPlot + plot_spacer()) / FCFSOviAnat + plot_annotation(title="FC FS to oviIn and MBON27",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-oviIN-MBON27.pdf"),FCFSKnownOutputsFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-### FR1 to MBON30
-
-```{r}
-FRtoMB30<- getLocalSubgraph(c("FR1_L"),c("PPL102_L"),CX_outGraphRed,order=2) 
-FR1toMB30Plot <- baseGraph(FRtoMB30) 
-FR1toMB30Plot
-```
-
-```{r}
-displayAnatomies(neurons=list("FB Output"=filter(CXNeurons,type=="FR1_L")$bodyid,
-                   "MBON"=filter(mainFFTargetsNeurons,type=="MBON30_R")$bodyid,
-                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL102_L")$bodyid
-                   ),ROIs = c("FB","CRE(R)"),saveName = "FR1MB30",neuronPalette = supertype3Palette)
-```
-
-```{r}
-FR1MB30Anat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FR1MB30-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FR1MB30-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-FR1MB30Fig <- (FR1toMB30Plot + plot_spacer() + plot_layout(widths=c(1,3))) / FR1MB30Anat + plot_annotation(title="FR1 to MBON30",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-MBON30.pdf"),FR1MB30Fig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-### ExR8 to V/DCH
-
-```{r}
-ExR8toCH<- getLocalSubgraph(c("ExR8_R"),c("VCH_L","DCH_L"),CX_outGraphBi,order=1) 
-ExR8toCHPlot <- baseGraph(ExR8toCH)
-ExR8toCHPlot
-```
-
-
-```{r}
-displayMeshes(list("ExR"=filter(CXNeurons,type=="ExR8_R")$bodyid,
-                   "Visual PNs"=filter(mainFFTargetsNeurons,type%in% c("DCH_L","VCH_L"))$bodyid,
-                   "Terra incognita"=filter(mainFFTargetsNeurons,type=="PS047_R")$bodyid
-                   ),ROIs = c("EB","IPS(R)","LAL(R)"),saveName = "ExR8CH",neuronPalette = supertype3Palette)
-```
-
-```{r}
-ExR8CHAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"ExR8CH-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"ExR8CH-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-ExR8CHFig <- (ExR8toCHPlot + plot_spacer() + plot_layout(widths = c(1,2)))/ExR8CHAnat + plot_annotation(title="ExR8 to VCH/DCH",tag_levels = "A") + plot_layout(heights = c(1,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-ExR8ToCH.pdf"),ExR8CHFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-```{r}
-#figure5_SI1 <- PFRKnownOutputsFig / FS2KnownOutputsFig / FB8KnownOutputsFig / FR2KnownOutputsFig / FCFSKnownOutputsFig /FR1MB30Fig/ExR8CHFig + plot_layout(heights=c(2,1,1,1,1,1,1),guides = "collect") + plot_annotation(tag_levels = "A")
-```
-
-### LC33
-
-```{r}
-PFLtoLC33 <- getLocalSubgraph(c("PFL3_L*","PFL2_L"),c("LC33_R"),CX_outGraphRed,order=1) 
-PFLtoLC33Plot <- baseGraph(PFLtoLC33) 
-PFLtoLC33Plot
-```
-
-```{r}
-displayMeshes(list("FB Columnar"=filter(CXNeurons,type=="PFL3_L*")$bodyid,
-                   "Visual PNs"=filter(mainFFTargetsNeurons,type=="LC33_R")$bodyid,
-                   "Terra incognita"=filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)"),saveName = "PFL3toLC33",neuronPalette = supertype3Palette)
-```
-
-```{r}
-PFL3LC33Anat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFL3toLC33-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFL3toLC33-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-
-
-Shared targets between LC33 and PFL3
-```{r}
-sharedG <- (CX_outGraph %E>% filter(type.from=="PFL3_L*" | type.from=="LC33_R")) %N>% filter(type %in% .E()$type.from | type %in% .E()$type.to)
-sharedPFLC <- baseGraph(sharedG)
-```
-```{r}
-PFL3LC33Fig <- (PFLtoLC33Plot + plot_spacer() + plot_layout(widths = c(1,2)))/PFL3LC33Anat /sharedPFLC+ plot_annotation(title="PFL3 to LC33",tag_levels = "A") + plot_layout(heights = c(1,3,3))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PFL3toLC33.pdf"),PFL3LC33Fig,ncol=1,nrow=7,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-
-PFL3 to LC33 connectivity
-```{r}
-PFL3Bag <- neuronBag(filter(CXNeurons,type=="PFL3_L*"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
-orderPFL3Name <- c("PFL3(PB12c)_R2_C1_irreg","PFL3(PB12c)_R1_C2_irreg","PFL3(PB12c)_L1_C3","PFL3(PB12c)_L2_C4","PFL3(PB12c)_L3_C5","PFL3(PB12c)_L4_C6","PFL3(PB12c)_L5_C7","PFL3(PB12c)_L6_C8","PFL3(PB12c)_L7_C9")
-PFL3s <- PFL3Bag$names %>% mutate(name=factor(name,levels=orderPFL3Name)) %>% arrange(name)
-orderPFL3BI <- PFL3s$bodyid
-plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R"),grouping="neuron",replacementLabels="name",orderIn = orderPFL3BI,xaxis="outputs")
-```
-
-Looking at those shared targets: neuron to neuron LC33 connectivity:
-```{r}
-LC33Bag <- neuronBag(filter(mainFFTargetsNeurons,type=="LC33_R"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping)
-LC33Bag <- combineRois(LC33Bag,outsideRegions,"Outside")
-sharedG %N>% as_tibble()
-LC33toPFLTargets <- filter(LC33Bag$outputs_raw,type.to %in% (filter(sharedG %E>% as_tibble(),type.from=="PFL3_L*")$type.to) & type.to != "LC33_R" ) %>% mutate(PFTarg = from %in% PFL3Bag$outputs_raw$to)
-LC33TargetsClusters <-  connectivityCluster(LC33toPFLTargets,ROIs="Outside",grouping="neuron")
-LC33Clusters <- connectivityCluster(outputsTable = LC33toPFLTargets,ROIs="Outside",grouping="neuron")
-plotConnectivity(LC33toPFLTargets,slctROI="Outside",xaxis="outputs",theme=theme_paper_grid(),grouping = "neuron",orderOut = LC33TargetsClusters,facetInputs="PFTarg",replacementLabels = "name")
-```
-
-
-### PFLs to DNs
-#### To DN2 and 3
-```{r}
-#"DN?_5813078378",
-PFLToDN2_3<- getLocalSubgraph(c("PFL3_L*","PFL2_R","PFL2_L"),c("DNa02_R","DNa03_L","DNa03_R"),CX_outGraphRed,order=1) 
-
-PFL_toDN2_3bi <- as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL2_L","PFL2_R",
-                                               "PFL3_L*","PFL3_R*",
-                                               "LAL121_R","LAL121_L",
-                                               "AOTU019_R","AOTU019_L",
-                                               "PS013_R","PS013_L",
-                                               "LAL018_R","LAL018_L",
-                                               "LAL014_R","LAL014_L",
-                                               "LAL046_R","LAL046_L",
-                                               "LAL010_R","LAL010_L",
-                                               "DNa03_R","DNa03_L",
-                                               "DNa02_R","DNa02_L"))) %N>% mutate(x=case_when(
-                                                                                              type%in% c("PFL3_L*","DNa02_R") ~ 1,
-                                                                                              type %in% c("PFL3_R*","DNa02_L") ~ 3,
-                                                                                              type %in% c("PFL2_L") ~ 1.8,
-                                                                                              type %in% c("PFL2_R") ~ 2.2,
-                                                                                              type %in% c("LAL121_R","AOTU019_R","LAL121_L","AOTU019_L") ~ 2,
-                                                                                              type %in% c("PS013_R","LAL018_R") ~ 0.8,
-                                                                                              type %in% c("PS013_L","LAL018_L") ~ 3.2,
-                                                                                              type %in% c("LAL014_R","LAL046_R","LAL010_R") ~ 1.2,
-                                                                                              type %in% c("LAL014_L","LAL046_L","LAL010_L") ~ 2.8,
-                                                                                              type == "DNa03_R" ~ 1.3,
-                                                                                              type == "DNa03_L" ~2.7),
-                                                                                  y=case_when(
-                                                                                     type %in% c("PFL2_L","PFL2_R","PFL3_L*","PFL3_R*") ~ 3,
-                                                                                     type %in% c("PS013_R","PS013_L","LAL046_R","LAL046_L","LAL121_R") ~ 2.2,
-                                                                                     type %in% c("LAL018_R","LAL018_L","LAL046_R","LAL046_L","LAL014_R","LAL014_L","LAL121_L") ~ 2,
-                                                                                     type %in% c("LAL010_R","LAL010_L","AOTU019_R") ~ 1.8,
-                                                                                     type %in% c("AOTU019_L") ~ 1.6,
-                                                                                     type %in% c("DNa03_R","DNa03_L","DNa02_R","DNa02_L")~1
-                                                                                  ))
-
-
-
-PFL2DN23Plot <- ggraph(PFL_toDN2_3bi,layout="manual",x=x,y=y) + geom_vline(xintercept = 2,lty=2,color="grey50")+ geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
-
-#PFL2DN23Plot <- baseGraph(PFL_toDN2_3bi,minW=0.001,layout="manual",x=x,y=y)
-PFL2DN23Plot 
-```
-```{r}
-displayMeshes(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL121_R"))$bodyid,
-                   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU019_R"))$bodyid,
-                   "PFL"=filter(CXNeurons,type %in% c("PFL3_L*"))$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)","AOTU(R)"),saveName = "PFLtoBil",neuronPalette = c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))
-
-displayMeshes(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL121_L"))$bodyid,
-                   "AOTU"=filter(mainFFTargetsNeurons,type %in%"AOTU019_L")$bodyid,
-                   "DN"=filter(mainFFTargetsNeurons,type =="DNa03_R")$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "bilToDNa03",neuronPalette = customGraphPalette)
-
-```
-
-```{r}
-PFLBilAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLtoBil-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLtoBil-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-bilDNa03Anat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"bilToDNa03-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"bilToDNa03-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-PFLtoDN23Fig <- PFL2DN23Plot /PFLBilAnat /bilDNa03Anat+ plot_annotation(title="PFL2/3 to DNa02/DNa03",tag_levels = "A") 
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PFLtoDN2-3.pdf"),PFLtoDN23Fig,ncol=1,nrow=7,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-#### To DN2 3 4 ipsilaterally
-```{r}
-PFLsToDNIpsi34<- getLocalSubgraph(c("PFL3_L*","PFL2_R","PFL2_L","MBON27_L"),c("DNa04_R","DNa02_R"),CX_outGraphBi,order=1) 
-PFLsToDNIpsiPlot <- ggraph(PFLsToDNIpsi34,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
-PFLsToDNIpsiPlot
-```
-
-
-```{r}
-displayMeshes(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL046_R"))$bodyid,
-                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS013_R"))$bodyid,
-                   "PFL"=filter(CXNeurons,type %in% c("PFL3_L*"))$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "PFLtoIpsi",neuronPalette = c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))
-
-displayMeshes(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL018_R"))$bodyid,
-                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS013_R"))$bodyid,
-                   "DN"=filter(mainFFTargetsNeurons,type =="DNa04_R")$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "ipsiToDNa04",neuronPalette = customGraphPalette)
-
-```
-
-```{r}
-PFLIpsiAnat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLtoIpsi-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLtoIpsi-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-ipsiDNa04Anat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"ipsiToDNa04-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"ipsiToDNa04-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
-
-```{r}
-PFLIpsiFig <- PFLsToDNIpsiPlot /PFLIpsiAnat / ipsiDNa04Anat + plot_annotation(title="PFL2/3 to ipsilateral DNs",tag_levels = "A") 
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PFLtoIpsiDNs.pdf"),PFLIpsiFig,ncol=1,nrow=7,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
-```
-
-#### To DNb/DNg
-```{r}
-PFLsToDNb<- getLocalSubgraph(c("PFL3_L*"),c("DNb01_2_R","DN?_5813078378"),CX_outGraphRed,order=1) 
-ggraph(PFLsToDNb,layout="stress")  + geom_node_point(aes(color=supertype2),size=4)+theme_paper_map()+ geom_edge_fan(aes(color=supertype2.from,width=weightRelative),linejoin = "mitre",linemitre=3,end_cap = circle(4, "mm"),
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed"))+geom_node_text(aes(label=type),size = 6*mm2pt)+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
-```
-
-## PFLs
-### Their synapses
-```{r}
-displayAnatomies(synapses=filter(CXOutSyn,customSupertype %in% c("PFL1","PFL2","PFL3")),ROIs = c("LAL(R)","CRE(R)"),saveName = "PFLs",synapsePalette = customContributorsPalette,synapseCluster = "customSupertype")
-```
-```{r}
-PFLSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
-```
-
-
-The synapses from their targets
-
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","PFL2","PFL3")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "PFLTargets",synapsePalette = customContributorsPalette,synapseCluster = "customContributor")
-
-```
-```{r}
-PFLTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourcePF <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype %in% c("PFL1","PFL2","PFL3")),aes(x=1,y=supertype)) + geom_point(aes(color=supertype),alpha=0.2) + theme_paper_map() + scale_color_manual(values=customContributorsPalette))
-```
-### First order partners - homogeneity?
-```{r}
-PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
-PFLOutRaw <- PFLBag$outputs_raw %>% filter(type.to %in% mainFFTargets$type.to & !type.to %in%  c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")) %>% arrange(type.to) %>% mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",7:1),paste0("R",1:7))),
-                                                                                                                                                                         column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=c(paste0("C",9:1)))) %>% group_by(glomerulus,type.from) %>% mutate(n_glom_from=length(unique(from))) %>%
-   group_by(column,type.from) %>% mutate(n_col_from=length(unique(from))) %>% ungroup()
-
-PFLOutPerGlom <- group_by(PFLOutRaw,glomerulus,type.from,type.to,to,name.to,roi) %>% summarize(weightRelative=sum(weightRelative),
-                                                                                               name.from=paste0(glomerulus[1]," (n=",n_glom_from[1],")"),
-                                                                                               from=glomerulus[1]) %>% ungroup() %>% 
-   arrange(type.to)
-
-PFLOutPerCol <- group_by(PFLOutRaw,column,type.from,type.to,to,name.to,roi) %>% summarize(weightRelative=sum(weightRelative),
-                                                                                               name.from=paste0(column[1]," (n=",n_col_from[1],")"),
-                                                                                               from=column[1]) %>% ungroup() %>% arrange(type.to)
-
-
-
-connMatPFLs <- (plotConnectivity(filter(PFLOutPerGlom,type.from=="PFL1_L*"),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = c(paste0("L",7:1),paste0("R",1:7))) +ggtitle("PFL1"))/
-    (plotConnectivity(filter(PFLOutPerGlom,type.from %in% c("PFL2_L","PFL2_R")),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = c(paste0("L",7:1),paste0("R",1:7)))+ggtitle("PFL2"))/
-   (plotConnectivity(filter(PFLOutPerGlom,type.from=="PFL3_L*"),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = c(paste0("L",7:1),paste0("R",1:7)))+ggtitle("PFL3"))
-
-connMatPFLsCol <-plotConnectivity(filter(PFLOutPerCol,type.from=="PFL1_L*"),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = paste0("C",9:1))/
-              plotConnectivity(filter(PFLOutPerCol,type.from %in% c("PFL2_L","PFL2_R")),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = paste0("C",9:1))/
-              plotConnectivity(filter(PFLOutPerCol,type.from=="PFL3_L*"),slctROI="Outside",grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = paste0("C",9:1))
-
-PFLGlomCounts <- PFLOutPerGlom %>% group_by(name.from,type.from) %>% summarize(totalW=sum(weightRelative)) %>% ungroup()#%>% 
-PFLColCounts <- PFLOutPerCol %>% group_by(name.from,type.from) %>% summarize(totalW=sum(weightRelative)) %>% ungroup()
-   #ungroup() %>% mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",7:1),paste0("R",1:7)))) 
-ggplot(PFLGlomCounts,aes(x=name.from,y=totalW,group=type.from,color=type.from)) + geom_line() +theme_paper()+ theme(axis.text.x = element_text(angle=90,vjust=0.5))+ facet_wrap(.~type.from,scale="free_x")
-ggplot(PFLColCounts,aes(x=name.from,y=totalW,group=type.from,color=type.from)) + geom_line() +theme_paper()+ theme(axis.text.x = element_text(angle=90,vjust=0.5))+ facet_wrap(.~type.from,scale="free_x")
-
-connMatPFLs
-connMatPFLsCol
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"PFLMats.svg"),connMatPFLs,nrow=3,ncol=1,base_height = 11/4,base_width = 8.5)
-```
-
-
-
-### Their subnetworks
-
-```{r}
-PFL1SubGraphPlot <- plotSubgraph("PFL1_L*",influenceThreshold = 0.005)
-PFL1SubGraphPlot
-```
-```{r}
-PFL2SubGraphPlot<- plotSubgraph(c("PFL2_L","PFL2_R"),influenceThreshold = 0.005)
-PFL2SubGraphPlot
-```
-```{r}
-PFL3SubGraphPlot<- plotSubgraph("PFL3_L*",influenceThreshold = 0.005)
-PFL3SubGraphPlot
-```
-```{r}
-allPFLsSubGraph <- plotSubgraph(c("PFL1_L*","PFL3_L*","PFL2_L","PFL2_R"),influenceThreshold = 0.01)
-allPFLsSubGraph
-```
-```{r}
-pflFig <- (PFLSynapses + legendSourcePF + PFLTargetsSynapses + plot_layout(widths=c(5,1,5))) / (PFL1SubGraphPlot + PFL2SubGraphPlot) / PFL3SubGraphPlot + plot_annotation(tag_levels = "A") 
-pflFig
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6.pdf"),pflFig,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allPFLsSubGraph,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
-```
-#### Important nodes in the subnetworks?
-
-
-## FS
-
-Their synapses
-```{r}
-nopen3d()
-par3d(windowRect = c(30, 30, 1530, 1530))
-plot3d(SMPMesh,color=rPal["SNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(CREMesh,color=rPal["INP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-par3d(scale=c(1,1,1))
-for (cl in c("FS1","FS2","FS3","FS4")){
-   plot3d(filter(CXOutSyn,customSupertype==cl)[,c("x","y","z")],col=customContributorsPalette[cl],add=T,alpha=0.5)
-}
-nview3d("ventral")
-rgl.snapshot(paste0(outputsFolder,"frontFSs.png"))
-nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
-rgl.snapshot(paste0(outputsFolder,"sideFSs.png"))
-```
-```{r}
-FSSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"frontFSs.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"sideFSs.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-FSSynapses
-```
-The synapses from their targets
-
-```{r}
-nopen3d()
-par3d(windowRect = c(30, 30, 1530, 1530))
-plot3d(EBMesh,color="white",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
-plot3d(FBMesh,color="white",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(PBMesh,color="white",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(NOMesh,color="white",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(LALRMesh,color=rPal["LX"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(GARMesh,color=rPal["LX"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(BUMesh,color=rPal["LX"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(CREMesh,color=rPal["INP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SMPMesh,color=rPal["SNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(WEDMesh,color=rPal["VLNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SLPMesh,color=rPal["SNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SIPMesh,color=rPal["SNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(SPSMesh,color=rPal["VMNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-plot3d(IPSMesh,color=rPal["VMNP"],alpha=0.1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add = T)
-par3d(scale=c(1,1,1))
-for (cl in c("FS1","FS2","FS3","FS4")){
-   plot3d(filter(CXTargetsSyn,customContributor==cl)[,c("x","y","z")],col=customContributorsPalette[cl],add=T,alpha=0.5)
-}
-nview3d("ventral")
-rgl.snapshot(paste0(outputsFolder,"frontFSTargets.png"))
-nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
-rgl.snapshot(paste0(outputsFolder,"sideFSTargets.png"))
-```
-```{r}
-FSTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"frontFSTargets.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"sideFSTargets.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-FSTargetsSynapses
-```
-```{r}
-legendSourceFS <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype %in% c("FS1","FS2","FS3","FS4")),aes(x=1,y=supertype)) + geom_point(aes(color=supertype),alpha=0.5) + theme_paper_map() + scale_color_manual(values=customContributorsPalette))
-```
-
-```{r}
-FS1SubGraphPlot<- plotSubgraph(c("FS1A_L","FS1B_L"),influenceThreshold = 0.01)
-FS1SubGraphPlot
-```
-```{r}
-FS2SubGraphPlot<- plotSubgraph(c("FS2_L"),influenceThreshold = 0.01)
-FS2SubGraphPlot
-```
-```{r}
-FS3SubGraphPlot<- plotSubgraph(c("FS3_L"),influenceThreshold = 0.01)
-FS3SubGraphPlot
-```
-```{r}
-FS4SubGraphPlot<- plotSubgraph(c("FS4A_L","FS4B_L","FS4C_L"),influenceThreshold = 0.01)
-FS4SubGraphPlot
-```
-```{r}
-allFSSubGraphPlot<- plotSubgraph(c("FS1A_L","FS1B_L","FS2_L","FS3_L","FS4A_L","FS4B_L","FS4C_L"),influenceThreshold = 0.01)
-allFSSubGraphPlot
-```
-```{r}
-figure7 <- (FSSynapses + legendSourceFS + FSTargetsSynapses + plot_layout(widths = c(5,1,5))) / allFSSubGraphPlot + plot_annotation(tag_levels = "A") + plot_layout(heights=c(1,1.5))
-figure7
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure7.pdf"),figure7,ncol=1,nrow=3,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-
-
-

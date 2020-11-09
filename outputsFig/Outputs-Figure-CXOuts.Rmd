@@ -41,18 +41,13 @@ CXOutputSummary <- getROISummary(CXOutputNeurons,threshold=20) %>% filter(downst
 outputsInnervation_R <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype3",roiLabel = roiOutLabels,flip=T,interactive=TRUE,theme = theme_paper_grid(),showCount = T)
 outputsInnervation_R
 ```
-
-```{r}
-customSupertypePalette <- c(supertype2Palette()$pal,"EB Columnar"=supertype2Palette()$pal["EPG"])
-```
-
 ```{r}
 CXOutSyn <- readRDS("CX-outsideSynapses.rds")
 displayAnatomies(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allOuts",
                  synapsePalette = customSupertypePalette,
-                 synapseCluster = "supertype")
+                 synapseCluster = "customSupertype")
 ```
 
 ```{r}
@@ -76,7 +71,7 @@ firstStageSummary <- firstStep %>% supertype() %>%
    group_by(type.from,supertype3.from) %>% 
    summarize(totalWeight=sum(weightRelative),totalWeightRaw=sum(absoluteWeight),totalDown=sum(totalPreROIweight*n_from),meanDown=sum(totalPreROIweight)) %>% 
    filter(totalWeightRaw>20)
-firstStageSummary$supertype.from <- CXOutputNeurons$supertype[match(firstStageSummary$type.from,CXOutputNeurons$type)]
+firstStageSummary$supertype.from <- CXOutputNeurons$customSupertype[match(firstStageSummary$type.from,CXOutputNeurons$type)]
 ```
 
 ```{r}
@@ -95,8 +90,14 @@ meanCountsSummary + totalCountsSummary + countsSummary
 
 ### Figure 1: synapses of CX neurons outside the CX
 ```{r}
-outputFig1 <- (outputsInnervation_R + theme(plot.margin=margin(b=30,t=30),strip.text.x=element_text(angle=90)))/ 
-   allOutViews / 
-   countsSummary + plot_layout(heights=c(1,3,0.5)) + plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX")
+layout <- c(
+   area(t=2,b=4,l=2,r=9),
+   area(t=6,b=12,l=2,r=9),
+   area(t=14,b=15,l=2,r=9)
+)
+
+outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
+   allOutViews + 
+   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX") & theme(plot.tag.position = c(-0.05, 1.1))
 save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```
