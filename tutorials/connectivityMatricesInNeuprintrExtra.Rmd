@@ -87,7 +87,7 @@ plotConnectivity(PFLFromInputsTypes)
 ```
 Of course you might still want to order the other axis, which you can do using the "orderIn"/"orderOut" argument: here for example running connectivityClustering for the other side of the matrix. You can also directly give another connectivityCluster object for that argument.
 ```{r}
-clusterPFLInputs <- connectivityCluster(outputsTable=PFLs$inputs,grouping="type",ROIs = "FB")
+clusterPFLInputs <- connectivityCluster(outputsTable=select(PFLs$inputs,type.from,type.to,outputContribution,roi),grouping="type",ROIs = "FB")
 
 plotConnectivity(PFLFromInputsTypes,orderIn=clusterPFLInputs)
 ```

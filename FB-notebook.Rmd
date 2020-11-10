@@ -5,19 +5,20 @@ output: html_notebook
 
 Load the libraries
 ```{r}
-library(nat)
+#library(nat)
 library(neuprintr)
+library(neuprintrExtra)
 library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(gridExtra)
 library(paletteer)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
+#source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\pathways.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\supertypeUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\visualizeConnectivityTables.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
+#source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\neuprintQueryUtils.R")
 source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\colorCodeLookup.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+#source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
 options(nat.plotengine = 'rgl')
 ```
 
@@ -822,8 +823,8 @@ dendPlot <- function(hc,rotate){
 Create an igraph network of the FB connections
 First, get the type to type connectivity table
 ```{r}
-nrons = c("PF","FC","FR","FS","Delta0","Delta6","FB")
-FB_Post = getConnectionTable(getBodyIdsForList(c(nrons)),"POST","FB")
+nrons = neuprint_bodies_in_ROI("FB") %>% mutate(type = neuprint_get_meta(bodyid)$type) %>% filter(grepl("PF|FC|FR|FS|vDelta|hDelta|FB",type)) %>% select(type) %>% unique() %>% unlist() %>% as.character()
+FB_Post = getConnectionTable(getTypesTable(nrons),"POST","FB")
 FB_T2T <- getTypeToTypeTable(FB_Post)
 ```
 
@@ -854,7 +855,9 @@ V(g)$label.cex = 0.6
 V(g)$label.color = "black"
 V(g)$color = sapply(FBNodes$supertype, function(st){sTsCols[which(st==sTs)]})
 co <- layout_with_lgl(g)
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FB\\FBNetwork.pdf")
 plot(g, layout = co, vertex.size=5, edge.arrow.size=0.1)
+dev.off()
 
 cfg <- cluster_fast_greedy(as.undirected(g))
 plot(cfg, as.undirected(g), vertex.size=10)

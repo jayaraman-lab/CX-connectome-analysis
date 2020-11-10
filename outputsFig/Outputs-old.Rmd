@@ -1,0 +1,648 @@
+---
+title: "Old analysis"
+output: html_notebook
+---
+
+
+```{r}
+pathwaysSummaryMain <- group_by(filter(pathways,type.to %in% mainTargets$type.to),supertype3.to,hop.to) %>% summarize(pathWeight=sum(Path_weight),nTypes=length(unique(type.to))) %>% ungroup() %>%
+   group_by(hop.to) %>% mutate(normalizedPathWeight=pathWeight/sum(pathWeight),normalizedNTypes=nTypes/sum(nTypes)) %>% ungroup() %>% filter(hop.to>0)
+pathwaysSuperSummaryMain <- group_by(pathwaysSummaryMain,hop.to) %>% summarize(totalWeight=sum(pathWeight))
+
+#pathwaysSummaryCum <- group_by(pathwaysSummary,supertype3.to) %>% arrange(n_steps) %>% mutate(pathWeight=cumsum(pathWeight)) %>%ungroup()
+outputCompositionMain <- ggplot(pathwaysSummaryMain,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received") + 
+   theme(strip.background=element_rect(fill = "grey80",color=NA)) + geom_text(data=pathwaysSuperSummaryMain,aes(x=hop.to,y=1.03,label=format(totalWeight,digits=2)),inherit.aes = F) +
+   geom_point(data=pathwaysSuperSummaryMain,aes(x=hop.to,y=1.1,size=totalWeight),inherit.aes = F) + scale_size(limits=c(0,28),guide="none")
+outputCompositionZoomMain <-  ggplot(filter(pathwaysSummaryMain,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),aes(x=as.factor(hop.to),y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received")+ 
+    theme(strip.background=element_rect(fill = "grey80",color=NA)) +scale_size(limits=c(0,28))
+outputCompositionMain + outputCompositionZoomMain + plot_layout(guides = "collect")
+```
+## Old
+```{r}
+recurrenceContribPlot <- ggplot(allCXRecurrenceSummary,aes(x=type.fromF,y=wrContribution)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") + geom_hline(yintercept=1,lty=2) + geom_hline(yintercept=0.9,lty=3)+facet_grid(.~supertype3.from,scales = "free",space = "free")
+
+
+#### FOR TARGETS
+                              
+targetContribPlot_nonFbt1 <- ggplot(filter(allCXRecurrenceTargetsSummary,startsWith(supertype3.to,"E")),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),plot.margin=margin(t=20)) + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex target") + ylab("Relative weight outside the CX") +facet_grid(.~supertype3.to,scales = "free",space = "free") +ylim(c(0,1))
+
+targetContribPlot_nonFbt2 <- ggplot(filter(allCXRecurrenceTargetsSummary,!startsWith(supertype3.to,"E") & supertype2.to != "FBt"),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.to,scales = "free",space = "free")+ylim(c(0,1))
+
+targetContribPlot_Fbt1 <- ggplot(filter(allCXRecurrenceTargetsSummary,grepl("FB[1-2]",supertype1.to)),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.to,scales = "free",space = "free")+ylim(c(0,1))
+
+targetContribPlot_Fbt2 <- ggplot(filter(allCXRecurrenceTargetsSummary,grepl("FB[3-4]",supertype1.to)),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.to,scales = "free",space = "free")+ylim(c(0,1))
+
+targetContribPlot_Fbt3 <- ggplot(filter(allCXRecurrenceTargetsSummary,grepl("FB[5-6]",supertype1.to)),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.to,scales = "free",space = "free")+ylim(c(0,1))
+
+targetContribPlot_Fbt4 <- ggplot(filter(allCXRecurrenceTargetsSummary,grepl("FB[7-9]",supertype1.to)),aes(x=type.toF,y=wr)) + geom_col(aes(fill=as.factor(n_steps))) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") + scale_fill_paletteer_d("ggthemes::Color_Blind",name="Feedback pathway length") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.to,scales = "free",space = "free")+ylim(c(0,1))
+
+feedbacksPerTargetNStepsFig <- targetContribPlot_nonFbt1/ targetContribPlot_nonFbt2/targetContribPlot_Fbt1/targetContribPlot_Fbt2/targetContribPlot_Fbt3/targetContribPlot_Fbt4 + plot_layout(guides = 'collect')
+recurrenceContribPlot
+```
+```{r}
+save_plot(paste0(outputsFolder,"recurrenceContribution.svg"),recurrenceContribPlot,ncol=5,nrow=1,base_width = 8.5/5,base_height = 11/5)
+save_plot(paste0(outputsFolder,"feedbackSI1A.svg"),feedbacksPerTargetNStepsFig,ncol=1,nrow=1,base_width = 8.5,base_height = 11)
+```
+Finding the CX output neurons that are not really outputs
+```{r}
+pureRecurrent <- group_by(allCXRecurrenceSummary,type.from) %>% summarize(wrContribution = sum(wrContribution))
+pureRecurrentNeurons <- filter(pureRecurrent,wrContribution>0.9)$type.from
+realOutputs <- unique(CX_outPaths[[1]]$type.from[!CX_outPaths[[1]]$type.from %in% pureRecurrentNeurons])
+```
+
+Of stage N1/N2/N3 neurons, identify those that are exclusively involved in recurrent loops:
+```{r}
+N1Recurrence <- tableChain2path(filter(CX_outPaths[[2]],!(type.from %in% CXNeurons$type)),
+                                filter(CX_outPaths[[3]],!(type.from %in% CXNeurons$type)),
+                                filter(CX_outPaths[[4]],!(type.from %in% CXNeurons$type)),
+                                type.to=CXNeurons,stat="knownWROutputContribution_perTypeAllROIs") 
+
+N1RecurrenceSummary <- group_by(N1Recurrence,type.from) %>% summarize(wrContribution = sum(knownWROutputContribution_perTypeAllROIs_path))
+
+N2Recurrence <- tableChain2path(filter(CX_outPaths_red[[3]],!(type.from %in% CXNeurons$type) & !(type.from %in% CX_outPaths_red[[2]]$type.from)),
+                                filter(CX_outPaths_red[[4]],!(type.from %in% CXNeurons$type) & !(type.from %in% CX_outPaths_red[[2]]$type.from)),
+                                type.to=CXNeurons,stat="knownWROutputContribution_perTypeAllROIs") 
+
+N2RecurrenceSummary <- group_by(N2Recurrence,type.from) %>% summarize(wrContribution = sum(knownWROutputContribution_perTypeAllROIs_path))
+
+N3Recurrence <- tableChain2path(filter(CX_outPaths_red[[4]],!(type.from %in% CXNeurons$type) & !(type.from %in% CX_outPaths_red[[2]]$type.from) & !(type.from %in% CX_outPaths_red[[3]]$type.from)),
+                                type.to=CXNeurons,stat="knownWROutputContribution_perTypeAllROIs") 
+
+N3RecurrenceSummary <- group_by(N3Recurrence,type.from) %>% summarize(wrContribution = sum(knownWROutputContribution_perTypeAllROIs_path))
+```
+Listing all CX network specific neurons (feedbacks and/or inputs)
+```{r}
+excluTreshold <- 0.9
+intermediateRecurrent <- sort(c(filter(N1RecurrenceSummary,wrContribution>excluTreshold)$type.from,filter(N2RecurrenceSummary,wrContribution>excluTreshold)$type.from,filter(N3RecurrenceSummary,wrContribution>excluTreshold)$type.from))
+```
+
+
+
+For the FB people:
+```{r}
+FBExclu <- rbind(
+filter(CX_outPaths_red[[2]],type.from %in% filter(N1RecurrenceSummary,wrContribution>excluTreshold)$type.from & supertype2.to == "FBt"),
+filter(CX_outPaths_red[[3]],type.from %in% filter(N2RecurrenceSummary,wrContribution>excluTreshold)$type.from & supertype2.to == "FBt"),
+filter(CX_outPaths_red[[4]],type.from %in% filter(N3RecurrenceSummary,wrContribution>excluTreshold)$type.from & supertype2.to == "FBt")
+)
+
+FBExclu <- filter(FBExclu,knownWROutputContribution_perType>excluTreshold & roi =="Outside_regions(R)")
+write_csv(FBExclu,"~/TangentialExclusive.csv",col_names = T)
+```
+
+## What are those recurrent pathways, what do the networks look like
+
+### Network graphs per type
+```{r}
+feedbackGraphsFolder <- paste0(outputsFolder,"feedbackGraphsPerType/")
+
+## Define a palette based on the frequency of types in the feedback networks (some of them need to be pooled together in a non descript color)
+usualPal <- supertype2Palette()$pal
+typeNames <- unique(c(allCXRecurrence$supertype2.from,allCXRecurrence$supertype2.to,allCXRecurrence$supertype2_N1,allCXRecurrence$supertype2_N2,allCXRecurrence$supertype2_N3))
+typeNames <- typeNames[!is.na(typeNames)]
+usualNames <- typeNames[typeNames %in% names(usualPal)]
+usualPal <- usualPal[usualNames]
+names(usualPal) <- usualNames
+leftOverCols <- paletteer_d("Polychrome::palette36")[!paletteer_d("Polychrome::palette36") %in% usualPal]
+mostCommonSources <- (filter(pathDf2graphDf(allCXRecurrence),!(supertype2.from %in% usualNames)) %>% group_by(supertype2.from) %>% summarize(count=n()) %>% arrange(desc(count)))$supertype2.from
+mostCommonSources <- c(mostCommonSources[mostCommonSources!="Other"],"Other")
+restPal <- c(leftOverCols[1:(length(leftOverCols)-1)],rep(leftOverCols[length(leftOverCols)],length(mostCommonSources)-length(leftOverCols)+1))
+names(restPal) <- mostCommonSources
+typeScale <- c(usualPal,restPal)
+
+for (ty in unique(allCXRecurrence$type.from)){
+   graphPlot <- plotRecurrentGraph(allCXRecurrence,ty,1:3,centrality=FALSE,textAngle = 50,localScale=typeScale) + theme(legend.position = "none")
+   if(!is.null(graphPlot)){
+   save_plot(paste0(feedbackGraphsFolder,ty,"1to3.svg"),graphPlot,nrow=1,ncol=2,base_width=8.5/2,base_height=11/3)
+   }
+}
+
+for (ty in unique(allCXRecurrence$type.from)){
+   graphPlot <- plotRecurrentGraph(allCXRecurrence,ty,1:2,centrality=FALSE,textAngle = 50,localScale=typeScale) + theme(legend.position = "none")
+   if(!is.null(graphPlot)){
+   save_plot(paste0(feedbackGraphsFolder,ty,"1to2.svg"),graphPlot,nrow=1,ncol=2,base_width=8.5/2,base_height=11/3)
+   }
+}
+
+
+pfl1Summary <- ((plotRecurrentGraph(allCXRecurrence,"PFL1_L*",1,centrality=FALSE,textAngle = 50,localScale=typeScale) +theme(plot.margin=margin(l=20),plot.tag=element_text(hjust=1))+ labs(tag = "A"))+
+   plotRecurrentGraph(allCXRecurrence,"PFL1_L*",2,centrality=FALSE,textAngle = 50,localScale=typeScale)+
+   plotRecurrentGraph(allCXRecurrence,"PFL1_L*",3,centrality=FALSE,textAngle = 50,localScale=typeScale) & theme(legend.position = "none")) + plot_layout(ncol=3,widths=c(1,1,3)) 
+pfl1Summary
+
+plotRecurrentGraph(allCXRecurrence,"FB2B_b_R",1:3,centrality=FALSE,textAngle = 50,localScale=typeScale,focusOn="type.to")
+
+```
+
+
+Summarize all feedback paths?
+```{r}
+allCXRecurrenceCondensated <- group_by(allCXRecurrence,type.from,type.to,supertype2.to,supertype1.from,supertype2.from,supertype3.from,supertype3.to,supertype1.to) %>% summarize(outputContribution1=sum(knownWROutputContribution_perTypeAllROIs_path[n_steps==1]),
+                                                                                        outputContribution2=sum(knownWROutputContribution_perTypeAllROIs_path[n_steps<=2]),
+                                                                                        outputContribution3=sum(knownWROutputContribution_perTypeAllROIs_path[n_steps<=3]),
+                                                                                        outputContribution4=sum(knownWROutputContribution_perTypeAllROIs_path[n_steps<=4]),
+                                                                                        relativeWeight1=sum(weightRelative_path[n_steps<=1]),
+                                                                                        relativeWeight2=sum(weightRelative_path[n_steps<=2]),
+                                                                                        relativeWeight3=sum(weightRelative_path[n_steps<=3]),
+                                                                                        relativeWeight4=sum(weightRelative_path[n_steps<=4]),
+                                                                                        kwR = sum(knownWeightRelative_perType_path),
+                                                                                        kwR1 = sum(knownWeightRelative_perType_path[n_steps==1]),
+                                                                                        kwR2 = sum(knownWeightRelative_perType_path[n_steps<=2]),
+                                                                                        kwR3 = sum(knownWeightRelative_perType_path[n_steps<=3]),
+                                                                                        knownWeightRelative=kwR
+                                                                                        ) %>% mutate(roi="Outside") %>% na_if(0) %>% mutate(type.fromF = factor(type.from,levels=typesCXOrder),
+                                                                                                                                            type.toF = factor(type.to,levels=typesCXOrder)) %>% ungroup()
+
+
+############### MAIN FIG : IMPORTANCE OF FEEDBACKS IN OUTPUT PATHWAYS
+
+recurrenceContribPlot_perType <- ggplot(allCXRecurrenceCondensated,aes(x=type.fromF,y=outputContribution4)) + geom_col(aes(fill=supertype2.to)) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) +scale_fill_CX_supertype(name="Pathway end point") +xlab("Central complex output type") + ylab("Fraction of significant output weights") +facet_grid(.~supertype3.from,scales = "free",space = "free",switch = "x")
+recurrenceContribPlot_perType
+
+recurrenceContribSummaryPlot <- ((recurrenceContribPlot +labs(tag = 'B')+xlab("") + theme(strip.text.x=element_blank(),axis.text.x = element_blank(),axis.ticks.x = element_blank(),plot.margin=margin(l=20,b=-20),plot.tag = element_text(hjust=1)) + ylab("")) / 
+                       recurrenceContribPlot_perType + theme(axis.title.y = element_text(hjust=-0.45))) 
+
+######################## SI PLOT: CONTRIBUTION OF FEEDBACK TO INPUTS OF VARIOUS TYPES
+
+recurrenceContribPlot_perTargetNonFbt1 <- ggplot(filter(allCXRecurrenceCondensated,startsWith(supertype3.to,"E")),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),plot.margin=margin(t=20)) +scale_fill_CX_supertype(name="Pathway starting point") +xlab("") + ylab("Relative weight outside the CX") +facet_grid(.~supertype3.to,scales = "free_x",space="free",switch = "x")+ ylim(c(0,1))
+
+recurrenceContribPlot_perTargetNonFbt2 <- ggplot(filter(allCXRecurrenceCondensated,!startsWith(supertype3.to,"E") & supertype2.to != "FBt"),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") +scale_fill_CX_supertype(name="Pathway starting point") +xlab("") + ylab("Relative weight outside the CX") +facet_grid(.~supertype3.to,scales = "free_x",space="free",switch = "x")+ ylim(c(0,1))                                                 
+                                                 
+recurrenceContribPlot_perTargetFbt1 <- ggplot(filter(allCXRecurrenceCondensated,grepl("FB[1-2]",supertype1.to)),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") +scale_fill_CX_supertype(name="Pathway starting point") +xlab("") + ylab("Relative weight outside the CX") +facet_grid(.~supertype1.to,scales = "free_x",space="free",switch = "x")+ ylim(c(0,1))
+
+recurrenceContribPlot_perTargetFbt2 <- ggplot(filter(allCXRecurrenceCondensated,grepl("FB[3-4]",supertype1.to)),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") +scale_fill_CX_supertype(name="Pathway starting point") +xlab("Central complex target") + ylab("Relative weight outside the CX") +facet_grid(.~supertype1.to,scales = "free_x",space="free",switch = "x") + ylim(c(0,1))
+
+recurrenceContribPlot_perTargetFbt3 <- ggplot(filter(allCXRecurrenceCondensated,grepl("FB[5-6]",supertype1.to)),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") +scale_fill_CX_supertype(name="Pathway starting point") +xlab("Central complex target") + ylab("Relative weight outside the CX") +facet_grid(.~supertype1.to,scales = "free_x",space="free",switch = "x") + ylim(c(0,1))
+
+recurrenceContribPlot_perTargetFbt4 <- ggplot(filter(allCXRecurrenceCondensated,grepl("FB[7-9]",supertype1.to)),aes(x=type.toF,y=kwR)) + geom_col(aes(fill=supertype2.from)) + theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),legend.position = "none") +scale_fill_CX_supertype(name="Pathway starting point") +xlab("Central complex target") + ylab("Relative weight outside the CX") +facet_grid(.~supertype1.to,scales = "free_x",space="free",switch = "x") + ylim(c(0,1))
+feedbacksPerTargetFig <- recurrenceContribPlot_perTargetNonFbt1/ recurrenceContribPlot_perTargetNonFbt2/recurrenceContribPlot_perTargetFbt1/recurrenceContribPlot_perTargetFbt2/recurrenceContribPlot_perTargetFbt3/recurrenceContribPlot_perTargetFbt4 + plot_layout(guides = 'collect')
+
+################
+
+```
+
+
+
+### Direct feedbacks and motifs
+```{r}
+
+## Create the bag of intra CX connections for all the recurrent types, filtering for neurons in the set of in/outs
+recurrentInCXBag <- neuronBag(filter(CXNeurons,type %in% unique(c(allCXRecurrence$type.from,allCXRecurrence$type.to))),renaming = cxRetyping,omitInputs = T,slctROI=c("EB","FB","NO(R)","NO(L)","PB"))
+allRecurrentCX <- recurrentInCXBag$outputs
+
+## EB
+EBNeurons <- unique(filter(CXOutsideNeurons_raw,databaseType %in% c("EL","EPG","ER6","PEG",paste0("ExR",1:7)))$type)
+EBFeedbacksPlot <- plotOutAndCXGraph(getMotifsGraphDf(allCXRecurrenceCondensated,allRecurrentCX,EBNeurons,"relativeWeight1"),typeScale)
+
+## FBt
+FBtNeurons <- unique(filter(CXOutsideNeurons_raw,startsWith(type,"FB"))$type)
+FBtFeedbacksPlot <- plotOutAndCXGraph(getMotifsGraphDf(allCXRecurrenceCondensated,allRecurrentCX,FBtNeurons,"relativeWeight1"),typeScale)
+
+## FC/FS/FR
+FBcNeurons <- unique(filter(CXOutsideNeurons_raw,(supertype3 == "FB Output"))$type)
+FBcFeedbacksPlot <- plotOutAndCXGraph(getMotifsGraphDf(allCXRecurrenceCondensated,allRecurrentCX,FBcNeurons,"relativeWeight1"),typeScale)
+
+##PF neurons
+PFNeurons <- unique(filter(CXOutsideNeurons_raw,(supertype3 == "FB Columnar"))$type)
+PFFeedbacksPlot <- plotOutAndCXGraph(getMotifsGraphDf(allCXRecurrenceCondensated,allRecurrentCX,PFNeurons,"relativeWeight1"),typeScale)
+```
+
+```{r}
+
+
+save_plot(paste0(outputsFolder,"EBFeedbacks.svg"),EBFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3)
+save_plot(paste0(outputsFolder,"FBtFeedbacks.svg"),FBtFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3)
+save_plot(paste0(outputsFolder,"FCRSFeedbacks.svg"),FBcFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3)
+save_plot(paste0(outputsFolder,"PFFeedbacks.svg"),PFFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3)
+
+save_plot(paste0(outputsFolder,"EBFeedbacks.pdf"),EBFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"FBtFeedbacks.pdf"),FBtFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"FCRSFeedbacks.pdf"),FBcFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"PFFeedbacks.pdf"),PFFeedbacksPlot,ncol=2,nrow=4,base_width = 8.5/2,base_height = 11/3,device=cairo_pdf)
+```
+
+### Count different motifs for every type
+```{r}
+directFeedback <- filter(allCXRecurrence,n_steps == 1)
+
+feedbackGraph <-  pathDf2graphDf(directFeedback) %>% rename(type.from=from,type.to=to) %>% mutate(roi="Outside regions(R)") %>%
+   mutate(connCat=case_when(type.to %in% allCXRecurrence$type.from & type.from %in% allCXRecurrence$type.from ~ "Axo-axonal?",
+                              !(type.to %in% allCXRecurrence$type.from) & type.from %in% allCXRecurrence$type.from ~ "Axo-dendritic"))
+
+feedbackMotifsSummary <- group_by(feedbackGraph,type.from,connCat,supertype3.from,supertype2.from,supertype1.from) %>% 
+   summarize(Identical=sum(paste0(type.from,type.to) %in% paste0(connRecurrent$type.from,connRecurrent$type.to))/n(),
+             Reciprocal=sum(paste0(type.to,type.from) %in% paste0(connRecurrent$type.from,connRecurrent$type.to))/n(),
+             Linked_targets=if (n()==1) 0 else sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
+                                                                          c(paste0(connRecurrent$type.from,connRecurrent$type.to),paste0(connRecurrent$type.to,connRecurrent$type.from)))/(choose(n(),2))
+                                                ) %>% pivot_longer(c(Identical,Reciprocal,Linked_targets),names_to="stat",values_to="Proportion")  %>% mutate(type.fromF = factor(type.from,levels=typesCXOrder),
+                                                                                                                                                             stat=factor(stat,levels=c("Identical","Reciprocal","Linked_targets"))
+                                                                                                                                                              )
+
+feedbackMotifSuperSummary <- feedbackMotifsSummary %>% group_by(supertype1.from,connCat,supertype3.from,supertype2.from,stat) %>% 
+   summarize(Proportion=mean(Proportion))
+```
+```{r}
+feedbackMotifsPrevalence <- ggplot(feedbackMotifsSummary ,aes(x=type.fromF,y=stat)) + geom_point(size=3,color="lightgrey")+ geom_point(aes(size=Proportion,color=stat))  + facet_grid(connCat~supertype3.from,scale="free",space="free")+ theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("CX output type") + scale_size_area(max_size = 3) + ylab("Motif prevalence") + scale_color_paletteer_d(name="Motif","ggthemes::Traffic")
+
+feedbackMotifsPrevalenceSup <-  ggplot(feedbackMotifSuperSummary ,aes(x=supertype1.from,y=stat)) + geom_point(size=3,color="lightgrey")+ geom_point(aes(size=Proportion,color=stat))  + facet_grid(connCat~supertype3.from,scale="free",space="free")+ theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.text.x = element_blank()) + xlab("CX output type") + scale_size_area(max_size = 3) + ylab("Motif prevalence") + scale_color_paletteer_d(name="Motif","ggthemes::Traffic")
+```
+
+
+```{r}
+save_plot(paste0(outputsFolder,"feedbackMotifs.svg"),feedbackMotifsPrevalence,nrow=1,ncol=2,base_width=8.5/2,base_height = 11/6)
+save_plot(paste0(outputsFolder,"feedbackMotifs_supertypes.svg"),feedbackMotifsPrevalenceSup,nrow=1,ncol=1,base_width=8.5/2,base_height = 11/6)
+```
+Same thing for all step lengths
+
+```{r}
+recurrentGraph <-  allCXRecurrence  %>% select(type.to,type.from,supertype1.from,supertype3.from) %>% distinct() %>%
+   mutate(connCat=case_when(type.to %in% allCXRecurrence$type.from & type.from %in% allCXRecurrence$type.from ~ "Axo-axonal?",
+                              !(type.to %in% allCXRecurrence$type.from) & type.from %in% allCXRecurrence$type.from ~ "Axo-dendritic"))
+```
+
+```{r}
+recurrentMotifsSummary <- group_by(recurrentGraph,type.from,supertype1.from,supertype3.from) %>% summarize(Identical=sum(paste0(type.from,type.to) %in% paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
+                                                Reciprocal=sum(paste0(type.to,type.from) %in% paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
+                                                Linked_targets=if (n()==1) 0 else sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
+                                                                          c(paste0(allRecurrentCX$type.from,allRecurrentCX$type.to),paste0(allRecurrentCX$type.to,allRecurrentCX$type.from)))/(choose(n(),2))
+                                                ) %>% pivot_longer(c(Identical,Reciprocal,Linked_targets),names_to="stat",values_to="Proportion") %>% mutate(type.fromF = factor(type.from,levels=typesCXOrder),
+                                                                                                                                                             stat=factor(stat,levels=c("Identical","Reciprocal","Linked_targets")))
+
+recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
+   summarize(Proportion=mean(Proportion))
+```
+
+```{r}
+#recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary,aes(x=stat,y=Proportion)) + geom_col(aes(fill=stat)) + facet_grid(connCat~type.fromF,scale="free_x",space="free_x",switch="x")+theme_paper(axis.text.x = element_blank(),
+#        axis.ticks.x = element_blank(),strip.placement="outside",strip.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("") + scale_fill_paletteer_d("ggthemes::Color_Blind")
+
+recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary ,aes(x=type.fromF,y=stat)) + geom_point(size=3,color="grey90")+ geom_point(aes(size=Proportion,color=stat))  + facet_grid(.~supertype3.from,scale="free",space="free")+ theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + xlab("CX output type") + scale_size_area(max_size = 3) + ylab("Motif prevalence") + scale_color_paletteer_d(name="Motif","ggthemes::Traffic")
+
+motifPal <- paletteer_d("ggthemes::Traffic")[1:5]
+names(motifPal) <- c("Identical","Reciprocal","Linked_targets","Other","Feedback pathway")
+
+recurrentMotifsPrevalenceSup <- ggplot(recurrentMotifSuperSummary,aes(x=supertype1.from,y=stat)) + geom_point(size=3,color="lightgrey")+ geom_point(aes(size=Proportion,color=stat))  + facet_grid(.~supertype3.from,scale="free",space="free")+ theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.text.x = element_blank()) + xlab("CX output type") + scale_size_area(max_size = 3) + ylab("Motif prevalence") + scale_color_manual(name="Motif",values=motifPal,breaks=names(motifPal))
+```
+```{r}
+save_plot(paste0(outputsFolder,"allFeedbacksMotifs.svg"),recurrentMotifsPrevalence,nrow=1,ncol=2,base_width=8.5/2,base_height = 11/6)
+save_plot(paste0(outputsFolder,"allFeedbacksMotifs_supertypes.svg"),recurrentMotifsPrevalenceSup,nrow=1,ncol=2,base_width=8.5/3,base_height = 11/7)
+```
+```{r}
+panel1Feedbacks <- ((pfl1Summary + theme(plot.margin = margin(b=20))) / 
+                     ((recurrenceContribSummaryPlot ))  /
+                   exampleMotifs / (recurrentMotifsPrevalenceSup + theme(plot.tag=element_text(hjust=1))+ labs(tag = "D")))+plot_layout(heights=c(2,2,5,1))
+
+save_plot(paste0(outputsFolder,"feedbacksPanel1.svg"),panel1Feedbacks,ncol=5,nrow=5,base_width = 8.5/5,base_height = 11/5)
+save_plot(paste0(outputsFolder,"feedbacksSI1.svg"),feedbacksPerTargetFig,ncol=1,nrow=1,base_height = 11,base_width = 8.5)
+```
+
+# Pathways to the MBONs
+
+
+
+
+```{r}
+mbonContribPlot <- ggplot(filter(taggedPathSummary,group.to %in% c("MBON")),aes(x=type.to,y=wr)) + geom_col(aes(fill=supertype2.from)) + theme_paper(panel.spacing=unit(1, "lines")) + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + scale_fill_CX_supertype(name="CX type") +xlab("Target type") + ylab("Fraction of significant input weights")  +facet_grid(.~group.to,scales = "free",space = "free")
+mbonContribPlot
+```
+
+
+```{r}
+save_plot(paste0(outputsFolder,"CX2MBONInfluence.svg"),mbonContribPlot,nrow=1,ncol=2,base_width=8.5/2,base_height = 11/6)
+```
+
+
+## Who are those neurons they talk to?
+Classify them in broad categories, add the cluster information
+```{r}
+CXTargets <- outputBagCompressed$outputsTableRef %>% filter(type %in% outputBagCompressed$outputs$type.to) %>%
+   mutate(type_category=outputTable$type_category[match(type,outputTable$type.to)])   
+
+CXOutputNeurons <- mutate(CXOutputNeurons,cluster=outputTable$cluster.from[match(type,outputTable$type.from)],
+                                          clusterName=outputTable$clusterName.from[match(type,outputTable$type.from)])
+CXTargets <- mutate(CXTargets,cluster=outputTable$clusterEq.to[match(type,outputTable$type.to)],
+                              clusterName=outputTable$clusterNameEq.to[match(type,outputTable$type.to)])
+```
+
+```{r}
+ddConn <- as.dendrogram(connCl)
+ddConnData <- dendro_data(ddConn, type = "rectangle")
+clustConn <- ggplot(segment(ddConnData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend))  + theme_paper_map()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5)) + xlab("")+ scale_y_reverse()+coord_fixed(ratio=5) + scale_x_discrete(breaks=1:nrow(N1Mat),labels=rownames(N1Mat)[connCl$order])
+#clustTypes2 <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_continuous(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order])+ theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))
+#clustConn / clustTypes2
+clustConn
+```
+
+```{r}
+ddConnOut <- as.dendrogram(connClOut)
+ddConnDataOut <- dendro_data(ddConnOut, type = "rectangle")
+clustConnOut <- ggplot(segment(ddConnDataOut)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend))  + theme_paper_map()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5)) + xlab("")+ scale_y_reverse()+coord_fixed(ratio=40) + scale_x_continuous(breaks=1:nrow(N1MatOut),labels=rownames(N1MatOut)[connClOut$order])
+#clustTypes2 <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_continuous(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order])+ theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust = 0.5))
+#clustConn / clustTypes2
+clustConnOut
+```
+
+
+
+
+```{r}
+targetCounts <- group_by(outputsN1Table,type.to,category) %>% summarize(nCl=length(unique(cl)),nT=n(),CXInfluence=sum(knownWeightRelative),CXMain=max(knownWeightRelative)/sum(knownWeightRelative))
+ggplot(filter(targetCounts,category!="Self" & nCl>1),aes(x=CXMain)) + geom_histogram() + facet_grid(nT~category) + theme_paper_hgrid()
+filter(targetCounts,nCl>1 & category=="output")
+```
+
+
+```{r}
+outputSynapsesOverview <- (allOutViews + 
+   ((connClPlot + theme(plot.margin = margin(b=0))) / (clustConn + theme(plot.margin = margin(t=0)))) + 
+   plot_layout(widths=c(3.5,1))) /
+   (moduleSummaryPlot + outputKind) + plot_layout(guides="keep",heights=c(3,1)) + plot_annotation(tag_levels="A")
+outputSynapsesOverview
+save_plot(paste0(outputsFolder,"OutputsPanel1.pdf"),outputSynapsesOverview,nrow=4,ncol=4,device=cairo_pdf)
+```
+
+
+We'll select all their partners in "output" regions
+```{r}
+allOuts <- outputBagCompressed$outputsTableRef %>% filter(type %in% outputsN1Table$type.to)
+
+## Proper "outputs" are not other CX neurons
+realOuts <- filter(allOuts,!(databaseType %in% CXtypes$databaseType))
+cxOutLoops <- filter(allOuts,(databaseType %in% CXtypes$databaseType))
+```
+
+Augment the output list with the mirror symetric for all the neurons that cross?
+
+Get all the connections for those output neurons (not in the CX as they're not going there) in broad regions
+```{r}
+realN1Bag <- create_neuronBag(realOutsAugmented,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,chunk_meta=1000,slctROI=outputRegions)
+feedbackBag <- create_neuronBag(cxOutLoops,selfRef = TRUE,verbose=TRUE,computeKnownRatio=TRUE,chunk_meta=1000)
+```
+
+```{r}
+realN1Bag <- cxRetyping(realN1Bag)
+feedbackBag <- cxRetyping(feedbackBag)
+```
+
+Look at the weight of those targets at a "global" output region level. Removing any single neuron getting less than 0.1% of inputs in those regions.
+```{r}
+N1Overview <- combineRois(realN1Bag,outputRegions,"Output regions",singleNeuronThreshold=0.001)
+## One cleans up anything not getting input from our selection of CX neurons in the combined output regions
+#signifOutputs <- unique(filter(outputsOverview$inputs,type.from %in% outputBag$names$type)$type.to)
+#outputsOverview <- filter(outputsOverview,filterPartner=FALSE,type %in% signifOutputs)
+```
+
+```{r}
+inputsN1Table <- N1Overview$inputs %>% mutate(category="extra")
+inputsN1Table$category[inputsN1Table$databaseType.from %in% CXtypes$databaseType] <- "CX"
+inputsN1Table$category[inputsN1Table$type.from ==  inputsN1Table$type.to] <- "Self"
+
+outputsN1Table <- N1Overview$outputs %>% mutate(category="outputs")
+outputsN1Table$category[outputsN1Table$databaseType.to %in% CXtypes$databaseType] <- "CX"
+outputsN1Table$category[outputsN1Table$type.to %in% outputsN1Table$type.from] <- "Feedback"
+outputsN1Table$category[outputsN1Table$type.to == outputsN1Table$type.from] <- "Self"
+
+```
+
+```{r}
+N1MatFull <- connectivityMatrix(filter(inputsN1Table,type.to %in% realOuts$type),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1MatNoCX <- connectivityMatrix(filter(inputsN1Table,category!="CX" & (type.to %in% realOuts$type)),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownWeightRelative",ref="outputs")
+N1MatFromOutputs <- connectivityMatrix(filter(outputsN1Table,category!="CX" & (type.from %in% realOuts$type)),slctROIs = "Output regions",allToAll = FALSE,from = "type.from",to="type.to",value = "knownOutputContribution")
+
+N1DistFull <- cos_dist(N1MatFull)
+N1DistNoCX <- cos_dist(N1MatNoCX)
+N1DistFromOutputs <- cos_dist(N1MatFromOutputs)
+
+connClFull <- hclust(N1DistFull)
+connClFullCut <- cutree(connClFull,h=0.8)
+
+connClNoCX <- hclust(N1DistNoCX)
+connClNoCXCut <- cutree(connClNoCX,h=0.8)
+```
+
+```{r}
+plot_dist(N1DistNoCX)+
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
+
+plot_dist(N1DistFromOutputs)+
+   theme_paper_map() + scale_fill_distiller(palette = "Greys",name = "Cosine distance") +xlab("")+ylab("") +
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5))
+```
+
+
+```{r}
+clComp <- data.frame(type=names(connClFullCut)) %>% mutate(CXCl = connClOutCut[type], fullCl = connClFullCut[type], outCl = connClNoCXCut[type])
+clCompSum <- group_by(clComp,outCl) %>% summarize(nFrom = length(unique(CXCl)),nNeuron=n()) %>% group_by(nNeuron,nFrom) %>% mutate(ct=n()) %>% ungroup()
+ggplot(clCompSum) + geom_point(aes(x=nNeuron,y=nFrom,size=ct)) + geom_abline()
+```
+```{r}
+inputsN1Melted <- df_conn_mat(N1MatFromOutputs,rank(connClOut$order[connClOut$order[connClOut$labels %in% filter(outputsN1Table,category!="CX"  & type.from %in% realOuts$type)$type.from]]),
+                              1:ncol(N1MatFromOutputs))
+inputsN1Melted <- mutate(inputsN1Melted,
+                       clIn=connClOutCut[as.character(Inputs)],
+                       category=outputsN1Table$category[match(Inputs,outputsN1Table$type.from)])
+
+ggplot(filter(inputsN1Melted,category=="outputs")) + geom_tile(aes(x=Inputs,y=Outputs,fill=value)) + theme_paper_map() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),axis.text.y=element_text()) + xlab("") + ylab("") + facet_grid(. ~ clIn,scales="free",space="free") + scale_fill_gradient2(low="#F7F2F7", mid="blueviolet", high="black", 
+                         midpoint =0.5, limits=c(0,1)) 
+```
+
+
+
+## Find feedback pathways in there.
+```{r}
+CXRois <- unique(unlist(roiH %>% filter(level1=="CX")))
+```
+```{r}
+feedbackNeurons <- unique((outputsInOutBag$outputs %>% filter((databaseType.to %in% CXtypes$databaseType) & (roi %in% CXRois)))$type.from)
+feedbackBag <- filter(outputsInOutBag,filterPartners=FALSE,type %in% feedbackNeurons)
+```
+
+```{r}
+roisFeedback <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4,"EB"=4,"FB"=4))
+```
+
+
+```{r}
+feedbackRoiSummary <- getROISummary(feedbackBag,threshold = 20)
+```
+
+```{r}
+feedbackHanesch <- haneschPlot(feedbackRoiSummary,grouping="supertype2",flip=TRUE,roiSelect=roisOut,roiLabel=roiOutLabels)
+feedbackHanesch
+```
+
+```{r}
+feedbackHaneschUnpacked <- haneschPlot(feedbackRoiSummary,grouping="supertype2",flip=TRUE,roiSelect=roisFeedback,roiLabel=roiOutLabels)
+feedbackHaneschUnpacked
+```
+
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHanesch.svg",feedbackHanesch,width=12,height=7)
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksHaneschLayers.svg",feedbackHaneschUnpacked,width=14,height=7)
+```
+
+```{r}
+feedbackPathwaysG <- makeGraph(feedbackBag$inputs %>% filter(type.from %in% outputBag$names$type),roiSelect = (roisOut %>% filter(level1 != "CX")),roiLabel = roiOutLabels)
+```
+
+```{r}
+feedbackGraphPlot <- ggraph(feedbackPathwaysG$graph,layout="stress") + 
+      geom_edge_fan(aes(width=weightRelative,color=roi),alpha=0.5,color="grey") + 
+      geom_edge_loop(aes(direction=10,span=10,width=weightRelative),alpha=0.5) +
+      geom_node_point(aes(color=supertype2,shape=as.factor(layers)),size=8,alpha=0.5) +
+      scale_color_paletteer_d("Polychrome::palette36") +
+      geom_node_text(aes(label=name),size=4) +
+      scale_edge_width(name="Relative weight") +
+      scale_edge_color_discrete() + theme_void()
+feedbackGraphPlot + facet_edges(region~.)
+```
+
+```{r}
+ggsave("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/feedbacksGraph.svg",feedbackGraphPlot,width=12)
+```
+
+
+## "Homogeneity" plots
+```{r}
+lalOutputsF <- PFLInOut$outputs_raw %>% filter(paste0(type.from,type.to) %in% paste0(PFLInOut$outputs$type.from,PFLInOut$outputs$type.to) & roi == "LAL(-GA)(R)" & !(grepl("PFL1|PFL2|PFL3",type.to)))
+```
+
+
+```{r}
+PFL_breakdown <- ggplot(lalOutputsF,aes(x=name.from,y=weightRelative,group=to,color=as.factor(to))) + geom_point() + geom_line() + facet_wrap(~databaseTypeFrom+type.to ,drop=TRUE,scales = "free_x") + theme_paper() + theme(axis.text.x = element_text(angle = 90))+  guides(color="none")+ labs(y="Relative weight in the LAL",x="Input Neuron")
+PFL_breakdown
+```
+
+
+## Clustering  based on synapse overlap
+How much do synapses from different types overlap with each other?
+
+```{r}
+## Compute the nearest neighbor in another synapse set for all synapses
+OutputSynNNDists <- nncrossCross(CXOutSyn,by="type")
+
+## Summarise as the proportion of synapses from the other type closer than 1um
+CXOutOverlap <- group_by(OutputSynNNDists,type,to) %>% summarize(overlap=mean(distance<1000/8)) %>% ungroup()
+
+## Put the average of type1 to type2 and type2 to type1 in a matrix for clustering purposes (really for ordering)
+overlapMat <- matrix(nrow=length(unique(CXOutOverlap$type)),ncol=length(unique(CXOutOverlap$type)))
+rownames(overlapMat) <- CXOutputs$type
+colnames(overlapMat) <- CXOutputs$type
+for (t in CXOutputs$type){
+   for (t2 in CXOutputs$type){
+      overlapMat[t,t2] <- mean(filter(CXOutOverlap,(type==t & to==t2) | (type==t2 & to==t))$overlap)
+   }
+}
+
+## Cluster
+outSynClusters <- hclust(as.dist(1-overlapMat))
+outSynClCut <- cutree(outSynClusters,h=0.99)
+
+## Reorder the table with factors
+CXOutOverlap$typeF <- factor(CXOutOverlap$type,levels=colnames(overlapMat)[outSynClusters$order])
+CXOutOverlap$toF <- factor(CXOutOverlap$to,levels=colnames(overlapMat)[outSynClusters$order])
+```
+
+```{r}
+ddTypes <- as.dendrogram(outSynClusters)
+ddTypesData <- dendro_data(ddTypes, type = "rectangle")
+clustTypes <- ggplot(segment(ddTypesData)) + geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) + scale_x_discrete(breaks=1:nrow(overlapMat),labels=colnames(overlapMat)[outSynClusters$order]) + scale_y_reverse()+ theme_paper_map() +coord_fixed(ratio=5)
+clustTypes
+```
+
+
+```{r}
+CXOutOverlap <- mutate(CXOutOverlap,cl=outSynClCut[type])
+CXOutSyn <- mutate(CXOutSyn,cl=outSynClCut[type])
+```
+
+Name the "modules"
+```{r}
+clNames <- sapply(1:max(outSynClCut),function(i) paste(names(outSynClCut[outSynClCut==i]),collapse ="/"))
+CXOutOverlap <- mutate(CXOutOverlap,clName=clNames[cl])
+CXOutSyn <- mutate(CXOutSyn,clName=clNames[cl])
+
+## Also create a palette for it
+overlapCols <- paletteer::paletteer_d("Polychrome::dark")[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+names(overlapCols) <- clNames[outSynClCut[colnames(overlapMat)[outSynClusters$order]]]
+```
+
+```{r}
+overlapPlot <- ggplot(CXOutOverlap,aes(x=typeF,y=toF)) + geom_tile(aes(fill=overlap)) + 
+   theme_paper_map() + 
+   theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5,colour = overlapCols),axis.text.y = element_text(colour = overlapCols)) + 
+   scale_fill_distiller(palette = "Greys",trans="reverse") +xlab("")+ylab("")+coord_fixed()
+overlapPlot
+```
+
+# Relics
+
+Calculate the flow from all possible CX neurons (neighborhood filter just limits the search for the very local neurons). This takes a while (best to run overnight).
+```{r}
+
+## CAREFUL, 20Hrs+ line
+#flowDf <-
+#   do.call(rbind,lapply(CXOutputTypes,function(ty){
+#      print(ty)
+#      gatherFlows(ty,CX_outTblG)
+#   }))
+```
+
+We're going to iteratively build the summaries for pathways of increasing lengths (to avoid crashing R with out of memory problems)
+```{r}
+pathways <- vector(mode="list")
+pathways[[1]] <-  CX_outPaths_red[[1]] %>% mutate(n_steps=1,n_paths=1) %>%  select(type.from,type.to,weightRelative,supertype1.from,supertype2.from,supertype3.from,supertype2.to,supertype1.to,supertype3.to,databaseType.from,databaseType.to,n_steps,n_paths)
+
+for (n in 2:5){
+   pathways[[n]] <- tables2path(pathways[[n-1]],CX_outPaths_red[[n]] %>% 
+                                   group_by(type.from,type.to,supertype1.from,supertype2.from,supertype3.from,supertype2.to,supertype1.to,supertype3.to,databaseType.from,databaseType.to) %>% 
+                                   summarize(weightRelative=mean(weightRelative)) %>% 
+                                   ungroup(),stat="weightRelative") %>% group_by(type.from,type.to,supertype1.from,supertype2.from,supertype3.from,supertype2.to,supertype1.to,supertype3.to,databaseType.from,databaseType.to) %>% 
+      summarize(weightRelative=sum(weightRelative_path),n_paths=n()) %>% ungroup() %>% mutate(n_steps=n)
+}
+
+pathways <- do.call(rbind,pathways)
+```
+
+Shared targets between LC33 and PFL3
+```{r}
+sharedG <- (CX_outGraph %E>% filter(type.from=="PFL3_L*" | type.from=="LC33_R")) %N>% filter(type %in% .E()$type.from | type %in% .E()$type.to)
+sharedPFLC <- baseGraph(sharedG)
+```
+```{r}
+PFL3LC33Fig <- (PFLtoLC33Plot + plot_spacer() + plot_layout(widths = c(1,2)))/PFL3LC33Anat /sharedPFLC+ plot_annotation(title="PFL3 to LC33",tag_levels = "A") + plot_layout(heights = c(1,3,3))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI1-PFL3toLC33.pdf"),PFL3LC33Fig,ncol=1,nrow=7,base_width = 8.5,base_height = 11/7,device=cairo_pdf)
+```
+
+
+
+
+Looking at those shared targets: neuron to neuron LC33 connectivity:
+```{r}
+LC33Bag <- neuronBag(filter(mainFFTargetsNeurons,type=="LC33_R"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping)
+LC33Bag <- combineRois(LC33Bag,outsideRegions,"Outside")
+sharedG %N>% as_tibble()
+LC33toPFLTargets <- filter(LC33Bag$outputs_raw,type.to %in% (filter(sharedG %E>% as_tibble(),type.from=="PFL3_L*")$type.to) & type.to != "LC33_R" ) %>% mutate(PFTarg = from %in% PFL3Bag$outputs_raw$to)
+LC33TargetsClusters <-  connectivityCluster(LC33toPFLTargets,ROIs="Outside",grouping="neuron")
+LC33Clusters <- connectivityCluster(outputsTable = LC33toPFLTargets,ROIs="Outside",grouping="neuron")
+plotConnectivity(LC33toPFLTargets,slctROI="Outside",xaxis="outputs",theme=theme_paper_grid(),grouping = "neuron",orderOut = LC33TargetsClusters,facetInputs="PFTarg",replacementLabels = "name")
+```
+
+### PFR to mALD and MBON20
+Network graph
+```{r}
+PFR2mALDMBON20_2 <- getLocalSubgraph(c("PFR_b_L*","ExR7_R","ExR7_L"),c("mALD1_L","MBON20_R"),CX_outGraphRed,order=2) 
+
+```
+
+```{r}
+FRtoMB30<- getLocalSubgraph(c("FR1_L"),c("PPL102_L"),CX_outGraphRed,order=2) 
+FR1toMB30Plot <- baseGraph(FRtoMB30) 
+FR1toMB30Plot
+```
+

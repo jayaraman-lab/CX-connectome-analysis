@@ -1,0 +1,86 @@
+---
+title: "Extra plots for the GA/ROB/RUB figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure3-CX2CX/"
+load("outputsBasics.RData")
+```
+
+## Anatomies
+
+```{r}
+displayAnatomies(list("EB Columnar" = filter(CXNeurons,type=="EPG_L")$bodyid,
+                       "ER6" = filter(CXNeurons,type=="EL_L")$bodyid,
+                      "PFR_a"= filter(CXNeurons,type=="PFR_a_L*")$bodyid,
+                      "PFR_b"= filter(CXNeurons,type=="PFR_b_L*")$bodyid,
+                      "FR1"= filter(CXNeurons,type=="FR1_L")$bodyid,
+                      "FR2"= filter(CXNeurons,type=="FR2_L")$bodyid
+                 ),ROIs=NULL,neuronPalette = customSupertypePalette)
+```
+
+## FR connectivity
+
+```{r}
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+
+FRTab <- filter(FRBag$outputs_raw,supertype2.to=="FR") %>% 
+    mutate(column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1)),
+           column.to=factor(gsub("_","",str_extract(name.to,"_C[1-9]")),levels=paste0("C",9:1))) %>%
+  arrange(column.from)
+
+orderIn <- unique(FRTab$from)
+
+FRTab <- arrange(FRTab,column.to)
+
+orderOut <- unique(FRTab$to)
+
+FRConnPlot <-  plotConnectivity(FRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid(),replacementLabels = "column",legendName = "Relative weight") + theme(panel.border = element_rect(color="black",size = 1*mm2pt))
+
+
+```
+## PFR connectivity
+
+```{r}
+PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+
+PFRTab <- filter(PFRBag$outputs_raw,supertype2.to=="PFR") %>% 
+    mutate(glomerulus.from=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
+           glomerulus.to=factor(gsub("_","",str_extract(name.to,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
+           column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",8:1))) %>%
+  arrange(glomerulus.from)
+
+orderIn <- unique(PFRTab$from)
+
+PFRTab <- arrange(PFRTab,glomerulus.to)
+
+orderOut <- unique(PFRTab$to)
+
+PFRConnPlot <- plotConnectivity(PFRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid(),replacementLabels = "glomerulus",legendName = "Relative weight") + theme(panel.border = element_rect(color="black",size = 1*mm2pt))
+
+PFRConnPlot
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"FRMat.svg"),FRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
+save_plot(paste0(outputsFolder,"PFRMat.svg"),PFRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
+```
+
+

@@ -18,7 +18,7 @@ library(paletteer)
 library(alphahull)
 
 # Go to the neurpintR-notebooks directory before loading these functions
-source("visualizeConnectivityTables.R")
+source("R/visualizeConnectivityTables.R")
 # source("neuprintQueryUtils.R")
 source("R/table2ggraphUtils.R")
 source("R/connectivityMatricesTools.R")
@@ -29,7 +29,7 @@ source("R/connectivityMatricesTools.R")
 source("pathways.R")
 source("inputOutputRegionsVis.R")
 source("GetNeuronsInRoi.R")
-source("FBNetworkVisUtils.R")
+#source("FBNetworkVisUtils.R")
 source("CX_ContextualAnalysisUtils.R")
 # source("/Users/danc/repos/neuprintrExtra/R/neuronBag.R")
 
@@ -195,12 +195,18 @@ StrongMBONnonCXTargetR2CXR_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONnonCX
 StrongMBON2nonCXwCXRTgtInpCombSort <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[3]]
 StrongMBONnonCXTargetR2CXRtab <- StrongMBONnonCXTargetR2CXR_CosDist[[3]]
 
-# Make a combined table
-StrongMBON2nonCXwCXRTgtInpCombSort$type.from <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.from)
-StrongMBON2nonCXwCXRTgtInpCombSort$type.to <- as.vector(StrongMBON2nonCXwCXRTgtInpCombSort$type.to)
-StrongMBONnonCXTargetR2CXRtab$type.from <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)
-StrongMBONnonCXTargetR2CXRtab$type.to <- as.vector(StrongMBONnonCXTargetR2CXRtab$type.to)
+# Rearrange StrongMBON2nonCXwCXRTgtInpCombSort based on cluster.to
+StrongMBON2nonCXwCXRTgtInpCombSort <- arrange(StrongMBON2nonCXwCXRTgtInpCombSort,cluster.to,cluster.from,type.to,type.from)
 
+# Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtab for clustering based on inputs to the type.from types
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[2]]
+StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut[[4]]
+StrongMBONnonCXTargetR2CXRtab <- mutate(StrongMBONnonCXTargetR2CXRtab, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)])
+
+# Rearrange StrongMBONnonCXTargetR2CXRtab based on cluster.to of StrongMBON2nonCXwCXRTgtInpCombSort
+StrongMBONnonCXTargetR2CXRtab <- arrange(StrongMBONnonCXTargetR2CXRtab,cluster.toFrom,cluster.to,cluster.from,type.from,type.to)
+
+# Make a combined table
 StrongMBON2nonCXwCXRTgtTable <- StrongMBON2nonCXwCXRTgtInpCombSort %>% select(type.from,type.to,weightRelative)
 StrongMBONnonCXTgtR2CXRTable <- StrongMBONnonCXTargetR2CXRtab %>% select(type.from,type.to,weightRelative)
 StrongMBON2nonCXR2CXRTgtComboTable <- bind_rows(StrongMBON2nonCXwCXRTgtTable,StrongMBONnonCXTgtR2CXRTable, .id = NULL)
@@ -210,7 +216,7 @@ types <- unique(c(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)), uni
                   unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to))))
 numTypes <- length(types)
 numMBONs <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.from)))
-numMidNodes <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.from)))
+numMidNodes <- length(unique(as.vector(StrongMBON2nonCXwCXRTgtTable$type.to)))
 numCXtargets <- length(unique(as.vector(StrongMBONnonCXTgtR2CXRTable$type.to)))
 xyLookup = data.frame(type = types, x = c(rep(-1,times = numMBONs), rep(0,times = numMidNodes), rep(1,times = numCXtargets)), 
                       y = c(seq(-1,1,length.out = numMBONs), seq(-1,1,length.out = numMidNodes), seq(-1,1,length.out = numCXtargets)))
@@ -221,19 +227,14 @@ StrongMBON2nonCXR2CXRTgtComboPath <- graphConTabPolyChrome(StrongMBON2nonCXR2CXR
 StrongMBON2nonCXR2CXRTgtComboPath <- StrongMBON2nonCXR2CXRTgtComboPath + scale_y_reverse()
 print(StrongMBON2nonCXR2CXRTgtComboPath)
 ggsave("StrongMBON2nonCXR2CXRTgtComboPath.svg", plot=StrongMBON2nonCXR2CXRTgtComboPath, device="svg", path=PlotDir, scale=1, 
-       width=30, height=45, units="in", dpi=300, limitsize=FALSE)
+       width=12, height=15, units="in", dpi=300, limitsize=FALSE)
 
 # Cluster the tables by type.from and type.to
-StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
-StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
-
+# StrongMBON2nonCXwCXRTgt_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBON2nonCXwCXRTgtTable,'StrongMBON2nonCXwCXRTgt_Type2Type')
+# StrongMBONnonCXTgtR2CXR_Type2Type_clustered <- plotCorrMatCluster(PlotDir,StrongMBONnonCXTgtR2CXRTable,'StrongMBONnonCXTgtR2CXR_Type2Type')
 ```
-```{r}
-# Add a cluster.toFrom column in StrongMBONnonCXTargetR2CXRtab for clustering based on inputs to the type.from types
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDist[[2]]
-StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec <- StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOut[[4]]
-StrongMBONnonCXTargetR2CXRtab <- mutate(StrongMBONnonCXTargetR2CXRtab, cluster.toFrom = StrongMBON2nonCXwCXRTgtInpCombSort_CosDistClusterByOutVec[as.vector(StrongMBONnonCXTargetR2CXRtab$type.from)])
 
+```{r}
 # Re-plot the connectivity matrix based on cluster.toFrom for rows and cluster.to for columns
 plotStrongMBONnonCXTargetR2CXRtab <- plotConnectivityMatrix(StrongMBONnonCXTargetR2CXRtab,byGroup="type",connectionMeasure="weightRelative")
 
@@ -250,6 +251,16 @@ ggsave("StrongMBONnonCXTargetR2CXRtab_cosDistClustConnMat_rowsByMBONto.eps", plo
          width=24, height=16, units="in", dpi=300, limitsize=FALSE)
 
 ```
+
+### Plot an example of indirect connections
+```{r}
+midTypes <- c("CRE042_R","CRE054_R","LHPV4m1_R","LHPV5e3_R","SIP029_R","SIP087_R");
+# midTypes <- c("SMP354_R","SLP396_R");
+# midTypes <- c("LAL039_R","LAL051_R");
+filterIndirectConnections(midTypes,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab,PlotDir)
+```
+
+
 
 
 ### Test computing pathway weights
@@ -293,6 +304,10 @@ ggsave("plotStrongMBON2CX_ConnTable.eps", plot=plotStrongMBON2CX_ConnTable, devi
 
 ### Plot the strong direct pathways from MBONs to CX
 ```{r}
+# Make and plot cosine distance matrix
+StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
+StrongMBONTargetInpC <- StrongMBON2CXTargetR_Type2Type_CosDist[[3]]
+
 # Set up the layout for the pathway plot
 types <- unique(c(unique(as.vector(StrongMBONTargetInpC$type.from)),unique(as.vector(StrongMBONTargetInpC$type.to))))
 numFrom <- length(unique(as.vector(StrongMBONTargetInpC$type.from)))
@@ -308,9 +323,6 @@ gg_MBON2TargetTab <- gg_MBON2TargetTab + scale_y_reverse()
 print(gg_MBON2TargetTab)
 ggsave("StrongMBON2CXtargetsTab.svg", plot=gg_MBON2TargetTab, device="svg", path=PlotDir, scale=1, 
        width=11, height=8, units="in", dpi=300, limitsize=TRUE)
-
-# Make and plot cosine distance matrix
-StrongMBON2CXTargetR_Type2Type_CosDist <- cosDistClusterPlot(PlotDir,StrongMBONTargetInpC,"StrongMBON2CXTargetR_Type2Type")
 
 # Use the neuprintrExtra functions. Still confusing???
 # StrongMBON2CXR_Type2Type_cosClustByFrom <- connectivityCluster(inputsTable=StrongMBONTargetInpC,grouping="type") # cluster by type.from
@@ -370,7 +382,8 @@ PN2allMBON_InputPct <- getPN2MBONinputTable()
 # Filter and analyze the MBON to CX direct and indirect connections based on input modality
 visualMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Visual",25,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
 thermoHygroMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"ThermoHygro",20,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
-olfMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Olfactory",75,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+# olfMBON2CX <- filterConnTabsByInputMod(PlotDir,PN2allMBON_InputPct,"Olfactory",75,"MBON",StrongMBONTargetInpC,StrongMBON2nonCXwCXRTgtInpCombSort,StrongMBONnonCXTargetR2CXRtab)
+
 ```
 
 ### Find connections from strong MBON targets to secondary targets in CX
