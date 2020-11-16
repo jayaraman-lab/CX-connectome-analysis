@@ -71,54 +71,6 @@ MBONs_Types_Table=getTypesTable(unique(MB_NamedBodies$type))
 ```
 
 
-# Get everything up to 2 steps downstream of MBONs
-```{r}
-
-
-
-
-
-# Get downstream connections
-Method="no thresh"
-Ttest_Thresh=1
-if (Method=="no thresh"){
-  
-  # Get first layer outputs
-  DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
-  DownBag_L1=lateralize_types(DownBag_L1)
-  
-  DownTypes_L1=getTypesTable(unique(c(DownBag_L1$outputs_raw$databaseType.from,
-                                      DownBag_L1$outputs_raw$databaseType.to))) %>% lateralize_types()
-  Downstream_T2T_L1=getTypeToTypeTable(DownBag_L1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
-                                     singleNeuronThresholdN = 3, pThresh = Ttest_Thresh, typesTable = DownTypes_L1, oldTable = NULL)
-  
-  # Get second layer outputs
-  DownType_L1=getTypesTable(unique(Downstream_T2T_L1$databaseType.to))
-  DownBag_L2=neuronBag(DownType_L1, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
-  DownBag_L2=lateralize_types(DownBag_L2)
-  DownTypes_L2=getTypesTable(unique(c(DownBag_L2$outputs_raw$databaseType.from,
-                                      DownBag_L2$outputs_raw$databaseType.to))) %>% lateralize_types()
-  Downstream_T2T_L2=getTypeToTypeTable(DownBag_L2$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
-                                     singleNeuronThresholdN = 3, pThresh = Ttest_Thresh, typesTable = DownTypes_L2, oldTable = NULL)  
-  
-  # Get pathways using normal methods
-  Downstream_list=list(Downstream_T2T_L1, Downstream_T2T_L2)
-  Downstream=tableChain2path(Downstream_list)
-  Downstream_Graph=distinct(rbind(Downstream_list[[1]], Downstream_list[[2]]))
-  
-  #remove(Downstream_list)
-} else if (Method=="type thresh"){
-  
-  Downstream_list <- get_type2typePath_raw(type.from=MBONs_Types_Table, type.to = NULL,
-                                          n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
-  Downstream=tableChain2path(Downstream_list)
-  Downstream_Graph=distinct(rbind(Downstream_Raw[[1]], Downstream_Raw[[2]]))
-
-}
-
-
-```
-
 
 
 # ####################################################################################################################
@@ -150,7 +102,7 @@ MB_Paper_Direct_Types=c("FB1C", "FB1H", "FB2A","FB2C","FB2L","FB4A","FB4C","FB4D
 Li_DownBag=neuronBag(MBONs_Types_Table, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
 Li_Direct=Li_DownBag$outputs_raw
 Li_Direct=subset(Li_Direct, databaseType.to %in% CXTypes)
-Li_Direct=subset(Li_Direct, weight>=10)
+Li_Direct=subset(Li_Direct, weight>10) 
 
 sort(unique(Li_Direct$type.to)) %in% MB_Paper_Direct_Types
 
@@ -192,18 +144,15 @@ CD's Notes:
 # Should I only include ROI outside the CX in computing weight relative, as CD does?
 
 
-# Load CD's direct data
-load(paste(SaveDir,"CD_Direct.Rda",sep=""))
-
 
 # Get first layer lateralized outputs
 DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
 DownBag_L1=lateralize_types(DownBag_L1) # Lateralize to take into account projections that may be missing from the volume
 
 
-# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals polarity and lateralization issue.
+# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
 # Polarity, since most FBt types receive a lot of input in the CX, the roi-independent relative weight can be very low.
-# Lateralization, since some CX targets could have some on the left and dendrites on the right. So it makes sense to use all MBONs (L and R)
+# Lateralization, since some CX targets could have  dendrites on the left or dendrites on the right or both. So it makes sense to use all MBONs (L and R)
 #   and just look at their targets in right ROIs (which should be more complete).
 roiH <- getRoiTree()
 outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),
@@ -219,22 +168,34 @@ Downstream_T2T_L1=getTypeToTypeTable(DownBag_L1$outputs_raw, majorOutputThreshol
 
 
 # Restrict to just 'strong' CX targets.
-# Don't lateralize CX neurons here, because some CX neurons could have soma on the left but dendrites in the right. 
 MB2CX_Direct=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes  & weightRelative>0.01 & weight>10)
 MB2CX_Direct_Exclude=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & !(weightRelative>0.01 & weight>10) )
+
 
 
 ```
 
 
 
+# Function to go from lateralized type-to-type weights back to unlateralized
+```{r}
+
+UnLateralize() <- function(Data){
+  Data %>% group_by(databaseType.to) %>% summarize()
+}
+
+
+```
+
 
 # Make MB paper style graph of MBON to CX direct connections
 ```{r}
 
+
 # Average over left/right pairs
 Graph_Data=MB2CX_Direct %>% group_by(databaseType.from, databaseType.to) %>%
   summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
+
 colnames(Graph_Data)=c("type.from","type.to","weightRelative","outputContribution","weight")
 Graph_Data$roi="All"
 
@@ -242,7 +203,7 @@ Graph_Data$roi="All"
 # Cluster the FB neurons by their input vectors
 Graph_Data_Clust=connectivityCluster(inputsTable = Graph_Data, outputsTable = NULL) %>% setClusters(h = 0.8, k = NULL)
 Graph_Data_Clust=Graph_Data_Clust$inputsTable %>% arrange(cluster.to)
-PostOrder=distinct(Graph_Data_Clust[c("type.to","cluster.to")])
+
 
 
 # Now sort inputs (MBONs) by which cluster they project most strongly to
@@ -253,20 +214,33 @@ Graph_Data_Clust=merge(Graph_Data_Clust,PreOrder, by="type.from")
 
   
 
-plotConnectivity(Graph_Data_Clust, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+P0=plotConnectivity(Graph_Data_Clust, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
-  legendName = NULL, showTable = "inputs")
+  legendName = NULL, showTable = "inputs") + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(SaveDir, "MB_Direct_Clust.pdf",sep=""),
+        plot = P0, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
-plotConnectivity(Graph_Data, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+
+P0=plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, 
-  orderIn = PreOrder$type.from, 
-  orderOut = PostOrder$type.to,
-  legendName = NULL, showTable = "inputs")
-
-
+  orderIn = NULL, 
+  orderOut = NULL,
+  legendName = NULL, showTable = "inputs") + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        #axis.ticks = element_blank(),
+        aspect.ratio = 1)  
+ggsave(paste(SaveDir, "MB_Direct.pdf",sep=""),
+        plot = P0, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
@@ -277,7 +251,6 @@ PreSize=Graph_Data_Clust %>% group_by(type.from) %>% summarize(Syns=sum(weight))
 colnames(PreSize)=c("name","Size")
 AllSize=rbind(PostSize, PreSize)
 AllSize$name[startsWith(AllSize$name,"MBON")]=substr(AllSize$name[startsWith(AllSize$name,"MBON")], 5, 6)
-
 
 
 
@@ -378,12 +351,68 @@ ggsave(paste(SaveDir, "Graph_V1.pdf",sep=""),
 
 
 
-
-
-
-
-# Look at indirect connections
+# Plot threshold dependence
 ```{r}
+
+
+# For each MBON with direct connections to the CX plot the max relative weight
+All_MB2CX_Direct=Downstream_T2T_L1 %>% 
+  subset(databaseType.to %in% CXTypes & !databaseType.from=="MBON15-like") %>%
+  group_by(databaseType.from, databaseType.to) %>%
+  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
+MBON_Direct_byThresh_Plot=All_MB2CX_Direct %>% group_by(databaseType.from) %>% summarize(weightRelative=max(weightRelative))
+
+
+P1a=ggplot(data=MBON_Direct_byThresh_Plot, aes(x=databaseType.from, y=weightRelative)) + 
+  geom_bar(stat="identity", color="black", fill='black', width=0.850) + theme_classic()  + 
+  theme(axis.text.x = element_text(angle = 90)) + scale_y_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) )
+  ggsave(paste(SaveDir, "MBON_by_Thrsh.pdf",sep=""),
+         plot = P1a, device='pdf', scale = 1, width =6, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
+
+  
+  
+# Loop over different relative weight thresholds and compute the number of direction MBON-->CX targets
+Threshes=seq(from=0.001, to=0.2, by=0.001)
+Num_of_Cx_Types=data.frame(thresh=numeric(), NumofCxTypes=numeric())
+for (ttt in 1:length(Threshes)){
+  Temp_All_MB2CX_Direct=All_MB2CX_Direct %>% subset(weightRelative>Threshes[ttt] & weight > 0)
+  if (length(Temp_All_MB2CX_Direct$databaseType.from)>0){
+    Num_of_Cx_Types[ttt,1]=Threshes[ttt]
+    Num_of_Cx_Types[ttt,2]=length(unique(Temp_All_MB2CX_Direct$databaseType.to))
+  }
+}
+
+P2=ggplot(data=Num_of_Cx_Types, aes(x=thresh, y=NumofCxTypes)) +
+  geom_line() + theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) + scale_x_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) )
+  ggsave(paste(SaveDir, "NumOfCxTypes_by_Thrsh.pdf",sep=""),
+         plot = P2, device='pdf', scale = 1, width =4, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
+  
+  
+  
+# Make a scatter plot of weight vs relative weight for each connection
+P3=ggplot(data=All_MB2CX_Direct, aes(x=weight, y=weightRelative)) + geom_point(size=1, shape=1) +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) ) + 
+  scale_x_continuous(breaks = seq(from=0, to=150, by=10), lim=c(0,150) )
+
+ggsave(paste(SaveDir, "Thresh_Scatter.pdf",sep=""),
+         plot = P3, device='pdf', scale = 1, width =4, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
+
+  
+
+```
+
+
+
+# ####################################################################################################################
+# ######### Figure 2: MBON to CX indirect connections ################################################################
+# ####################################################################################################################
+
+
+# Get indirect connections
+```{r}
+
 
 # Get strong connections from MBONs to non-CX neurons
 MB2NonCX=subset(Downstream_T2T_L1, !(databaseType.to %in% CXTypes)  & weightRelative>0.01 & weight>10)
@@ -392,7 +421,7 @@ MB2NonCX=subset(Downstream_T2T_L1, !(databaseType.to %in% CXTypes)  & weightRela
 # Get type table
 L2_Types=sort(unique(MB2NonCX$databaseType.to))
 L2_Types=L2_Types[is.na(as.numeric(L2_Types))]
-L2_Types=L2_Types[! (startsWith(L2_Types,"(") | startsWith(L2_Types,"Ascending") )]
+L2_Types=L2_Types[! (startsWith(L2_Types,"(") | startsWith(L2_Types,"Ascending") | startsWith(L2_Types, "MBON"))]
 L2_Types_Table=getTypesTable(L2_Types)
 
 
@@ -401,9 +430,9 @@ DownBag_L2=neuronBag(L2_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=F
 DownBag_L2=lateralize_types(DownBag_L2) # Lateralize to take into account projections that may be missing from the volume
 
 
-# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals polarity and lateralization issue.
+# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
 # Polarity, since most FBt types receive a lot of input in the CX, the roi-independent relative weight can be very low.
-# Lateralization, since some CX targets could have some on the left and dendrites on the right. So it makes sense to use all MBONs (L and R)
+# Lateralization, since some CX targets could have  dendrites on the left or dendrites on the right or both. So it makes sense to use all MBONs (L and R)
 #   and just look at their targets in right ROIs (which should be more complete).
 DownBag_L2 <- combineRois(DownBag_L2, outsideRegions, newRoi="NonCX") # Sum synapses across all non-CX ROIs on the right side
            
@@ -416,9 +445,19 @@ Downstream_T2T_L2=getTypeToTypeTable(DownBag_L2$outputs_raw, majorOutputThreshol
 
 
 
+
+```
+
+
+
+# Get just indirect connections to the CX and plot
+```{r}
+
+
 # Get first and second layer of projections
-L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>0.02 & weight>20 & !startsWith(type.from,"MBON"))
-L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>0.02 & weight>20 & !startsWith(type.to,"MBON"))
+L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>0.01 & weight>10)
+L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>0.01 & weight>10
+                & !startsWith(type.to,"MBON") & !databaseType.from=="MBON15-like")
 
 
 # Average over left and right 
@@ -434,16 +473,19 @@ colnames(L1_to_L2_Ave)=c("type.from","type.to","weightRelative","outputContribut
 L1_to_L2_Ave$roi="R"
 
 
-P1=plotConnectivity(L1_to_L2_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
+
+P2=plotConnectivity(L1_to_L2_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
   legendName = NULL, showTable = "inputs")
-P1 + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+P2 = P2 +   coord_fixed(ratio = 1) +
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA), #add black border
         panel.spacing = unit(0, "lines"),#remove space between facets
-        #axis.ticks = element_blank(),
-        aspect.ratio = 1)  
+        text = element_text(size=6)) 
+print(P2)
+ggsave(paste(SaveDir, "L1_to_L2_Ave.Pdf",sep=""),
+        plot = P2, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
@@ -451,6 +493,112 @@ P2=plotConnectivity(L2_to_Cx_Ave, slctROI = NULL, grouping = "type", connectionM
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
   cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
   legendName = NULL, showTable = "inputs")
+P2 = P2 + coord_fixed(ratio = 1) + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
+        panel.spacing = unit(0, "lines"),#remove space between facets
+        text = element_text(size=6)) 
+print(P2)
+ggsave(paste(SaveDir, "L2_to_Cx_Ave.Pdf",sep=""),
+        plot = P2, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+# Construct pathway object
+MBON2CX_Indirect=tableChain2path(L1_to_L2, L2_to_Cx)
+MBON2CX_Indirect=subset(MBON2CX_Indirect, !is.na(type_N1) )
+MBON2CX_Indirect_Ave=MBON2CX_Indirect %>% group_by(databaseType.from, databaseType.to, databaseType_N1) %>%
+  summarize(weightRelative_N1=mean(weightRelative_N1), weightRelative_N2=mean(weightRelative_N2), weightRelative_path=mean(weightRelative_path))
+
+
+sort(unique(MBON2CX_Indirect_Ave$databaseType.to))
+
+
+```
+
+
+# Plot the number of pathways from MBONs to the various FB layers
+```{r}
+
+library(prismatic)
+library(paletteer)
+
+
+# Group my projections to FB layer
+MBON2CX_Indirect_Ave_FBlayer=subset(MBON2CX_Indirect_Ave, startsWith(databaseType.to,"FB"))
+MBON2CX_Indirect_Ave_FBlayer$FBlayer=paste("L", substr(MBON2CX_Indirect_Ave_FBlayer$databaseType.to,3,3), sep="")
+MBON2CX_Indirect_Ave_FBlayer=MBON2CX_Indirect_Ave_FBlayer %>% group_by(databaseType.from, FBlayer) %>%
+  summarize(NumOfPaths=n(), NumOfFBt=length(unique(databaseType.to)), PathwayWeight=sum(weightRelative_N1*weightRelative_N2))
+MBON2CX_Indirect_Ave_FBlayer$FBlayer=factor(MBON2CX_Indirect_Ave_FBlayer$FBlayer, levels=c("L1","L2","L3","L4","L5","L6","L7","L8","L9"))
+
+
+ggplot(MBON2CX_Indirect_Ave_FBlayer) +
+  geom_tile(aes(databaseType.from,FBlayer,fill=NumOfPaths)) + scale_y_discrete(drop=FALSE) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,15), breaks = c(0,5,10,15), oob=squish, na.value="gray50") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
+
+  
+ggplot(MBON2CX_Indirect_Ave_FBlayer) +
+  geom_tile(aes(databaseType.from,FBlayer,fill=NumOfFBt)) + scale_y_discrete(drop=FALSE) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,14), breaks = c(0,7,14), oob=squish, na.value="gray50") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
+
+
+ggplot(MBON2CX_Indirect_Ave_FBlayer) +
+  geom_tile(aes(databaseType.from,FBlayer,fill=PathwayWeight)) + scale_y_discrete(drop=FALSE) +
+  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.05), breaks = c(0,0.025,0.05), oob=squish, na.value="gray50") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+  theme(strip.background = element_blank(), #remove background for facet labels
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
+        panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
+
+
+```
+
+
+
+# Use CD's code from CX_ContextualAnalysisUtils.R to get the MBON info larry provided
+```{r}
+
+#source("../CX_ContextualAnalysisUtils.R")
+
+# Read tables of PN to MBON with input modality percentages and return a data frame
+getPN2MBONinputTable <- function(){
+  PN2MBON_InputPc <- read.csv('C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FIGURE_MB/PN2MBON.csv', header = FALSE)
+  PN2ATMBON_InputPc <- read.csv('C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FIGURE_MB/PN2ATMBON.csv', header = FALSE)
+  PNtypes <- c('UniGlom', 'MultiGlom', 'ThermoHygro', 'Visual')
+  colnames(PN2MBON_InputPc) <- PNtypes
+  colnames(PN2ATMBON_InputPc) <- PNtypes
+  MBONtypeNames <- c('MBON01', 'MBON02', 'MBON03', 'MBON04', 'MBON05', 'MBON06', 'MBON07', 'MBON09', 'MBON11', 'MBON12', 'MBON13', 'MBON14', 'MBON15', 'MBON16', 'MBON17', 'MBON18', 'MBON19a', 'MBON19b', 'MBON20', 'MBON21', 'MBON22', 'MBON23')
+  atypicalMBONtypeNames <- c('MBON10', 'MBON24', 'MBON25', 'MBON26', 'MBON27', 'MBON29', 'MBON30', 'MBON31', 'MBON32', 'MBON33', 'MBON34', 'MBON35', 'MBON28')
+  allMBONtypeNames <- c(MBONtypeNames,atypicalMBONtypeNames)
+  rownames(PN2MBON_InputPc) <- MBONtypeNames
+  rownames(PN2ATMBON_InputPc) <- atypicalMBONtypeNames
+  PN2allMBON_InputPct <- rbind(PN2MBON_InputPc,PN2ATMBON_InputPc)
+  PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(Olfactory = UniGlom + MultiGlom) # add a column for the sum of UniGlom and MultiGlom as Olfactory
+  PN2allMBON_InputPct <- PN2allMBON_InputPct %>% mutate(MBON = allMBONtypeNames) # add a column for matching MBON type names
+  
+  PN2allMBON_InputPct[[17,"MBON"]] <- "MBON19" # combine the 2 MBON19 types
+  PN2allMBON_InputPct[[18,"MBON"]] <- "MBON19"
+  
+  return(PN2allMBON_InputPct)
+}
+```
+
+
+
+# Make graphs of visual and thermo/hygro indirect pathways
+```{r}
+
+
+
+PN2allMBON_InputPct=getPN2MBONinputTable()
 
 
 
@@ -458,5 +606,19 @@ P2=plotConnectivity(L2_to_Cx_Ave, slctROI = NULL, grouping = "type", connectionM
 
 
 
+
+
+# Make plots of non-FBt pathways
+```{r}
+
+NonFBt_Types=sort(unique(MBON2CX_Indirect_Ave$databaseType.to)) 
+NonFBt_Types=NonFBt_Types[!startsWith(NonFBt_Types, "FB")]
+
+
+ExRPaths=subset(MBON2CX_Indirect_Ave, startsWith(databaseType.to,"ExR"))
+LalNoPaths=subset(MBON2CX_Indirect_Ave, startsWith(databaseType.to,"LC") | startsWith(databaseType.to,"GLN") | startsWith(databaseType.to,"LNO"))
+
+
+```
 
 
