@@ -300,7 +300,7 @@ plotCorrMatCluster <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1)) # chop off the first column
   
   # Plot the correlation matrix among type.to; Cluster and rearrange the Type2TypeConnTab
-  Type2TypeConnTab_HCbyTo <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,Data4Clust,'type.to')
+  Type2TypeConnTab_HCbyTo <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab, Type2TypeConnTabName,Data4Clust,'type.to')
 
   # Plot the correlation matrix among type.from; Cluster and rearrange the Type2TypeConnTab
   Data4Clust <- t(Data4Clust) # transpose Data4Clust to plot correlations between type.from
