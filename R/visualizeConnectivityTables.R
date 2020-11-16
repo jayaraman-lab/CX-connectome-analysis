@@ -17,7 +17,7 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
   
   myConTab = myConTab %>% ungroup() %>% mutate(plotWeight = myConTab[[connectionMeasure]])
   
-  if (byGroup == "id"){
+  if (byGroup == "id" | byGroup == "colname" | byGroup == "rowname"){
     myConTab$nameid.from = paste(as.character(myConTab$name.from), postfixfrom, as.character(myConTab$from), sep = "_")
     myConTab$nameid.to = paste(as.character(myConTab$name.to), postfixto,as.character(myConTab$to), sep = "_")
   }
@@ -33,6 +33,10 @@ plotConnectivityMatrix = function(myConTab, byGroup = "name", connectionMeasure=
     conmatPlot =  conmatPlot + geom_tile(aes(name.to,name.from,fill=plotWeight))
   } else if(byGroup == "id"){
     conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,nameid.from,fill=plotWeight))
+  } else if(byGroup == "colname"){
+    conmatPlot =  conmatPlot + geom_tile(aes(colname.to,nameid.from,fill=plotWeight))
+  } else if(byGroup == "rowname"){
+    conmatPlot =  conmatPlot + geom_tile(aes(nameid.to,rowname.from,fill=plotWeight))
   } else if(byGroup == "id_sort"){
     conmatPlot =  conmatPlot + geom_tile(aes(nameOrder.to,nameOrder.from,fill=plotWeight))
   } else if(byGroup == "type"){

@@ -27,11 +27,15 @@ outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/f
 
 ```{r}
 load("outputsBasics.RData")
+load("mainTargetsAndConns.Rdata")
+outClustersFull <- readRDS("clusters-paths.rds")
+outClusters <- readRDS("cluster-alldephts.rds")
 CXoutFull <- readRDS("pathwayWeightsTable.rds")
 CXoutAllSteps <- readRDS("pathways-allsteps.rds")
 CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
-mainTargets <- readRDS("main-targets.rds")
+#mainTargets <- readRDS("main-targets.rds")
 CX_outGraph <- readRDS("output_graph.rds")
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
 ```
 
 ```{r}
@@ -40,12 +44,6 @@ targetsSummary <- group_by(CXoutFull,type.to) %>% summarize(fullCXwr=sum(Path_we
 
 ## Clustering comparisons SI fig
 ```{r}
-outClustersFull <- connectivityCluster(outputsTable=CXoutFull %>% mutate(roi="Outside",outputContribution=Path_weight))
-outClustersFull$outputsTable <- 1 ## Memory saving
-outClusters <- lapply(1:8,function(i) {ret <- connectivityCluster(outputsTable=CXoutAllSteps %>% filter(n_steps==i) %>% mutate(roi="Outside",outputContribution=Path_weight))
-                                       ret$outputsTable <- 1 ## Save memory as we're not using this here
-                                       ret})
-
 cluster1 <- plotClusters(outClusters[[1]],orderX=match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[1]]$hc$labels),
              orderY=match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[1]]$hc$labels)) + ggtitle("1 hop") + guides(fill="none")
 cluster2 <- plotClusters(outClusters[[2]],orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[2]]$hc$labels)),
@@ -58,42 +56,34 @@ cluster8 <- plotClusters(outClusters[[8]],orderX=na.omit(match(outClustersFull$h
              orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[8]]$hc$labels)))+ ggtitle("8 hops")+ guides(fill="none")
 clusterFull <- plotClusters(outClustersFull)+ ggtitle("Full graph")+ guides(fill="none")
 
-allClusters1 <- clusterFull / cluster1 + plot_layout(guides="collect")+ plot_annotation(title="Cosine distances for different connection dephts") & theme(axis.text=element_text(size=5))
-allClusters2 <- cluster2 / cluster3  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
-allClusters3 <- cluster5 / cluster8  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
+allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 5 SI1: Cosine distances for different connection dephts",theme=theme(title=element_text(size=12,face="bold")))& theme(axis.text=element_text(size=4))
+#allClusters1 <- clusterFull / cluster1 + plot_layout(guides="collect")+ plot_annotation(title="Cosine distances for different connection dephts") & theme(axis.text=element_text(size=5))
+#allClusters2 <- cluster2 / cluster3  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
+#allClusters3 <- cluster5 / cluster8  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
 ```
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page1.pdf"),allClusters1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page2.pdf"),allClusters2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page3.pdf"),allClusters3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page1.pdf"),allClusters1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page2.pdf"),allClusters2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page3.pdf"),allClusters3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```
 ## Total pathway weight contributed per type and main known targets
 ```{r}
-CXFFTotals <- filter(CXoutFull,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from) %>% group_by(type.from,supertype3.from,supertype3.to) %>% summarize(Path_weight=sum(Path_weight))
-CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to))+ scale_fill_manual(name="Target supertype",values=supertype3Palette)+facet_grid(.~supertype3.from,scale="free",space="free")+theme_paper() +  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("CX output type")
+CXFFTotals <- filter(CXoutFull,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from) %>% group_by(type.from,supertype3.from,supertype3.to) %>% summarize(Path_weight=sum(Path_weight)) %>% ungroup() %>% mutate(typeCategory.to=case_when(supertype3.to %in% c("Terra incognita","Unassigned") ~ "Unidentified",
+                                                                                                                                                                                                                                                                TRUE ~ "Identified"))
+CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=typeCategory.to))+ scale_fill_manual(name="Target",values=c("Unidentified"="grey70","Identified"="#ff5050"))+facet_grid(.~supertype3.from,scale="free",space="free")+theme_paper() +  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),legend.position = c(0.7,0.5)) + ylab("Total pathway weight") + xlab("CX output type")
 CXFFInfl
 ```
 
 ## Weights histogram
 ```{r}
-totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) + geom_histogram(fill="grey70",binwidth = 0.001) + scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000))+ theme_paper_hgrid() + xlab("Total pathway weight coming from the CX") +ylab("# types") 
+totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) + geom_histogram(fill="grey30",binwidth = 0.001) + scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000))+ theme_paper_hgrid() + xlab("Total pathway weight coming from the CX") +ylab("# types") 
 totalCX_received_plot 
 ```
 
 ## Connectivity matrix to strong partners
 ```{r}
-mainCXTargets <- filter(mainTargets,databaseType.to %in% CXOutsideNeurons$databaseType)
-mainFFTargets <- filter(mainTargets,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from)
-
-mainFFConns <- filter(CXoutFull,type.to %in% mainFFTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
-                                                                                                                                               mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
-allMainConns <- filter(CXoutFull,type.to %in% mainTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
-                                                                                                                                               mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
-
-allMainConnsFilt <- filter(allMainConns,Path_weight>0.005)
-mainFFConnsFilt <- filter(mainFFConns, Path_weight>0.005)
-
-mainFFPlot <- plotConnectivity(mainFFConnsFilt,grouping = "type",connectionMeasure = "Path_weight",orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),xaxis = "outputs",theme = theme_paper_hgrid())  + theme(axis.text.x = element_blank()) + ylab("CX output type") + xlab("Main feedforward target types")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+mainFFPlot <- plotConnectivity(mainFFConnsFilt,grouping = "type",connectionMeasure = "Path_weight",orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),xaxis = "outputs",theme = theme_paper_hgrid())  + theme(axis.text.x = element_blank(),legend.position=c(0.1,0.8)) + ylab("CX output type") + xlab("Main feedforward target types")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
 mainFFPlot 
 ```
 
@@ -108,7 +98,7 @@ intraConnsSummary <- group_by(mainTargetsIntraConns,contributor.from) %>%
    group_by(contributor.to) %>% 
    mutate(n.to=length(unique(type.to))) %>% group_by(contributor.from,contributor.to,roi) %>% summarize(weightRelative=sum(weightRelative)/(n.from[1]*n.to[1]),fractionConnected=n()/(n.from[1]*n.to[1])) %>% ungroup()
 fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("Main feedforward target types")
-byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("Main contributor of postsynaptic")+ ylab("Main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
+byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("Main contributor of postsynaptic")+ ylab("Main contributor of presynaptic")+ scale_fill_paletteer_c(name="Mean relative weight","ggthemes::Green") + theme(legend.position=c(0.88,0.5))
 plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("Main contributor of postsynaptic")+ ylab("Main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
 byContrConnMat
 ```
@@ -117,39 +107,35 @@ byContrConnMat
 
 ```{r}
 targetFFSourceTable <- data.frame(databaseType=as.character(unique(mainFFConns$databaseType.from))) %>% mutate(type=databaseType) %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%
-   mutate(supertype = case_when(supertype=="PFL" ~ type,
-                                grepl("ExR[2-7]",supertype) ~ "ExR2-7",
-                                supertype3=="EB Columnar" ~ "EB Columnar",
-                                TRUE ~ as.character(supertype)))
-customContributorsPalette <- typesPalette(targetFFSourceTable$supertype)
+   customOutputSupertype(postfix="raw")
+customContributorsPalette <- customSupertypePalette
 ```
 
 
 ```{r}
-CX_outGraphRed <- as_tbl_graph(induced_subgraph(CX_outGraph,c(mainFFConnsFilt$type.to,mainFFConnsFilt$type.from))) %N>% mutate(mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)],
-                                                                                                                             customContributor=targetFFSourceTable$supertype[match(mainContributor_data,targetFFSourceTable$type)],
-                                                                                                                             customContributor = ifelse(type %in% mainFFConnsFilt$type.from,"Source",as.character(customContributor)),
-                                                                                                                             label=ifelse(customContributor=="Source",type,NA)) 
 customFullGPalette <- c(customContributorsPalette,"Source"="grey70")
-CX_outCommunitiesRed <- cluster_infomap(CX_outGraphRed,e.weights=E(CX_outGraphRed)$weightRelative)
-CX_outCommunitiesRedLP <- cluster_label_prop(CX_outGraphRed,weights=E(CX_outGraphRed)$weightRelative)
-
-CX_outGraphRed <- CX_outGraphRed %N>% mutate(imCommunity=membership(CX_outCommunitiesRed)[type],
-                                           lpCommunity=membership(CX_outCommunitiesRedLP)[type])
-graphMainTargetsPlot <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=.N()$customContributor[from],width=weightRelative)) + geom_node_point(aes(color=customContributor),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(name="Main contributor",values=customFullGPalette) + scale_edge_color_manual(values=customFullGPalette) + scale_edge_width(name="Relative weight")+ guides(edge_color="none") + theme_paper_map() + coord_fixed()
-graphMainTargetsPlot_IM <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=as.factor(.N()$lpCommunity[from]),width=weightRelative)) + geom_node_point(aes(color=as.factor(lpCommunity)),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(name="Community (label propagation)",values=p36)+ scale_edge_width(name="Relative weight") + scale_edge_color_manual(values=p36)+ guides(edge_color="none")  + theme_paper_map() + coord_fixed()
+graphMainTargetsPlot <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=.N()$customContributor[from],width=weightRelative)) + geom_node_point(aes(color=customContributor),size=2) + scale_color_manual(name="Main contributor",values=customFullGPalette) + scale_edge_color_manual(values=customFullGPalette) + scale_edge_width(name="Relative weight")+ guides(edge_color="none") + theme_paper_map() + coord_fixed() + theme(legend.position = c(1,0.5))
+graphMainTargetsPlot_IM <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=as.factor(.N()$lpCommunity[from]),width=weightRelative)) + geom_node_point(aes(color=as.factor(lpCommunity)),size=2) +  scale_color_manual(name="Community (label propagation)",values=p36)+ scale_edge_width(name="Relative weight") + scale_edge_color_manual(values=p36)+ guides(edge_color="none")  + theme_paper_map() + coord_fixed() + theme(legend.position = c(1,0.5))
 graphMainTargetsPlot_ST <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.5,aes(color=.N()$supertype3[from],width=weightRelative)) + geom_node_point(aes(color=supertype3),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(values=supertype3Palette) + scale_edge_color_manual(values=supertype3Palette) + theme_paper_map() + coord_fixed()
 graphMainTargetsPlot_IM
 graphMainTargetsPlot
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"intraConnectivityByContributor.svg"),byContrConnMat)
+layout <- c(
+   area(t=2,b=11,l=1,r=10),
+   area(t=12,b=21,l=1,r=10),
+   area(t=22,b=30,l=1,r=10)
+)
+
+figure5SI2 <- graphMainTargetsPlot + graphMainTargetsPlot_IM + byContrConnMat + plot_layout(design=layout) + plot_annotation(title="Output figures 5 - SI2: modularity",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(0, 1))
+#save_plot(paste0(outputsFolder,"intraConnectivityByContributor.svg"),byContrConnMat)
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-1.pdf"),graphMainTargetsPlot,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-2.pdf"),graphMainTargetsPlot_IM,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI2.pdf"),figure5SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-1.pdf"),graphMainTargetsPlot,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-2.pdf"),graphMainTargetsPlot_IM,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
 ```
 
 
@@ -172,9 +158,9 @@ mainFFperRoi <- group_by(mainFFperRoi,type.from,roi.y,roi0,side) %>% summarize(r
 
 mainFFperRoi <-  rename(mainFFperRoi,type.to=roi.y) %>% mutate(roi="outside") %>% mutate(databaseType.from=type.from) %>% supertype()
 
-roiFFConnectPlotRight <- plotConnectivity(filter(mainFFperRoi,roiScore>50, type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side !="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90)) + ggtitle("Right + central")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
+roiFFConnectPlotRight <- plotConnectivity(filter(mainFFperRoi,roiScore>50, type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side !="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90),plot.title=element_text(size=8)) + ggtitle("Right + central")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
 
-roiFFConnectPlotLeft <- plotConnectivity(filter(mainFFperRoi,roiScore>50,type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side =="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90)) + ggtitle("Left (simulated")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
+roiFFConnectPlotLeft <- plotConnectivity(filter(mainFFperRoi,roiScore>50,type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side =="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90),plot.title=element_text(size=8)) + ggtitle("Left (simulated)")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
 
 roiFFConnectPlotRight + roiFFConnectPlotLeft
 ```
@@ -191,14 +177,17 @@ CXTargetsSyn <- mutate(CXTargetsSyn,type=mainFFTargetsNeurons$type[match(bodyid,
                        mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)])
 
 
-CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=targetFFSourceTable$supertype[match(mainContributor_data,targetFFSourceTable$type)])
+CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)])
 
 legendSource <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype %in% CXTargetsSyn$customContributor),aes(x=1,y=supertype)) + geom_point(aes(color=supertype)) + theme_paper_map() + scale_color_manual(name="Source type",values=customContributorsPalette))
 ```
 
 ```{r}
 displayAnatomies(synapses=CXTargetsSyn,
-                 ROIs = c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "allTargets",synapsePalette = customContributorsPalette)
+                 ROIs = c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allTargets",
+                 synapsePalette = customContributorsPalette
+               )
 ```
 
 ```{r}
@@ -211,7 +200,16 @@ allTargetViews
 ## Assemble the figure
 
 ```{r}
-figure5 <- (CXFFInfl + totalCX_received_plot + plot_layout(widths=c(4,1)))/ (mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new")) + plot_layout(widths = c(1,2))) / (allTargetViews + legendSource + plot_layout(widths=c(8,1))) + plot_layout(heights=c(1,3,3)) + plot_annotation(tag_levels = c("A","i"))
+layout <- c(
+   area(t=2,b=3,l=2,r=7),
+   area(t=2,b=3,l=8,r=10),
+   area(t=5,b=13,l=2,r=4),
+   area(t=5,b=13,l=5,r=10),
+   area(t=14,b=20,l=3,r=8),
+   area(t=14,b=20,l=9,r=10)
+)
+
+figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1))
 figure5
 ```
 

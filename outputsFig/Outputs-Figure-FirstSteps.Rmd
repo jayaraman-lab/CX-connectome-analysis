@@ -1,0 +1,447 @@
+---
+title: "Type by type analysis figures"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("../R/paperTheme.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure10-firstSteps/"
+```
+
+```{r}
+CXOutSyn <- readRDS("CX-outsideSynapses.rds")
+CXTargetsSyn <- readRDS("CX-targets-synapses.rds")
+load("outputsBasics.RData")
+load("mainTargetsAndConns.Rdata")
+CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
+CXoutFull <- readRDS("pathwayWeightsTable.rds")
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+CX_outGraph <- readRDS("output_graph.rds")
+CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
+endpoints <- readRDS("endpoints-influenceFullSummary.rds")
+
+endpointsStrong <- filter(endpoints,Path_weight>=0.5)
+
+CX_outGraphRed <- CX_outGraphRed %N>% 
+   mutate(influencing=endpointsStrong$supertype.to[match(type,endpointsStrong$type.from)]) %E>% 
+    mutate(influencing.from = .N()$influencing[match(type.from,.N()$type)])
+```
+
+```{r}
+
+mainFFTargetsS <- mainFFTargets %>% rename(type=type.to,databaseType=databaseType.to) %>% supertype() %>% selectSupertypeSet(default_level = 3,exceptions=list("Terra incognita"=2))
+
+
+
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal)
+names(customGraphPalette)[2] <- "Source"
+```
+
+The synapses from their targets
+```{r}
+CXTargetsSyn <- mutate(CXTargetsSyn,type=mainFFTargetsNeurons$type[match(bodyid,mainFFTargetsNeurons$bodyid)],
+                       mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
+                       mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)])
+
+
+CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)])
+```
+
+## PFLs
+
+### First order partners - homogeneity?
+```{r}
+PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+PFL2Glom <- plotGlomMat(PFLBag,"PFL2_R",grouping="gl") / plotGlomMat(PFLBag,"PFL2_L",grouping="gl")
+PFL3Glom <- plotGlomMat(PFLBag,"PFL3_L*",grouping="gl")
+PFL1Glom <- plotGlomMat(PFLBag,"PFL1_L*",grouping="gl")
+```
+
+```{r}
+PFL1Graph <- plotSubgraph("PFL1_L*",graph=CX_outGraphRed) + coord_cartesian(clip="off")
+
+PFL2Graph <- plotSubgraph(c("PFL2_L","PFL2_R"),graph=CX_outGraphRed) + coord_cartesian(clip="off")
+
+PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01) + coord_cartesian(clip="off")
+
+```
+
+### PFL1 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL087_R"))$bodyid,
+   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","FB"),saveName = "PFL1Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL095_R"))$bodyid,
+   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU039_R"))$bodyid
+),ROIs = c("LAL(R)","LAL(L)"),saveName = "PFL1Partners4",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL087_R"))$bodyid,
+   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+),ROIs = c("LAL(R)","LAL(L)"),saveName = "PFL1Partners",neuronPalette = customGraphPalette)
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type=="LAL138_L")$bodyid,
+   "WED"=filter(mainFFTargetsNeurons,type=="WED157_R")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","WED(R)"),saveName = "PFL1Partners2",neuronPalette = customGraphPalette)
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type=="LAL048_R")$bodyid,
+   "WED"=filter(mainFFTargetsNeurons,type=="WED145_R")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","WED(R)","PLP(R)"),saveName = "PFL1Partners3",neuronPalette = customGraphPalette)
+```
+
+### PFL2 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL090_R"))$bodyid,
+   "PFL2"=filter(CXOutputNeurons,type=="PFL2_L")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","FB"),saveName = "PFL2Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL076_L"))$bodyid,
+   "CRE"=filter(mainFFTargetsNeurons,type %in% c("CRE093_R"))$bodyid,
+   "VES"=filter(mainFFTargetsNeurons,type %in% c("VES054_R"))$bodyid
+),ROIs = c("LAL(R)","LAL(L)","VES(R)","SIP(R)"),saveName = "PFL2Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### PFL3 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL046_R"))$bodyid,
+   "PFL3"=filter(CXOutputNeurons,type=="PFL3_L*")$bodyid
+),ROIs = c("LAL(R)","VES(R)","FB"),saveName = "PFL3Partners",neuronPalette= c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB020_R"))$bodyid
+),ROIs = c("LAL(R)","IB"),saveName = "PFL3Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+## PFL skeletons
+
+```{r}
+PFL1Fig <- PFL1Glom / plot_spacer() / PFL1Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 10: PFL1",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure10-PFL1.pdf"),PFL1Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+PFL2Fig <- PFL2Glom / plot_spacer() / PFL2Graph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 11: PFL2",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure11-PFL2.pdf"),PFL2Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+PFL3Fig <- PFL3Glom / plot_spacer() / PFL3Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 12: PFL3",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure12-PFL3.pdf"),PFL3Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+## FSs
+
+### First order partners - homogeneity?
+```{r}
+FSBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FS1","FS2","FS3","FS4")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FS1ACol <- ((plotGlomMat(FSBag,"FS1A_L",grouping="col"))  - (plotGlomMat(FSBag,"FS1A_R",grouping="col"))) & theme(axis.text.x = element_text(angle=90,size=4))
+FS1BCol <- (plotGlomMat(FSBag,"FS1B_L",grouping="col") - plotGlomMat(FSBag,"FS1B_R",grouping="col"))  & theme(axis.text.x = element_text(angle=90,size=4))
+FS2Col <- plotGlomMat(FSBag,"FS2_L",grouping="col") - plotGlomMat(FSBag,"FS2_R",grouping="col")
+FS3Col <- plotGlomMat(FSBag,"FS3_L",grouping="col")
+FS4ACol <- plotGlomMat(FSBag,"FS4A_L",grouping="col")
+FS4BCol <- plotGlomMat(FSBag,"FS4B_L",grouping="col")
+FS4CCol <- plotGlomMat(FSBag,"FS4C_L",grouping="col") / plotGlomMat(FSBag,"FS4C_R",grouping="col")
+#FS4ACol
+```
+```{r}
+FS1Graph <- plotSubgraph(c("FS1A_L","FS1B_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+
+FS2Graph <- plotSubgraph(c("FS2_L","FS2_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+
+FS3Graph <- plotSubgraph(c("FS3_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+
+FS4AGraph <- plotSubgraph(c("FS4A_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+
+FS4BGraph <- plotSubgraph(c("FS4B_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+
+FS4CGraph <- plotSubgraph(c("FS4C_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+
+#FS4CGraph
+```
+
+### FS1 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "CL"=filter(mainFFTargetsNeurons,type %in% c("CL007_R"))$bodyid,
+   "FS1"=filter(CXOutputNeurons,type %in% c("FS1B_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SPS(R)","SCL(R)"),saveName = "FS1Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LH"=filter(mainFFTargetsNeurons,type %in% c("LHPV5e3_R"))$bodyid,
+   "SIP"=filter(mainFFTargetsNeurons,type %in% c("SIP087_R"))$bodyid
+),ROIs = c("LAL(R)","SMP(R)","SIP(R)","CRE(R)","LH(R)"),saveName = "FS1Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS2 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP457_R"))$bodyid,
+   "FS2"=filter(CXOutputNeurons,type %in% c("FS2_L"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","SIP(R)"),saveName = "FS2Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP010_R"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","SIP(R)"),saveName = "FS2Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS3 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP564_R"))$bodyid,
+   "FS3"=filter(CXOutputNeurons,type %in% c("FS3_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SMP(L)"),saveName = "FS3Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP188_R"))$bodyid,
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB042_R"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","LAL(R)","IB"),saveName = "FS3Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4A fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP297_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)","FLA(R)"),saveName = "FS4APartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP304_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)","FLA(R)"),saveName = "FS4APartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SLP"=filter(mainFFTargetsNeurons,type %in% c("SLP413_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4APartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4B fig
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP497_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4B_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4BPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+### FS Skeleton figs
+
+```{r}
+FS1Fig <- FS1ACol / FS1BCol / plot_spacer() / FS1Graph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 13: FS1",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure13-FS1.pdf"),FS1Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS2Fig <- FS2Col / plot_spacer() / FS2Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 14: FS2",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure14-FS2.pdf"),FS2Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS3Fig <- FS3Col / plot_spacer() / FS3Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 15: FS3",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure15-FS3.pdf"),FS3Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4AFig <- FS4ACol / plot_spacer() / FS4AGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 16: FS4A",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure16-FS4A.pdf"),FS4AFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4BFig <- FS4BCol / plot_spacer() / FS4BGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 17: FS4B",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure17-FS4B.pdf"),FS4BFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4CFig <- FS4CCol / plot_spacer() / FS4CGraph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 18: FS4C",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure18-FS4C.pdf"),FS4CFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+allFSSubGraphPlot<- plotSubgraph(c("FS1A_L","FS1B_L","FS2_L","FS3_L","FS4A_L","FS4B_L","FS4C_L"),influenceThreshold = 0.01,graph=CX_outGraphRed,layout="stress") / plot_spacer() + plot_layout()+ plot_annotation(title="Outputs figure 18 SI1: FS network",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+allFSSubGraphPlot
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure18-SI1.pdf"),allFSSubGraphPlot,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+
+## FCs
+
+### First order partners - homogeneity?
+```{r}
+FCBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FC1","FC2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FC1CCol <- plotGlomMat(FCBag,"FC1C_L",grouping="col")
+FC1ECol <- plotGlomMat(FCBag,"FC1E_L",grouping="col")
+FC2ACol <- plotGlomMat(FCBag,"FC2A_L",grouping="col")
+FC2BCol <- plotGlomMat(FCBag,"FC2B_L",grouping="col")
+FC2CCol <- plotGlomMat(FCBag,"FC2C_L",grouping="col")
+FC1ECol
+```
+```{r}
+FCGraph <- plotSubgraph(c("FC1C_L","FC1E_L","FC2A_L","FC2B_L","FC2C_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FCGraph
+```
+
+
+```{r}
+FCFirstStepFig <- (FC1CCol - FC1ECol) / (FC2ACol - FC2BCol) / (FC2CCol - plot_spacer()) / plot_spacer() / FCGraph / plot_spacer()  + plot_layout(heights=c(1,1,1,2,5,2)) + plot_annotation(title="Outputs figure 19: FC",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure19-FC.pdf"),FCFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+## PFRs
+
+### First order partners - homogeneity?
+```{r}
+PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+PFRaGlom <- plotGlomMat(PFRBag,"PFR_a_L*",grouping="glom")
+PFRbGlom <- plotGlomMat(PFRBag,"PFR_b_L*",grouping="glom")
+PFRb2aGlom <- plotGlomMat(filter(PFRBag,filterPartners = FALSE,type=="PFR_b_L*"),"PFR_b_L*",grouping="col",targetFilt = filter(mainTargets,type.to=="PFR_a_L*"))
+PFRbGlom
+```
+
+
+
+```{r}
+PFRGraph <- plotSubgraph(c("PFR_b_L*"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+PFRGraph
+```
+```{r}
+PFRFirstStepFig <- PFRbGlom / plot_spacer() / PFRGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 20: PFR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure20-PFR.pdf"),PFRFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+## FRs
+
+### First order partners - homogeneity?
+```{r}
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FR1Col <- plotGlomMat(FRBag,"FR1_L",grouping="col")
+FR2Col <- plotGlomMat(FRBag,"FR2_L",grouping="col")
+FR1Col
+```
+
+```{r}
+FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FRGraph
+```
+
+```{r}
+FRFirstStepFig <- (FR1Col - FR2Col) / plot_spacer() / FRGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 21: FR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure21-FR.pdf"),FRFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+
+## ExR7/8
+
+### First order partners - homogeneity?
+```{r}
+ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+ExR8Graph
+```
+## ExR2-6
+
+### First order partners - homogeneity?
+```{r}
+ExR26Graph <- plotSubgraph(c("ExR2_R","ExR3_R","ExR2_R","ExR6_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+ExR26Graph
+```
+
+```{r}
+ExRFig <-  plot_spacer() / ExR8Graph / plot_spacer()/ ExR26Graph /plot_spacer() + plot_layout(heights=c(1,2,1,1,1)) + plot_annotation(title="Outputs figure 22: ExR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure22-ExR.pdf"),ExRFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+
+
