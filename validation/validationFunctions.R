@@ -66,9 +66,10 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("Inputs","Outp
   oldPartnerTable <- filter(oldPartnerTable,bodyid %in% oldPartnersNewDataset$bodyid)
 
   
-  newConnTable <- processConnectionTable(newRawTable,newRawTable,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="Inputs","PRE","POST"),
+  newConnTable <- processConnectionTableOld(newRawTable,3,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="Inputs","PRE","POST"),
                                          slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newC,computeKnownRatio=TRUE,chunk_connections = TRUE)
-  oldConnTable <- processConnectionTable(oldRawTable,oldRawTable,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="Inputs","PRE","POST"),
+  
+  oldConnTable <- processConnectionTableOld(oldRawTable,3,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="Inputs","PRE","POST"),
                                          slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldC,computeKnownRatio = TRUE,chunk_connections = TRUE)
   
   groupVars <- c("from","to","roi","type.from","type.to",paste0("supertype",1:3,".from"),paste0("supertype",1:3,".to"))
@@ -153,4 +154,143 @@ getFit <- function(compTable,groups=c("side","databaseType","supertype2"),predic
   compFitsStats <-  compFits %>% 
     unnest(fitStats) %>% select(-data,-fitRes,-tidied)
   left_join(compFitsCoeff,compFitsStats,by=groups)
+}
+
+processConnectionTableOld <- function(myConnections,synThresh,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,chunk_connections,computeKnownRatio,...){
+  
+  
+  refMeta <- slice(refMeta,match(myConnections$bodyid,bodyid))
+  refMetaOrig <- slice(refMetaOrig,match(myConnections$bodyid,bodyid))
+  
+  myConnections <-mutate(myConnections,
+                         partnerName = partnerMeta[["name"]],
+                         name = refMeta[["name"]],
+                         partnerType = partnerMeta[["type"]],
+                         type = refMeta[["type"]])
+  
+  myConnections <- simplifyConnectionTableLocal(myConnections)
+  ## Normalization is always from the perspective of the output (fraction of inputs to the output neuron)
+  if (synapseType == "PRE"){
+    if (computeKnownRatio){
+      knownTablePost <- myConnections
+      if (length(myConnections$from)==0){knownTablePre <- empty_connTable(by.roi | !(is.null(slctROI)))}else{
+        knownTablePre <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,chunk=chunk_connections,...)}
+      knownTablePre <- knownTablePre %>% mutate(from = bodyid,to = partner) %>% select(-bodyid,-partner,-prepost)
+      
+      if (by.roi | !is.null(slctROI)){
+        knownTablePre <- tidyr::drop_na(knownTablePre,ROIweight)
+        knownTablePre <- filter(knownTablePre,ROIweight>synThresh)
+      }else{
+        knownTablePre <- filter(knownTablePre,weight>synThresh)
+      }
+      
+      knownPreMeta <- neuprint_get_meta(knownTablePre$to,chunk=chunk_meta,...)
+      knownTablePre <- filter(knownTablePre,knownPreMeta$status=="Traced")
+    }
+    outMeta <- refMeta
+    inMeta <- partnerMeta
+    myConnections <- mutate(myConnections,databaseType.to = refMetaOrig$type,
+                            databaseType.from = type.from)
+  } else {
+    if (computeKnownRatio){
+      knownTablePre <- myConnections
+      if (length(myConnections$to)==0){knownTablePost <- empty_connTable(by.roi | !(is.null(slctROI)))}else{
+        knownTablePost <- neuprint_connection_table(unique(myConnections$to),"PRE",slctROI,by.roi=by.roi,chunk=chunk_connections,...)}
+      knownTablePost <- knownTablePost %>% mutate(from = partner,to = bodyid) %>% select(-bodyid,-partner,-prepost)
+      if (by.roi | !is.null(slctROI)){
+        knownTablePost <- tidyr::drop_na(knownTablePost,ROIweight)
+        knownTablePost <- filter(knownTablePost,ROIweight>synThresh)
+      }else{
+        knownTablePost <- filter(knownTablePost,weight>synThresh)
+      }
+      knownPostMeta <- neuprint_get_meta(knownTablePost$from,chunk=chunk_meta,...)
+      knownTablePost <- filter(knownTablePost,knownPostMeta$status=="Traced")
+    }
+    inMeta <- refMeta
+    outMeta <- partnerMeta
+    myConnections <- mutate(myConnections,databaseType.to = type.to,
+                            databaseType.from = refMetaOrig$type)
   }
+  
+  if (computeKnownRatio){
+    if (by.roi | !(is.null(slctROI))){
+      knownTablePre <- tidyr::drop_na(knownTablePre,ROIweight)
+    }
+    knownTablePostTotal <- knownTablePost %>% group_by(to) %>% distinct(from,weight) %>% mutate(knownPostWeight = sum(weight)) %>% ungroup()
+    knownTablePreTotal <- knownTablePre %>% group_by(from) %>% distinct(to,weight) %>% mutate(knownPreWeight = sum(weight)) %>% ungroup()
+  }
+  
+  myConnections <-mutate(totalWeight = outMeta[["post"]],
+                         myConnections,weightRelativeTotal = weight/outMeta[["post"]],
+                         totalPreWeight = inMeta[["downstream"]][match(myConnections$from,inMeta$bodyid)],
+                         outputContributionTotal = weight/totalPreWeight,
+                         previous.type.to = databaseType.to,
+                         previous.type.from = databaseType.from
+  )
+  if  (computeKnownRatio){
+    myConnections <-mutate(myConnections,
+                           knownTotalWeight = knownTablePostTotal$knownPostWeight[match(myConnections$to,knownTablePostTotal$to)],
+                           knownWeightRelativeTotal = weight/knownTotalWeight,
+                           knownTotalPreWeight = knownTablePreTotal$knownPreWeight[match(myConnections$from,knownTablePreTotal$from)],
+                           knownOutputContributionTotal = weight/knownTotalPreWeight,
+                           output_completednessTotal = knownTotalPreWeight/totalPreWeight,
+                           input_completednessTotal =  knownTotalWeight/totalWeight
+    )
+    
+  }
+  
+  if (by.roi | !is.null(slctROI)){
+    if (verbose) message("Pull roiInfo")
+    myConnections[["weightROIRelativeTotal"]] <- myConnections[["ROIweight"]]/outMeta[["post"]]
+    outInfo <- getRoiInfo(unique(myConnections$to),chunk=chunk_meta,...) %>% select(bodyid,roi,post)
+    inInfo <- getRoiInfo(unique(myConnections$from),chunk=chunk_meta,...)
+    inInfo <-  select(inInfo,bodyid,roi,downstream)
+    
+    myConnections <- left_join(myConnections,inInfo,by=c("from" = "bodyid","roi"="roi")) %>% rename(totalPreROIweight = downstream)
+    
+    myConnections <- left_join(myConnections,outInfo,by=c("to" = "bodyid","roi"="roi")) %>% rename(totalROIweight = post) %>%
+      mutate(weightRelative=ROIweight/totalROIweight,
+             outputContribution=ROIweight/totalPreROIweight)
+    
+    if (computeKnownRatio){
+      knownTablePostROI <- knownTablePost %>% group_by(to,roi)  %>% summarize(knownPostWeight = sum(ROIweight)) %>% ungroup()
+      knownTablePreROI <- knownTablePre %>% group_by(from,roi)  %>% summarize(knownPreWeight = sum(ROIweight)) %>% ungroup()
+      ## This is how much this connection accounts for the outputs of the input neuron (not the standard measure)
+      myConnections <- myConnections %>% mutate(knownTotalROIweight = knownTablePostROI$knownPostWeight[match(paste0(myConnections$to,myConnections$roi),paste0(knownTablePostROI$to,knownTablePostROI$roi))],
+                                                knownWeightRelative = ROIweight/knownTotalROIweight,
+                                                knownTotalPreROIweight = knownTablePreROI$knownPreWeight[match(paste0(myConnections$from,myConnections$roi),paste0(knownTablePreROI$from,knownTablePreROI$roi))],
+                                                knownOutputContribution = ROIweight/knownTotalPreROIweight,
+                                                output_completedness = knownTotalPreROIweight/totalPreROIweight,
+                                                input_completedness = knownTotalROIweight/totalROIweight
+      ) %>% tidyr::drop_na(weightRelative)  ## NA values can occur in rare cases where
+    }
+    ## synapse (pre/post) is split between ROIs
+  }else{
+    myConnections <- mutate(myConnections,roi = "All brain",
+                            outputContribution = outputContributionTotal,
+                            weightRelative = weightRelativeTotal,
+                            ROIweight = weight)
+    if (computeKnownRatio){
+      myConnections <- mutate(myConnections,
+                              knownOutputContribution = knownOutputContributionTotal,
+                              knownWeightRelative = knownWeightRelativeTotal)
+      
+    }
+  }
+  return(supertype(myConnections))
+}
+
+simplifyConnectionTableLocal <- function(connectionTable){
+  
+  if ("from" %in% names(connectionTable)){return(connectionTable)}else{
+    connectionTable <- connectionTable %>% mutate(from = ifelse(prepost==1,bodyid,partner),
+                                                  to = ifelse(prepost==1,partner,bodyid),
+                                                  name.from = as.character(ifelse(prepost==1,name,partnerName)),
+                                                  name.to = as.character(ifelse(prepost==1,partnerName,name)),
+                                                  type.from = as.character(ifelse(prepost==1,type,partnerType)),
+                                                  type.to = as.character(ifelse(prepost==1,partnerType,type))
+    ) %>%
+      select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
+    return(connectionTable)
+  }
+}

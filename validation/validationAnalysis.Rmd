@@ -24,7 +24,7 @@ validationFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validatio
 
 ```{r}
 neuprint_login(config=httr::set_config(httr::config(ssl_verifypeer = 0L)))
-source("../neuronMeshes.R")
+source("../R/neuronMeshes.R")
 source("validationFunctions.R")
 source("../R/paperTheme.R")
 ```
@@ -79,8 +79,8 @@ PBOutsControl <- PBNeuronsControl %>% filter(downstreamRatio > 0.8 & PB.downstre
 ```
 
 ```{r}
-PBTable <- create_neuronBag(unique(PBTargets$databaseType,PBOuts$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
-PBTableControl <- create_neuronBag(unique(PBTargetsControl$databaseType,PBOutsControl$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
+PBTable <- neuronBag(unique(PBTargets$databaseType,PBOuts$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
+PBTableControl <- neuronBag(unique(PBTargetsControl$databaseType,PBOutsControl$databaseType),slctROI="PB",synThresh=0,computeKnownRatio=TRUE)
 ```
 
 Redefine types (different renaming for inputs and outputs)
@@ -395,21 +395,22 @@ PBCompSlopesComp <- ggplot(PBCompAllFits,aes(estimate,fill=type)) + geom_histogr
 PBCompSlopesComp
 ```
 ```{r}
-layout ="
-ACC
-BDD
-EEE
-"
+layout <- "ACC
+           BDD
+           EEE
+           FFF
+           FFF
+          "
 
 PBControlFig <- 
             ((PBCompControlIn+guides(color=FALSE))
               +  PBCompControlOut  +
          (PBSynapseCountDiffControl + theme(legend.position="none")) + 
          (PBSlopesControl + guides(color=FALSE)) +
-         PBCompSlopesComp) + plot_layout(design=layout,guides="keep") + plot_annotation(tag_levels="A")
+         PBCompSlopesComp + plot_spacer()) + plot_layout(design=layout,guides="keep") + plot_annotation(tag_levels="A",title= "Validation Figure 1 - SI3: comparing PB glomeruli at equivalent tracing levels",theme=theme(title=element_text(size=12,face="bold")))
 PBControlFig 
 
-save_plot(paste0(validationFolder,"ValidationPanel2SI.pdf"),PBControlFig,nrow=2,ncol=1.5,base_width = 8.5/1.5,device=cairo_pdf)
+save_plot(paste0(validationFolder,"validation-Figure1-SI3.pdf"),PBControlFig,nrow=1,ncol=1.5,base_width = 8.5/1.5,base_height=11,device=cairo_pdf)
 ```
 
 ## FB Column 3 vs the rest of the FB
@@ -445,7 +446,7 @@ FBCTypes_Out <- mutate(FBCTypes_Out,C3 = bodyid %in% FBC3RealOut$bodyid)
 
 Building the full bag in the FB and in the restricted column. Notice that at this stage the numbers for FC3 in the type to type DFs won't "make sense" as they are normalized on all instances.
 ```{r}
-FBC3NeuronsBag <- create_neuronBag(unique(c(FBC3Real$type,FBC3RealOut$type)),fixed=TRUE,slctROI="FB",synThresh=0,computeKnownRatio=TRUE,verbose=TRUE)
+FBC3NeuronsBag <- neuronBag(unique(c(FBC3Real$type,FBC3RealOut$type)),fixed=TRUE,slctROI="FB",synThresh=0,computeKnownRatio=TRUE,verbose=TRUE)
 ```
 
 Redefine types (different renaming for inputs and outputs)
@@ -539,7 +540,7 @@ FBComp
 
 ### Anatomy illustration of FB column 3
 ```{r}
-FC3Mesh <- readobj::read.obj("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/FB-column3.obj",convert.rgl = TRUE)[[1]]
+FC3Mesh <- neuprintr::neuprint_ROI_mesh("FB-column3") #readobj::read.obj("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/FB-column3.obj",convert.rgl = TRUE)[[1]]
 FBMesh <- neuprintr::neuprint_ROI_mesh("FB")
 ```
 
@@ -738,19 +739,19 @@ EBFig
 ```
 
 ```{r}
-mainFig <- (EBFig + plot_layout(tag_level = "new")) / (PBFigAlt + plot_layout(tag_level = "new"))/(FC3Panel + plot_layout(tag_level="new")) + plot_annotation(tag_levels=c("A","i"),tag_sep = "") 
+mainFig <- (EBFig + plot_layout(tag_level = "new")) / (PBFigAlt + plot_layout(tag_level = "new"))/(FC3Panel + plot_layout(tag_level="new")) + plot_annotation(tag_levels=c("A","i"),tag_sep = "",title="Validation - Figure 1: tracing effect on connection weights",theme=theme(title=element_text(size=12,face="bold"))) 
 mainFig
 
-save_plot(paste0(validationFolder,"ValidationMainFig.pdf"),mainFig,nrow = 3.9,ncol=2,base_width = 8.5/2,device=cairo_pdf)
+save_plot(paste0(validationFolder,"Validation-Figure1.pdf"),mainFig,nrow = 4,ncol=2,base_width = 8.5/2,base_height=11/3,device=cairo_pdf)
 ```
 
 #### EB SI
 ```{r}
 EBCompFull <- ggplot(filter(EBAges_filtered),aes(x=old,y=new,fill=supertype2)) + geom_smooth(formula=y~x,aes(group=bodyid),method="lm",alpha=0.3,color="grey30",size=0.1) + 
   geom_abline(linetype=2,lwd=0.2) + scale_fill_CX_supertype(name="Supertype") + xlab("Relative weight in the old dataset") + coord_fixed() +
-  ylab("Relative weight in the new dataset") + facet_wrap(supertype2~side)+ pape_theme#+theme(panel.border = element_rect(color = "gray 50", fill = NA))
+  ylab("Relative weight in the new dataset") + facet_wrap(supertype2~side)+ pape_theme + ggtitle("Validation figure 1 - figure supplement 1: individual neuron to neuron fits")#+theme(panel.border = element_rect(color = "gray 50", fill = NA))
 #EBCompFull
-save_plot(paste0(validationFolder,"ValidationPanel1-SI1.pdf"),EBCompFull,nrow = 2,ncol=3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(validationFolder,"Validation-Figure1-SI1.pdf"),EBCompFull,nrow = 2,ncol=3,base_width = 8.5/3,device=cairo_pdf)
 ```
 
 ```{r}
@@ -774,11 +775,11 @@ nRS
 
 ```{r}
 EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=50,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=50))+ggtitle("Adjusted r\u00b2"))/
-  (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect")
+  (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect") + plot_annotation(title="Validation Figure 1 - figure supplement 2",theme=theme(title=element_text(size=12,face="bold")))
 EBSI2
 ```
 ```{r}
-save_plot(paste0(validationFolder,"ValidationPanel1-SI2.pdf"),EBSI2,nrow=2,ncol=2,device=cairo_pdf,base_width = 8.5/2)
+save_plot(paste0(validationFolder,"Validation-Figure1-SI2.pdf"),EBSI2,nrow=2,ncol=2,device=cairo_pdf,base_width = 8.5/2)
 ```
 
 
