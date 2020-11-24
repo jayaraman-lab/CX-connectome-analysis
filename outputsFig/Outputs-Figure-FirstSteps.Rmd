@@ -19,6 +19,7 @@ library(igraph)
 
 ```{r message=FALSE}
 source("outputFunctions-display.R")
+source("outputFunctions-core.R")
 source("../R/paperTheme.R")
 source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
@@ -284,6 +285,26 @@ displayAnatomies(neurons=list(
 ),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4BPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
 ```
 
+```{r}
+displayAnatomies(neurons=list(
+   "SLP"=filter(mainFFTargetsNeurons,type %in% c("SLP414_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4BPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4C fig
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP167_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4C_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4CPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP498_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4CPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
 
 ### FS Skeleton figs
 
@@ -346,6 +367,28 @@ save_plot(paste0(outputsFolder,"outputs-Figure18-SI1.pdf"),allFSSubGraphPlot,nro
 
 
 ## FCs
+### FC fig
+```{r}
+displayAnatomies(neurons=list(
+   "PLP"=filter(mainFFTargetsNeurons,type %in% c("PLP042_b_R"))$bodyid,
+   "FC1"=filter(CXOutputNeurons,type %in% c("FC1E_L"))$bodyid
+),ROIs = c("FB","PLP(R)","CRE(R)"),saveName = "FCPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP376_R"))$bodyid,
+   "FC2"=filter(CXOutputNeurons,type %in% c("FC2A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)"),saveName = "FCPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "ATL"=filter(mainFFTargetsNeurons,type %in% c("ATL027_R"))$bodyid,
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB042_R"))$bodyid,
+   "FS1"=filter(CXOutputNeurons,type %in% c("FC2C_L"))$bodyid
+),ROIs = c("FB","ATL(R)","ATL(L)","LAL(R)","IB","CRE(R)"),saveName = "FCPartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
 
 ### First order partners - homogeneity?
 ```{r}
@@ -372,6 +415,26 @@ save_plot(paste0(outputsFolder,"outputs-Figure19-FC.pdf"),FCFirstStepFig,nrow=3,
 ```
 
 ## PFRs
+### PFRb fig
+```{r}
+displayAnatomies(neurons=list(
+   "CRE"=filter(mainFFTargetsNeurons,type %in% c("CRE105_R"))$bodyid,
+   "PFL3"=filter(CXOutputNeurons,type %in% c("PFR_b_L*"))$bodyid
+),ROIs = c("FB","CRE(L)","CRE(R)"),saveName = "PFRPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL185_R"))$bodyid,
+   "FS2"=filter(mainFFTargetsNeurons,type %in% c("LAL002_R"))$bodyid
+),ROIs = c("FB","LAL(R)","CRE(R)"),saveName = "PFRPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL147_R"))$bodyid
+),ROIs = c("FB","ATL(R)","IB","CRE(R)","LAL(R)"),saveName = "PFRPartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
 
 ### First order partners - homogeneity?
 ```{r}
@@ -397,10 +460,24 @@ save_plot(paste0(outputsFolder,"outputs-Figure20-PFR.pdf"),PFRFirstStepFig,nrow=
 ```
 
 ## FRs
+### FR fig
+```{r}
+displayAnatomies(neurons=list(
+   "PFL2"=filter(mainFFTargetsNeurons,type %in% c("CRE009_R"))$bodyid,
+   "FR1"=filter(CXOutputNeurons,type %in% c("FR1_L"))$bodyid
+),ROIs = c("FB","CRE(L)","CRE(R)","SMP(L)"),saveName = "FRPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP448_R"))$bodyid,
+   "FR2"=filter(CXOutputNeurons,type %in% c("FR2_L"))$bodyid
+),ROIs = c("FB","SIP(R)","SMP(R)","SLP(R)","SCL(R)"),saveName = "FRPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
 
 ### First order partners - homogeneity?
 ```{r}
-FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = customRetyping,largeOnly=T) %>% combineRois(outsideRegions,"Outside")
 FR1Col <- plotGlomMat(FRBag,"FR1_L",grouping="col")
 FR2Col <- plotGlomMat(FRBag,"FR2_L",grouping="col")
 FR1Col
@@ -422,9 +499,26 @@ save_plot(paste0(outputsFolder,"outputs-Figure21-FR.pdf"),FRFirstStepFig,nrow=3,
 
 ## ExR7/8
 
+### ExR78 fig
+```{r}
+displayAnatomies(neurons=list(
+   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS197_R"))$bodyid,
+   "ExR8"=filter(CXOutputNeurons,type %in% c("ExR8_R"))$bodyid
+),ROIs = c("EB","LAL(R)","SPS(R)","WED(R)","GNG","IPS(R)"),saveName = "ExR8Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL013_R"))$bodyid,
+   "ExR7"=filter(CXOutputNeurons,type %in% c("ExR7_R"))$bodyid
+),ROIs = c("EB","CRE(R)","LAL(R)","IPS(R)","WED(R)"),saveName = "ExR7Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+
 ### First order partners - homogeneity?
 ```{r}
-ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R","ExR7_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
 ExR8Graph
 ```
 ## ExR2-6

@@ -151,19 +151,19 @@ figure3 <- CXInfluenceSummaryPlot + backCXCompositionFull + allInflViews + legen
 save_plot(paste0(outputsFolder,"outputs-Figure3.pdf"),figure3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```
 
-## SI1 A large fraction of those are one step connections
+## SI2 A large fraction of those are one step connections
 ```{r}
-compAllTo1 <- (CX2CXFullPlot + ggtitle("All steps")) / (CX2CXFullPlot1 + ggtitle("1 step")) + plot_annotation(title="Outputs figure 3 SI1: comparison of pathway connections to 1 step connections",theme=theme(title=element_text(size=12,face="bold")))
+compAllTo1 <- (CX2CXFullPlot + ggtitle("All steps")) / (CX2CXFullPlot1 + ggtitle("1 step")) + plot_annotation(title="Outputs figure 3 SI2: comparison of pathway connections to 1 step connections",theme=theme(title=element_text(size=12,face="bold")))
 ```
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure3-SI1.pdf"),compAllTo1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-
-## SI2 Connections to dendritic vs connections to axonal compartments
-```{r}
-figure3SI2 <-backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,3,1.5)) + plot_annotation(tag_levels="A",title="Outputs figure 3 - SI2. CX2CX connections per process reached",theme=theme(title=element_text(size=12,face="bold")))
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI2.pdf"),compAllTo1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```
 
+## SI3 Connections to dendritic vs connections to axonal compartments
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure3-SI2.pdf"),figure3SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+figure3SI3 <-backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,3,1.5)) + plot_annotation(tag_levels="A",title="Outputs figure 3 - SI3. CX2CX connections per process reached",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI3.pdf"),figure3SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```

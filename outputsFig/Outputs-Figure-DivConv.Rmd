@@ -20,7 +20,8 @@ library(ggraph)
 
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("../R/paperTheme.R")
+#source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 #source("../R/table2ggraphUtils.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure2-DivergenceConvergence/"
 load("outputsBasics.RData")
@@ -37,17 +38,17 @@ allNodes <- readRDS("all-nodes.rds")
 First a diagram like summary
 ```{r}
 CXOutputTypes <- unique(CXOutputNeurons$type)
-overallFlowRef <- data.frame(layer=rep(0:5,c(2:6,6)),hop=c(unlist(sapply(c(2:6,6),function(n) seq(n)-1))))
+overallFlowRef <- data.frame(layer=rep(0:4,c(2:5,6)),hop=c(unlist(sapply(c(2:6),function(n) seq(n)-1))))
 overallGraphNodes <- data.frame(layer=0:5)
 
 pathways <- CXoutAllSteps %>% filter(n_steps %in% 1:5) %>% mutate(n_steps=as.numeric(n_steps),
                                                                   n_type=(CX_outGraph %E>% as_tibble())$n_type[match(type.to,(CX_outGraph %E>% as_tibble())$type.to)]) %>% group_by(type.to) %>% mutate(hop.to=min(n_steps)) %>% ungroup()
 pathways$hop.to[pathways$type.to %in% CXOutputNeurons$type] <- 0
 
-overallFlowRef <-  overallFlowRef %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==hop & pathways$n_steps==layer,]$type.to)),
-                                                          nNeurons = sum(distinct(pathways[pathways$hop.to==hop & pathways$n_steps==layer,],type.to,n_type)$n_type))
+overallFlowRef <-  overallFlowRef %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,]$type.to)),
+                                                           nNeurons = sum(distinct(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,],type.to,n_type)$n_type))
 overallGraphNodes <-  overallGraphNodes %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==layer & pathways$n_steps==layer,]$type.to)),
-                                                          nNeurons = sum(distinct(pathways[pathways$hop.to==layer & pathways$n_steps==layer,],type.to,n_type)$n_type))
+                                                                 nNeurons = sum(distinct(pathways[pathways$hop.to==layer & pathways$n_steps==layer,],type.to,n_type)$n_type))
 
 overallGraphNodes$nTypes[1] <- length(CXOutputTypes)
 overallGraphNodes$nNeurons[1] <- nrow(CXOutputNeurons)
@@ -56,8 +57,9 @@ overallGraphNodes <- mutate(overallGraphNodes,name=layer,
                                             layer>=1 ~ paste0("Layer ",layer)))
 overallFlowRef <- mutate(overallFlowRef,from=layer+1,to=hop+1) %>% filter(from>=0)
 
+
 overallGraph <- tbl_graph(nodes=overallGraphNodes,edges=overallFlowRef,node_key = "name")
-overallGraphPlot <- ggraph(overallGraph,layout="linear") + geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) + geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +  geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + theme_paper_map() + geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons")),nudge_x = 0.3,nudge_y=-0.1)+ 
+overallGraphPlot <- ggraph(overallGraph,layout="linear") + geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) + geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +  geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + theme_paper_map() + geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons"),fontface="bold"),nudge_y=0.5)+ 
    scale_fill_paletteer_d("ggthemes::Color_Blind") + scale_edge_color_manual(values=paletteer_d("ggthemes::Color_Blind")[1:6]) + 
    guides(fill="none",edge_color="none",size="none") + scale_edge_width(name="# neurons contacted") + theme(plot.margin = margin(t=30))
 overallGraphPlot
