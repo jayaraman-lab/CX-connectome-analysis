@@ -59,7 +59,7 @@ overallFlowRef <- mutate(overallFlowRef,from=layer+1,to=hop+1) %>% filter(from>=
 
 
 overallGraph <- tbl_graph(nodes=overallGraphNodes,edges=overallFlowRef,node_key = "name")
-overallGraphPlot <- ggraph(overallGraph,layout="linear") + geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) + geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +  geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + theme_paper_map() + geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons"),fontface="bold"),nudge_y=0.5)+ 
+overallGraphPlot <- ggraph(overallGraph,layout="linear") + geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) + geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +  geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + theme_paper_map() + geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons"),fontface="bold",fontsize=6*1.111111),nudge_y=0.5)+ 
    scale_fill_paletteer_d("ggthemes::Color_Blind") + scale_edge_color_manual(values=paletteer_d("ggthemes::Color_Blind")[1:6]) + 
    guides(fill="none",edge_color="none",size="none") + scale_edge_width(name="# neurons contacted") + theme(plot.margin = margin(t=30))
 overallGraphPlot
@@ -159,7 +159,7 @@ pathwaysSuperSummary <- group_by(pathwaysSummary,hop.to) %>% summarize(totalWeig
 
 #pathwaysSummaryCum <- group_by(pathwaysSummary,supertype3.to) %>% arrange(n_steps) %>% mutate(pathWeight=cumsum(pathWeight)) %>%ungroup()
 outputComposition <- ggplot(pathwaysSummary,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received") + 
-   theme(strip.background=element_rect(fill = "grey80",color=NA)) + scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1))+ geom_text(data=pathwaysSuperSummary,aes(x=hop.to,y=1.03,label=format(totalWeight,digits=1,scientific=FALSE)),inherit.aes = F,size=2) +
+   theme(strip.background=element_rect(fill = "grey80",color=NA)) + scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1))+ geom_text(data=pathwaysSuperSummary,aes(x=hop.to,y=1.03,label=format(totalWeight,digits=1,scientific=FALSE)),inherit.aes = F,size=5*mm2pt*1.327492) +
    geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=1.1,size=totalWeight),inherit.aes = F) + scale_size(limits=c(0,28)) + guides(size="none")
 outputCompositionZoom <-  ggplot(filter(pathwaysSummary,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received")+ 
     theme(strip.background=element_rect(fill = "grey80",color=NA)) +
@@ -169,9 +169,9 @@ outputComposition + outputCompositionZoom + plot_layout(guides = "collect")
 
 ## Figure 2
 ```{r}
-figure2 <- overallGraphPlot /(totalDivergencePlot + (outputComposition + outputCompositionZoom + plot_layout(guides="collect")) + plot_layout(widths=c(1,1.5))) / nReachedPlot + plot_annotation(tag_levels = "A",title= "Outputs Fig 2: Divergence of output networks",theme = theme(title=element_text(face="bold",size=12))) & theme(plot.margin=margin(l=10,r=10,b=10,t=10))
+figure2 <- overallGraphPlot /(totalDivergencePlot + (outputComposition + outputCompositionZoom + plot_layout(guides="collect")) + plot_layout(widths=c(1,1.5))) / nReachedPlot + plot_annotation(tag_levels = "A",title= "Outputs Fig 2: Divergence of output networks",theme = theme(title=element_text(face="bold",size=12*1.111111,family="arial"))) & theme(plot.margin=margin(l=10,r=10,b=10,t=10))
 figure2
 ```
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure2.pdf"),figure2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure2.svg"),figure2,base_width = 8.5*1.333333,base_height = 11*1.333333)
 ```

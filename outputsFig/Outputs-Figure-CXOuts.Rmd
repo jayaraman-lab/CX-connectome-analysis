@@ -16,7 +16,7 @@ library(paletteer)
 
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 #source("../R/table2ggraphUtils.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure1-CXOutputs/"
 load("outputsBasics.RData")
@@ -40,6 +40,7 @@ CXOutputSummary <- getROISummary(CXOutputNeurons,threshold=20) %>% filter(downst
 ```{r}
 outputsInnervation_R <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype3",roiLabel = roiOutLabels,flip=T,interactive=TRUE,theme = theme_paper_grid(),showCount = T)
 outputsInnervation_R
+save_plot(paste0(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,ncol=1.3,nrow=7,base_width = 8.5,base_height = 11/15)
 ```
 ```{r}
 CXOutSyn <- readRDS("CX-outsideSynapses.rds")
@@ -47,7 +48,8 @@ displayAnatomies(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allOuts",
                  synapsePalette = customSupertypePalette,
-                 synapseCluster = "customSupertype")
+                 synapseCluster = "customSupertype",
+                 size = c(3000,3000))
 ```
 
 ```{r}
@@ -77,7 +79,7 @@ firstStageSummary$supertype.from <- CXOutputNeurons$customSupertype[match(firstS
 ```{r}
 countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
    scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Significant # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 totalCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalDown,color=supertype.from)) + geom_point() + 
    scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
@@ -85,19 +87,21 @@ meanCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=meanDown,color=s
    scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Mean # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 meanCountsSummary + totalCountsSummary + countsSummary
+
+save_plot(paste0(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
 ```
 
 
 ### Figure 1: synapses of CX neurons outside the CX
 ```{r}
-layout <- c(
-   area(t=2,b=4,l=2,r=9),
-   area(t=6,b=12,l=2,r=9),
-   area(t=14,b=15,l=2,r=9)
-)
+#layout <- c(
+#   area(t=2,b=4,l=2,r=9),
+#   area(t=6,b=12,l=2,r=9),
+#   area(t=14,b=15,l=2,r=9)
+#)
 
-outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
-   allOutViews + 
-   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1.1))
-save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
+#   allOutViews + 
+#   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1.1))
+#save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 ```

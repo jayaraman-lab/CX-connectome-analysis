@@ -19,7 +19,7 @@ library(tidygraph)
 ```{r message=FALSE}
 source("outputFunctions-display.R")
 source("outputFunctions-core.R")
-source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure6-pathsToKnown/"
@@ -85,9 +85,9 @@ endpointsInfluenceSummary <- rbind(endpointsInfluenceSummary,unknownInfluence)
 #endpointsInfluenceSummary$supertype3.to[endpointsInfluenceSummary$supertype3.to %in% c("EB Columnar","ER","ExR","FB Tangential","FB Output","FB Columnar","PB Input","LNO","SA")] <- "CX"
 endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.to != "CX" & type.from %in% mainFFConns$mainContributor)
 
-endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Pathway weight") + xlab("CX output type")
-endpointsCompositionMainFF <- ggplot(endpointsInfluenceSummaryMainFF,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Pathway weight") + xlab("CX output type")
-endpointsCompositionMainFFKnown <- ggplot(filter(endpointsInfluenceSummaryMainFF,supertype.to != "Unknown"),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Pathway weight") + xlab("CX output type")
+endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Normalized pathway weight") + xlab("CX output type")
+endpointsCompositionMainFF <- ggplot(endpointsInfluenceSummaryMainFF,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Normalized pathway weight") + xlab("CX output type")
+endpointsCompositionMainFFKnown <- ggplot(filter(endpointsInfluenceSummaryMainFF,supertype.to != "Unknown"),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Normalized pathway weight") + xlab("CX output type")
 endpointsComposition / endpointsCompositionMainFF / endpointsCompositionMainFFKnown
 ```
 
@@ -119,12 +119,12 @@ layout <-  c(
   area(t=6,b=7,l=2,r=5),
   area(t=8,b=14,l=2,r=9)
 )
-figure6 <- endpointsCompositionMainFF + (endpointsCompositionMainFFKnown + guides(fill="none")) + CXFFInfl + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels = "A",title="Outputs figure 6: known types reached",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1)) 
+figure6 <- endpointsCompositionMainFF + (endpointsCompositionMainFFKnown + guides(fill="none")) + CXFFInfl + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels = "A",title="Outputs figure 6: known types reached",theme=theme(title=element_text(size=12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1)) 
 figure6
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6.pdf"),figure6,ncol=1,nrow=1,base_width = 8.5,base_height = 11,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure6.svg"),figure6,base_width = 8.5*1.333333,base_height = 11*1.333333)
 ```
 
 

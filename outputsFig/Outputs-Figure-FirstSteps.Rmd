@@ -23,7 +23,7 @@ source("outputFunctions-core.R")
 source("../R/paperTheme.R")
 source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure10-firstSteps/"
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
 ```
 
 ```{r}
@@ -56,8 +56,8 @@ extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
 extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
 extraPal <- extraPal[1:length(extraLevs)]
 names(extraPal) <- extraLevs
-customGraphPalette <- c(customGraphPalette,extraPal)
-names(customGraphPalette)[2] <- "Source"
+customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
+#names(customGraphPalette)[2] <- "Source"
 ```
 
 The synapses from their targets
@@ -87,7 +87,14 @@ PFL2Graph <- plotSubgraph(c("PFL2_L","PFL2_R"),graph=CX_outGraphRed) + coord_car
 
 PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01) + coord_cartesian(clip="off")
 
+getLocalSubgraph(c("PFL3_L*"),c("LCNOp_R"),CX_outGraphBi,order=2) 
+
 ```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure13-SI1.svg"),PFL1Graph,base_height = 7,base_width = 8.5*1.333333)
+```
+
 
 ### PFL1 fig
 
@@ -487,6 +494,7 @@ FR1Col
 FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
 FRGraph
 ```
+
 
 ```{r}
 FRFirstStepFig <- (FR1Col - FR2Col) / plot_spacer() / FRGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 21: FR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))

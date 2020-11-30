@@ -67,17 +67,17 @@ customSupertypePalette <- c(
 standardGraph <- function(gr,pal,colP="customSupertype",...){ggraph(gr,...) + 
   geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=!!sym(colP)),size=4)+
-  geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=pal)+ 
+  geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="Supertype")+ 
   scale_edge_color_manual(values=pal) + 
     scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + 
-  guides(color="none",edge_color="none")}
+  guides(edge_color="none")}
 
 ## Columns/glomeruli matrices + summaries for columnar neurons
 plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus","column")){
   grouping <- match.arg(grouping)
   outRaw <- bag$outputs_raw %>% 
     filter(type.to %in% targetFilt$type.to & !type.to %in%  type.from) %>%
-    filter(type.from==type) %>%
+    filter(type.from %in% type) %>%
     arrange(type.to) %>% 
     mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
            column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>% 
@@ -98,8 +98,9 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
     orderIn <- paste0("C",9:1)
   }
   
-  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = orderIn,legendName="Relative weight",theme=theme_paper_grid(),facetOutputs="supertype2.to") + 
-    xlab("Post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_text(angle=90))
+  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = orderIn,legendName="Relative weight",theme=theme_paper_grid(),facetOutputs="supertype2.to",facetInputs=facetInputs) + 
+    xlab("Post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_blank())
+  
   
   groupCounts <- outPerGroup %>% group_by(name.from,type.from,!!sym(grouping)) %>% summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
     mutate(!!grouping := factor(!!(sym(grouping)),levels=orderIn)) %>% arrange(!!(sym(grouping))) %>%
@@ -146,6 +147,7 @@ displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName=NULL,neuro
   nview3d("ventral")
   if (!is.null(saveName)){
     rgl.snapshot(paste0(outputsFolder,saveName,"-front.png"))
+    #rgl.postscript(paste0(outputsFolder,saveName,"-front.svg"),fmt="svg")
     nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
     rgl.snapshot(paste0(outputsFolder,saveName,"-side.png"))
     rgl.close()
@@ -241,7 +243,7 @@ plotMotifs <- function(graphDf){
            guides(color="none") +
            theme_paper_map() + scale_edge_color_manual(name="Motif",values=edgePal,breaks=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX"),drop=FALSE)+
            scale_edge_width(name="Relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
-           geom_node_text(aes(label=name),size=1.5,nudge_y = 0.15) + 
+           geom_node_text(aes(label=name),nudge_y = 0.15) + 
            coord_fixed(clip="off"))
   #}
 }

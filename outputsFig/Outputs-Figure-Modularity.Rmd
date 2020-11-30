@@ -20,9 +20,9 @@ library(igraph)
 ```{r message=FALSE}
 source("outputFunctions-display.R")
 source("outputFunctions-core.R")
-source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 #source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure5-Modularity/"
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure6-Modularity/"
 ```
 
 ```{r}
@@ -56,13 +56,13 @@ cluster8 <- plotClusters(outClusters[[8]],orderX=na.omit(match(outClustersFull$h
              orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[8]]$hc$labels)))+ ggtitle("8 hops")+ guides(fill="none")
 clusterFull <- plotClusters(outClustersFull)+ ggtitle("Full graph")+ guides(fill="none")
 
-allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 5 SI1: Cosine distances for different connection dephts",theme=theme(title=element_text(size=12,face="bold")))& theme(axis.text=element_text(size=4))
+allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 6 -- figure supplement 1: Clustering at different dephts",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(axis.text.x = element_blank(),axis.text=element_blank())
 #allClusters1 <- clusterFull / cluster1 + plot_layout(guides="collect")+ plot_annotation(title="Cosine distances for different connection dephts") & theme(axis.text=element_text(size=5))
 #allClusters2 <- cluster2 / cluster3  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
 #allClusters3 <- cluster5 / cluster8  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
 ```
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 #save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page1.pdf"),allClusters1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 #save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page2.pdf"),allClusters2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 #save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page3.pdf"),allClusters3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
@@ -122,18 +122,22 @@ graphMainTargetsPlot
 ```
 
 ```{r}
-layout <- c(
-   area(t=2,b=11,l=1,r=10),
-   area(t=12,b=21,l=1,r=10),
-   area(t=22,b=30,l=1,r=10)
-)
+save_plot(paste0(outputsFolder,"outputs-graphMainContrib.svg"),graphMainTargetsPlot,base_width = 8,base_height = 20/3)
+save_plot(paste0(outputsFolder,"outputs-graphLabelProp.svg"),graphMainTargetsPlot_IM,base_width = 8,base_height = 20/3)
+save_plot(paste0(outputsFolder,"outputs-modularityMat.svg"),byContrConnMat,base_width = 6,base_height = 6)
 
-figure5SI2 <- graphMainTargetsPlot + graphMainTargetsPlot_IM + byContrConnMat + plot_layout(design=layout) + plot_annotation(title="Output figures 5 - SI2: modularity",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(0, 1))
+#layout <- c(
+##   area(t=2,b=11,l=1,r=10),
+ #  area(t=12,b=21,l=1,r=10),
+#   area(t=22,b=30,l=1,r=10)
+#)
+
+#figure5SI2 <- graphMainTargetsPlot + graphMainTargetsPlot_IM + byContrConnMat + plot_layout(design=layout) + plot_annotation(title="Output figures 5 - SI2: modularity",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(0, 1))
 #save_plot(paste0(outputsFolder,"intraConnectivityByContributor.svg"),byContrConnMat)
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI2.pdf"),figure5SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2.pdf"),figure5SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
 #save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-1.pdf"),graphMainTargetsPlot,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
 #save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-2.pdf"),graphMainTargetsPlot_IM,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
 ```
@@ -176,7 +180,7 @@ CXTargetsSyn <- mutate(CXTargetsSyn,type=mainFFTargetsNeurons$type[match(bodyid,
                        mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
                        mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)])
 
-
+## SOMETHING WRONG IN THE FILTERING HERE
 CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)])
 
 legendSource <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype %in% CXTargetsSyn$customContributor),aes(x=1,y=supertype)) + geom_point(aes(color=supertype)) + theme_paper_map() + scale_color_manual(name="Source type",values=customContributorsPalette))
@@ -209,11 +213,11 @@ layout <- c(
    area(t=14,b=20,l=9,r=10)
 )
 
-figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1))
+figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1))
 figure5
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5.pdf"),figure5,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
 ```
 
