@@ -45,7 +45,7 @@ customSupertypePalette <- c(
   "PFL1"="#ffe5b3",
   "ExR2-6"="#66a3ff",
   "ExR8"="#0148b2",
-    "ExR7"=supertype2Palette()$pal[["ExR"]],
+  "ExR7"=supertype2Palette()$pal[["ExR"]],
   "ExR1"="#b3d1ff",
   "PFR_b"=supertype2Palette()$pal[["PFR"]],
   "PFR_a"="#b6afb3",
@@ -60,7 +60,8 @@ customSupertypePalette <- c(
   "FB6-7"="#bedf3a",
   "FB8-9"="#e2f1a7",
   "FR2"=supertype2Palette()$pal[["FR"]],
-  "FR1"="#c40812"
+  "FR1"="#c40812",
+  "MBON"=supertype3Palette["MBON"]
 )
 
 ##
