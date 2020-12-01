@@ -1,0 +1,301 @@
+---
+title: "Visual PNs output figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme_linux.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure8-VisualPNs/"
+```
+
+```{r}
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+CX_outGraph <- readRDS("output_graph.rds")
+CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
+load("mainTargetsAndConns.Rdata")
+load("outputsBasics.RData")
+knownTypesTable <- readRDS("known-table.rds")
+CXoutFull <- readRDS("pathwayWeightsTable.rds")
+```
+
+```{r}
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal)
+names(customGraphPalette)[1] <- "Source"
+```
+
+
+## What are all Visual PNs in the (reduced) network?
+
+```{r}
+
+CXoutFFEndpointVPNs <- filter(CXoutFull,(supertype3.to == "Visual PNs") & fullCXwr>0.0005) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                                         supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                                         customSupertype = case_when(supertype.from %in% c("PFL") ~ databaseType.from,
+                                                                                                                                                     grepl("ExR8",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                                     type.from %in% c("PFR_b_L*") ~ databaseType.from,
+                                                                                                                                                     TRUE ~ "Other")
+                                                                                                                                                    
+                                                                                                                         )
+
+moreVPNsPlot <- ggplot(CXoutFFEndpointVPNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("")  + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+
+moreVPNsPlot
+```
+
+## PFL3 to LC33
+
+```{r}
+PFLtoLC33 <- getLocalSubgraph(c("PFL3_L*"),c("LC33_R"),CX_outGraph,order=1) 
+PFLtoLC33Plot <- ggraph(PFLtoLC33,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),nudge_y = 0.05)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]],"LC"=supertype3Palette[["Visual PNs"]]),name="Type")+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"LC"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +  guides(color="none",edge_color="none") + theme(legend.position=c(0.8,0.8)) + coord_cartesian(clip="off")
+PFLtoLC33Plot
+```
+
+```{r}
+specialLC33 <- c(1260197431,5813022538,1418186940)
+displayAnatomies(list("FB Columnar"=filter(CXNeurons,type=="PFL3_L*")$bodyid,
+                   "Visual PNs"=specialLC33,
+                   "Source"=filter(mainFFTargetsNeurons,type=="LC33_R" & !bodyid %in% specialLC33)$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","LO(R)"),saveName = "PFL3toLC33",neuronPalette = supertype3Palette)
+```
+
+```{r}
+PFL3LC33Anat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+PFL3 to LC33 connectivity
+```{r}
+PFL3Bag <- neuronBag(filter(CXNeurons,type=="PFL3_L*"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+orderPFL3Name <- c("PFL3(PB12c)_R2_C1_irreg","PFL3(PB12c)_R1_C2_irreg","PFL3(PB12c)_L1_C3","PFL3(PB12c)_L2_C4","PFL3(PB12c)_L3_C5","PFL3(PB12c)_L4_C6","PFL3(PB12c)_L5_C7","PFL3(PB12c)_L6_C8","PFL3(PB12c)_L7_C9")
+PFL3s <- PFL3Bag$names %>% mutate(name=factor(name,levels=orderPFL3Name)) %>% arrange(name)
+orderPFL3BI <- PFL3s$bodyid
+PFL32LC33Mat <- plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R"),grouping="neuron",orderIn = orderPFL3BI,xaxis="outputs",replacementLabels = "name",legendName="Relative weight") + xlab("Post synaptic") + ylab("Pre synaptic")
+```
+Retype 1260197431 5813022538 and 1418186940 for a look at the shared outputs
+```{r}
+
+specialRenaming <- function(connections,postfix=c("raw", "to", "from")){
+  connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),nameModifiers=c("_1_R","_2_R"),postfix=postfix,redefinePartners=T)
+  connections <- redefineTypeByBodyId(connections,sets=list(c(1260197431,5813022538,1418186940)),nameModifiers=c("_b_R"),postfix=postfix,redefinePartners=T)
+  connections <- cxRetyping(connections,postfix=postfix)
+}
+
+LC33Bag <- neuronBag("LC33",omitInputs=TRUE,renaming=specialRenaming) %>% combineRois(outsideRegions,"Outside")
+PFLLCOutMat <- plotConnectivity(filter(rbind(PFL3Bag$outputs_raw,filter(LC33Bag$outputs_raw,type.from=="LC33_b_R")),supertype2.to != "Unassigned"),facetInputs="type.from",facetOutputs="supertype2.to",grouping="neuron",replacementLabels = "name",legendName="Relative weight") + xlab("Pre synaptic") + ylab("Post synaptic")+ theme(strip.text.y = element_text(angle=0),strip.text.x=element_text(angle=45),axis.text.x = element_blank(),axis.text.y=element_blank())
+PFLLCOutMat
+```
+```{r}
+layout <-  c(
+  area(t=1,b=5,l=2,r=4),
+  area(t=1,b=15,l=5,r=10),
+  area(t=7,b=15,l=2,r=4)
+  )
+
+fig8SI2 <-PFL32LC33Mat + PFLLCOutMat + guide_area()+ plot_layout(design=layout,guides = "collect") + plot_annotation(title="Ouputs figure 8 SI2: PFL3 and LC33 convergences",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")),tag_levels = "A")
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure8-Visual-SI2.svg"),fig8SI2,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+
+## The LC10 connection
+
+```{r}
+LC10Bag <- neuronBag("LC10",by.roi=FALSE,renaming=customRetyping)
+```
+
+```{r}
+plotConnectivity(filter(LC10Bag$inputs_raw,type.from=="AOTU042_L"),slctROI = "All brain",grouping="neuron",xaxis="outputs",theme=theme_paper_map())
+```
+
+```{r}
+
+PFL3ToLC10<-as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL3_L*","PFL3_R*","LC10_R","AOTU042_L","AOTU019_R"))) %N>% 
+  mutate(x=case_when(type %in% c("LC10_R")~0.3,type=="PFL3_L*"~0.6,type %in% c("AOTU042_L","AOTU019_R") ~1,type=="PFL3_R*"~1.4),
+         y=case_when(type == "LC10_R"~0.7,type=="AOTU019_R"~0.7,type=="AOTU042_L"~0.3,type %in%c("PFL3_L*","PFL3_R*") ~1))
+  #getLocalSubgraph(c("PFL3_L*","PFL3_R*","LC10_R"),c("LC10_R"),CX_outGraphBi,order=1) 
+PFL3ToLC10Plot <- ggraph(PFL3ToLC10,layout="manual",x=x,y=y) + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]],"LC"=supertype3Palette[["Visual PNs"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"LC"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + geom_vline(xintercept = 1,lty=2,color="grey50") + theme(legend.position = c(0.8,0.2)) + coord_cartesian(clip="off")
+
+PFL3ToLC10Plot
+```
+
+```{r}
+LC10Body <- arrange(filter(LC10Bag$inputs_raw,type.from=="AOTU042_L"),desc(weightRelative))
+LC10Other <- filter(LC10Bag$names,!(bodyid %in% LC10Body$from))
+PFL3Body <- getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*")
+
+displayAnatomies(list(
+                   "mid"=LC10Body$to[300:310],
+                   "Source"=LC10Other$bodyid[1:2],
+                   "Visual PNs"=LC10Body$to[1:10],
+                   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU042_L"))$bodyid,
+                   "PFL3"=PFL3Body$bodyid
+                   ),ROIs = c("FB","LAL(L)","AOTU(R)"),saveName = "PFL3toLC10",neuronPalette = c(customGraphPalette,customSupertypePalette,"mid"="#ff33cc"))
+```
+
+```{r}
+PFL3ToLC10Anat <-  ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC10-front.png"),scale=1.6) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC10-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+```{r}
+#sharedG <- (CX_outGraph %E>% filter(type.from=="PFL3_L*" | type.from=="LC10_R")) %N>% filter(type %in% .E()$type.from | type %in% .E()$type.to)
+```
+
+## PFL1 to LC27?
+```{r}
+PFL1ToLC27 <- getLocalSubgraph(c("PFL1_L*"),c("LC27_R"),CX_outGraphBi,order=2) 
+
+PFL1ToLC27Plot <- ggraph(PFL1ToLC27,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]],"LC"=supertype3Palette[["Visual PNs"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"LC"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none")+coord_flip(clip="off")+scale_x_continuous(trans="reverse") + theme(legend.position = c(0.8,0.2))
+
+PFL1ToLC27Plot
+
+```
+```{r}
+LC27Body <- neuprint_search("LC27",field="type")
+#LC10Other <- filter(LC10Bag$names,!(bodyid %in% LC10Body$from))
+#PFL3Body <- getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*")
+
+displayAnatomies(list(
+                   "Visual PNs"=LC27Body$bodyid[1:10],
+                   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL047_R"))$bodyid,
+                   "PLP"=filter(mainFFTargetsNeurons,type %in% c("PLP077_L"))$bodyid,
+                   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+                   ),ROIs = c("FB","LAL(R)"),saveName = "PFL1toLC27",neuronPalette = c(customGraphPalette,customSupertypePalette,"mid"="#ff33cc"))
+```
+```{r}
+PFL1ToLC27Anat <-  PFL3ToLC10Anat <-  ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"PFL1toLC27-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+
+
+## ExR8 to VCH/DCH
+
+```{r}
+ExR8toCH<- getLocalSubgraph(c("ExR8_R"),c("VCH_L","DCH_L"),CX_outGraphBi,order=1) 
+ExR8toCHPlot <- ggraph(ExR8toCH,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]],"VCH"=supertype3Palette[["Visual PNs"]],"DCH"=supertype3Palette[["Visual PNs"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"VCH"=supertype3Palette[["Visual PNs"]],"ExR"=supertype3Palette[["ExR"]],"DCH"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none")+scale_y_continuous() + theme(legend.position = c(0.8,0.2))+coord_cartesian(cli="off")
+
+ExR8toCHPlot
+```
+```{r}
+displayAnatomies(list("ExR8"=filter(CXNeurons,type=="ExR8_R")$bodyid,
+                   "Visual PNs"=filter(mainFFTargetsNeurons,type%in% c("DCH_L","VCH_L"))$bodyid,
+                   "PS"=filter(mainFFTargetsNeurons,type=="PS047_R")$bodyid
+                   ),ROIs = c("EB","IPS(R)","LAL(R)"),saveName = "ExR8CH",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+ExR8CHAnat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExR8CH-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExR8CH-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+## Figure
+```{r}
+layout <- c(
+  area(t=2,b=3,l=2,r=4),
+  area(t=5,b=6,l=2,r=3),
+  area(t=2,b=6,l=5,r=10),
+  area(t=8,b=10,l=2,r=4),
+  area(t=7,b=11,l=5,r=10),
+  area(t=13,b=16,l=2,r=4),
+  area(t=12,b=17,l=5,r=10),
+  area(t=19,b=21,l=2,r=4),
+  area(t=18,b=22,l=5,r=10)
+)
+
+#figure8Visual <- moreVPNsPlot + PFLtoLC33Plot + PFL3LC33Anat + PFL3ToLC10Plot + PFL3ToLC10Anat + ExR8toCHPlot + ExR8CHAnat + PFL1ToLC27Plot + PFL1ToLC27Anat + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 8: connections to visual projection neurons",theme=theme(title = element_text(size=10,face="bold"))) & 
+#  theme(plot.tag.position = c(-0.05, 1.05))
+figure8Visual <- moreVPNsPlot + PFLtoLC33Plot + plot_spacer() + PFL3ToLC10Plot + plot_spacer() + ExR8toCHPlot + plot_spacer() + PFL1ToLC27Plot + plot_spacer() + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 8: connections to visual projection neurons",theme=theme(title = element_text(size=12*1.111111,face="bold",family="arial"))) & 
+  theme(plot.tag.position = c(-0.05, 1.05))
+
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure8-Visual.pdf"),figure8Visual,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure8-Visual.svg"),figure8Visual,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+
+## PFR_b to LT/MC
+```{r}
+PFRbToLTMC <- getLocalSubgraph(c("PFR_b_L*"),c("LT85_R","MC62_R","LC29_R"),CX_outGraphBi,order=2) 
+
+PFLRbToLTMCPlot <- ggraph(PFRbToLTMC,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"LC"=supertype3Palette[["Visual PNs"]],"PFR"=supertype3Palette[["FB Columnar"]],"LT"=supertype3Palette[["Visual PNs"]],"MC"=supertype3Palette[["Visual PNs"]],"ALD"=supertype3Palette[["Antennal lobe"]],"Unassigned"=customGraphPalette[["Source"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"LC"=supertype3Palette[["Visual PNs"]],"PFR"=supertype3Palette[["FB Columnar"]],"LT"=supertype3Palette[["Visual PNs"]],"MC"=supertype3Palette[["Visual PNs"]],"ALD"=supertype3Palette[["Antennal lobe"]],"Unassigned"=customGraphPalette[["Source"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none")#+coord_flip()+scale_x_continuous(trans="reverse")
+
+PFLRbToLTMCPlot
+
+```
+```{r}
+LT85Body <- getTypesTable("LT85")
+
+displayAnatomies(list("MBON"=filter(mainFFTargetsNeurons,type=="MBON20_R")$bodyid,
+                   "Visual PNs"=LT85Body$bodyid
+                   ),ROIs = c("FB","CRE(R)","LO(R)"),saveName = "MB20LT85",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+MB20LT85Anat <-   ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"MB20LT85-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+```{r}
+MC62Body <- getTypesTable("MC62")
+
+displayAnatomies(list("Antennal lobe"=filter(mainFFTargetsNeurons,type=="mALD1_L")$bodyid,
+                   "Visual PNs"=MC62Body$bodyid[1:5]
+                   ),ROIs = c("FB","CRE(R)","ME(R)","LAL(R)"),saveName = "mALDMC62",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+MC62Anat <-   ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"mALDMC62-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+```{r}
+layout <- c(
+  area(t=1,b=4,l=2,r=10),
+  area(t=5,b=10,l=4,r=8),
+  area(t=11,b=16,l=4,r=8)
+)
+
+#fig8SI1 <- PFLRbToLTMCPlot + MB20LT85Anat + MC62Anat + plot_layout(design=layout)+plot_annotation(title= "Outputs figure 8 SI1: PFRb to Visual PNs",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) 
+fig8SI1 <- PFLRbToLTMCPlot + plot_spacer() + plot_spacer() + plot_layout(design=layout)+plot_annotation(title= "Outputs figure 8 SI1: PFRb to Visual PNs",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) 
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure8-Visual-SI1.svg"),fig8SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```

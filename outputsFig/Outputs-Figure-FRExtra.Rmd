@@ -1,0 +1,82 @@
+---
+title: "FR panels"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme_linux.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure3-CX2CX/"
+
+```
+
+```{r}
+load("outputsBasics.RData")
+load("mainTargetsAndConns.Rdata")
+load("mainTargetsAndConns.Rdata")
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+endpoints <- readRDS("endpoints-influenceFullSummary.rds")
+
+endpointsStrong <- filter(endpoints,Path_weight>=0.5)
+
+CX_outGraphRed <- CX_outGraphRed %N>% 
+   mutate(influencing=endpointsStrong$supertype.to[match(type,endpointsStrong$type.from)]) %E>% 
+    mutate(influencing.from = .N()$influencing[match(type.from,.N()$type)])
+```
+
+```{r}
+
+mainFFTargetsS <- mainFFTargets %>% rename(type=type.to,databaseType=databaseType.to) %>% supertype() %>% selectSupertypeSet(default_level = 3,exceptions=list("Terra incognita"=2))
+
+
+
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
+```
+
+
+```{r}
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = customRetyping,largeOnly=T) %>% combineRois(outsideRegions,"Outside")
+restrictedConnectivity <- filter(FRBag$outputs_raw,supertype2.to != "FR" & type.to %in% FRBag$outputs$type.to) %>% 
+  mutate(column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>% arrange(column) %>%
+  mutate(label.from=column,
+         label.to=name.to)
+
+FROutputs <- plotConnectivity(restrictedConnectivity,slctROI="Outside",grouping="neuron",xaxis="outputs",facetInputs="databaseType.from",facetOutputs="supertype2.to",theme=theme_paper_grid(),replacementLabels = "label",legendName = "Relative weight") + theme(panel.border = element_rect(color="black",size = 1*mm2pt))+theme(strip.text.x=element_blank())
+FROutputs
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"FRMatOut.svg"),FROutputs,nrow = 1,ncol=1,base_height = 11/3,base_width=8.5)
+```
+
+```{r}
+FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FRGraph
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"FRGraphOut.svg"),FRGraph,base_height = 4,base_width=6)
+```
+

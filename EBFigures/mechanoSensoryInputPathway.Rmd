@@ -24,7 +24,7 @@ neuprint_login()
 
 ```{r messages=FALSE, warning=FALSE}
 # Get some custom functions
-source("../visualizeConnectivityTables.R")
+source("../R/visualizeConnectivityTables.R")
 ```
 
 ## Bodyid's of neurons that are potentially involved
@@ -83,11 +83,62 @@ ER1 = neuprint_search("ER1_.*")
 ER1a = neuprint_search("ER1_a.*")
 ER1b = neuprint_search("ER1_b.*")
 
-ER3a_b = neuprint_search("ER3a_b.*")
+ER3a= neuprint_search("ER3a.*")
 
-ER1and3 =  bind_rows(ER1, ER3a_b) 
+ER1and3a =  bind_rows(ER1, ER3a) 
+
+ER1and3_andWLLWPN =  bind_rows(ER1, ER3a, WLL,WPN) 
 
 splitLR = TRUE
+```
+
+## Connectivity between WLL and ER neurons
+```{r, warning=FALSE}
+splitLR = TRUE
+preTypes = c(ER1and3_andWLLWPN$bodyid, ER1and3_andWLLWPN$bodyid) # preIDs$bodyid
+postTypes = preTypes#postIDs$bodyid
+myConnections = getConnectionTable(preTypes, "POST", NULL)
+myConnections = myConnections %>% filter(to %in% postTypes) 
+  
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+if (splitLR){
+  # Subdivide types and build a custom types table
+  myConnections = lateralize_types(myConnections, postfix="to")
+  myConnections = lateralize_types(myConnections, postfix="from")
+  typesTable = lateralize_types(typesTable, postfix="raw")
+}
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+```{r}
+plotW = 12
+plotH = 10
+cmax = NULL
+cmaxtype = NULL
+
+source("../R/visualizeConnectivityTables.R")
+
+connectionMeasures = c("weightRelative")
+saveName = "windPathway"
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+for (connectionMeasure in connectionMeasures){
+  
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmaxtype)
+  #conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  print(conMatPlot)
+  ggsave( paste("connectivityMatrix_",saveName,'_',connectionMeasure,'_byType.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+  #conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+  print(conMatPlot)
+  ggsave(paste("connectivityMatrix_",saveName,"_",connectionMeasure,'_byID.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "../../neuprintR_analysis_plots/",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
 ```
 
 
@@ -160,233 +211,3 @@ legend(x=0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge
 dev.print(pdf, paste0("../../neuprintR_analysis_plots/",graphName,"_structured.pdf"), width=plotSize, height=plotSize,useDingbats=FALSE)
 
 ```
-
-
-## Find paths to the CX -- OLD METHOD
-```{r}
-allPathFromAPN_to_R1 = neuprint_get_paths(APNBodies,ER1$bodyid, n=4, weightT = 10, chunk = 1)
-
-allPathFromWLL_to_R1 = neuprint_get_paths(WLL$bodyid,ER1$bodyid, n=2, weightT = 10, chunk = 2)
-
-allPathFromAPN_to_WLL = neuprint_get_paths(APNBodies,WLL$bodyid, n=4, weightT = 10, chunk = 1)
-
-allPathFromAPN_to_R3 = neuprint_get_paths(APNBodies,ER3a_b$bodyid, n=4, weightT = 10, chunk = 1)
-
-allPathFromWLL_to_R3 = neuprint_get_paths(WLL$bodyid,ER3a_b$bodyid, n=2, weightT = 10, chunk = 1)
-```
-
-```{r}
-allPathFromWPN_to_R1 = neuprint_get_paths(WPN$bodyid,ER1$bodyid, n=2, weightT = 10, chunk = 1)
-
-allPathFromWPN_to_R3 = neuprint_get_paths(WPN$bodyid,ER3a_b$bodyid, n=2, weightT = 10, chunk = 1)
-```
-
-
-## Viusualize paths to the CX
-
-```{r}
-
-cutoff = 0.02#0.01#
-edcurve = 0
-vertexSize = 7
-edgeNorm = 0.05
-
-# helper functions
-getPathConnections <- function(fromIDs, toIDs){
-  
-  pathConnections = getConnectionTable(unique(fromIDs), "POST")
-  pathConnections = pathConnections %>% filter(to %in% unique(toIDs) )
-  
-  pathConnections = lateralize_types(pathConnections, postfix="to")
-  pathConnections = lateralize_types(pathConnections, postfix="from")
-  typesTable = getTypesTable(unique(pathConnections$databaseType.to))
-  typesTable = lateralize_types(typesTable, postfix="raw")
-  
-  return(pathConnections)
-}
-
-```
-
-### APN or WLL to R1
-```{r}
-#APN -> R1
-APNpathConnections = getPathConnections(allPathFromAPN_to_R1$from,allPathFromAPN_to_R1$to)
-typesTable <- getTypesTable(unique(APNpathConnections$databaseType.to))
-myAPNPathT2T = getTypeToTypeTable(APNpathConnections,typesTable = typesTable)
-
-# WLL -> R1
-WLLpathConnections = getPathConnections(allPathFromWLL_to_R1$from,allPathFromWLL_to_R1$to)
-typesTable <- getTypesTable(unique(WLLpathConnections$databaseType.to))
-myWLLPathT2T = getTypeToTypeTable(WLLpathConnections,typesTable = typesTable)
-
-# WPN -> R1
-WPNpathConnections = getPathConnections(allPathFromWPN_to_R1$from,allPathFromWPN_to_R1$to)
-typesTable <- getTypesTable(unique(WPNpathConnections$databaseType.to))
-myWPNPathT2T = getTypeToTypeTable(WPNpathConnections,typesTable = typesTable)
-```
-
-```{r}
-myPathT2T = full_join(full_join(myAPNPathT2T, myWLLPathT2T),myWPNPathT2T)
-
-graphData = data.frame(from = myPathT2T$type.from,
-                       to = myPathT2T$type.to,
-                       relWeight = myPathT2T$weightRelative)
-
-myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0.4, edgeNorm)
-
-# remove nodes that are not on path
-APN2list = paste0(APN2type,'_R')
-APN3list = paste0(APN3type,'_R')
-
-WLLlist = c(paste0(WLLtype,'_L'))#,paste0(WLLtype,'_R'))
-WPNlist =  c(paste0(WPNtype,'_L'))#,paste0(WLLtype,'_R'))
-
-ERlist = c("ER1_a_R","ER1_b_L","ER1_b_R")
-
-path2R1_1 = all_simple_paths(myGraph, V(myGraph)[APN2list], to = V(myGraph)[ERlist], mode = "out")
-path2R1_2 = all_simple_paths(myGraph, V(myGraph)[APN3list], to = V(myGraph)[ERlist], mode = "out")
-path2R1_3 = all_simple_paths(myGraph, V(myGraph)[WPNlist], to = V(myGraph)[ERlist], mode = "out")
-path2R1_4 = all_simple_paths(myGraph, V(myGraph)[WLLlist], to = V(myGraph)[ERlist], mode = "out")
-
-onpath = V(myGraph)[unique(c(unlist(path2R1_1),unlist(path2R1_2),unlist(path2R1_3),unlist(path2R1_4)))]
-
-if(length(onpath) > 0){
-  myR1Graph_filt = subgraph(myGraph, onpath)
-}else{
-  myR1Graph_filt = myGraph
-}
-
-l = layout_with_dh(myR1Graph_filt)
-
-plot(myR1Graph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myR1Graph_filt))
-
-
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_or_WPN_or_WLL_to_R1b_LR_",100*cutoff,"prcCutoff.pdf"), width=10, height=10)
-```
-
-# APN -> WLL
-```{r}
-pathConnections = getPathConnections(allPathFromAPN_to_WLL$from,allPathFromAPN_to_WLL$to)
-typesTable <- getTypesTable(unique(pathConnections$databaseType.to))
-typesTable = lateralize_types(typesTable, postfix="raw")
-
-myPathT2T = getTypeToTypeTable(pathConnections,typesTable = typesTable)
-```
-
-```{r}
-graphData = data.frame(from = myPathT2T$type.from,
-                       to = myPathT2T$type.to,
-                       relWeight = myPathT2T$weightRelative)
-
-myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
-
-#set_vertex_attr(myGraph, n_neurons, index = V(myGraph), value)
-myGraph$names = myPathT2T %>% select(c(type.to, n_targets)) %>% unique()
-
-# remove nodes that are not on path
-APN2list = paste0(APN2type,'_R')
-APN3list = paste0(APN3type,'_R')
-
-WLLlist = c(paste0(WLLtype,'_L'),paste0(WLLtype,'_R'))
-WPNlist =  c(paste0(WPNtype,'_R'))#,paste0(WLLtype,'_R'))
-
-path2WLL_1 = all_simple_paths(myGraph, V(myGraph)[WPNlist], to = V(myGraph)[WLLlist], mode = "out")
-path2WLL_2 = all_simple_paths(myGraph, V(myGraph)[APN2list], to = V(myGraph)[WLLlist], mode = "out")
-path2WLL_3 = all_simple_paths(myGraph, V(myGraph)[APN3list], to = V(myGraph)[WLLlist], mode = "out")
-
-onpath = V(myGraph)[unique(c(unlist(path2WLL_1),unlist(path2WLL_2),unlist(path2WLL_3)))]
-
-if(length(onpath) > 0){
-  myWLLGraph_filt = subgraph(myGraph, onpath)
-}else{
-  myWLLGraph_filt = myGraph
-}
-
-l = layout_with_dh(myWLLGraph_filt)
-
-myPathT2T_filt  = as_data_frame(myWLLGraph_filt)
-myPathT2T_filt
-
-plot(myWLLGraph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myWLLGraph_filt))
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_WLL_LR_",100*cutoff,".pdf"), width=10, height=10)
-```
-
-### APN -> R3
-```{r}
-#APN -> R3
-APNpathConnections = getPathConnections(allPathFromAPN_to_R3$from,allPathFromAPN_to_R3$to)
-typesTable <- getTypesTable(unique(APNpathConnections$databaseType.to))
-typesTable = lateralize_types(typesTable, postfix="raw")
-
-myAPNPathT2T = getTypeToTypeTable(APNpathConnections,typesTable = typesTable)
-
-# WLL -> R3
-WLLpathConnections = getPathConnections(allPathFromWLL_to_R3$from,allPathFromWLL_to_R3$to)
-typesTable <- getTypesTable(unique(WLLpathConnections$databaseType.to))
-typesTable = lateralize_types(typesTable, postfix="raw")
-
-myWLLPathT2T = getTypeToTypeTable(WLLpathConnections,typesTable = typesTable)
-
-# WPN -> R3
-WPNpathConnections = getPathConnections(allPathFromWPN_to_R3$from,allPathFromWPN_to_R3$to)
-typesTable <- getTypesTable(unique(WPNpathConnections$databaseType.to))
-typesTable = lateralize_types(typesTable, postfix="raw")
-
-myWPNPathT2T = getTypeToTypeTable(WPNpathConnections,typesTable = typesTable)
-```
-
-```{r}
-myPathT2T = full_join(full_join(myAPNPathT2T,myWPNPathT2T),myWLLPathT2T)
-
-graphData = data.frame(from = myPathT2T$type.from,
-                       to = myPathT2T$type.to,
-                       relWeight = myPathT2T$weightRelative)
-
-myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
-
-# remove nodes that are not on path
-
-APN2list = paste0(APN2type[1],'_R')
-APN3list = paste0(APN3type,'_R')
-
-WLLlist = c(paste0(WLLtype,'_L'))#,paste0(WLLtype,'_R'))
-WPNlist =  c(paste0(WPNtype,'_R'))#,paste0(WLLtype,'_L'))
-ERlist = c("ER3a_b_R","ER3a_b_L")
-
-path2R3_1 = all_simple_paths(myGraph, V(myGraph)[APN2list], to = V(myGraph)[ERlist], mode = "out")
-path2R3_2 = all_simple_paths(myGraph, V(myGraph)[APN3list], to = V(myGraph)[ERlist], mode = "out")
-path2R3_4 = all_simple_paths(myGraph, V(myGraph)[WLLlist], to = V(myGraph)[ERlist], mode = "out")
-path2R3_5 = all_simple_paths(myGraph, V(myGraph)[WPNlist], to = V(myGraph)[ERlist], mode = "out")
-
-onpath = V(myGraph)[unique(c(unlist(path2R3_1),unlist(path2R3_2),unlist(path2R3_4),unlist(path2R3_5)))] #,unlist(path2R3_3)
-
-if(length(onpath) > 0){
-  myR3Graph_filt = subgraph(myGraph, onpath)
-}else{
-  myR3Graph_filt = myGraph
-}
-
-l = layout_with_dh(myR3Graph_filt)
-
-plot(myR3Graph_filt,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myR3Graph_filt))
-
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_or_WPN_or_WLL_to_R3a_b_LR_",100*cutoff,".pdf"), width=10, height=10)
-
-```
-### Merge graphs of APN -> R1 and APN -> WLL and APN -> R3a_b
-```{r}
-myGraph_union_data = bind_rows(as_long_data_frame(myR1Graph_filt),as_long_data_frame(myWLLGraph_filt),
-                               as_long_data_frame(myR3Graph_filt))
-
-myGraph_union_data = myGraph_union_data %>% select(c(from_name, to_name, relWeight)) %>% 
-  rename(from = from_name, to = to_name)
-
-myGraph_union = constructConnectivityGraph(myGraph_union_data, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm)
-
-l = layout_with_dh(myGraph_union)
-
-plot(myGraph_union,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph_union))
-
-dev.print(pdf, paste0("../neuprintR_analysis_plots/mechanoPW/connectivityGraph_APN_to_WLL_to_R1_or_R3_LR_",100*cutoff,".pdf"), width=10, height=10)
-```
-
