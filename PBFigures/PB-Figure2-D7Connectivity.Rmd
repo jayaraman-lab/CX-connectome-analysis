@@ -1,0 +1,243 @@
+---
+title: "PB Figure 2 - D7 connectivity analysis"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBAnalysisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+```
+
+Get the EPG and D7 connections
+```{r}
+EPGD7Bag <- neuronBag(getTypesTable(c("EPG","Delta7")))
+```
+
+Plot the type-to-type connections for the downstream partners of the EPGs and Delta7s in the PB
+```{r}
+EPGD7T2TConn <- plotConnectivityMatrix(EPGD7Bag$outputs %>% filter((roi=="PB") & !(type.to %in% c("1265399790","1283600055","2371497342"))), byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90))
+
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_T2T.pdf",EPGD7T2TConn,
+       width=4, height=3, units = "in")
+```
+
+Plot the neuron-to-neuron connections between the EPGs and the Delta7s
+```{r}
+EPGD7ToSelf <- EPGD7Bag$outputs_raw %>% filter((roi=="PB") & (type.to %in% c("EPG","Delta7")))
+EPGD7ToSelf$nameOrder.from <- PBRename(EPGD7ToSelf$name.from,EPGD7ToSelf$from)
+EPGD7ToSelf$nameOrder.to <- PBRename(EPGD7ToSelf$name.to,EPGD7ToSelf$to)
+
+plotConnectivityMatrix(EPGD7ToSelf, byGroup = "id_sort", connectionMeasure = "ROIweight") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type")
+```
+
+Convert the EPG to D7 connection table to a weight matrix and shift the rows to align the peaks
+```{r}
+EPGToD7 <- EPGD7ToSelf %>% filter(type.to == "Delta7" & type.from == "EPG")
+```
+```{r}
+# Get info about the D7 and EPG neurons
+allD7ids <- levels(EPGToD7$nameOrder.to)[which(grepl("Delta7",levels(EPGToD7$nameOrder.to)))]
+allEPGids <- levels(EPGToD7$nameOrder.from)[which(grepl("EPG",levels(EPGToD7$nameOrder.from)))]
+```
+```{r}
+# Create a matrix of just the weights
+EPGToD7_WM <- WMFromConTab(EPGToD7,allEPGids,allD7ids) 
+
+# Shift the entries to align the peaks
+for (i in 1:length(allD7ids)){
+  # First, move the max so that the two peaks occur ~1/4 and ~3/4 of the way in
+  wNow <- EPGToD7_WM[,i]
+  shift = which.max(wNow)-12
+  if (shift == 0){
+    wNow
+  } else {
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  }
+  
+  # Fit two gaussians to the two peaks
+  pts = c(1:length(wNow)-1)
+  df = data.frame(pts = pts, wNow = wNow)
+  fit <- nls(wNow ~ (C1 * exp(-(pts-mean1)**2/(2 * sigma1**2)) +
+    C2 * exp(-(pts-mean2)**2/(2 * sigma2**2))), data=df,
+    start=list(C1=20, mean1=12, sigma1=5,
+               C2=20, mean2=35, sigma2=5), algorithm="port") 
+  dffit <- data.frame(pts)
+  dffit$wNow <- predict(fit, newdata=dffit)
+  
+  # Align the center of the higher amplitude Gaussian to the same position
+  shift = coef(fit)['mean1'] %>% as.numeric()-25
+
+  if (shift == 0)
+    wNow
+  else
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  
+  EPGToD7_WM[,i] <- wNow
+}
+```
+
+  
+
+Plot the weight matrix
+```{r}
+colnames(EPGToD7_WM) <- allD7ids
+rownames(EPGToD7_WM) <- seq(1:dim(EPGToD7_WM)[1])
+PBRegInputs <- melt(EPGToD7_WM,value.name = 'regInput',varnames = c('position','D7id'))
+PBRegInputs$D7id <- as.factor(PBRegInputs$D7id)
+PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
+
+conmatPlot <- ggplot(PBRegInputs) + 
+  scale_fill_gradient(low="white", high="black") +
+  geom_tile(aes(position,D7id,fill=regInput)) +
+  theme_minimal() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  ylab("post-synaptic neuron") + xlab("pre-synaptic position")
+
+print(conmatPlot)
+```
+
+Plot the mean and SD with a cosine fit
+```{r}
+PBRegInputStats <- PBRegInputs %>% group_by(position) %>% summarize(mean = mean(regInput), sd = sd(regInput))
+
+g_PBProf <- ggplot(PBRegInputStats) + geom_line(aes(x=position,y=mean,group=1),color='black') +
+  geom_line(aes(x=position,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=position,y=mean+sd,group=1),color='gray')
+
+# Fit a cosine to the profile and plot it
+df = data.frame(pts = PBRegInputStats$position, wMean = PBRegInputStats$mean)
+fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+  start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+dffit <- data.frame(pts)
+dffit$wMean <- predict(fit, newdata=dffit)
+
+g_PBProf <- g_PBProf + geom_line(data=dffit,aes(x=pts,y=wMean),color='red')
+
+g_PBProf <- g_PBProf + theme_cowplot() + xlab('EPG input position') + ylab('# of synapses') + 
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+print(g_PBProf)
+```
+
+Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
+```{r}
+# Use a von Mises bump profile
+actProfvM <- data.frame(act = vonMisesProf(),
+                        glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+actProfvM$glom <- factor(actProfvM$glom,
+                         levels = c("R8","R7","R6","R5","R4","R3","R2","R1",
+                                    "L1","L2","L3","L4","L5","L6","L7","L8"))
+
+# Use activity only in one set of EPGs in a given glom.
+actProf <- vector(mode="numeric",length = 16)
+actProf[8] <- 1
+actProfImp <- data.frame(act = actProf,
+                         glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
+                                 "R5","L4","R6","L3","R7","L2","R8","L1"))
+actProfImp$glom <- factor(actProfImp$glom,
+                         levels = c("R8","R7","R6","R5","R4","R3","R2","R1",
+                                    "L1","L2","L3","L4","L5","L6","L7","L8"))
+
+# Specify the search strings
+PBTps <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+           "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+           "PFGs","PFL1","PFL3","PFR_a","PFR_b")
+PBTpNames <- c("EPG","PEN1","PEN2","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+               "PFG","PFL1","PFL3","PFR_a","PFR_b")
+allvMDev <- c()
+allimpDev <- c()
+for (tp in 1:length(PBTps)){
+  # Get the von Mises profiles
+  vMOut <- EPGToD7Transform(PBTps[tp],actProfvM)
+
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(vMOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allvMDev <- append(allvMDev,deviance(fit))
+  
+  # Get the impulse profiles
+  impOut <- EPGToD7Transform(PBTps[tp],actProfImp)
+  
+  # Get the profile stats
+  D7OutputShape_stats <- D7ShapeMeanSD(impOut)
+  
+  # Fit a cosine to the data
+  fit <- D7CosFit(D7OutputShape_stats)
+  allimpDev <- append(allimpDev,deviance(fit))
+}
+
+plt_order = c("EPG","PEN1","PEN2","PEG","PFG",
+              "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+              "PFL1","PFL3","PFR_a","PFR_b")
+
+vM_stats <- data.frame(type = PBTpNames, resid = allvMDev, input = "von Mises")
+imp_stats <- data.frame(type = PBTpNames, resid = allimpDev, input = "impulse")
+all_stats = rbind(vM_stats,imp_stats)
+all_stats$type = factor(all_stats$type, levels = as.factor(plt_order))
+
+gStats_all <- ggplot(all_stats,aes(x=type,y=resid,color=input)) + geom_point(size=2) +
+  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.05)) + theme_minimal_grid() +
+  xlab('neuron type') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  scale_colour_manual(values = c('black','red'))
+print(gStats_all)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\CosFitStats.pdf",gStats_all,
+       width=5, height=2.5, units = "in")
+
+```
+
+Plot the neuron-to-neuron connections between the EPGs or Delta7s
+```{r}
+PBTpNames <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
+               "PFG","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+
+EPGD7ToPFX <- EPGD7Bag$outputs_raw %>% filter((roi=="PB") & (type.to %in% PBTpNames))
+EPGD7ToPFX$nameOrder.from <- PBRename(EPGD7ToPFX$name.from,EPGD7ToPFX$from)
+#EPGD7ToPFX$nameOrder.from <- EPGD7ToPFX$nameOrder.from %>% lapply(function(x) str_replace(x,'EPG_|Delta7_','')) %>% unlist() %>% lapply(function(x) str_replace(x,'_L-|_R-','-')) %>% unlist()
+EPGD7ToPFX$nameOrder.to <- PBRename(EPGD7ToPFX$name.to,EPGD7ToPFX$to)
+#EPGD7ToPFX$nameOrder.to <- EPGD7ToPFX$nameOrder.to %>% 
+#  lapply(function(x) str_replace(x,'PEN1_|PEN2_|PFRa_|PFRb_|PFGs_|PFNma_|PFNmb_|PFNpa_|PFNpb_|PFNpc_|PFNpd_|PFNpe_|PFNd_|PFNv_|PFL1_|PFL2_|PFL3_|PEG_|PFNa_','')) %>% 
+#  unlist() %>% lapply(function(x) str_replace(x,'_L-|_R-','-')) %>% unlist()
+
+PBEBTpNames <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG")
+PBEBPlt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PBEBTpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 150) + 
+  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PBEBPlt <- structureMatrixPlotByType_lines(PBEBPlt)
+
+PFN1TpNames <- c("PFNa","PFNd","PFNm_a","PFNm_b","PFNv")
+PFN1Plt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFN1TpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 100) + 
+  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFN1Plt <- structureMatrixPlotByType_lines(PFN1Plt)
+
+PFN2TpNames <- c("PFNp_a","PFNp_b","PFNp_c","PFNp_e")
+PFN2Plt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFN2TpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 100) + 
+  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFN2Plt <- structureMatrixPlotByType_lines(PFN2Plt)
+
+PFXTpNames <- c("PFG","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+PFXPlt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFXTpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 150) + 
+  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFXPlt <- structureMatrixPlotByType_lines(PFXPlt)
+
+PFNPlts <-  PFN1Plt / PFN2Plt + plot_layout(guides = 'collect')
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_To_PFNs.pdf",PFNPlts,
+       width=8, height=10.5, units = "in")
+
+PEFXPlts <-  PBEBPlt / PFXPlt + plot_layout(guides = 'collect')
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_To_PEFXs.pdf",PEFXPlts,
+       width=8, height=10.5, units = "in")
+```

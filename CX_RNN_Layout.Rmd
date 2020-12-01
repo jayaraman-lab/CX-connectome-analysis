@@ -13,8 +13,8 @@ library(reshape2)
 library(igraph)
 library(ggraph)
 library(paletteer)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
 ```
 
 Specify the types of interest and get the neuronBag for them
@@ -22,8 +22,12 @@ Specify the types of interest and get the neuronBag for them
 nrons <- c("TuBu01", "TuBu02", "TuBu08", "TuBu09", "LAL138", "WED016",
           "ER4m", "ER3a_a", "ER3a_d", "ER3m", "ER4d", "ER2_a", "ER2_b", "ER2_d", "ER1_b", "ER1_a",
           "EPG", "PEN_a(PEN1)", "PEG", "Delta7",
-          "PFNp_d", "PFNa", "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F",
-          "PFL1", "PFL2","PFL3")
+          "PFNp_d", "PFNa", 
+          "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F", "hDeltaB", "hDeltaC",
+          "hDeltaA", "PFR_a","hDeltaG", "hDeltaH", "hDeltaI","vDeltaK","vDeltaL","PFR_b",
+          "PFL1", "PFL2","PFL3",
+          "LAL018","LAL046",
+          "DNb01","DNa02","DNa04")
 CXBag <- neuronBag(getTypesTable(nrons),by.roi=FALSE)
 ```
 
@@ -40,13 +44,21 @@ Get the connectivity tables
 types4plt <- c("TuBu01_R", "TuBu02_R", "TuBu08_R", "TuBu09_R", "LAL138_L", "WED016_R",
           "ER4m_R", "ER3a_a_R", "ER3a_d_R", "ER3m_R", "ER4d_R", "ER2_a_R", "ER2_b_R", "ER2_d_R", "ER1_b_R", "ER1_a_R",
           "EPG_L", "EPG_R", "PEN_a(PEN1)_L", "PEN_a(PEN1)_R", "PEG_L", "PEG_R", "Delta7",
-          "PFNp_d", "PFNa", "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F",
-          "PFL1", "PFL2","PFL3")
+          "PFNp_d", "PFNa",
+          "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F", "hDeltaB", "hDeltaC",
+          "hDeltaA", "PFR_a","hDeltaG", "hDeltaH", "hDeltaI","vDeltaK","vDeltaL","PFR_b",
+          "PFL1", "PFL2","PFL3",
+          "LAL018","LAL046",
+          "DNb01","DNa02","DNa04")
 layers <- c(1,1,1,1,1,1,
             2,2,2,2,2,2,2,2,2,2,
             3,3,3,3,3,3,3,
-            4,4,4,4,4,4,4,4,
-            5,5,5)
+            4,4,
+            5,5,5,5,5,5,5,5,
+            6,6,6,6,6,6,6,6,
+            7,7,7,
+            8,8,
+            9,9,9)
 layerMap <- data.frame(type = types4plt,
                        layer=layers)
 CX_T2T <- CXBag_lat$outputs %>% 
@@ -71,8 +83,8 @@ g <- graph_from_data_frame(CXEdges, directed = TRUE, vertices = CXNodes)
 
 # Assign colors to the supertypes
 sTs <- supertype2Palette()
-sTs$breaks <- c(sTs$breaks,c("TuBu","WED","LAL"))
-sTs$pal <- c(sTs$pal, c(paletteer_d("Polychrome::palette36")[1:3]))
+sTs$breaks <- c(sTs$breaks,c("TuBu","WED","LAL","DN"))
+sTs$pal <- c(sTs$pal, c(paletteer_d("Polychrome::palette36")[1:4]))
 names(sTs$pal) <- sTs$breaks
 sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
 sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
@@ -87,7 +99,7 @@ CXRNN <- ggraph(g,layout='sugiyama', layers=CXNodes$layer,vgap=2) +
   scale_edge_width(range = c(0, 2)) +
   sTScale_edge +
   sTScale +
-  geom_node_text(aes(label=CXNodes$nodes)) +
+  #geom_node_text(aes(label=CXNodes$nodes)) +
   theme_paper() +
   coord_fixed(ratio = 1,clip="off") + 
   theme(axis.line = element_blank(),
@@ -95,8 +107,8 @@ CXRNN <- ggraph(g,layout='sugiyama', layers=CXNodes$layer,vgap=2) +
         axis.title = element_blank(),
         axis.ticks = element_blank())
 
-#print(CXRNN)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\CXRNN_V2.pdf',CXRNN)
+print(CXRNN)
+ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\CXRNN_V4_noLabel.pdf',CXRNN)
 ```
 
 
@@ -159,5 +171,5 @@ ER3RNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
         axis.ticks = element_blank())
 
 print(ER3RNN)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ER3RNN_force.pdf',ER3RNN)
+#ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ER3RNN_force.pdf',ER3RNN)
 ```
