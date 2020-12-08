@@ -60,7 +60,7 @@ CXoutFFEndpointVPNs <- filter(CXoutFull,(supertype3.to == "Visual PNs") & fullCX
                                                                                                                                                     
                                                                                                                          )
 
-moreVPNsPlot <- ggplot(CXoutFFEndpointVPNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("")  + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+moreVPNsPlot <- ggplot(CXoutFFEndpointVPNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("")  + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
 
 moreVPNsPlot
 ```
@@ -95,7 +95,7 @@ PFL3Bag <- neuronBag(filter(CXNeurons,type=="PFL3_L*"),selfRef = T,slctROI=outsi
 orderPFL3Name <- c("PFL3(PB12c)_R2_C1_irreg","PFL3(PB12c)_R1_C2_irreg","PFL3(PB12c)_L1_C3","PFL3(PB12c)_L2_C4","PFL3(PB12c)_L3_C5","PFL3(PB12c)_L4_C6","PFL3(PB12c)_L5_C7","PFL3(PB12c)_L6_C8","PFL3(PB12c)_L7_C9")
 PFL3s <- PFL3Bag$names %>% mutate(name=factor(name,levels=orderPFL3Name)) %>% arrange(name)
 orderPFL3BI <- PFL3s$bodyid
-PFL32LC33Mat <- plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R"),grouping="neuron",orderIn = orderPFL3BI,xaxis="outputs",replacementLabels = "name",legendName="Relative weight") + xlab("Post synaptic") + ylab("Pre synaptic")
+PFL32LC33Mat <- plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R"),grouping="neuron",orderIn = orderPFL3BI,xaxis="outputs",replacementLabels = "name",legendName="Relative weight") + xlab("post synaptic") + ylab("pre synaptic")
 ```
 Retype 1260197431 5813022538 and 1418186940 for a look at the shared outputs
 ```{r}
@@ -107,7 +107,7 @@ specialRenaming <- function(connections,postfix=c("raw", "to", "from")){
 }
 
 LC33Bag <- neuronBag("LC33",omitInputs=TRUE,renaming=specialRenaming) %>% combineRois(outsideRegions,"Outside")
-PFLLCOutMat <- plotConnectivity(filter(rbind(PFL3Bag$outputs_raw,filter(LC33Bag$outputs_raw,type.from=="LC33_b_R")),supertype2.to != "Unassigned"),facetInputs="type.from",facetOutputs="supertype2.to",grouping="neuron",replacementLabels = "name",legendName="Relative weight") + xlab("Pre synaptic") + ylab("Post synaptic")+ theme(strip.text.y = element_text(angle=0),strip.text.x=element_text(angle=45),axis.text.x = element_blank(),axis.text.y=element_blank())
+PFLLCOutMat <- plotConnectivity(filter(rbind(PFL3Bag$outputs_raw,filter(LC33Bag$outputs_raw,type.from=="LC33_b_R")),supertype2.to != "Unassigned"),facetInputs="type.from",facetOutputs="supertype2.to",grouping="neuron",replacementLabels = "name",legendName="Relative weight") + xlab("pre synaptic") + ylab("post synaptic")+ theme(strip.text.y = element_text(angle=0),strip.text.x=element_text(angle=45),axis.text.x = element_blank(),axis.text.y=element_blank())
 PFLLCOutMat
 ```
 ```{r}

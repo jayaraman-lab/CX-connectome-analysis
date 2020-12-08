@@ -132,7 +132,7 @@ divergenceTableTotLongTypes <- pivot_longer(divergenceTableTot,cols=contains("ty
 
 totalDivergencePlot <- ggplot(divergenceTableTotLongTypes,aes(x=n_hops,y=value)) +
    geom_line(aes(col=Measure)) + theme_paper_hgrid() + 
-   scale_y_log10(limits=c(NA,16000)) +xlab("Layer") + ylab("# types") +
+   scale_y_log10(limits=c(NA,16000)) +xlab("layer") + ylab("# types") +
    scale_color_grey(start = 0.8, end = 0.2)+
    geom_hline(yintercept =nrow(allNodes),lty=4,col="grey") + 
    annotate(geom="segment",x=5,xend=5,y=divergenceTableTot$n_types[6],yend=divergenceTableTot$total_types[6],arrow=arrow(ends="both",type="closed",length=unit(2,"mm"))) +
@@ -158,10 +158,10 @@ pathwaysSummary <- group_by(pathways,supertype3.to,hop.to) %>% summarize(pathWei
 pathwaysSuperSummary <- group_by(pathwaysSummary,hop.to) %>% summarize(totalWeight=sum(pathWeight))
 
 #pathwaysSummaryCum <- group_by(pathwaysSummary,supertype3.to) %>% arrange(n_steps) %>% mutate(pathWeight=cumsum(pathWeight)) %>%ungroup()
-outputComposition <- ggplot(pathwaysSummary,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received") + 
+outputComposition <- ggplot(pathwaysSummary,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("layer")+ylab("normalized weight received") + 
    theme(strip.background=element_rect(fill = "grey80",color=NA)) + scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1))+ geom_text(data=pathwaysSuperSummary,aes(x=hop.to,y=1.03,label=format(totalWeight,digits=1,scientific=FALSE)),inherit.aes = F,size=5*mm2pt*1.327492) +
    geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=1.1,size=totalWeight),inherit.aes = F) + scale_size(limits=c(0,28)) + guides(size="none")
-outputCompositionZoom <-  ggplot(filter(pathwaysSummary,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("Layer")+ylab("Normalized weight received")+ 
+outputCompositionZoom <-  ggplot(filter(pathwaysSummary,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("layer")+ylab("normalized weight received")+ 
     theme(strip.background=element_rect(fill = "grey80",color=NA)) +
    geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=0.08,size=totalWeight),inherit.aes = F)+ scale_size(limits=c(0,28)) +guides(fill="none",size="none")
 outputComposition + outputCompositionZoom + plot_layout(guides = "collect")

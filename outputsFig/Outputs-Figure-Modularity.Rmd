@@ -71,19 +71,19 @@ save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nro
 ```{r}
 CXFFTotals <- filter(CXoutFull,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from) %>% group_by(type.from,supertype3.from,supertype3.to) %>% summarize(Path_weight=sum(Path_weight)) %>% ungroup() %>% mutate(typeCategory.to=case_when(supertype3.to %in% c("Terra incognita","Unassigned") ~ "Unidentified",
                                                                                                                                                                                                                                                                 TRUE ~ "Identified"))
-CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=typeCategory.to))+ scale_fill_manual(name="Target",values=c("Unidentified"="grey70","Identified"="#ff5050"))+facet_grid(.~supertype3.from,scale="free",space="free")+theme_paper() +  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),legend.position = c(0.7,0.5)) + ylab("Total pathway weight") + xlab("CX output type")
+CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=typeCategory.to))+ scale_fill_manual(name="Target",values=c("Unidentified"="grey70","Identified"="#ff5050"))+facet_grid(.~supertype3.from,scale="free",space="free")+theme_paper() +  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),legend.position = c(0.7,0.5)) + ylab("total pathway weight") + xlab("CX output type")
 CXFFInfl
 ```
 
 ## Weights histogram
 ```{r}
-totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) + geom_histogram(fill="grey30",binwidth = 0.001) + scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000))+ theme_paper_hgrid() + xlab("Total pathway weight coming from the CX") +ylab("# types") 
+totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) + geom_histogram(fill="grey30",binwidth = 0.001) + scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000))+ theme_paper_hgrid() + xlab("total pathway weight coming from the CX") +ylab("# types") 
 totalCX_received_plot 
 ```
 
 ## Connectivity matrix to strong partners
 ```{r}
-mainFFPlot <- plotConnectivity(mainFFConnsFilt,grouping = "type",connectionMeasure = "Path_weight",orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),xaxis = "outputs",theme = theme_paper_hgrid())  + theme(axis.text.x = element_blank(),legend.position=c(0.1,0.8)) + ylab("CX output type") + xlab("Main feedforward target types")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+mainFFPlot <- plotConnectivity(mainFFConnsFilt,grouping = "type",connectionMeasure = "Path_weight",orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),xaxis = "outputs",theme = theme_paper_hgrid())  + theme(axis.text.x = element_blank(),legend.position=c(0.1,0.8)) + ylab("CX output type") + xlab("main feedforward target types")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
 mainFFPlot 
 ```
 
@@ -97,9 +97,9 @@ intraConnsSummary <- group_by(mainTargetsIntraConns,contributor.from) %>%
    mutate(n.from=length(unique(type.from))) %>% 
    group_by(contributor.to) %>% 
    mutate(n.to=length(unique(type.to))) %>% group_by(contributor.from,contributor.to,roi) %>% summarize(weightRelative=sum(weightRelative)/(n.from[1]*n.to[1]),fractionConnected=n()/(n.from[1]*n.to[1])) %>% ungroup()
-fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("Main feedforward target types")
-byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("Main contributor of postsynaptic")+ ylab("Main contributor of presynaptic")+ scale_fill_paletteer_c(name="Mean relative weight","ggthemes::Green") + theme(legend.position=c(0.88,0.5))
-plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("Main contributor of postsynaptic")+ ylab("Main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
+fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("main feedforward target types")
+byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c(name="Mean relative weight","ggthemes::Green") + theme(legend.position=c(0.88,0.5))
+plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
 byContrConnMat
 ```
 
