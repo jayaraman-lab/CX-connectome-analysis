@@ -59,8 +59,8 @@ addMatrixPlotLabs = function(conmatPlot, preName, postName, slctROI, connectionM
   #' @param slctROI Bane of ROI used to construct connection table
   #' @return conmatPlot is a ggplot object
   conmatPlot = conmatPlot +
-    xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") + labs(fill=connectionMeasure) +
-    labs(title=paste(preName,'to', postName, 'Connectivity within', slctROI, sep=' '))
+    xlab("postsynaptic neuron")+ylab("presynaptic neuron") + labs(fill=connectionMeasure) +
+    labs(title=paste(preName,'to', postName, sep=' '))
   
   return(conmatPlot)
 }
