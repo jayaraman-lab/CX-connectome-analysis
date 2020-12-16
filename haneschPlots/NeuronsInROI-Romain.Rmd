@@ -397,6 +397,24 @@ save_plot(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,nrow=1,ncol=2.5,b
 save_plot(paste0(haneschSaveFolder,"PB/PBTypes_filtered.svg"),haneschPB_ttF,nrow=1,ncol=2.5,base_width = 8.5/2.5)
 ```
 
+#### Restrict to "full" PB neurons
+```{r}
+PBsummary <- PBSummary %>% filter((type %in% PBTypes$type) & ((supertype3 %in% c("PB Interneurons","PB Input")  & grepl("_R",type))  | (supertype3 == "EB Columnar" & !grepl("_R",type)) | (supertype2 %in% c("PFG","PFL","PFR") & !grepl("_R",type)) | (supertype2 == "PFN" & grepl("_R",type))))
+PBsummary$supertype2 <- factor(PBsummary$supertype2,levels=c("Δ7","P","LPsPB","SPS-PB","EPGt","EPG","PEN","PEG","PFG","PFL","PFR","PFN"))
+PBsummary_filtered <- PBSummary_ttFiltered %>% filter((type %in% PBTypes$type) & ((supertype3 %in% c("PB Interneurons","PB Input")  & grepl("_R",type))  | (supertype3 == "EB Columnar" & !grepl("_R",type)) | (supertype2 %in% c("PFG","PFL","PFR") & !grepl("_R",type)) | (supertype2 == "PFN" & grepl("_R",type))))
+PBsummary_filtered$supertype2 <- factor(PBsummary_filtered$supertype2,levels=c("Δ7","P","LPsPB","SPS-PB","EPGt","EPG","PEN","PEG","PFG","PFL","PFR","PFN"))
+```
+
+```{r}
+haneschPBRedux <- haneschPlot(PBsummary %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPBRedux_filtered <- haneschPlot(PBsummary_filtered %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPBRedux_filtered
+```
+```{r}
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesRedux.svg"),haneschPBRedux,nrow=1,ncol=1.7,base_width = 8.5/2.5)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesRedux_filtered.svg"),haneschPBRedux_filtered,nrow=1,ncol=1.7,base_width = 8.5/2.5)
+```
+
 #### PB glomeruli innervation
 
 ```{r}
