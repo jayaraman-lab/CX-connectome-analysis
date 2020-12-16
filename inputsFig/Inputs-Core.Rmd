@@ -20,7 +20,7 @@ source("../outputsFig/outputFunctions-core.R")
 source("../R/table2ggraphUtils.R")
 ```
 
-# Building the outputs neuron pathways
+# Building the inputs neuron pathways
 
 ## Find neurons innervating outside the CX
 ```{r}
@@ -143,9 +143,9 @@ CXInputNeurons <- selectSupertypeSet(CXInputNeurons,default_level = 1) %>%
 
 Then make tables of synapses
 ```{r,warning=FALSE}
-CXOutSyn <- collectSynapses(CXOutputNeurons,outsideRegions,polarity="post")
-CXOutSyn <-  mutate(CXOutSyn,customSupertype=CXOutputNeurons$customSupertype[match(type,CXOutputNeurons$type)])
-saveRDS(CXOutSyn,"CX-outsideSynapses.rds")
+CXInSyn <- collectSynapses(CXInputNeurons,outsideRegions,polarity="pre")
+CXInSyn <- supertype(CXInSyn)# mutate(CXInSyn,customSupertype=CXInputNeurons$customSupertype[match(type,CXInputNeurons$type)])
+saveRDS(CXInSyn,"CX-outsideSynapses_Inputs.rds")
 ```
 
 ## The CX output graph
