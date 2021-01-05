@@ -23,27 +23,27 @@ source("outputFunctions-display.R")
 #source("../R/paperTheme.R")
 source("../R/paperTheme_linux.R")
 #source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure2-DivergenceConvergence/"
-load("outputsBasics.RData")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Inputs"
+load("inputsBasics.RData")
 ```
 
 ```{r}
-CXoutAllSteps <- readRDS("pathways-allsteps.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outPaths <- readRDS("output_paths.rds")
-allNodes <- readRDS("all-nodes.rds")
+CXinAllSteps <- readRDS("pathways-allsteps_Inputs.rds")
+CX_inGraph <- readRDS("input_graph.rds")
+CX_inPaths <- readRDS("input_paths.rds")
+allNodes <- readRDS("all-nodes_Inputs.rds")
 ```
 
 
 First a diagram like summary
 ```{r}
-CXOutputTypes <- unique(CXOutputNeurons$type)
+CXInputTypes <- unique(CXInputNeurons$type)
 overallFlowRef <- data.frame(layer=rep(0:4,c(2:5,6)),hop=c(unlist(sapply(c(2:6),function(n) seq(n)-1))))
 overallGraphNodes <- data.frame(layer=0:5)
 
-pathways <- CXoutAllSteps %>% filter(n_steps %in% 1:5) %>% mutate(n_steps=as.numeric(n_steps),
-                                                                  n_type=(CX_outGraph %E>% as_tibble())$n_type[match(type.to,(CX_outGraph %E>% as_tibble())$type.to)]) %>% group_by(type.to) %>% mutate(hop.to=min(n_steps)) %>% ungroup()
-pathways$hop.to[pathways$type.to %in% CXOutputNeurons$type] <- 0
+pathways <- CXinAllSteps %>% filter(n_steps %in% 1:5) #%>% mutate(n_steps=as.numeric(n_steps),
+                                                                  n_type=(CX_inGraph %E>% as_tibble())$n_type[match(type.from,(CX_inGraph %E>% as_tibble())$type.from)]) %>% group_by(type.from) %>% mutate(hop.from=max(n_steps)) %>% ungroup()
+pathways$hop.from[pathways$type.from %in% CXInputNeurons$type] <- 0
 
 overallFlowRef <-  overallFlowRef %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,]$type.to)),
                                                            nNeurons = sum(distinct(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,],type.to,n_type)$n_type))
@@ -174,4 +174,5 @@ figure2
 ```
 ```{r}
 save_plot(paste0(outputsFolder,"outputs-Figure2.svg"),figure2,base_width = 8.5*1.333333,base_height = 11*1.333333)
+
 ```

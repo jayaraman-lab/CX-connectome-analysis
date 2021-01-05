@@ -100,7 +100,7 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
   }
   
   connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = orderIn,legendName="Relative weight",theme=theme_paper_grid(),facetOutputs="supertype2.to",facetInputs=facetInputs) + 
-    xlab("Post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_blank())
+    xlab("post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_blank())
   
   
   groupCounts <- outPerGroup %>% group_by(name.from,type.from,!!sym(grouping)) %>% summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
@@ -108,7 +108,7 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
     mutate(name.from = factor(name.from,levels=unique(name.from)))
   
   countPlot <- ggplot(groupCounts,aes(x=name.from,y=totalW,group=type.from)) + geom_line() +theme_paper_hgrid() + coord_flip() + 
-    theme(axis.text.x=element_text(angle=90),axis.text.y=element_blank(),axis.line.y=element_blank(),axis.title.y=element_blank(),axis.ticks.y = element_blank()) + ylim(c(0,NA)) + ylab("Total relative weight")
+    theme(axis.text.x=element_text(angle=90),axis.text.y=element_blank(),axis.line.y=element_blank(),axis.title.y=element_blank(),axis.ticks.y = element_blank()) + ylim(c(0,NA)) + ylab("total relative weight")
     
   connMat + countPlot + plot_layout(guides="collect",widths=c(1,0.1))
 }

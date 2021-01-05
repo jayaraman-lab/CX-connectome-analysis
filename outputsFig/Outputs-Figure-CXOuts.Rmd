@@ -85,7 +85,7 @@ totalCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalDown,color
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 meanCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=meanDown,color=supertype.from)) + geom_point() + 
    scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("Mean # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("mean # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 meanCountsSummary + totalCountsSummary + countsSummary
 
 save_plot(paste0(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)

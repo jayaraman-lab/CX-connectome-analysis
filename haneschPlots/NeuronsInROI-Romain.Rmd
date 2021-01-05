@@ -14,7 +14,7 @@ library(patchwork)
 ```
 
 ```{r}
-source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 ```
 
   
@@ -31,8 +31,8 @@ CXTypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell
 ```{r}
 ## A function to filter summaries to only neuropiles where neurons make significant connections
 filterROISummary <- function(ROIsummary,nBagROI,roiTypes,rois,renaming=cxRetyping){
-  roiConnections <- neuronBag(filter(nBagROI$names, type %in% roiTypes$type),slctROI = unique(filter(ROIsummary,roi %in% rois$roi)$roi),verbose=TRUE,selfRef=TRUE)
-  roiConnections <- renaming(roiConnections)
+  roiConnections <- neuronBag(filter(nBagROI$names, type %in% roiTypes$type),slctROI = unique(filter(ROIsummary,roi %in% rois$roi)$roi),verbose=TRUE,selfRef=TRUE,renaming=renaming)
+  #roiConnections <- renaming(roiConnections)
   goodTypes <- distinct(do.call(rbind,lapply(unique(ROIsummary$roi),function(r){
     typesUnfiltered <- roiConnections$names$type
     inputs <- roiConnections$inputs %>% filter((roi == r) & 
@@ -49,7 +49,7 @@ filterROISummary <- function(ROIsummary,nBagROI,roiTypes,rois,renaming=cxRetypin
 ```
 
 # EB
-This might take a while
+
 ```{r}
 EBTypesTable <- getTypesInRoiTable("EB")
 ```
@@ -72,7 +72,7 @@ EBSummary <- EBSummary %>% mutate(type=stringr::str_replace(type,"Delta","\u0394
 EBSummary_ttFiltered  <- EBSummary_ttFiltered %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 ```
 ```{r}
-haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = TRUE,theme = theme_paper_grid())
+haneschEB_R <- haneschPlot(EBSummary %>% filter(type %in% EBTypes$type & ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| grepl("_L",type) & supertype3 == "EB Columnar")),grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,interactive=TRUE,showCount = TRUE,theme = theme_paper_grid()) 
 haneschEB_R
 ```
 
@@ -115,6 +115,8 @@ interHaneschExR <- girafe(ggobj = haneschExR, width_svg=6,height_svg=6)
 htmlwidgets::saveWidget(interHaneschExR,paste0(haneschSaveFolder,"EB/ExRs.html"))
 ```
 
+
+###OLD
 ```{r}
 ExRTable <- neuprint_search("ExR.*",field="type") %>% mutate(databaseType = type) %>% lateralize_types(postfix = "raw") %>% filter(grepl("_R.*",type))
 ```
@@ -395,6 +397,24 @@ save_plot(paste0(haneschSaveFolder,"PB/PBTypes.svg"),haneschPB,nrow=1,ncol=2.5,b
 save_plot(paste0(haneschSaveFolder,"PB/PBTypes_filtered.svg"),haneschPB_ttF,nrow=1,ncol=2.5,base_width = 8.5/2.5)
 ```
 
+#### Restrict to "full" PB neurons
+```{r}
+PBsummary <- PBSummary %>% filter((type %in% PBTypes$type) & ((supertype3 %in% c("PB Interneurons","PB Input")  & grepl("_R",type))  | (supertype3 == "EB Columnar" & !grepl("_R",type)) | (supertype2 %in% c("PFG","PFL","PFR") & !grepl("_R",type)) | (supertype2 == "PFN" & grepl("_R",type))))
+PBsummary$supertype2 <- factor(PBsummary$supertype2,levels=c("Δ7","P","LPsPB","SPS-PB","EPGt","EPG","PEN","PEG","PFG","PFL","PFR","PFN"))
+PBsummary_filtered <- PBSummary_ttFiltered %>% filter((type %in% PBTypes$type) & ((supertype3 %in% c("PB Interneurons","PB Input")  & grepl("_R",type))  | (supertype3 == "EB Columnar" & !grepl("_R",type)) | (supertype2 %in% c("PFG","PFL","PFR") & !grepl("_R",type)) | (supertype2 == "PFN" & grepl("_R",type))))
+PBsummary_filtered$supertype2 <- factor(PBsummary_filtered$supertype2,levels=c("Δ7","P","LPsPB","SPS-PB","EPGt","EPG","PEN","PEG","PFG","PFL","PFR","PFN"))
+```
+
+```{r}
+haneschPBRedux <- haneschPlot(PBsummary %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPBRedux_filtered <- haneschPlot(PBsummary_filtered %>% filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),roiSelect = PBRois,flip = T,grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,theme=theme_paper_grid())
+haneschPBRedux_filtered
+```
+```{r}
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesRedux.svg"),haneschPBRedux,nrow=1,ncol=1.7,base_width = 8.5/2.5)
+save_plot(paste0(haneschSaveFolder,"PB/PBTypesRedux_filtered.svg"),haneschPBRedux_filtered,nrow=1,ncol=1.7,base_width = 8.5/2.5)
+```
+
 #### PB glomeruli innervation
 
 ```{r}
@@ -459,7 +479,7 @@ FBTypes <- typesInROI(FBTypesTable,ROI = "FB")#%>% mutate(type=stringr::str_repl
 
 FBRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,2,2,1,1))
 labelRoisFB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
-FBTypes <- mutate(FBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
+#FBTypes <- mutate(FBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
 
 FBSummary <- getROISummary(FBTypesTable,threshold=0) #%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
 FBSummary_ttFiltered <- filterROISummary(FBSummary,FBTypesTable,FBTypes,FBRois)# %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
@@ -489,8 +509,8 @@ haneschFB79R_ttF
 ```
 
 ```{r}
-haneschFBSleep <- haneschPlot(FBSummary %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) + scale_size_area(max_size = 9)
-haneschFBSleep_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())+ scale_size_area(max_size = 9)
+haneschFBSleep <- haneschPlot(FBSummary %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) + scale_size_area(max_size = 9,breaks=scales::breaks_log(n=6),name="# synapses")
+haneschFBSleep_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())+ scale_size_area(max_size = 9,breaks=scales::breaks_log(n=6),name="# synapses")
 haneschFBSleep
 haneschFBSleep_ttF
 ```
@@ -572,9 +592,9 @@ save_plot(paste0(haneschSaveFolder,"FB/FBDeltas_filtered.svg"),haneschDeltas_ttF
 
 ```{r}
 summaryFB <- FBSummary %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & !grepl("_R",type))
-summaryFB$supertype2 <- factor(summaryFB$supertype2,levels=c("PFN","vΔ","hΔ","PFGs","PFR","PFL","FC","FS","FR"))
+summaryFB$supertype2 <- factor(summaryFB$supertype2,levels=c("PFN","vΔ","hΔ","PFG","PFR","PFL","FC","FS","FR"))
 summaryFB_ttF <- FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & !grepl("_R",type))
-summaryFB_ttF$supertype2 <- factor(summaryFB_ttF$supertype2,levels=c("PFN","vΔ","hΔ","PFGs","PFR","PFL","FC","FS","FR"))
+summaryFB_ttF$supertype2 <- factor(summaryFB_ttF$supertype2,levels=c("PFN","vΔ","hΔ","PFG","PFR","PFL","FC","FS","FR"))
 ```
 
 

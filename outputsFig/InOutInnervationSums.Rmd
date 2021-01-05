@@ -1,0 +1,96 @@
+---
+title: "Inputs/outputs high level summary numbers"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(neuprintr)
+library(tidyverse)
+library(neuprintrExtra)
+library(nat)
+library(tidygraph)
+library(Matrix)
+library(igraph)
+library(paletteer)
+library(cowplot)
+```
+# Prelims
+```{r message=FALSE}
+source("../outputsFig/outputFunctions-core.R")
+source("../outputsFig/outputFunctions-display.R")
+source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/"
+```
+
+```{r}
+load("inputsBasics.RData")
+load("outputsBasics.RData")
+```
+
+
+```{r}
+roiH <- getRoiTree()
+roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
+roisOut <- roisOut %>% filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX") & side2 != "Left") 
+
+CXOutsideInnervation <- getROISummary(CXOutsideNeurons,threshold=0) %>% 
+  filter(roi %in% roisOut$roi) %>%
+  mutate(region = case_when(
+    supertype3 %in% c("ER","ExR","EB Columnar") ~ "EB",
+    supertype3 %in% c("FB Tangential","FB Columnar","FB Output") ~ "FB",
+    supertype3 == "LNO" ~ "NO",
+    supertype3 == "PB Input" ~ "PB",
+    supertype3 == "SA" ~ "SA"
+  ))
+```
+
+```{r}
+CXOutsideInnervationSummary <- group_by(CXOutsideInnervation,region,roi) %>% 
+  summarize(totalDownstream=sum(downstream),totalUpstream=sum(upstream)) %>% 
+  group_by(region) %>%
+  mutate(downstreamRatio=totalDownstream/sum(totalDownstream),
+         upstreamRatio=totalUpstream/sum(totalUpstream)
+         ) %>%
+  ungroup() %>%
+  mutate(polarityRatio=totalDownstream/(totalUpstream+totalDownstream))
+```
+```{r}
+inputTotals <- ggplot(filter(CXOutsideInnervationSummary,upstreamRatio>0.01),aes(x=roi,y=totalUpstream)) + geom_point() + facet_wrap(.~region,scales="free") + theme_paper_grid() + theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total # of input synapses")
+inputTotals
+```
+
+```{r}
+outputTotals <- ggplot(filter(CXOutsideInnervationSummary,downstreamRatio>0.01 & totalDownstream>200),aes(x=roi,y=totalDownstream)) + geom_point() + facet_wrap(.~region,scales="free") + theme_paper_grid() + theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+ ylab("total # of output synapses")
+outputTotals
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"inputsAll.svg"),inputTotals,base_width=6,base_height = 4)
+save_plot(paste0(outputsFolder,"outputsAll.svg"),outputTotals,base_width=6,base_height = 4)
+```
+
+```{r}
+CXInSyn <- readRDS("CX-outsideSynapses_Inputs.rds")
+displayAnatomies(synapses=CXInSyn,
+                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allIns",
+                 synapsePalette = supertype3Palette,
+                 synapseCluster = "supertype3",
+                 size = c(3000,3000))
+
+displayAnatomies(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential","FB Output","FB Columnar"))),
+                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allIns-noFB",
+                 synapsePalette = supertype3Palette,
+                 synapseCluster = "supertype3",
+                 size = c(3000,3000))
+```
+
+```{r}
+legendSource <- cowplot::get_legend(ggplot(CXOutsideInnervation,aes(x=1,y=supertype3)) + geom_point(aes(color=supertype3)) + theme_paper_map() + scale_color_manual(name="supertype",values=supertype3Palette))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"legend.svg"),legendSource,base_height = 3,base_width = 1)
+```
+

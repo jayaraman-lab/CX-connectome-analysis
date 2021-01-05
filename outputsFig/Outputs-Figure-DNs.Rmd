@@ -83,9 +83,9 @@ CXoutFFEndpointDNsAll <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(ty
                                                                                                                                                )     
                                                                                                                          )
 
-moreDNsPlot <- ggplot(CXoutFFEndpointDNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("Descending neuron") + facet_grid(.~target.to,scale="free_x",space="free_x",switch = "x") + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+moreDNsPlot <- ggplot(CXoutFFEndpointDNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("Descending neuron") + facet_grid(.~target.to,scale="free_x",space="free_x",switch = "x") + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
 
-moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("CX output type") + facet_wrap(.~target.to,scale="free_x")
+moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type") + facet_wrap(.~target.to,scale="free_x")
 moreDNsPlot
 moreDNsPlotAll
 ```
