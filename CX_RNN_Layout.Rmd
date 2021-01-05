@@ -13,7 +13,9 @@ library(reshape2)
 library(igraph)
 library(ggraph)
 library(paletteer)
+library(patchwork)
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
 ```
 
@@ -114,39 +116,43 @@ ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\Fir
 
 Specify the types of interest and get the neuronBag for them
 ```{r}
-nrons <- c("ER3a_a", "ER3a_b", "ER3a_c", "ER3a_d",
-           "ER3d_a", "ER3d_b", "ER3d_c", "ER3d_d",
-           "ER3m","EPG")
-layers <- c(1,1,1,1,
-            1,1,1,1,
-            1,2)
+#nrons <- c("ER3a_a", "ER3a_b", "ER3a_c", "ER3a_d",
+#           "ER3d_a", "ER3d_b", "ER3d_c", "ER3d_d",
+#           "ER3m","EPG")
+nrons <- c("ER4m", "ER3a_a", "ER3a_d", "ER3m", "ER4d", "ER2_a", "ER2_b", "ER2_d", "ER1_b", "ER1_a",
+           "EPG")
+#layers <- c(1,1,1,1,
+#            1,1,1,1,
+#            1,2)
+layers <- c(1,1,1,1,1,1,1,1,1,1,
+            2)
 layerMap <- data.frame(type = nrons,
                        layer=layers)
-ER3Bag <- neuronBag(getTypesTable(nrons),by.roi=FALSE)
+ERBag <- neuronBag(getTypesTable(nrons),by.roi=FALSE)
 ```
 
 Get the connectivity tables
 ```{r}
-ER3_CT <- ER3Bag$outputs_raw %>% 
+ER_CT <- ERBag$outputs_raw %>% 
   filter(type.from %in% nrons,
          type.to %in% nrons)
-ER3_CT$id.from <- EBGlomOrder(ER3_CT$name.from,ER3_CT$from,"EB") 
-ER3_CT$id.to <- EBGlomOrder(ER3_CT$name.to,ER3_CT$to,"EB") 
+ER_CT$nameOrder.from <- EBGlomOrder(ER_CT$name.from,ER_CT$from,"EB") 
+ER_CT$nameOrder.to <- EBGlomOrder(ER_CT$name.to,ER_CT$to,"EB") 
 ```
 
 Now, convert it into an igraph function
 ```{r}
-ER3Nodes <- c(as.character(ER3_CT$id.to),as.character(ER3_CT$id.from)) %>% unique() %>% as.data.frame()
-colnames(ER3Nodes) <- "nodes"
-ER3Nodes$type <- ER3Nodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]-1))
-ER3Nodes$supertype <- ER3Nodes$type %>% supertype()
-ER3Nodes$layer <- ER3Nodes$type %>% sapply(function(t) layerMap[which(t==layerMap$type),]$layer)
+ERNodes <- c(as.character(ER_CT$nameOrder.to),as.character(ER_CT$nameOrder.from)) %>% unique() %>% as.data.frame()
+colnames(ERNodes) <- "nodes"
+ERNodes$type <- ERNodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]-1))
+ERNodes$supertype <- ERNodes$type %>% supertype()
+ERNodes$layer <- ERNodes$type %>% sapply(function(t) layerMap[which(t==layerMap$type),]$layer)
 
-ER3Edges <- ER3_CT %>% mutate(from = id.from, to = id.to, weight = ROIweight) %>%
+EREdges <- ER_CT %>% mutate(from = nameOrder.from, to = nameOrder.to, weight = ROIweight) %>%
   select(from,to,weight)
-ER3Edges$supertype.from <- ER3Edges$from %>% sapply(function(f) supertype(substring(as.character(f),1,gregexpr("_L|_R",f)[[1]][1]-1)))
+EREdges$supertype.from <- EREdges$from %>% sapply(function(f) supertype(substring(as.character(f),1,gregexpr("_L|_R",f)[[1]][1]-1)))
 
-g <- graph_from_data_frame(ER3Edges, directed = TRUE, vertices = ER3Nodes)
+g <- graph_from_data_frame(EREdges, directed = TRUE, vertices = ERNodes)
 
 # Assign colors to the supertypes
 sTs <- supertype2Palette()
@@ -154,7 +160,7 @@ sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
 sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
 
 
-ER3RNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
+ERRNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
   geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
                       strength=1,
                       end_cap = circle(0.2, 'cm')) + 
@@ -170,6 +176,69 @@ ER3RNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
         axis.title = element_blank(),
         axis.ticks = element_blank())
 
-print(ER3RNN)
-#ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ER3RNN_force.pdf',ER3RNN)
+print(ERRNN)
+ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ERRNN_force.pdf',ERRNN)
 ```
+ERBag
+Plot the ordered connection table
+```{r}
+ERCT_Ordered_Plt <- plotConnectivityMatrix(ER_CT, byGroup = "id_sort")
+ERCT_Ordered_Plt <- ERCT_Ordered_Plt + theme_paper() + xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+ERCT_Ordered_Plt <- structureMatrixPlotByType_lines(ERCT_Ordered_Plt)
+
+print(ERCT_Ordered_Plt)
+```
+Plot a randomly order connection table
+```{r}
+ERCT_Rand <- ER_CT
+ERCT_Rand$nameOrder.to <- factor(ERCT_Rand$to, levels = sample(unique(ERCT_Rand$to)))
+ERCT_Rand$nameOrder.from <- factor(ERCT_Rand$from, levels = sample(unique(ERCT_Rand$from)))
+
+ERCT_Rand_Plt <- plotConnectivityMatrix(ERCT_Rand, byGroup = "id_sort")
+ERCT_Rand_Plt <- ERCT_Rand_Plt + theme_paper() + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme(axis.text = element_blank())
+
+print(ERCT_Rand_Plt)
+```
+Save the plot
+```{r}
+RadnVsOrd_ER <- ERCT_Rand_Plt + ERCT_Ordered_Plt + plot_layout(guides='collect')
+ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\OrderedVsShuffledCT_ER.pdf',RadnVsOrd_ER,
+       width = 8, height = 4, units = "in")
+```
+
+Get the connection table for FB types of interest
+```{r}
+FBNrons <- c("PFNp_d", "PFNa",
+             "FC1A", "FC1B", "FC1C", "FC1D", "FC1E", "FC1F",
+             "hDeltaB", "hDeltaC","hDeltaA", "PFR_a","hDeltaG", "hDeltaH", "hDeltaI",
+             "vDeltaK","vDeltaL","PFR_b",
+             "PFL1", "PFL2","PFL3")
+
+FBCT <- getConnectionTable(getTypesTable(FBNrons)$bodyid, "POST",slctROI="FB")
+```
+Plot the ordered connection table
+```{r}
+FBCT_Ordered_Plt <- plotConnectivityMatrix(FBCT %>% filter(type.to %in% FBNrons))
+FBCT_Ordered_Plt <- FBCT_Ordered_Plt + theme_paper() + xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+FBCT_Ordered_Plt <- structureMatrixPlotByType_lines(FBCT_Ordered_Plt)
+
+print(FBCT_Ordered_Plt)
+```
+Plot a randomly order connection table
+```{r}
+FBCT_Rand <- FBCT %>% filter(type.to %in% FBNrons)
+FBCT_Rand$nameOrder.to <- factor(FBCT_Rand$to, levels = sample(unique(FBCT_Rand$to)))
+FBCT_Rand$nameOrder.from <- factor(FBCT_Rand$from, levels = sample(unique(FBCT_Rand$from)))
+
+FBCT_Rand_Plt <- plotConnectivityMatrix(FBCT_Rand, byGroup = "id_sort")
+FBCT_Rand_Plt <- FBCT_Rand_Plt + theme_paper() + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme(axis.text = element_blank())
+
+print(FBCT_Rand_Plt)
+```
+Save the plot
+```{r}
+RadnVsOrd <- FBCT_Rand_Plt + FBCT_Ordered_Plt + plot_layout(guides='collect')
+ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\OrderedVsShuffledCT.pdf',RadnVsOrd,
+       width = 8, height = 4, units = "in")
+```
+

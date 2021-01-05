@@ -59,8 +59,14 @@ EPGToPFL23$nameOrder.from <- PBRename(EPGToPFL23$name.from,EPGToPFL23$from)
 
 Plot the EPG to PFL2,3 connectivity
 ```{r}
-EPGToPFL23Plt <- plotConnectivityMatrix(EPGToPFL23,byGroup = "id_sort", connectionMeasure="ROIweight",cmax=100) + 
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
+cmax=100
+
+EPGToPFL23Plt <- ggplot(EPGToPFL23) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                         midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
   theme_paper() + theme(axis.text.x = element_text(angle=90)) +
   facet_grid(cols = vars(type.to),space="free", scales="free")
 print(EPGToPFL23Plt)
@@ -179,16 +185,23 @@ PFLs_to_DNs$nameOrder.to <- PBRename(PFLs_to_DNs$name.to,PFLs_to_DNs$to)
 
 Plot the connection table
 ```{r}
-PFL2ToDNPlt <- plotConnectivityMatrix(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL2")),
-                                      byGroup = "id_sort", connectionMeasure="ROIweight",cmax=100) + 
-  coord_fixed(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
-  theme_paper() + theme(axis.text.x = element_text(angle=90))
+cmax=100
+PFL2ToDNPlt <- ggplot(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL2"))) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_fixed(ratio=1)
 print(PFL2ToDNPlt)
 
-PFL3ToDNPlt <- plotConnectivityMatrix(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL3")),
-                                      byGroup = "id_sort", connectionMeasure="ROIweight",cmax=100) + 
-  coord_fixed(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + 
-  theme_paper() + theme(axis.text.x = element_text(angle=90))
+PFL3ToDNPlt <- ggplot(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL3"))) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_fixed(ratio=1)
 print(PFL3ToDNPlt)
 ```
 
@@ -375,9 +388,8 @@ print(DN_plt_imp)
 ```
 Save the plots
 ```{r}
-connMats <- EPGToPFL23Plt + PFL23ToDNPlt + plot_layout(widths = c(2,1),guides='collect')
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\EPGToPFLToDNCMs.pdf",connMats,
-       width=8, height=4, units = "in")
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\EPGToPFLCM.pdf",EPGToPFL23Plt,
+       width=4, height=4, units = "in")
 ```
 ```{r}
 PFL23ToDNPlt <- PFL2ToDNPlt + PFL3ToDNPlt + plot_layout(widths = c(1,2), guides = 'collect')

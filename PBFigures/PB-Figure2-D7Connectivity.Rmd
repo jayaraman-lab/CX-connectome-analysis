@@ -35,8 +35,16 @@ EPGD7ToSelf <- EPGD7Bag$outputs_raw %>% filter((roi=="PB") & (type.to %in% c("EP
 EPGD7ToSelf$nameOrder.from <- PBRename(EPGD7ToSelf$name.from,EPGD7ToSelf$from)
 EPGD7ToSelf$nameOrder.to <- PBRename(EPGD7ToSelf$name.to,EPGD7ToSelf$to)
 
-plotConnectivityMatrix(EPGD7ToSelf, byGroup = "id_sort", connectionMeasure = "ROIweight") + 
+cmax=50
+EPGD7ToSelf_CM <- ggplot(EPGD7ToSelf) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
   coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type")
+print(EPGD7ToSelf_CM)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPGD7ToSelf_CM.pdf",EPGD7ToSelf_CM ,
+       width=5, height=5, units = "in")
 ```
 
 Convert the EPG to D7 connection table to a weight matrix and shift the rows to align the peaks
@@ -213,24 +221,44 @@ EPGD7ToPFX$nameOrder.to <- PBRename(EPGD7ToPFX$name.to,EPGD7ToPFX$to)
 #  lapply(function(x) str_replace(x,'PEN1_|PEN2_|PFRa_|PFRb_|PFGs_|PFNma_|PFNmb_|PFNpa_|PFNpb_|PFNpc_|PFNpd_|PFNpe_|PFNd_|PFNv_|PFL1_|PFL2_|PFL3_|PEG_|PFNa_','')) %>% 
 #  unlist() %>% lapply(function(x) str_replace(x,'_L-|_R-','-')) %>% unlist()
 
+cmax = 150
 PBEBTpNames <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG")
-PBEBPlt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PBEBTpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 150) + 
-  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PBEBPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PBEBTpNames)) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PBEBPlt <- structureMatrixPlotByType_lines(PBEBPlt)
 
+cmax = 100
 PFN1TpNames <- c("PFNa","PFNd","PFNm_a","PFNm_b","PFNv")
-PFN1Plt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFN1TpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 100) + 
-  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFN1Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN1TpNames)) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PFN1Plt <- structureMatrixPlotByType_lines(PFN1Plt)
 
+cmax = 100
 PFN2TpNames <- c("PFNp_a","PFNp_b","PFNp_c","PFNp_e")
-PFN2Plt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFN2TpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 100) + 
-  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFN2Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN2TpNames)) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PFN2Plt <- structureMatrixPlotByType_lines(PFN2Plt)
 
+cmax = 150
 PFXTpNames <- c("PFG","PFL1","PFL2","PFL3","PFR_a","PFR_b")
-PFXPlt <- plotConnectivityMatrix(EPGD7ToPFX %>% filter(type.to %in% PFXTpNames), byGroup = "id_sort", connectionMeasure = "ROIweight", cmax = 150) + 
-  xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper()
+PFXPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFXTpNames)) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PFXPlt <- structureMatrixPlotByType_lines(PFXPlt)
 
 PFNPlts <-  PFN1Plt / PFN2Plt + plot_layout(guides = 'collect')
