@@ -187,10 +187,14 @@ legendSource <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype 
 ```
 
 ```{r}
+rPalNoPal <- customROIPalette()
+rPalNoPal[1:length(rPalNoPal)] <- "white"
+
 displayAnatomies(synapses=CXTargetsSyn,
-                 ROIs = c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allTargets",
-                 synapsePalette = customContributorsPalette
+                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allTargets-noCol",
+                 synapsePalette = customContributorsPalette,
+                 roiPal=rPalNoPal
                )
 ```
 
