@@ -31,6 +31,8 @@ roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
 roisOut <- roisOut %>% filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX")) 
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 rPal <- roisPalette(rois = roiOutLabels)
+#rPalNoPal <- rPal
+#rPalNoPal[1:length(rPalNoPal)] <- "white"
 ```
 
 ```{r}
@@ -46,10 +48,18 @@ save_plot(paste0(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,ncol=
 CXOutSyn <- readRDS("CX-outsideSynapses.rds")
 displayAnatomies(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allOuts",
+                 saveName = "allOuts-pale2",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
                  size = c(3000,3000))
+
+displayAnatomies(synapses=CXOutSyn,
+                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allOutsNoCols",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 size = c(3000,3000),
+                 roiPal = rPalNoPal)
 ```
 
 ```{r}
