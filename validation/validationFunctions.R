@@ -17,7 +17,7 @@ subroiSet <- function(subroi,Roi){
 }
 
 #### GET ROI INFO FOR INPUT/OUTPUT SETS ACCROSS 2 VERSIONS OF THE DATABASE
-getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("Inputs","Outputs"),newC,oldC){
+getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newC,oldC){
   polarity <- match.arg(polarity)
   newRefTable <- neuprint_get_meta(bodyids,conn=newC)
 
@@ -25,7 +25,7 @@ getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("Inputs","Outputs"),ne
   oldRoiTable <- getRoiInfo(bodyids,conn=oldC) %>% filter(roi == ROI) %>% mutate(version="old")
 
   roiTable <- bind_rows(newRoiTable,oldRoiTable) 
-  if (polarity == "Inputs")
+  if (polarity == "inputs")
    roiTable <- pivot_wider(roiTable,names_from = version,values_from=upstream,id_cols = bodyid)
   else
     roiTable <- pivot_wider(roiTable,names_from = version,values_from=downstream,id_cols = bodyid)
@@ -34,18 +34,18 @@ getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("Inputs","Outputs"),ne
 }
 
 getCompRoiInfo <- function(bodyidsIn,bodyidsOut,roi,newC,oldC){
-  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="Inputs",newC=newC,oldC=oldC)
+  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="inputs",newC=newC,oldC=oldC)
   roiTableOut <- getCompRoiInfoInternal(bodyidsOut,roi,polarity="Outputs",newC=newC,oldC=oldC)
   
   bind_rows(roiTableIn,roiTableOut) 
 }
 
 #### MAKE COMPARABLE NEURON TO NEURON CONNECTION TABLES BETWEEN OLD (missing type) AND NEW DATASET
-getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("Inputs","Outputs"),newC,oldC){
+getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","Outputs"),newC,oldC){
   polarity <- match.arg(polarity)
   
-  newRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="Inputs","PRE","POST"),roi=ROI,conn=newC) %>% drop_na(ROIweight)
-  oldRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="Inputs","PRE","POST"),roi=ROI,conn=oldC) %>% drop_na(ROIweight)
+  newRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,conn=newC) %>% drop_na(ROIweight)
+  oldRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,conn=oldC) %>% drop_na(ROIweight)
 
   newRefTable <- neuprint_get_meta(bodyids,conn=newC)
   ## Get the types from the new dataset
@@ -66,15 +66,15 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("Inputs","Outp
   oldPartnerTable <- filter(oldPartnerTable,bodyid %in% oldPartnersNewDataset$bodyid)
 
   
-  newConnTable <- processConnectionTableOld(newRawTable,3,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="Inputs","PRE","POST"),
+  newConnTable <- processConnectionTableOld(newRawTable,3,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="inputs","PRE","POST"),
                                          slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newC,computeKnownRatio=TRUE,chunk_connections = TRUE)
   
-  oldConnTable <- processConnectionTableOld(oldRawTable,3,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="Inputs","PRE","POST"),
+  oldConnTable <- processConnectionTableOld(oldRawTable,3,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="inputs","PRE","POST"),
                                          slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldC,computeKnownRatio = TRUE,chunk_connections = TRUE)
   
   groupVars <- c("from","to","roi","type.from","type.to",paste0("supertype",1:3,".from"),paste0("supertype",1:3,".to"))
-  measureVars <- c(paste0(c("ROIweight",ifelse(polarity=="Inputs","knownWeightRelative","knownOutputContribution")),".old"),
-                   paste0(c("ROIweight",ifelse(polarity=="Inputs","knownWeightRelative","knownOutputContribution")),".new"))
+  measureVars <- c(paste0(c("ROIweight",ifelse(polarity=="inputs","knownWeightRelative","knownOutputContribution")),".old"),
+                   paste0(c("ROIweight",ifelse(polarity=="inputs","knownWeightRelative","knownOutputContribution")),".new"))
   extraMeasure <- c(paste0(c("input_completedness","output_completedness","knownTotalROIweight","knownTotalPreROIweight"),".old"),
     c(paste0(c("input_completedness","output_completedness","knownTotalROIweight","knownTotalPreROIweight"),".new")))
   
@@ -90,7 +90,7 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("Inputs","Outp
                na_matchValue("output_completedness.new","from") %>%
                na_matchValue("knownTotalPreROIweight.old","from") %>%
                na_matchValue("knownTotalPreROIweight.new","from")
-  if (polarity == "Inputs"){
+  if (polarity == "inputs"){
     compTable <- mutate(compTable,
                         completedness.new=input_completedness.new,
                         completedness.old=input_completedness.old,
@@ -120,14 +120,14 @@ na_matchValue <- function(table,variable,variableMatch){
 }
 
 getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
-  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"Inputs",newC,oldC)
+  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"inputs",newC,oldC)
   outputsComp <- getCompConnectionTableInternal(bodyidsOut,ROI,"Outputs",newC,oldC)
   inputsComp <- mutate(inputsComp,
                        old=knownWeightRelative.old,
                        new=knownWeightRelative.new,
                        oldCompletedness=input_completedness.old,
                        newCompletedness=input_completedness.new,
-                       supertype2=supertype2.to) %>% mutate(side="Inputs")
+                       supertype2=supertype2.to) %>% mutate(side="inputs")
   
   outputsComp <- mutate(outputsComp,
                         old=knownOutputContribution.old,
