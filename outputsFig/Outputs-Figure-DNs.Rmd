@@ -23,7 +23,7 @@ source("outputFunctions-core.R")
 source("../R/paperTheme_linux.R")
 source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure9-DNs/"
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure10-DNs/"
 ```
 
 ```{r}
@@ -58,7 +58,8 @@ CXoutFFEndpointDNs <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(type.
                                                                                                                                                      supertype.from=="FR2" ~ as.character(supertype.from),
                                                                                                                                                      TRUE ~ "Other"),
                                                                                                                          target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
-                                                                                                                                               type.to %in% c("DNa03_R","DN?_1406000196","DNa03_L","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
                                                                                                                                                type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck+halteres",
                                                                                                                                                type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck+wings+halteres",
                                                                                                                                                type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
@@ -75,7 +76,8 @@ CXoutFFEndpointDNsAll <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(ty
                                                                                                                                       supertype.from=="FR2" ~ as.character(supertype.from),
                                                                                                                                       TRUE ~ "Other"),
                                                                                                                          target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
-                                                                                                                                               type.to %in% c("DNa03_R","DN?_1406000196","DNa03_L","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
                                                                                                                                                type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck and halteres",
                                                                                                                                                type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck, wings and halteres",
                                                                                                                                                type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
@@ -89,6 +91,11 @@ moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + g
 moreDNsPlot
 moreDNsPlotAll
 ```
+```{r}
+save_plot(paste0(outputsFolder,"DNWeights.svg"),moreDNsPlot,base_width = 7,base_height=4.5)
+```
+
+
 ### PFLs to DNs
 
 ```{r}
@@ -224,7 +231,7 @@ save_plot(paste0(outputsFolder,"outputs-Figure9-DNs.svg"),figureDNs,base_height 
 ## Full PFL reachable graph (for Ref)
 
 ```{r}
-PFLsToDN<- getLocalSubgraph(c("ExR8_R","ExR7_R","ExR7_L","PFL3_L*","PFL2_R","PFL3_R*"),c("DNa01_R","DNa02_R","DNa03_R","DNa04_R","DNb01_2_R","DN?_5813078378","MDN_R"),CX_outGraphBi,order=1) 
+PFLsToDN<- getLocalSubgraph(c("ExR8_R","ExR7_R","ExR7_L","PFL3_L*","PFL2_R","PFL3_R*","LAL112_R"),c("DNa01_R","DNa02_R","DNa03_R","DNa04_R","DNb01_2_R","DN?_5813078378","MDN_R","LAL111_R"),CX_outGraphBi,order=1) 
 PFLsToDNPlot <- ggraph(PFLsToDN,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
                    arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
 
