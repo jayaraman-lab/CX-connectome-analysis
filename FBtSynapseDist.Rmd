@@ -3,6 +3,7 @@ title: "FBt innervation"
 output: html_notebook
 ---
 
+Notebook used to make the synapse distribution plot of FB tangentials
 ```{r message=FALSE, warning=FALSE}
 library(neuprintr)
 library(tidyverse)
@@ -39,8 +40,24 @@ FBtInSyn <- FBtInSyn %>%
   mutate(layer=gsub("FB","",str_extract(type,"FB[1-9]")))
 
 FBtPalette <- paletteer_d("Polychrome::palette36")[3:11]
+FBLayersPalette <- FBtPalette
+names(FBLayersPalette) <- paste0("FBl",1:9)
 names(FBtPalette) <- as.character(1:9)
 ```
+
+```{r}
+FBRoi <- roiH
+FBRoi$level0[FBRoi$level2=="FB"] <- as.character(FBRoi$level4[FBRoi$level2=="FB"])
+FBRoi$level2 <- as.character(FBRoi$level4)
+displayAnatomies(
+                 ROIs=paste0("FBl",1:9),
+                 saveName = "FBLayers",
+                 roiPal = FBLayersPalette,
+                 roiRef = FBRoi,
+                 alphaRois=0.3
+                 )
+```
+
 
 ```{r}
 displayAnatomies(synapses=FBtOutSyn,
