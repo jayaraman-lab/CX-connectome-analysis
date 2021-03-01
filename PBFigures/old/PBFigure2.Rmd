@@ -127,8 +127,7 @@ actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
 actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
 g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act)) + 
   theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
-  theme(axis.title = element_text(size = axLabSz), 
-        axis.text = element_text(size = tickLabSz))
+  theme_paper()
 print(g_EPGact_in_EB)
 ```
 
@@ -162,9 +161,7 @@ EPGProfGlomAve_imp <- EPGProf_imp %>% group_by(glom) %>% summarize(meanAct = mea
 
 g_EPGact_in_PB_glomAve_imp <- ggplot(EPGProfGlomAve_imp) + geom_bar(aes(x = glom, weight = meanAct)) + 
   theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity') + 
-  theme(axis.text.x = element_text(angle = 90),
-        axis.title = element_text(size = axLabSz), 
-        axis.text = element_text(size = tickLabSz))
+  theme_paper()
 print(g_EPGact_in_PB_glomAve_imp)
 ```
 
@@ -186,17 +183,15 @@ Get the mean activity per EPG
 EPGProfGlomAve <- EPGProf %>% group_by(glom) %>% summarize(meanAct = mean(act))
 
 g_EPGact_in_PB_glomAve <- ggplot(EPGProfGlomAve) + geom_bar(aes(x = glom, weight = meanAct)) + 
-  theme_cowplot() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity') + 
-  theme(axis.text.x = element_text(angle = 90),
-        axis.title = element_text(size = axLabSz), 
-        axis.text = element_text(size = tickLabSz))
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity')
 print(g_EPGact_in_PB_glomAve)
 ```
 
 Print the inputs and average activity for the vonMises and impulse profiles
 ```{r}
 EPGToD7TransPlt <- (g_EPGact_in_PB_glomAve + PBEPGToD7Prof_vM) /(g_EPGact_in_PB_glomAve_imp + PBEPGToD7Prof_imp)
-save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGToD7ToEPGMeanProfilesAndInputs.pdf',EPGToD7TransPlt)
+EPGToD7TransPlt
+#save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGToD7ToEPGMeanProfilesAndInputs.pdf',EPGToD7TransPlt)
 ```
 
 

@@ -10,7 +10,7 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBAnalysisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
 ```
@@ -23,8 +23,10 @@ P19LPsPBag <- neuronBag(getTypesTable(c("P1-9","LPsP")))
 Plot the type-to-type connections for the downstream partners of the EPGs and Delta7s in the PB
 ```{r}
 P19LPsPConn <- plotConnectivityMatrix(P19LPsPBag$outputs %>% filter(roi=="PB"), byGroup = "type",connectionMeasure="outputContribution") + 
-  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90))
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'output contribution', title.position = 'left', barwidth = 0.5, title.theme = element_text(angle = 90)))
 
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\P1-9_LPsP_T2T.pdf",P19LPsPConn,
-       width=4, height=3, units = "in")
+P19LPsPConn
+#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\P1-9_LPsP_T2T.pdf",P19LPsPConn,
+#       width=4, height=3, units = "in")
 ```

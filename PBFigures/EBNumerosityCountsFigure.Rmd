@@ -1,5 +1,5 @@
 ---
-title: "EB-PB Figure - numerosity and total synapse counts"
+title: "numerosity and total synapse counts"
 output: html_notebook
 ---
 Load the libraries
@@ -17,16 +17,9 @@ library(reshape2)
 library(patchwork)
 library(visNetwork)
 library(ggnewscale)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
 options(nat.plotengine = 'rgl')
-```
-
-```{r}
-update_geom_defaults("text", list(size = 6*0.35))
-theme_paper <- function(...){
-  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
-  }
 ```
 
 Find the number of EPGs, PEN1s, PEN2s, and PEGs per glomerulus
@@ -57,87 +50,4 @@ numerosityPlt3 <- ggplot(nronsPerGlom %>% filter(type %in% c("PFGs","PFL1","PFL2
 
 numerosityPlt <- (numerosityPlt1 / numerosityPlt3) | numerosityPlt2 + plot_annotation(tag_levels = 'A')
 print(numerosityPlt)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\PB_SI_Numerosity.pdf',numerosityPlt,
-       width=8, height=10, units=c("in"))
-```
-
-Look at the counts in the EB
-```{r}
-conTab_EB <- getConnectionTable(getTypesTable(nronTypes),'POST','EB') %>% filter(type.to %in% nronTypes)
-conTab_EB$id.from <- EBGlomOrder(conTab_EB$name.from, conTab_EB$from,"EB")
-conTab_EB$id.to <- EBGlomOrder(conTab_EB$name.to, conTab_EB$to,"EB")
-conTab_EB$glom.from <- lapply(conTab_EB$id.from, function(id) strsplit(strsplit(as.character(id),'_')[[1]][2],'-')[[1]][1]) %>% unlist()
-conTab_EB$glom.to <- lapply(conTab_EB$id.to, function(id) strsplit(strsplit(as.character(id),'_')[[1]][2],'-')[[1]][1]) %>% unlist()
-conTab_EB$num.from <- lapply(conTab_EB$id.from, function(id) strsplit(strsplit(as.character(id),'_')[[1]][2],'-')[[1]][2]) %>% unlist()
-conTab_EB$num.to <- lapply(conTab_EB$id.to, function(id) strsplit(strsplit(as.character(id),'_')[[1]][2],'-')[[1]][2]) %>% unlist()
-```
-```{r}
-conTab_perGlom <- conTab_EB %>% group_by(type.from,type.to,glom.from,glom.to) %>% summarize(totalSyns = sum(ROIweight)) %>%
-  mutate(name.from = paste(type.from,glom.from,sep='_'), name.to = paste(type.to,glom.to,sep='_'))
-conTab_perGlom$name.from <- EBGlomOrder(conTab_perGlom$name.from,integer(length(conTab_perGlom$name.from)),"EB")
-conTab_perGlom$name.to <- EBGlomOrder(conTab_perGlom$name.to,integer(length(conTab_perGlom$name.to)),"EB")
-
-
-conTab_plt_gloms <- ggplot(conTab_perGlom) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_perGlom$totalSyns),
-                       limits=c(0,max(conTab_perGlom$totalSyns))) +
-  geom_tile(aes(name.to,name.from,fill=totalSyns)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron") + labs(subtitle = "D")
-
-print(conTab_plt_gloms)
-```
-
-For the PEN to EPG connections, make bar plots showing the total input by number of neurons
-```{r}
-EPGGlom <- c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1",
-            "R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1")
-PENGlom <- c("R2","L9","R3","L8","R4","L7","R5","L6","R6","L5","R7","L4","R8","L3","R9","L2",
-            "L2","R3","L9","R4","L8","R5","L7","R6","L6","R7","L5","R8","L4","R9","L3","R2")
-
-# Get the PEN1 to EPG connections
-directCon <- conTab_EB %>% 
-    filter(type.to == 'EPG' & type.from == 'PEN_a(PEN1)') %>%
-    filter(glom.to == EPGGlom[1] & glom.from == PENGlom[1])
-for (g in 2:length(EPGGlom)){
-  directCon <- rbind(directCon,
-                     conTab_EB %>% 
-    filter(type.to == 'EPG' & type.from == 'PEN_a(PEN1)') %>%
-    filter(glom.to == EPGGlom[g] & glom.from == PENGlom[g]))
-}
-PEN1Plt <- ggplot(directCon) + 
-  geom_bar(stat='identity',aes(x = id.to, y = ROIweight,fill=num.from),color='white') + 
-  theme_paper() + theme(axis.text.x = element_text(angle = 90)) + 
-  ylim(c(0,250)) + xlab('neuron') + ylab('synapses') + guides(fill = guide_legend(title = 'neuron #')) + ggtitle('PEN1 -> EPG') + labs(subtitle = "B")
-
-# Get the PEN2 to EPG connections
-directCon <- conTab_EB %>% 
-    filter(type.to == 'EPG' & type.from == 'PEN_b(PEN2)') %>%
-    filter(glom.to == EPGGlom[1] & glom.from == PENGlom[1])
-for (g in 2:length(EPGGlom)){
-  directCon <- rbind(directCon,
-                     conTab_EB %>% 
-    filter(type.to == 'EPG' & type.from == 'PEN_b(PEN2)') %>%
-    filter(glom.to == EPGGlom[g] & glom.from == PENGlom[g]))
-}
-PEN2Plt <- ggplot(directCon) + 
-  geom_bar(stat='identity',aes(x = id.to, y = ROIweight,fill=num.from),color='white') + 
-  theme_paper() + theme(axis.text.x = element_text(angle = 90)) + 
-  ylim(c(0,250)) + xlab('neuron') + ylab('synapses') + guides(fill = guide_legend(title = 'neuron #')) + ggtitle('PEN2 -> EPG') + labs(subtitle = "C")
-
-print(PEN1Plt / PEN2Plt)
-```
-
-Combine the plots
-```{r}
-layout <- "
-ABB
-ACC
-DD#
-DD#
-DD#
-"
-ctsPlt <- numerosityPlt + PEN1Plt + PEN2Plt + conTab_plt_gloms + plot_layout(design = layout)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\EB_PB\\EB-PB_NumerosityAndCounts.pdf',ctsPlt)
 ```
