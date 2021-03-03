@@ -108,6 +108,104 @@ print(TCTPlt_AB)
 #ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-AB.pdf",TCTPlt_AB)
 ```
 
+Try the above with the getTypesInROITable function
+```{r}
+AB_R_Type_Info <- getTypesInRoiTable("AB(R)",minTypePercentage = 0.2)
+AB_L_Type_Info <- getTypesInRoiTable("AB(L)",minTypePercentage = 0.2)
+```
+```{r}
+T2T_AB_R <- AB_R_Type_Info$outputs %>% as.data.frame() %>% filter(type.to %in% c(AB_R_Type_Info$names$type %>% unique()))
+
+T2TPlt_AB_R <- ggplot(T2T_AB_R) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_AB_R$weightRelative),
+                       limits=c(0,max(T2T_AB_R$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(R)')
+
+T2T_AB_L <- AB_L_Type_Info$outputs %>% as.data.frame() %>% filter(type.to %in% c(AB_L_Type_Info$names$type %>% unique()))
+
+T2TPlt_AB_L <- ggplot(T2T_AB_L) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_AB_L$weightRelative),
+                       limits=c(0,max(T2T_AB_L$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(L)')
+```
+```{r}
+TCTPlt_AB <- T2TPlt_AB_R + T2TPlt_AB_L + plot_layout(ncol=4)
+print(TCTPlt_AB)
+```
+```{r}
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-AB-neuronbag.pdf",TCTPlt_AB)
+```
+
+Plot the total number of neurons in the AB
+```{r}
+cts_AB_R_from <- conTab_AB_R %>% select(from) %>% unique() %>% 
+  mutate(type = neuprint_get_meta(from)$type) %>% group_by(type) %>% summarize(number = n()) %>%
+  mutate(supertype = supertype(type))
+cts_AB_R_to <- conTab_AB_R %>% select(to) %>% unique() %>% 
+  mutate(type = neuprint_get_meta(to)$type) %>% group_by(type) %>% summarize(number = n()) %>%
+  mutate(supertype = supertype(type))
+
+cts_AB_L_from <- conTab_AB_L %>% select(from) %>% unique() %>% 
+  mutate(type = neuprint_get_meta(from)$type) %>% group_by(type) %>% summarize(number = n()) %>%
+  mutate(supertype = supertype(type))
+cts_AB_L_to <- conTab_AB_L %>% select(to) %>% unique() %>% 
+  mutate(type = neuprint_get_meta(to)$type) %>% group_by(type) %>% summarize(number = n()) %>%
+  mutate(supertype = supertype(type))
+
+ctPlt_AB_R_from <- ggplot(cts_AB_R_from) + geom_bar(aes(x = type, weight = number, fill = supertype)) + 
+  scale_fill_manual(values = supertype2Palette()$pal, breaks = supertype2Palette()$breaks) + 
+  theme_paper() + theme(axis.text.x = element_text(angle = 90))
+ctPlt_AB_R_to <- ggplot(cts_AB_R_to) + geom_bar(aes(x = type, weight = number, fill = supertype)) + 
+  scale_fill_manual(values = supertype2Palette()$pal, breaks = supertype2Palette()$breaks) + 
+  theme_paper() + theme(axis.text.x = element_text(angle = 90))
+
+ctPlt_AB_L_from <- ggplot(cts_AB_L_from) + geom_bar(aes(x = type, weight = number, fill = supertype)) + 
+  scale_fill_manual(values = supertype2Palette()$pal, breaks = supertype2Palette()$breaks) + 
+  theme_paper() + theme(axis.text.x = element_text(angle = 90))
+ctPlt_AB_L_to <- ggplot(cts_AB_L_to) + geom_bar(aes(x = type, weight = number, fill = supertype)) + 
+  scale_fill_manual(values = supertype2Palette()$pal, breaks = supertype2Palette()$breaks) + 
+  theme_paper() + theme(axis.text.x = element_text(angle = 90))
+
+print((ctPlt_AB_R_from + ctPlt_AB_L_from) / (ctPlt_AB_R_to + ctPlt_AB_L_to) )
+```
+
+One PEN2 sends an arbor around the AB(R) that seems to make synapses, one LCNOpm sends one arbor over
+
+Look at neuron to neuron connectivity in the AB
+```{r}
+conTabPlt_AB_R <- ggplot(conTab_AB_R) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_AB_R$weightRelative),
+                       limits=c(0,max(conTab_AB_R$weightRelative))) +
+  geom_tile(aes(name.to,name.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(R)')
+
+conTabPlt_AB_L <- ggplot(conTab_AB_L) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_AB_L$weightRelative),
+                       limits=c(0,max(conTab_AB_L$weightRelative))) +
+  geom_tile(aes(name.to,name.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  ggtitle('AB(L)')
+
+print(conTabPlt_AB_R)
+print(conTabPlt_AB_L)
+```
+
+Show how different FS4A, vDeltaA columns receive different input from R or L AB - renders
+
+
 Look at inputs in FB to FB->AB neurons
 ```{r}
 ABInsFromFB <- c('vDeltaA_a', 'FS4A', 'FB1B', 'FB1G')
@@ -117,13 +215,30 @@ conTab_ABFromFB$id.from <- FBRename(conTab_ABFromFB$name.from, conTab_ABFromFB$f
 conTab_ABFromFB$id.to <- FBRename(conTab_ABFromFB$name.to, conTab_ABFromFB$to)
 ```
 ```{r}
-T2T_ABFromFB <- getTypeToTypeTable(conTab_ABFromFB)
-T2TPlt_ABFromFB <- plotConnectivityMatrix(T2T_ABFromFB, byGroup = "type") + 
-    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90, hjust=1,vjust=0)) +
-    guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', title.theme = element_text(angle = 90), barwidth = 0.5, title.hjust = 0.5))
-T2TPlt_ABFromFB
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABFromFB.pdf",T2TPlt_ABFromFB)
+conTabPlt_ABFromFB <- ggplot(conTab_ABFromFB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_ABFromFB$weightRelative),
+                       limits=c(0,max(conTab_ABFromFB$weightRelative))) +
+  geom_tile(aes(name.to,name.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+print(conTabPlt_ABFromFB)
 ```
+```{r}
+T2T_ABFromFB <- getTypeToTypeTable(conTab_ABFromFB)
+T2TPlt_ABFromFB <- ggplot(T2T_ABFromFB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_ABFromFB$weightRelative),
+                       limits=c(0,max(T2T_ABFromFB$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABFromFB.pdf",T2TPlt_ABFromFB)
+```
+
+
 
 Look at outputs in FB from AB->FB neurons
 ```{r}
@@ -132,14 +247,29 @@ conTab_ABToFB <- getConnectionTable(getTypesTable(ABOutsInFB),'POST','FB')
 conTab_ABToFB$id.from <- FBRename(conTab_ABToFB$name.from, conTab_ABToFB$from)
 conTab_ABToFB$id.to <- FBRename(conTab_ABToFB$name.to, conTab_ABToFB$to)
 ```
+```{r}
+conTabPlt_ABToFB <- ggplot(conTab_ABToFB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab_ABToFB$weightRelative),
+                       limits=c(0,max(conTab_ABToFB$weightRelative))) +
+  geom_tile(aes(name.to,name.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+print(conTabPlt_ABToFB)
+```
 
 ```{r}
 T2T_ABToFB <- getTypeToTypeTable(conTab_ABToFB)
-T2TPlt_ABToFB <- plotConnectivityMatrix(T2T_ABToFB, byGroup = "type") + 
-    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90, hjust=1,vjust=0)) +
-    guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5))
-T2TPlt_ABToFB
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABToFB.pdf",T2TPlt_ABToFB)
+T2TPlt_ABToFB <- ggplot(T2T_ABToFB) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_ABToFB$weightRelative),
+                       limits=c(0,max(T2T_ABToFB$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABToFB.pdf",T2TPlt_ABToFB)
 ```
 
 Plot the column specific connectivity between vDA_a, vDa_b, FS4A, and FS4B and the R or L AB
@@ -180,8 +310,7 @@ AB
 
 ABROIplts <- col2ROI_plt_vDA_as + col2ROI_plt + plot_layout(design = layout)
 
-print(ABROIplts)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\columnToROIMap.pdf",ABROIplts,
-#       height = 2, width = 8.5)
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\columnToROIMap.pdf",ABROIplts,
+       height = 2, width = 8.5)
 ```
 

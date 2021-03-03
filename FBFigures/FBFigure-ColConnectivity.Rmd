@@ -20,7 +20,6 @@ library(visNetwork)
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
 source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
-
 ```
 
 Specify plotting parameters
@@ -509,3 +508,87 @@ visSave(v, "C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\
 ```
 
 
+Plot the vDeltaF-I type-to-type connections
+Specify the neuron types to look at
+```{r}
+vDClust <- c('vDeltaF','vDeltaG','vDeltaH','vDeltaI')
+```
+Pull their neuron bag
+```{r}
+vDBag <- neuronBag(getTypesTable(vDClust),slctROI="FB")
+```
+Look at the type-to-type connection among shared partners
+```{r}
+subNrons <- c(vDClust,vDBag$inputs$type.from %>% as.character(),vDBag$outputs$type.to %>% as.character()) %>% unique()
+subCT <- getConnectionTable(getTypesTable(subNrons)$bodyid,'POST',slctROI='FB') %>% filter(type.to %in% subNrons)
+subCT_T2T <- getTypeToTypeTable(subCT)
+```
+Plot
+```{r}
+
+typesFrom <- subCT_T2T$type.from %>% unlist() %>% unique() %>% as.character()
+fromLevels <- c(typesFrom[which(!grepl('PFN',typesFrom))],
+                typesFrom[which(grepl('PFN',typesFrom))])
+subCT_T2T$type.from <- factor(subCT_T2T$type.from,
+                              levels = fromLevels)
+
+txtLabsFrom <- fromLevels
+typLabsFrom <- txtLabsFrom
+txtColsFrom <- lapply(typLabsFrom,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+typesTo <- subCT_T2T$type.to %>% unlist() %>% unique() %>% as.character()
+toLevels <- c(typesTo[which(grepl('PFN',typesTo))],
+              sort(typesTo[which(!grepl('PFN',typesTo) & 
+                                  !grepl('PFR_b',typesTo) &
+                                  !grepl('FC',typesTo) &
+                                   !grepl('FR1',typesTo) &
+                                   !grepl('FS',typesTo) &
+                                   !grepl('PFL',typesTo))]),
+              typesTo[which(grepl('FC',typesTo))],
+              typesTo[which(grepl('FS',typesTo))],
+              typesTo[which(grepl('PFR_b',typesTo))],
+              typesTo[which(grepl('FR1',typesTo))],
+              typesTo[which(grepl('PFL',typesTo))]
+              )
+subCT_T2T$type.to <- factor(subCT_T2T$type.to,
+                              levels = toLevels)
+
+txtLabsTo <- toLevels
+typLabsTo <- txtLabsTo
+txtColsTo <- lapply(typLabsTo,
+                  function(t)
+                    stCols$pal[
+                      which(stCols$breaks == 
+                              supertype(t))]) %>% unlist()
+
+
+sub_T2T_Plt <- ggplot(subCT_T2T) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(subCT_T2T$weightRelative),
+                       limits=c(0,max(subCT_T2T$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1)  + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo),
+        axis.text.y = element_text(color=txtColsFrom)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+
+offset <- 0.5
+stTo <- supertype(toLevels) %>% unique()
+for (g in 1:length(stTo)){
+  offset <- offset + length(which(stTo[g] == supertype(toLevels)))
+  sub_T2T_Plt <- sub_T2T_Plt + geom_vline(xintercept = offset)
+}
+
+offset <- 0.5
+stFrom <- supertype(fromLevels) %>% unique()
+for (g in 1:length(stFrom)){
+  offset <- offset + length(which(stFrom[g] == supertype(fromLevels)))
+  sub_T2T_Plt <- sub_T2T_Plt + geom_hline(yintercept = offset)
+}
+
+print(sub_T2T_Plt)
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan #2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\vDSubNet-all_type-to-type.pdf",sub_T2T_Plt)
+```

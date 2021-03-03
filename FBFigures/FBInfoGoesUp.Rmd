@@ -17,18 +17,13 @@ library(cowplot)
 library(reshape2)
 library(patchwork)
 library(visNetwork)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
-options(nat.plotengine = 'rgl')
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
+#source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
 ```
 
 Specify plotting parameters
 ```{r}
-update_geom_defaults("text", list(size = 6*0.35))
-theme_paper <- function(...){
-  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
-}
-
 stCols <- supertype2Palette()
 stCols$breaks <- append(stCols$breaks,'OA-VPM3')
 stCols$pal <- append(stCols$pal,'#000000FF')
@@ -38,12 +33,9 @@ Get the FB outline
 ```{r}
 FBOutline <- roiOutline("FB")
 ```
-
-Plot the FB outline
 ```{r}
 FBOutline_plt <- FBOutline %>% filter(proj == 'xz')
 FBOutline_plt <- FBOutline_plt[1:1076,]
-ggplot(
 ```
 
 Get the PFN synapses
@@ -63,7 +55,7 @@ PFNPrePlt <- ggplot() + stat_bin2d(data = PFNSyns %>% filter(prepost == 0),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         axis.title = element_blank()) +
-  ggtitle('PFN postsynapses')
+  ggtitle('PFN presynapses')
 
 print(PFNPrePlt)
 
@@ -87,7 +79,7 @@ vDeltaPrePlt <- ggplot() + stat_bin2d(data = vDeltaSyns %>% filter(prepost == 1)
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         axis.title = element_blank()) +
-  ggtitle('vDelta presynapses')
+  ggtitle('vDelta postsynapses')
 
 vDeltaPostPlt <- ggplot() + stat_bin2d(data = vDeltaSyns %>% filter(prepost == 0),
                                     aes(x,-z),
@@ -99,7 +91,7 @@ vDeltaPostPlt <- ggplot() + stat_bin2d(data = vDeltaSyns %>% filter(prepost == 0
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         axis.title = element_blank()) +
-  ggtitle('vDelta postsynapses')
+  ggtitle('vDelta presynapses')
 
 vDeltaSynsPlt <- vDeltaPrePlt + vDeltaPostPlt
 
@@ -123,7 +115,7 @@ hDeltaPrePlt <- ggplot() + stat_bin2d(data = hDeltaSyns %>% filter(prepost == 1)
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         axis.title = element_blank()) +
-  ggtitle('hDelta presynapses')
+  ggtitle('hDelta postsynapses')
 
 hDeltaPostPlt <- ggplot() + stat_bin2d(data = hDeltaSyns %>% filter(prepost == 0),
                                     aes(x,-z),
@@ -135,7 +127,7 @@ hDeltaPostPlt <- ggplot() + stat_bin2d(data = hDeltaSyns %>% filter(prepost == 0
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         axis.title = element_blank()) +
-  ggtitle('vDelta postsynapses')
+  ggtitle('vDelta presynapses')
 
 hDeltaSynsPlt <- hDeltaPrePlt + hDeltaPostPlt
 
@@ -146,5 +138,5 @@ Combine the plots and save
 ```{r}
 synPlts <- PFNSynsPlt / vDeltaSynsPlt / hDeltaSynsPlt
 print(synPlts)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_InfoFlowsUp\\SynDists.pdf',synPlts)
+#ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_InfoFlowsUp\\SynDists.pdf',synPlts)
 ```
