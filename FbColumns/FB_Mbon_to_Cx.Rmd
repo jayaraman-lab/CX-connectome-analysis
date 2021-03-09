@@ -146,8 +146,11 @@ CD's Notes:
 
 
 # Get first layer lateralized outputs
+# Lateralization is important because it keeps the postsynaptic L and R groups separate.
+# That way, when computing type-to-type weights, we aren't biased by postsyanptic neurons whose
+# inputs may be cut, which could contribute a 0 just because of cut fibers. 
 DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
-DownBag_L1=lateralize_types(DownBag_L1) # Lateralize to take into account projections that may be missing from the volume
+DownBag_L1=lateralize_types(DownBag_L1) 
 
 
 # Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
@@ -177,27 +180,18 @@ MB2CX_Direct_Exclude=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & !(
 
 
 
-# Function to go from lateralized type-to-type weights back to unlateralized
-```{r}
-
-UnLateralize() <- function(Data){
-  Data %>% group_by(databaseType.to) %>% summarize()
-}
-
-
-```
-
 
 # Make MB paper style graph of MBON to CX direct connections
 ```{r}
 
 
-# Average over left/right pairs
-Graph_Data=MB2CX_Direct %>% group_by(databaseType.from, databaseType.to) %>%
-  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
-
-colnames(Graph_Data)=c("type.from","type.to","weightRelative","outputContribution","weight")
-Graph_Data$roi="All"
+# Get just the L/R pair with max weight.Can't jut average L/R pairs because relative weight needs to 
+# first be summed over all postsynaptic neurons, but without looking at the anatomy in detail (especially for
+# the indirect analsysis later, which involves many more neurons), its hard to know which fibers may be cut, 
+# which neurons have fibers that cross hemispheres, etc. 
+Graph_Data=MB2CX_Direct %>% group_by(databaseType.from, databaseType.to) %>% filter(weight == max(weight))
+Graph_Data$type.from=Graph_Data$databaseType.from
+Graph_Data$type.to=Graph_Data$databaseType.to
 
 
 # Cluster the FB neurons by their input vectors
@@ -358,14 +352,15 @@ ggsave(paste(SaveDir, "Graph_V1.pdf",sep=""),
 # For each MBON with direct connections to the CX plot the max relative weight
 All_MB2CX_Direct=Downstream_T2T_L1 %>% 
   subset(databaseType.to %in% CXTypes & !databaseType.from=="MBON15-like") %>%
-  group_by(databaseType.from, databaseType.to) %>%
-  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
+  group_by(databaseType.from, databaseType.to) %>% filter(weight == max(weight))
+All_MB2CX_Direct$type.from=All_MB2CX_Direct$databaseType.from
+All_MB2CX_Direct$type.to=All_MB2CX_Direct$databaseType.to
 MBON_Direct_byThresh_Plot=All_MB2CX_Direct %>% group_by(databaseType.from) %>% summarize(weightRelative=max(weightRelative))
 
 
 P1a=ggplot(data=MBON_Direct_byThresh_Plot, aes(x=databaseType.from, y=weightRelative)) + 
   geom_bar(stat="identity", color="black", fill='black', width=0.850) + theme_classic()  + 
-  theme(axis.text.x = element_text(angle = 90)) + scale_y_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) )
+  theme(axis.text.x = element_text(angle = 90)) + scale_y_continuous(breaks = seq(from=0, to=0.14, by=0.01), lim=c(0,0.14) )
   ggsave(paste(SaveDir, "MBON_by_Thrsh.pdf",sep=""),
          plot = P1a, device='pdf', scale = 1, width =6, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
 
@@ -415,7 +410,7 @@ ggsave(paste(SaveDir, "Thresh_Scatter.pdf",sep=""),
 
 
 # Get strong connections from MBONs to non-CX neurons
-MB2NonCX=subset(Downstream_T2T_L1, !(databaseType.to %in% CXTypes)  & weightRelative>0.01 & weight>10)
+MB2NonCX=subset(Downstream_T2T_L1, !(databaseType.to %in% CXTypes)  & weightRelative>0.02 & weight>20) ########
 
 
 # Get type table
@@ -426,8 +421,11 @@ L2_Types_Table=getTypesTable(L2_Types)
 
 
 # Get second layer lateralized outputs
+# Lateralization is important because it keeps the postsynaptic L and R groups separate.
+# That way, when computing type-to-type weights, we aren't biased by postsyanptic neurons whose
+# inputs may be cut, which could contribute a 0 just because of cut fibers. 
 DownBag_L2=neuronBag(L2_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
-DownBag_L2=lateralize_types(DownBag_L2) # Lateralize to take into account projections that may be missing from the volume
+DownBag_L2=lateralize_types(DownBag_L2)
 
 
 # Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
@@ -455,28 +453,28 @@ Downstream_T2T_L2=getTypeToTypeTable(DownBag_L2$outputs_raw, majorOutputThreshol
 
 
 # Get first and second layer of projections
-L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>0.01 & weight>10)
-L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>0.01 & weight>10
+L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>0.02 & weight>20)
+L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>0.02 & weight>20
                 & !startsWith(type.to,"MBON") & !databaseType.from=="MBON15-like")
 
 
 # Average over left and right 
-L2_to_Cx_Ave=L2_to_Cx %>% group_by(databaseType.from, databaseType.to) %>%  
-  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight))
-colnames(L2_to_Cx_Ave)=c("type.from","type.to","weightRelative","outputContribution","weight")
-L2_to_Cx_Ave$roi="R"
+L2_to_Cx_Ave=L2_to_Cx %>% group_by(databaseType.from, databaseType.to) %>%  filter(weight == max(weight))
+L2_to_Cx_Ave$type.from=L2_to_Cx_Ave$databaseType.from
+L2_to_Cx_Ave$type.to=L2_to_Cx_Ave$databaseType.to
 
-
-L1_to_L2_Ave=L1_to_L2 %>% group_by(databaseType.from, databaseType.to) %>%  
-  summarize(weightRelative=mean(weightRelative), outputContribution=mean(outputContribution), weight=mean(weight)) 
-colnames(L1_to_L2_Ave)=c("type.from","type.to","weightRelative","outputContribution","weight")
-L1_to_L2_Ave$roi="R"
+L1_to_L2_Ave=L1_to_L2 %>% group_by(databaseType.from, databaseType.to) %>%  filter(weight == max(weight))
+L1_to_L2_Ave$type.from=L1_to_L2_Ave$databaseType.from
+L1_to_L2_Ave$type.to=L1_to_L2_Ave$databaseType.to
 
 
 
+TempOrder= L1_to_L2_Ave %>% arrange(type.from) %>% group_by(type.to) %>% filter(weight == max(weight))
 P2=plotConnectivity(L1_to_L2_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  cmax = NULL, replacementLabels = NULL, 
+  orderIn = (sort(unique(L1_to_L2_Ave$type.from))), 
+  orderOut = TempOrder$type.to,
   legendName = NULL, showTable = "inputs")
 P2 = P2 +   coord_fixed(ratio = 1) +
   theme(strip.background = element_blank(), #remove background for facet labels
@@ -488,10 +486,13 @@ ggsave(paste(SaveDir, "L1_to_L2_Ave.Pdf",sep=""),
         plot = P2, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
-
+TempOrder2= L2_to_Cx_Ave %>% arrange(match(type.from, unique(TempOrder$type.to))) %>%
+                                       group_by(type.to) %>% filter(weight == max(weight))
 P2=plotConnectivity(L2_to_Cx_Ave, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
   xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
+  cmax = NULL, replacementLabels = NULL,
+  orderIn = unique(TempOrder2$type.from),
+  orderOut = NULL,
   legendName = NULL, showTable = "inputs")
 P2 = P2 + coord_fixed(ratio = 1) + 
   theme(strip.background = element_blank(), #remove background for facet labels
@@ -505,11 +506,8 @@ ggsave(paste(SaveDir, "L2_to_Cx_Ave.Pdf",sep=""),
 
 
 # Construct pathway object
-MBON2CX_Indirect=tableChain2path(L1_to_L2, L2_to_Cx)
-MBON2CX_Indirect=subset(MBON2CX_Indirect, !is.na(type_N1) )
-MBON2CX_Indirect_Ave=MBON2CX_Indirect %>% group_by(databaseType.from, databaseType.to, databaseType_N1) %>%
-  summarize(weightRelative_N1=mean(weightRelative_N1), weightRelative_N2=mean(weightRelative_N2), weightRelative_path=mean(weightRelative_path))
-
+MBON2CX_Indirect_Ave=tableChain2path(L1_to_L2_Ave, L2_to_Cx_Ave)
+MBON2CX_Indirect_Ave=subset(MBON2CX_Indirect_Ave, !is.na(type_N1) )
 
 sort(unique(MBON2CX_Indirect_Ave$databaseType.to))
 
@@ -520,6 +518,7 @@ sort(unique(MBON2CX_Indirect_Ave$databaseType.to))
 # Plot the number of pathways from MBONs to the various FB layers
 ```{r}
 
+
 library(prismatic)
 library(paletteer)
 
@@ -528,35 +527,43 @@ library(paletteer)
 MBON2CX_Indirect_Ave_FBlayer=subset(MBON2CX_Indirect_Ave, startsWith(databaseType.to,"FB"))
 MBON2CX_Indirect_Ave_FBlayer$FBlayer=paste("L", substr(MBON2CX_Indirect_Ave_FBlayer$databaseType.to,3,3), sep="")
 MBON2CX_Indirect_Ave_FBlayer=MBON2CX_Indirect_Ave_FBlayer %>% group_by(databaseType.from, FBlayer) %>%
-  summarize(NumOfPaths=n(), NumOfFBt=length(unique(databaseType.to)), PathwayWeight=sum(weightRelative_N1*weightRelative_N2))
+  summarize(NumOfPaths=n(), NumOfFBt=length(unique(databaseType.to)), weightRelative_path=mean(weightRelative_path))
 MBON2CX_Indirect_Ave_FBlayer$FBlayer=factor(MBON2CX_Indirect_Ave_FBlayer$FBlayer, levels=c("L1","L2","L3","L4","L5","L6","L7","L8","L9"))
 
 
-ggplot(MBON2CX_Indirect_Ave_FBlayer) +
-  geom_tile(aes(databaseType.from,FBlayer,fill=NumOfPaths)) + scale_y_discrete(drop=FALSE) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,15), breaks = c(0,5,10,15), oob=squish, na.value="gray50") +
-  theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
-        panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
-
   
-ggplot(MBON2CX_Indirect_Ave_FBlayer) +
+PP2=ggplot(MBON2CX_Indirect_Ave_FBlayer) +
   geom_tile(aes(databaseType.from,FBlayer,fill=NumOfFBt)) + scale_y_discrete(drop=FALSE) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,14), breaks = c(0,7,14), oob=squish, na.value="gray50") +
+  scale_fill_paletteer_c("ggthemes::Sunset-Sunrise Diverging", limits=c(0,14), breaks = c(0,7,14), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
+ggsave(paste(SaveDir, "byLayer_NumOfFBt.Pdf",sep=""),
+        plot = PP2, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
 
-ggplot(MBON2CX_Indirect_Ave_FBlayer) +
-  geom_tile(aes(databaseType.from,FBlayer,fill=PathwayWeight)) + scale_y_discrete(drop=FALSE) +
-  scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.05), breaks = c(0,0.025,0.05), oob=squish, na.value="gray50") +
+# Make plot again, but with higher threshold
+# Group my projections to FB layer
+MBON2CX_Indirect_Ave_FBlayer_High=subset(MBON2CX_Indirect_Ave, startsWith(databaseType.to,"FB") & weightRelative_N1>0.02 & weightRelative_N2>0.02)
+MBON2CX_Indirect_Ave_FBlayer_High$FBlayer=paste("L", substr(MBON2CX_Indirect_Ave_FBlayer_High$databaseType.to,3,3), sep="")
+MBON2CX_Indirect_Ave_FBlayer_High=MBON2CX_Indirect_Ave_FBlayer_High %>% group_by(databaseType.from, FBlayer) %>%
+  summarize(NumOfPaths=n(), NumOfFBt=length(unique(databaseType.to)), weightRelative_path=mean(weightRelative_path))
+MBON2CX_Indirect_Ave_FBlayer_High$FBlayer=factor(MBON2CX_Indirect_Ave_FBlayer_High$FBlayer, levels=c("L1","L2","L3","L4","L5","L6","L7","L8","L9"))
+MBON2CX_Indirect_Ave_FBlayer_High$databaseType.from=factor(MBON2CX_Indirect_Ave_FBlayer_High$databaseType.from,
+                                                           levels=sort(unique(MBON2CX_Indirect_Ave_FBlayer$databaseType.from)))
+
+
+PP2=ggplot(MBON2CX_Indirect_Ave_FBlayer_High) +
+  geom_tile(aes(databaseType.from,FBlayer,fill=NumOfFBt)) + scale_y_discrete(drop=FALSE) + scale_x_discrete(drop=FALSE) +
+  scale_fill_paletteer_c("ggthemes::Sunset-Sunrise Diverging", limits=c(0,14), breaks = c(0,7,14), oob=squish, na.value="gray50") +
   theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
   theme(strip.background = element_blank(), #remove background for facet labels
         panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
         panel.spacing = unit(0, "lines"))  + coord_fixed(ratio = 1)
+ggsave(paste(SaveDir, "byLayer_NumOfFBt_High.Pdf",sep=""),
+        plot = PP2, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+
 
 
 ```
@@ -592,17 +599,270 @@ getPN2MBONinputTable <- function(){
 ```
 
 
+# Get visual and thermo/hygro types
+```{r}
 
-# Make graphs of visual and thermo/hygro indirect pathways
+MBON_Input_Percents=getPN2MBONinputTable()
+Visual_MBONs=unique(MBON_Input_Percents$MBON[MBON_Input_Percents$Visual>20])
+ThermoHygro_MBONs=unique(MBON_Input_Percents$MBON[MBON_Input_Percents$ThermoHygro>20])
+
+
+# Get intermediate supertypes
+Temp=subset(MBON2CX_Indirect_Ave, type.from %in% c(Visual_MBONs,ThermoHygro_MBONs) & weightRelative_N1>0.02 & weightRelative_N2>0.02)
+Int_all=sort(unique(Temp$supertype1_N1))
+
+
+```
+
+
+# Make plots of indirect visual connections
 ```{r}
 
 
+# Convert pathway dataframe to connecitiy table (from-to pairs)
+Graph_Pathway=subset(MBON2CX_Indirect_Ave, type.from %in% Visual_MBONs & weightRelative_N1>0.02 & weightRelative_N2>0.02)
+Graph_Data_L1=Graph_Pathway[c("type.from","type_N1","weightRelative_N1","supertype1_N1")]
+colnames(Graph_Data_L1)=c("from","to","weight","supertype1_N1")
+Graph_Data_L1$Layer="L1"
+Graph_Data_L2=Graph_Pathway[c("type_N1","type.to","weightRelative_N2","supertype1_N1")]
+colnames(Graph_Data_L2)=c("from","to","weight","supertype1_N1")
+Graph_Data_L2$Layer="L2"
+Graph_Data=rbind(Graph_Data_L1,Graph_Data_L2)
+remove(Graph_Data_L1, Graph_Data_L2)
 
-PN2allMBON_InputPct=getPN2MBONinputTable()
+
+# Get a list of intermediate and CX nodes
+IntermediateNodes=unique(Graph_Pathway$type_N1)
+CXNodes=unique(Graph_Pathway$type.to)
+
+
+# Make edges
+EDGES=Graph_Data
+
+
+# Make nodes
+NODES=data.frame(name=unique(c(EDGES$from,EDGES$to)))
+NODES$name=as.character(NODES$name)
+
+NODES$x=NA
+MBONlogica=startsWith(NODES$name,"MBON")
+NODES$x[MBONlogica]=-1
+NODES$y[MBONlogica]=seq(from=-1, to=1, by=2/(sum(MBONlogica)-1))*0.35
+
+Intermediatelogica=NODES$name %in% IntermediateNodes
+NODES$x[Intermediatelogica]=0
+NODES$y[Intermediatelogica]=seq(from=-1, to=1, by=2/(sum(Intermediatelogica)-1))*1
+
+CXlogica=NODES$name %in% CXNodes
+NODES$x[CXlogica]=1
+NODES$y[CXlogica]=seq(from=-1, to=1, by=2/(sum(CXlogica)-1))*1.3
+
+
+# Set node colors
+NODES$COLORZ="Black"
+NODES$FILLZ="Black"
+
+
+# Set edge color
+EDGES$supertype1_N1=factor(EDGES$supertype1_N1,levels=Int_all)
+col_vector=(color(c("navy","dodgerblue2","limegreen", "magenta3","hotpink1","darkviolet","slateblue1")))
+
+
+# Make graph
+graph = tbl_graph(NODES, EDGES)
+
+
+G1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=EDGES$supertype1_N1),
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"),
+                 end_cap = circle(0.3, 'cm'), alpha=1,strength=1, n=2, linemitre=1) +
+  geom_node_point(size=4, color=NODES$COLORZ, fill=NODES$FILLZ) +
+  geom_node_text(aes(label=name),angle=0,size=3, nudge_x = NODES$x*0.18, color='red' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,4)) + scale_edge_color_manual(values=col_vector, drop=FALSE)
+
+
+G1=ggsave(paste(SaveDir, "Visual_Graph_V1.pdf",sep=""),
+        plot = G1, device='pdf', scale = 1, width =8, height = 10, units ="in", dpi = 500, limitsize = TRUE)
+
+
 
 
 
 ```
+
+
+
+# Make plots of indirect thermo/hygro connections
+```{r}
+
+
+# Convert pathway dataframe to connecitiy table (from-to pairs)
+Graph_Pathway=subset(MBON2CX_Indirect_Ave, type.from %in% ThermoHygro_MBONs  & weightRelative_N1>0.02 & weightRelative_N2>0.02) %>% arrange(type.from)
+Graph_Data_L1=Graph_Pathway[c("type.from","type_N1","weightRelative_N1","supertype1_N1")]
+colnames(Graph_Data_L1)=c("from","to","weight","supertype1_N1")
+Graph_Data_L1$Layer="L1"
+Graph_Data_L2=Graph_Pathway[c("type_N1","type.to","weightRelative_N2","supertype1_N1")]
+colnames(Graph_Data_L2)=c("from","to","weight","supertype1_N1")
+Graph_Data_L2$Layer="L2"
+Graph_Data=rbind(Graph_Data_L1,Graph_Data_L2)
+remove(Graph_Data_L1, Graph_Data_L2)
+
+
+# Get a list of intermediate and CX nodes
+IntermediateNodes=unique(Graph_Pathway$type_N1)
+CXNodes=unique(Graph_Pathway$type.to)
+
+
+# Make edges
+EDGES=Graph_Data
+
+
+# Make nodes
+NODES=data.frame(name=unique(c(EDGES$from,EDGES$to)))
+NODES$name=as.character(NODES$name)
+
+
+NODES$x=NA
+MBONlogica=startsWith(NODES$name,"MBON")
+NODES$x[MBONlogica]=-1
+NODES$y[MBONlogica]=seq(from=-1, to=1, by=2/(sum(MBONlogica)-1))*0.35
+
+Intermediatelogica=NODES$name %in% IntermediateNodes
+NODES$x[Intermediatelogica]=0
+NODES$y[Intermediatelogica]=seq(from=-1, to=1, by=2/(sum(Intermediatelogica)-1))*1
+
+CXlogica=NODES$name %in% CXNodes
+NODES$x[CXlogica]=1
+NODES$y[CXlogica]=seq(from=-1, to=1, by=2/(sum(CXlogica)-1))*1.3
+
+
+# Set node colors
+NODES$COLORZ="Black"
+NODES$FILLZ="Black"
+
+
+# Set edge color
+EDGES$supertype1_N1=factor(EDGES$supertype1_N1,levels=Int_all)
+col_vector=(color(c("navy","dodgerblue2","limegreen", "magenta3","hotpink1","darkviolet","slateblue1")))
+
+
+# Make graph
+graph = tbl_graph(NODES, EDGES)
+
+
+G1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=EDGES$supertype1_N1),
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"),
+                 end_cap = circle(0.3, 'cm'), alpha=1,strength=1, n=2, linemitre=1) +
+  geom_node_point(size=4, color=NODES$COLORZ, fill=NODES$FILLZ) +
+  geom_node_text(aes(label=name),angle=0,size=3, nudge_x = NODES$x*0.18, color='red' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,4)) + scale_edge_color_manual(values=col_vector, drop=FALSE)
+
+
+G1=ggsave(paste(SaveDir, "ThermoHygro_Graph_V1.pdf",sep=""),
+        plot = G1, device='pdf', scale = 1, width =8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+
+```
+
+
+
+
+
+# Make plots of indirect thermo/hygro connections
+```{r}
+
+
+# Convert pathway dataframe to connecitiy table (from-to pairs)
+Graph_Pathway=subset(MBON2CX_Indirect_Ave, !startsWith(type.to,"FB")  & weightRelative_N1>0.02 & weightRelative_N2>0.02) %>% arrange(type.from)
+Graph_Data_L1=Graph_Pathway[c("type.from","type_N1","weightRelative_N1","supertype1_N1")]
+colnames(Graph_Data_L1)=c("from","to","weight","supertype1_N1")
+Graph_Data_L1$Layer="L1"
+Graph_Data_L2=Graph_Pathway[c("type_N1","type.to","weightRelative_N2","supertype1_N1")]
+colnames(Graph_Data_L2)=c("from","to","weight","supertype1_N1")
+Graph_Data_L2$Layer="L2"
+Graph_Data=rbind(Graph_Data_L1,Graph_Data_L2)
+remove(Graph_Data_L1, Graph_Data_L2)
+
+
+# Get a list of intermediate and CX nodes
+IntermediateNodes=unique(Graph_Pathway$type_N1)
+CXNodes=unique(Graph_Pathway$type.to)
+
+
+# Make edges
+EDGES=Graph_Data
+
+
+# Make nodes
+NODES=data.frame(name=unique(c(EDGES$from,EDGES$to)))
+NODES$name=as.character(NODES$name)
+
+
+NODES$x=NA
+MBONlogica=startsWith(NODES$name,"MBON")
+NODES$x[MBONlogica]=-1
+NODES$y[MBONlogica]=seq(from=-1, to=1, by=2/(sum(MBONlogica)-1))*1
+
+Intermediatelogica=NODES$name %in% IntermediateNodes
+NODES$x[Intermediatelogica]=0
+NODES$y[Intermediatelogica]=seq(from=-1, to=1, by=2/(sum(Intermediatelogica)-1))*1
+
+CXlogica=NODES$name %in% CXNodes
+NODES$x[CXlogica]=1
+NODES$y[CXlogica]=seq(from=-1, to=1, by=2/(sum(CXlogica)-1))*0.8
+
+
+# Set node colors
+NODES$COLORZ="Black"
+NODES$FILLZ="Black"
+
+
+# Set edge color
+EDGES$supertype1_N1=factor(EDGES$supertype1_N1,levels=Int_all)
+col_vector=(color(c("navy","dodgerblue2","limegreen", "magenta3","hotpink1","darkviolet","slateblue1")))
+
+
+# Make graph
+graph = tbl_graph(NODES, EDGES)
+
+
+G1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+  geom_edge_fan( aes(width=weight, color=EDGES$supertype1_N1),
+                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"),
+                 end_cap = circle(0.3, 'cm'), alpha=1,strength=1, n=2, linemitre=1) +
+  geom_node_point(size=4, color=NODES$COLORZ, fill=NODES$FILLZ) +
+  geom_node_text(aes(label=name),angle=0,size=3, nudge_x = NODES$x*0.18, color='red' ) +
+  theme_classic() + 
+  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+        axis.line=element_blank(),axis.text.x=element_blank(),
+        axis.text.y=element_blank(),axis.ticks=element_blank(),
+        axis.title.x=element_blank(),axis.title.y=element_blank()) +
+  scale_edge_width(range = c(0.5,4)) + scale_edge_color_manual(values=col_vector, drop=FALSE)
+
+
+G1=ggsave(paste(SaveDir, "Non_FB_Graph_V1.pdf",sep=""),
+        plot = G1, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+
+```
+
 
 
 
