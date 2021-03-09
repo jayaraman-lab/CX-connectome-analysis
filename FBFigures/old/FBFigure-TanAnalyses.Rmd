@@ -1,5 +1,5 @@
 ---
-title: "FB Figure 10 - tangential connectivity"
+title: "FB tangential connectivity"
 output: html_notebook
 ---
 Load the libraries
@@ -17,18 +17,15 @@ library(reshape2)
 library(patchwork)
 library(visNetwork)
 library(ggnewscale)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+
 options(nat.plotengine = 'rgl')
 ```
 
 Specify plotting text sizes
 ```{r}
-mm2pt <- 0.352777778
-update_geom_defaults("text", list(size = 6*mm2pt))
-theme_paper <- function(...){
-  theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) + theme(strip.background = element_blank(),plot.tag=element_text(size=12,face="bold",family = "sans"),...)
-  }
-
 stCols <- supertype2Palette()
 stCols$breaks <- append(stCols$breaks,'OA-VPM3')
 stCols$pal <- append(stCols$pal,'#000000FF')
@@ -46,10 +43,7 @@ FBTypesCol <- FBTypes[which(grepl("PF",FBTypes) |
                            grepl("hDelta",FBTypes)
                            )]
 FBTypesTan <- FBTypes[which(grepl("FB",FBTypes) |
-                              grepl("OA-VPM3",FBTypes) |
-                              grepl("ExR3",FBTypes) |
-                              grepl("ExR1",FBTypes)
-                              )]
+                              grepl("OA-VPM3",FBTypes))]
 FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
                              grepl("SA1_a",FBTypes) |
                              grepl("SA1_b",FBTypes) | 
@@ -74,7 +68,7 @@ T2T_FBTan <- getTypeToTypeTable(conTab_FBTan)
 
 Plot the FBt to FBt connections
 ```{r}
-T2T_FBTanToFBTan <- T2T_FBTan %>% filter(grepl("FB",type.to))
+T2T_FBTanToFBTan <- T2T_FBTan %>% filter(grepl("FB",type.to) | (type.to == "OA-VPM3"))
 
 T2TPlt_FBTan_FBTan <- ggplot(T2T_FBTanToFBTan) + 
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBTanToFBTan$weightRelative),
@@ -87,11 +81,12 @@ T2TPlt_FBTan_FBTan <- ggplot(T2T_FBTanToFBTan) +
         axis.title.y = element_text(size = 8),
         legend.text = element_text(size=6),
         legend.title = element_text(size=6)) +
-  xlab("post-synaptic type") + ylab("pre-synaptic type") +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
   guides(fill = guide_colorbar(barheight = 2,barwidth = 0.25)) +
   xlab("post-synaptic type") + ylab("pre-synaptic type")
 
 print(T2TPlt_FBTan_FBTan)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-type-to-type.pdf",T2TPlt_FBTan_FBTan)
 ```
 
 Cluster types based off of FBt to FBt connections
@@ -518,11 +513,11 @@ for (t in 1:length(FBts_ToPlt)){
 
 Plot the neuron-to-neuron FBt to FBt connection table
 ```{r}
-FBt_to_FBt <- conTab_FBTan %>% filter(grepl("FB",type.to) & grepl("FB",type.from))
+FBt_to_FBt <- conTab_FBTan %>% filter((supertype2.to == "FBt") & (supertype2.from == "FBt"))
 typesTo <- FBt_to_FBt$type.to %>% unique() %>% sort()
 types2types <- c()
 for (t in 1:length(typesTo)){
-  FBt_meta <- neuprint_get_meta(typesTo[t])
+  FBt_meta <- neuprint_get_meta(getTypesTable(typesTo[t])$bodyid)
   if (nrow(FBt_to_FBt %>% 
            filter(type.to == typesTo[t] & type.from == typesTo[t])) >
       0.75 * nrow(FBt_meta) * (nrow(FBt_meta) - 1)){
@@ -560,7 +555,7 @@ for (t in 1:length(typesFrom)){
 
 print(FBt_Plt)
 
-ggsave(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-neuron-to-neuron.pdf"),FBt_Plt)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-neuron-to-neuron.pdf",FBt_Plt)
 ```
 
 
@@ -904,3 +899,27 @@ print(FB4ZOuts_Plt)
 ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FB4Z_Outputs.pdf",FB4ZOuts_Plt)
 ```
 
+Plot a histogram of the number of neurons per FBt type
+```{r}
+FBtTypesTab <- getTypesTable(FBTypesTan)
+
+numsPerType <- FBtTypesTab %>% group_by(type) %>% summarize(num = n())
+
+numsPerTypePerSide <- FBtTypesTab %>% group_by(name,type) %>% summarize(num = n())
+numsPerTypePerSide$side <- numsPerTypePerSide$name %>% lapply(function(n) tail(str_split(n,'_')[[1]],1)) %>% unlist()
+
+difsPerSide <- numsPerTypePerSide
+difsPerSide$num[which(difsPerSide$side == "L")] <- -as.numeric(difsPerSide$num[which(difsPerSide$side == "L")])
+difsPerSide <- difsPerSide %>% group_by(type) %>% summarize(diff = sum(num))
+
+
+histAll <- ggplot(numsPerType) + geom_histogram(aes(x=num),binwidth=1,center=0) + 
+  theme_paper() + xlab('total number of neurons per type') + scale_x_continuous(breaks=seq(0,18,2))
+
+histRL <- ggplot(difsPerSide) + geom_histogram(aes(x=diff),binwidth=1,center=0) + 
+  theme_paper() + xlab('num. R neurons - num. L neurons') + xlim(-2.5,2.5)
+
+hists <- histAll + histRL + plot_layout(widths=c(4,1))
+print(hists)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtCounts.pdf",hists)
+```

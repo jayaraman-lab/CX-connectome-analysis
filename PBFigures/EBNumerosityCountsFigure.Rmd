@@ -1,0 +1,53 @@
+---
+title: "numerosity and total synapse counts"
+output: html_notebook
+---
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+library(ggnewscale)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Find the number of EPGs, PEN1s, PEN2s, and PEGs per glomerulus
+```{r}
+nronTypes <- c('EPG','PEN_a(PEN1)','PEN_b(PEN2)','PEG',
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+nronInfo <- getTypesTable(nronTypes)
+nronInfo$id <- EBGlomOrder(nronInfo$name,nronInfo$bodyid,"PB")
+nronInfo$glom <- lapply(nronInfo$id, function(id) substring(id,regexpr("_L|_R",id)[1]+1,regexpr("_L|_R",id)[1]+2)) %>% unlist()
+  
+nronsPerGlom <- nronInfo %>% group_by(type,glom) %>% summarize(numPerGlom = n())
+nronsPerGlom[is.na(nronsPerGlom$glom),]$glom <- "irreg"
+nronsPerGlom$glom <- factor(nronsPerGlom$glom,levels = c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                                         "R1","R2","R3","R4","R5","R6","R7","R8","R9",
+                                                         "irreg"))
+
+```
+```{r}
+numerosityPlt1 <- ggplot(nronsPerGlom %>% filter(type %in% c('EPG','PEN_a(PEN1)','PEN_b(PEN2)','PEG'))) + geom_bar(aes(x=glom,y=numPerGlom),stat="identity",color='white') + facet_grid(rows = vars(type)) + theme_paper() + 
+  xlab('glomerulus') + ylab('number of neurons per glomerulus') + theme(axis.text.x = element_text(angle = 90))
+
+numerosityPlt2 <- ggplot(nronsPerGlom %>% filter(type %in% c("PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv"))) + geom_bar(aes(x=glom,y=numPerGlom),stat="identity",color='white') + facet_grid(rows = vars(type),scales="free") + theme_paper() + 
+  xlab('glomerulus') + ylab('number of neurons per glomerulus') + theme(axis.text.x = element_text(angle = 90))
+
+numerosityPlt3 <- ggplot(nronsPerGlom %>% filter(type %in% c("PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b"))) + geom_bar(aes(x=glom,y=numPerGlom),stat="identity",color='white') + facet_grid(rows = vars(type)) + theme_paper() + 
+  xlab('glomerulus') + ylab('number of neurons per glomerulus') + theme(axis.text.x = element_text(angle = 90))
+
+numerosityPlt <- (numerosityPlt1 / numerosityPlt3) | numerosityPlt2 + plot_annotation(tag_levels = 'A')
+print(numerosityPlt)
+```

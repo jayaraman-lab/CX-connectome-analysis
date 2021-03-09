@@ -1,0 +1,41 @@
+---
+title: "FS4A figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure11-FS4A/"
+```
+
+```{r}
+load("outputsBasics.RData")
+load("mainTargetsAndConns.Rdata")
+```
+
+```{r}
+FSBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FS4")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FS4ACol <- plotGlomMat(FSBag,"FS4A_L",grouping="col")
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure11-FS4A.svg"),FS4ACol,base_height = 11/5,base_width = 8.5)
+```

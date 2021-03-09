@@ -1,0 +1,455 @@
+---
+title: "FB tangential connectivity"
+output: html_notebook
+---
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+library(ggnewscale)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting text sizes
+```{r}
+stCols <- supertype2Palette()
+stCols$breaks <- append(stCols$breaks,'OA-VPM3')
+stCols$pal <- append(stCols$pal,'#000000FF')
+```
+
+Get the different types of FB neurons
+```{r}
+FBNrons <- neuprint_bodies_in_ROI("FB") %>% mutate(type = neuprint_get_meta(bodyid)$type)
+FBTypes <- FBNrons$type %>% unique()
+FBTypesCol <- FBTypes[which(grepl("PF",FBTypes) |
+                           grepl("FS",FBTypes) |
+                           grepl("FC",FBTypes) |
+                           grepl("FR",FBTypes) |
+                           grepl("vDelta",FBTypes) |
+                           grepl("hDelta",FBTypes)
+                           )]
+FBTypesTan <- FBTypes[which(grepl("FB",FBTypes) |
+                              grepl("OA-VPM3",FBTypes))]
+FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
+                             grepl("SA1_a",FBTypes) |
+                             grepl("SA1_b",FBTypes) | 
+                             grepl("SA2_a",FBTypes) |
+                             grepl("SA2_b",FBTypes) |
+                             grepl("SA3",FBTypes)
+                           )]
+```
+
+Get the FB columnar type to type table
+```{r}
+# Get the connection table
+conTab_FBTan <- getConnectionTable(getTypesTable(FBTypesTan)$bodyid,
+                                   "POST",
+                                   "FB")
+conTab_FBTan <- conTab_FBTan %>% filter(!is.na(type.to) & !(type.to == "SIFa"))
+conTab_FBTan$id.from <- FBRename(conTab_FBTan$name.from, conTab_FBTan$from)
+conTab_FBTan$id.to <- FBRename(conTab_FBTan$name.to, conTab_FBTan$to)
+
+T2T_FBTan <- getTypeToTypeTable(conTab_FBTan)
+```
+
+Plot the FBt to FBt connections
+```{r}
+T2T_FBTanToFBTan <- T2T_FBTan %>% filter(grepl("FB",type.to) | (type.to == "OA-VPM3"))
+
+T2TPlt_FBTan_FBTan <- ggplot(T2T_FBTanToFBTan) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBTanToFBTan$weightRelative),
+                       limits=c(0,max(T2T_FBTanToFBTan$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=3),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(size=3),
+        axis.title.y = element_text(size = 8),
+        legend.text = element_text(size=6),
+        legend.title = element_text(size=6)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  guides(fill = guide_colorbar(barheight = 2,barwidth = 0.25)) +
+  xlab("post-synaptic type") + ylab("pre-synaptic type")
+
+print(T2TPlt_FBTan_FBTan)
+#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-type-to-type.pdf",T2TPlt_FBTan_FBTan)
+```
+
+Plot the FBt to FB col connections
+```{r}
+T2T_FBTanToFBCol <- T2T_FBTan %>% filter(type.to %in% FBTypesCol)
+
+colGps <- c("PFN","PFR_a","PFG","hDelta","vDelta","FC","FS","PFR_b","FR1","FR2","PFL")
+pltOrder <- c()
+for (g in 1:length(colGps)){
+  pltOrder <- c(pltOrder,FBTypesCol[which(grepl(colGps[g],FBTypesCol))] %>% sort())
+}
+T2T_FBTanToFBCol$type.to <- factor(T2T_FBTanToFBCol$type.to,pltOrder)
+
+txtLabsTo <- pltOrder[which(pltOrder %in% as.character(unique(T2T_FBTanToFBCol$type.to)))]
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+txtLabsFrom <- T2T_FBTanToFBCol$type.from %>% unique() %>% as.character() %>% sort()
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+T2TPlt_FBTan_FBCol <- ggplot(T2T_FBTanToFBCol) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBTanToFBCol$weightRelative),
+                       limits=c(0,max(T2T_FBTanToFBCol$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo,size=3),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(color=txtColsFrom,size=3),
+        axis.title.y = element_text(size = 8),
+        legend.text = element_text(size=6),
+        legend.title = element_text(size=6)) +
+  xlab("post-synaptic type") + ylab("pre-synaptic type") +
+  guides(fill = guide_colorbar(barheight = 2,barwidth = 0.25))
+
+offset = 0.5
+typesTo <- T2T_FBTanToFBCol$type.to %>% unique() %>% as.character() %>% sort()
+for (g in 1:length(colGps)){
+  offset <- offset + length(which(grepl(colGps[g],typesTo)))
+  T2TPlt_FBTan_FBCol <- T2TPlt_FBTan_FBCol + geom_vline(xintercept = offset)
+}
+
+print(T2TPlt_FBTan_FBCol)
+```
+
+PLot the FB col to FBt connections
+```{r}
+# Get the connection table
+conTab_FBTan_Pre <- getConnectionTable(getTypesTable(FBTypesTan)$bodyid,
+                                   "PRE",
+                                   "FB")
+conTab_FBTan_Pre <- conTab_FBTan_Pre %>% filter(!is.na(type.from) & !(type.from == "SIFa"))
+conTab_FBTan_Pre$id.from <- FBRename(conTab_FBTan_Pre$name.from, conTab_FBTan_Pre$from)
+conTab_FBTan_Pre$id.to <- FBRename(conTab_FBTan_Pre$name.to, conTab_FBTan_Pre$to)
+
+T2T_FBTan_Pre <- getTypeToTypeTable(conTab_FBTan_Pre)
+
+T2T_FBColToFBTan <- T2T_FBTan_Pre %>% filter(type.from %in% FBTypesCol)
+
+colGps <- c("PFN","PFR_a","PFG","hDelta","vDelta","FC","FS","PFR_b","FR1","FR2","PFL")
+pltOrder <- c()
+for (g in 1:length(colGps)){
+  pltOrder <- c(pltOrder,FBTypesCol[which(grepl(colGps[g],FBTypesCol))] %>% sort())
+}
+T2T_FBColToFBTan$type.from <- factor(T2T_FBColToFBTan$type.from,pltOrder)
+
+txtLabsTo <- T2T_FBColToFBTan$type.to %>% unique() %>% as.character() %>% sort()
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+txtLabsFrom <- pltOrder[which(pltOrder %in% as.character(unique(T2T_FBColToFBTan$type.from)))]
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+T2TPlt_FBCol_FBTan <- ggplot(T2T_FBColToFBTan) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBColToFBTan$weightRelative),
+                       limits=c(0,max(T2T_FBColToFBTan$weightRelative))) +
+  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo,size=2),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(color=txtColsFrom,size=2),
+        axis.title.y = element_text(size = 8),
+        legend.text = element_text(size=6),
+        legend.title = element_text(size=6)) +
+  xlab("postsynaptic type") + ylab("presynaptic type") +
+  guides(fill = guide_colorbar(barheight = 2,barwidth = 0.25))
+
+typesFrom <- T2T_FBColToFBTan$type.from %>% unique()
+offset = 0.5
+for (g in 1:length(colGps)){
+  offset <- offset + length(which(grepl(colGps[g],typesFrom)))
+  T2TPlt_FBCol_FBTan <- T2TPlt_FBCol_FBTan + geom_hline(yintercept = offset)
+}
+
+print(T2TPlt_FBCol_FBTan)
+
+```
+
+Plot the outputs that overlap with the above
+```{r}
+T2T_FBTanToFBCol_Comp <- T2T_FBTanToFBCol %>% filter(type.to %in% T2T_FBColToFBTan$type.from &
+                                                       type.from %in% T2T_FBColToFBTan$type.to)
+
+colGps <- c("PFN","PFR_a","PFG","hDelta","vDelta","FC","FS","PFR_b","FR1","FR2","PFL")
+pltOrder <- c()
+for (g in 1:length(colGps)){
+  pltOrder <- c(pltOrder,FBTypesCol[which(grepl(colGps[g],FBTypesCol))] %>% sort())
+}
+T2T_FBTanToFBCol_Comp$type.to <- factor(T2T_FBTanToFBCol_Comp$type.to,pltOrder)
+
+txtLabsFrom <- T2T_FBTanToFBCol_Comp$type.from %>% unique() %>% as.character() %>% sort()
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+txtLabsTo <- pltOrder[which(pltOrder %in% as.character(unique(T2T_FBTanToFBCol_Comp$type.to)))]
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+T2TPlt_FBTan_FBCol_Comp <- ggplot(T2T_FBTanToFBCol_Comp) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_FBTanToFBCol_Comp$weightRelative),
+                       limits=c(0,max(T2T_FBTanToFBCol_Comp$weightRelative))) +
+  geom_tile(aes(type.from,type.to,fill=weightRelative)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,color=txtColsFrom,size=2),
+        axis.title.x = element_text(size = 8),
+        axis.text.y = element_text(color=txtColsTo,size=2),
+        axis.title.y = element_text(size = 8),
+        legend.text = element_text(size=6),
+        legend.title = element_text(size=6)) +
+  xlab("presynaptic type") + ylab("postsynaptic type") +
+  guides(fill = guide_colorbar(barheight = 2,barwidth = 0.25)) + 
+  ggtitle('flipped, selective FB tan output matrix')
+
+typesTo <- T2T_FBTanToFBCol_Comp$type.to %>% unique()
+offset = 0.5
+for (g in 1:length(colGps)){
+  offset <- offset + length(which(grepl(colGps[g],typesTo)))
+  T2TPlt_FBTan_FBCol_Comp <- T2TPlt_FBTan_FBCol_Comp + geom_hline(yintercept = offset)
+}
+
+print(T2TPlt_FBTan_FBCol_Comp)
+```
+
+```{r}
+inOutCmp <- T2TPlt_FBCol_FBTan / T2TPlt_FBTan_FBCol_Comp
+print(inOutCmp)
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBTanConnectivity_InOutComp.pdf",inOutCmp)
+```
+
+
+Print and save
+```{r}
+tanPlts <- (T2TPlt_FBTan_FBCol + T2TPlt_FBTan_FBTan) / T2TPlt_FBCol_FBTan + plot_layout(nrow = 2, heights = c(2, 1))
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FBTanConnectivity.pdf",tanPlts)
+```
+
+Use FB2B_a as an example - plot downstream types
+```{r}
+conTab_FB2B_a_Post <- getConnectionTable(getTypesTable("FB2B_a"),"POST","FB")
+conTab_FB2B_a_Post$id.from <- FBRename(conTab_FB2B_a_Post$name.from, conTab_FB2B_a_Post$from)
+conTab_FB2B_a_Post$id.to <- FBRename(conTab_FB2B_a_Post$name.to, conTab_FB2B_a_Post$to)
+
+T2T_FB2B_a_Post <- getTypeToTypeTable(conTab_FB2B_a_Post)
+
+txtLabsFrom <- T2T_FB2B_a_Post$type.from %>% unique() %>% as.character()
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+pltOrder <- c("FB","FC","hDelta","vDelta","FS","FR","PFL")
+typesTo <- T2T_FB2B_a_Post$type.to %>% unique() %>% as.character()
+txtLabsTo <- c()
+for (t in 1:length(pltOrder)){
+  txtLabsTo <- c(txtLabsTo,typesTo[which(grepl(pltOrder[t],typesTo))])
+}
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+T2T_FB2B_a_Post$type.to <- factor(T2T_FB2B_a_Post$type.to, levels = txtLabsTo)
+
+FB2B_T2T_Post_Plt <- plotConnectivityMatrix(T2T_FB2B_a_Post, byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.25)) +
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo,size=3),
+        axis.title.x = element_text(size = 4),
+        axis.text.y = element_text(size=3,color=txtColsFrom),
+        axis.title.y = element_text(size = 4),
+        legend.text = element_text(size=4),
+        legend.title = element_text(size=4))
+
+print(FB2B_T2T_Post_Plt)
+
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FB2B_a_Downstream.pdf",FB2B_T2T_Post_Plt)
+```
+
+Use FB2B_a as an example - plot upstream types
+```{r}
+conTab_FB2B_a_Pre <- getConnectionTable(getTypesTable("FB2B_a"),"PRE","FB")
+conTab_FB2B_a_Pre$id.from <- FBRename(conTab_FB2B_a_Pre$name.from, conTab_FB2B_a_Pre$from)
+conTab_FB2B_a_Pre$id.to <- FBRename(conTab_FB2B_a_Pre$name.to, conTab_FB2B_a_Pre$to)
+
+T2T_FB2B_a_Pre <- getTypeToTypeTable(conTab_FB2B_a_Pre)
+
+txtLabsTo <- T2T_FB2B_a_Pre$type.to %>% unique() %>% as.character() %>% sort()
+txtColsTo <- lapply(txtLabsTo, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+txtLabsFrom <- T2T_FB2B_a_Pre$type.from %>% unique() %>% as.character() %>% sort()
+txtColsFrom <- lapply(txtLabsFrom, function(t) stCols$pal[which(stCols$breaks == supertype(t))]) %>% unlist()
+
+FB2B_T2T_Pre_Plt <- plotConnectivityMatrix(T2T_FB2B_a_Pre, byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.25)) +
+  theme(axis.text.x = element_text(angle = 90,color=txtColsTo,size=3),
+        axis.title.x = element_text(size = 4),
+        axis.text.y = element_text(size=3,color=txtColsFrom),
+        axis.title.y = element_text(size = 4),
+        legend.text = element_text(size=4),
+        legend.title = element_text(size=4))
+
+print(FB2B_T2T_Pre_Plt)
+
+#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FB2B_a_Upstream.pdf",FB2B_T2T_Pre_Plt)
+```
+
+
+Get the FB outline
+```{r}
+FBOutline <- roiOutline("FB")
+```
+
+Look at the spatial location of synapses between individual neurons on a given FBt type
+```{r}
+FBts_ToPlt <- c('FB2I_a','FB4P_b','FB5A','FB7A')
+
+for (t in 1:length(FBts_ToPlt)){
+  FBt_syns <- neuprint_get_synapses(getTypesTable(FBts_ToPlt[t])$bodyid, roi='FB') %>% 
+    mutate(type.to = neuprint_get_meta(partner)$type) %>%
+    filter(type.to == FBts_ToPlt[t]) %>%
+    mutate(type.from = neuprint_get_meta(bodyid)$type,
+           name.to = neuprint_get_meta(partner)$name,
+           name.from = neuprint_get_meta(bodyid)$name)
+  FBt_syns$id.from <- FBRename(FBt_syns$name.from,FBt_syns$bodyid)
+  FBt_syns$id.to <- FBRename(FBt_syns$name.to,FBt_syns$partner)
+  
+  FBt_syn_plt <- ggplot(FBt_syns %>% filter(prepost == 1)) + geom_point(aes(x=x,y=-z),size=0.5,alpha=0.25) +
+    facet_grid(rows = vars(id.from),
+               cols = vars(id.to)) +
+    geom_path(data=FBOutline[which(FBOutline$proj == "xz")[1:1076],], aes(x=x,y=-y),size=0.5) +
+    theme_paper() + coord_equal(ratio=1) +
+    ggtitle(FBts_ToPlt[t])
+  
+  print(FBt_syn_plt)
+  
+#ggsave(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\",FBts_ToPlt[t],"-selfSynLocs.pdf"),FBt_syn_plt)
+}
+```
+
+Plot the neuron-to-neuron FBt to FBt connection table
+```{r}
+FBt_to_FBt <- conTab_FBTan %>% filter((supertype2.to == "FBt") & (supertype2.from == "FBt"))
+typesTo <- FBt_to_FBt$type.to %>% unique() %>% sort()
+types2types <- c()
+for (t in 1:length(typesTo)){
+  FBt_meta <- neuprint_get_meta(getTypesTable(typesTo[t])$bodyid)
+  if (nrow(FBt_to_FBt %>% 
+           filter(type.to == typesTo[t] & type.from == typesTo[t])) >
+      0.75 * nrow(FBt_meta) * (nrow(FBt_meta) - 1)){
+        types2types <- c(types2types, typesTo[t])
+      }
+}
+FBt_to_FBt <- conTab_FBTan %>% filter((type.to %in% types2types) & (type.from %in% types2types))
+
+FBt_Plt <- ggplot(FBt_to_FBt) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(FBt_to_FBt$weightRelative),
+                       limits=c(0,max(FBt_to_FBt$weightRelative))) +
+  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=2),
+        axis.text.y = element_text(size = 2)) +
+  xlab("postsynaptic type") + ylab("presynaptic type")
+
+typesTo <- FBt_to_FBt$type.to %>% unique() %>% sort()
+idsTo <- FBt_to_FBt$id.to %>% unique() %>% sort() %>% lapply(function(x) strsplit(as.character(x),'-')[[1]][1]) %>% unlist()
+idsTo <- idsTo %>% lapply(function(x) str_replace(x,'_L|_R','')) %>% unlist()
+offset <- 0.5
+for (t in 1:length(typesTo)){
+  offset <- offset + length(which(idsTo == typesTo[t]))
+  FBt_Plt <- FBt_Plt + geom_vline(xintercept = offset)
+}
+
+typesFrom <- FBt_to_FBt$type.from %>% unique() %>% sort()
+idsFrom <- FBt_to_FBt$id.from %>% unique() %>% sort() %>% lapply(function(x) strsplit(as.character(x),'-')[[1]][1]) %>% unlist()
+idsFrom <- idsFrom %>% lapply(function(x) str_replace(x,'_L|_R','')) %>% unlist()
+offset <- 0.5
+for (t in 1:length(typesFrom)){
+  offset <- offset + length(which(idsFrom == typesFrom[t]))
+  FBt_Plt <- FBt_Plt + geom_hline(yintercept = offset)
+}
+
+print(FBt_Plt)
+
+#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-neuron-to-neuron.pdf",FBt_Plt)
+```
+
+
+
+
+Plot a histogram of the number of neurons per FBt type
+```{r}
+FBtTypesTab <- getTypesTable(FBTypesTan)
+
+numsPerType <- FBtTypesTab %>% group_by(type) %>% summarize(num = n())
+
+numsPerTypePerSide <- FBtTypesTab %>% group_by(name,type) %>% summarize(num = n())
+numsPerTypePerSide$side <- numsPerTypePerSide$name %>% lapply(function(n) tail(str_split(n,'_')[[1]],1)) %>% unlist()
+
+difsPerSide <- numsPerTypePerSide
+difsPerSide$num[which(difsPerSide$side == "L")] <- -as.numeric(difsPerSide$num[which(difsPerSide$side == "L")])
+difsPerSide <- difsPerSide %>% group_by(type) %>% summarize(diff = sum(num))
+
+
+histAll <- ggplot(numsPerType) + geom_histogram(aes(x=num),binwidth=1,center=0) + 
+  theme_paper() + xlab('total number of neurons per type') + scale_x_continuous(breaks=seq(0,18,2))
+
+histRL <- ggplot(difsPerSide) + geom_histogram(aes(x=diff),binwidth=1,center=0) + 
+  theme_paper() + xlab('num. R neurons - num. L neurons') + xlim(-2.5,2.5)
+
+hists <- histAll + histRL + plot_layout(widths=c(4,1))
+print(hists)
+#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtCounts.pdf",hists)
+```
+
+Get the synapses by ROI for the FBts
+```{r}
+FBtTypes <- neuprint_search("FB.*",field="type") %>% select(type) %>% unlist() %>% as.character()
+FBtROIs <- neuprint_get_roiInfo(getTypesTable(FBtTypes)$bodyid) %>% mutate(type = neuprint_get_meta(bodyid)$type, name = neuprint_get_meta(bodyid)$name)
+```
+
+Select only the right side neurons, average across instances, and look at only the SNP, CRE, and LAL
+```{r}
+FBtROIs_R_Av <- FBtROIs[which(grepl("_R",FBtROIs$name)),] %>% 
+  select(type,name,bodyid,
+         "SNP(R).upstream","SNP(R).downstream",
+         "CRE(R).upstream","CRE(R).downstream",
+         "LAL(R).upstream","LAL(R).downstream") %>%
+  replace_na(list("SNP(R).upstream" = 0,"SNP(R).downstream" = 0,
+                  "CRE(R).upstream" = 0,"CRE(R).downstream" = 0,
+                  "LAL(R).upstream" = 0,"LAL(R).downstream" = 0)) %>%
+  as.data.frame()
+colnames(FBtROIs_R_Av) <- c("type","name","bodyid",
+                            "SNP.up","SNP.down",
+                            "CRE.up","CRE.down",
+                            "LAL.up","LAL.down")
+
+FBtROIs_R_Av <- FBtROIs_R_Av %>% group_by(type) %>% summarize(SNP.upstream = mean(SNP.up),SNP.downstream = mean(SNP.down),
+                                                              CRE.upstream = mean(CRE.up),CRE.downstream = mean(CRE.down),
+                                                              LAL.upstream = mean(LAL.up),LAL.downstream = mean(LAL.down))
+
+FBtROIs_R_Av$layer <- lapply(FBtROIs_R_Av$type, function(x) str_sub(x,3,3)) %>% unlist()
+
+FBtLayerROIs <- FBtROIs_R_Av %>% group_by(layer) %>% summarize(SNP.inputs = length(which(SNP.upstream >3)),
+                                                               SNP.outputs = length(which(SNP.downstream >3)),
+                                                               CRE.inputs = length(which(CRE.upstream>3)),
+                                                               CRE.outputs = length(which(CRE.downstream>3)),
+                                                               LAL.inputs = length(which(LAL.upstream>3)),
+                                                               LAL.outputs = length(which(LAL.downstream>3)))
+```
+Plot the distributions
+```{r}
+FBtLayerROIs_Plt <- FBtLayerROIs %>% melt(id.vars =c("layer"),variable.name=c("ROI"))
+FBtLayerROIs_Plt$InOut <- FBtLayerROIs_Plt$ROI %>% lapply(function(x) str_split(x,'[.]')[[1]][2]) %>% unlist()
+FBtLayerROIs_Plt$ROI <- FBtLayerROIs_Plt$ROI %>% lapply(function(x) str_split(x,'[.]')[[1]][1]) %>% unlist()
+
+FBtLayerPlt <- ggplot(FBtLayerROIs_Plt) + geom_col(aes(x=value,y=layer,fill=ROI)) + facet_grid(cols=vars(ROI),rows=vars(InOut)) + 
+  theme_paper() + xlab("number of types")
+print(FBtLayerPlt)
+#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\CRE_LAL_SNP_dists.pdf",
+#       FBtLayerPlt, height=2, width = 3)
+```

@@ -14,15 +14,8 @@ library(patchwork)
 library(ggnewscale)
 library(gridExtra)
 
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\PBAnalysisUtils.R")
-```
-
-Specify plotting text sizes
-```{r}
-update_geom_defaults("text", list(size = 6*0.35))
-theme_paper <- function(...){
-  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
-  }
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
 ```
 
 Get the IbSpsP inputs
@@ -42,14 +35,17 @@ USNronSum$id.to <- paste(USNronSum$name.to,USNronSum$to,sep='-')
 ```
 
 ```{r}
+cmax = 150
+
 conmatPlot <- ggplot(USNronSum) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(USNronSum$ROIweightAll),
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", midpoint =0.5*max(USNronSum$ROIweightAll),
                        limits=c(0,max(USNronSum$ROIweightAll))) +
   geom_tile(aes(id.to,id.from,fill=ROIweightAll)) +
   theme_paper() + coord_fixed(ratio = 1) + 
   theme(axis.text.x = element_text(angle = 90,hjust=1)) +
   xlab("presynaptic neuron") + ylab("postsynaptic neuron")
 
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\IBSpsP_Inputs.pdf',conmatPlot)
+conmatPlot
+#ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\IBSpsP_Inputs.pdf',conmatPlot)
 ```
 

@@ -20,7 +20,7 @@ library(igraph)
 ```{r message=FALSE}
 source("outputFunctions-display.R")
 source("outputFunctions-core.R")
-source("../R/paperTheme.R")
+source("../R/paperTheme_linux.R")
 source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
 outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure7-MBONsPPLs//"
@@ -61,7 +61,7 @@ CXoutFFEndpointMBONPPLs <- filter(CXoutFull,(supertype3.to == "MBON" | supertype
                                                                                                                          )
 
 
-moreMBONPPLPlot <- ggplot(CXoutFFEndpointMBONPPLs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("Total pathway weight") + xlab("Descending neuron") + facet_grid(.~supertype3.to,scale="free_x",space="free_x",switch = "x") + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+moreMBONPPLPlot <- ggplot(CXoutFFEndpointMBONPPLs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("") + facet_grid(.~supertype3.to,scale="free_x",space="free_x",switch = "x") + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
 
 moreMBONPPLPlot
 ```
@@ -82,7 +82,7 @@ graphToMBONs<- getLocalSubgraph(c("PFR_b_L*","FS1A_L","FS1B_L","ExR7_R","FS2_L",
 
 set.seed(20)
 graphToMBONsPlot <- ggraph(graphToMBONs,layout="dh") + geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=customSupertype),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + coord_cartesian(clip = "off")+ theme(legend.position=c(0.9,0.5))
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=customSupertype),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(edge_color="none") + coord_cartesian(clip = "off")+ theme(legend.position=c(0.9,0.5))
 
 graphToMBONsPlot
 ```
@@ -182,11 +182,14 @@ layout <- c(
    area(t=17,b=22,l=7,r=10)
 )
 
-MBPPLPlot <- moreMBONPPLPlot + graphToMBONsPlot + FR1MB30Anat + FR2PPLAnat + FB8PPLAnat +  plot_layout(design=layout) + plot_annotation(title="Outputs figure 7: paths to MBONs and DANs",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) &theme(plot.tag.position = c(-0.05, 1.05))
+#MBPPLPlot <- moreMBONPPLPlot + graphToMBONsPlot + FR1MB30Anat + FR2PPLAnat + FB8PPLAnat +  plot_layout(design=layout) + plot_annotation(title="Outputs figure 7: paths to MBONs and DANs",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) &theme(plot.tag.position = c(-0.05, 1.05))
+
+MBPPLPlot <- moreMBONPPLPlot + graphToMBONsPlot + plot_spacer() + plot_spacer() + plot_spacer() +  plot_layout(design=layout) + plot_annotation(title="Outputs figure 7: paths to MBONs and DANs",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) &theme(plot.tag.position = c(-0.05, 1.05))
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure7-MBONPPLs.pdf"),MBPPLPlot,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure7-MBONPPLs.pdf"),MBPPLPlot,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure7-MBONPPLs.svg"),MBPPLPlot,base_height = 11*1.333333,base_width = 8.5*1.333333)
 ```
 
 ## SI
@@ -199,11 +202,11 @@ PFR2mALDMBON20Plot <- standardGraph(PFR2mALDMBON20_1,pal=c(customGraphPalette,cu
 PFR2mALDMBON20Plot
 ```
 ```{r}
-figure7SI1 <- PFR2mALDMBON20Plot / PFRStep1 / PFRStep2 + plot_annotation(tag_levels = "A",title="Outputs figure 7 SI1: PFR_b to MBON 20 and mALD1",theme=theme(title=element_text(size=12,face="bold")))
+#figure7SI1 <- PFR2mALDMBON20Plot / PFRStep1 / PFRStep2 + plot_annotation(tag_levels = "A",title="Outputs figure 7 SI1: PFR_b to MBON 20 and mALD1",theme=theme(title=element_text(size=12,face="bold")))
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+#save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
 ```
 
 
@@ -232,10 +235,10 @@ FCFSOviAnat <- ggdraw(xlim = c(0,2)) +
 ```
 
 ```{r}
-FCFSKnownOutputsFig <- (FCFStoOviPlot ) / FCFSOviAnat + plot_annotation(title="Outputs figure 7 SI2 : FC FS to oviIn and MBON27",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) + plot_layout(heights = c(1,3))
+FCFSKnownOutputsFig <- (FCFStoOviPlot ) / plot_spacer() + plot_annotation(title="Outputs figure 7 SI1 : FC FS to oviIn and MBON27",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) + plot_layout(heights = c(1,3))
 ```
 
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure7-SI2.pdf"),FCFSKnownOutputsFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.svg"),FCFSKnownOutputsFig,base_height = 11*1.333333,base_width = 8.5*1.333333)
 ```
 

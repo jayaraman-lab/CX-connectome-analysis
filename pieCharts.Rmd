@@ -23,15 +23,15 @@ neuprint_login()
 
 ```{r messages=FALSE, warning=FALSE}
 # Get some custom functions
-source("connectionPieChart.R")
+source("R/connectionPieChart.R")
 ```
 
 ### Construct neuron bag for type of interest
 ```{r}
-myType = "ER3a_b"
+myType = "ER3a_d"
 myType_bag = neuronBag(myType)
 
-saveDir = "../neuprintR_analysis_plots/ExR/"
+saveDir = "../neuprintR_analysis_plots/ER3a/"
 dir.create(saveDir)
 ```
 
@@ -55,8 +55,8 @@ Sys.setenv("PATH" = paste(Sys.getenv("PATH"), "/Users/haberkernh/anaconda3/bin",
 
 ### Generate data for pie chart and plot chart that illustrates input and output fraction per region
 ```{r,warnings=FALSE}
-singleNeuronThreshold=0.005 #
-singleNeuronThresholdN=3
+#singleNeuronThreshold=0.005 #
+#singleNeuronThresholdN=3
 mintextsize = 12
 # Filter out neurons from left side?
 splitLR = TRUE
@@ -66,7 +66,7 @@ if(splitLR){
     myTypelat = paste0(myType,side)
     for(dir in c("input", "output")){
       myTypeDir = prepData4pieChart(myType_bag,partnerDirection=dir,slctRoi=slctROIs, splitLR,
-                                myTypelat,minweight=singleNeuronThresholdN, minrelweight=singleNeuronThreshold)
+                                myTypelat)#,minweight=singleNeuronThresholdN, minrelweight=singleNeuronThreshold)
       
       if(length(myTypeDir$roi)>0){
         pieDat = generatePieChartData(myTypeDir, myTypelat, rootlab = paste(myTypelat,dir))

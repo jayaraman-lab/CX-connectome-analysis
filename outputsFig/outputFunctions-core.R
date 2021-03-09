@@ -4,7 +4,10 @@ library(Matrix)
 
 ## A custom retyping that splits DNb01 in 2 groups
 customRetyping <- function(connections,postfix=c("raw", "to", "from")){
+  # DNb01
   connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),nameModifiers=c("_1_R","_2_R"),postfix=postfix,redefinePartners=T)
+  # PLP042_a divided in two groups
+  connections <- redefineTypeByBodyId(connections,sets=list(951018323,1224400894),nameModifiers=c("_2_R","_2_R"),postfix=postfix,redefinePartners=T)
   connections <- cxRetyping(connections,postfix=postfix)
 }
 

@@ -1,0 +1,100 @@
+---
+title: "D7s vs P6-8P9"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(ggnewscale)
+library(gridExtra)
+
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
+```
+
+```{r}
+stCols <- supertype2Palette()
+```
+
+
+Get the R and L PB neurons
+```{r}
+nronNames_R <- c("P6-8P9(PB14)_R", "Delta7(PB15)_L8R1R9_L")
+nronNames_L <- c("P6-8P9(PB14)_L", "Delta7(PB15)_L1L9R8_R")
+```
+
+Plot the synaptic input by position for gloms 4-9 for P6-8P9s and D7s
+```{r}
+# Look at the right PB only since the left PB only has one complete P6-8P9
+PBGloms <- c("R9","R8","R7","R6","R5","R4")
+
+# Initialize a data frame to hold the data across gloms
+synsByGlom_in <- data.frame(type.from = c(),name.to = c(),
+                         numSyns = c(),roi = c())
+
+# Step through the gloms
+for (g in 1:length(PBGloms)){
+  # Get the info about each synapse restricted to the ROIs of interest
+  synDatByGlom <- neuprint_get_synapses(
+    getTypesTable(c("Delta7","P6-8P9")) %>% filter(name %in% nronNames_R) %>% select(bodyid),
+    roi=paste0("PB(",PBGloms[g],")")) %>%
+    filter(prepost == 1) %>%
+    mutate(name.from = neuprint_get_meta(partner)$name,
+           type.from = neuprint_get_meta(partner)$type,
+           name.to = neuprint_get_meta(bodyid)$name,
+           type.to = neuprint_get_meta(bodyid)$type)
+  synDatByGlom <- synDatByGlom %>% filter(!is.na(name.from))
+  synDatByGlom$id.from <- PBRename(synDatByGlom$name.from,synDatByGlom$partner)
+  synDatByGlom$id.to <- PBRename(synDatByGlom$name.to,synDatByGlom$name)
+  
+  # Count up the synapses per input type
+  glomSyns <- synDatByGlom %>% group_by(type.from,name.to,id.to) %>% summarize(numSyns = n())
+  
+  # Store the data
+  glomSyns$roi <- PBGloms[g]
+  synsByGlom_in <- rbind(synsByGlom_in,glomSyns)
+}
+
+# Find the mean across individual neurons
+synsByGlomStats_in <- synsByGlom_in %>% group_by(type.from,name.to,roi) %>% summarize(meanSyns = mean(numSyns))
+synsByGlomStats_in$supertype <- supertype(synsByGlomStats_in$type.from)
+
+# Plot
+g_glomIns <- ggplot(synsByGlomStats_in) + geom_bar(aes(x = as.factor(roi),y=meanSyns,fill=as.factor(supertype)),stat="identity") + 
+  facet_grid(vars(as.factor(name.to))) + 
+  theme_cowplot() + scale_fill_manual(values = stCols$pal, breaks = stCols$breaks)
+print(g_glomIns)
+```
+
+```{r}
+# Get the info about each synapse restricted to the ROIs of interest
+synDatByGlom_out <- neuprint_get_synapses(
+    getTypesTable(c("Delta7","P6-8P9")) %>% filter(name %in% nronNames_R) %>% select(bodyid),
+    roi=paste0("PB(R9)")) %>%
+    filter(prepost == 0) %>%
+    mutate(name.to = neuprint_get_meta(partner)$name,
+           type.to = neuprint_get_meta(partner)$type,
+           name.from = neuprint_get_meta(bodyid)$name,
+           type.from = neuprint_get_meta(bodyid)$type)
+synDatByGlom_out <- synDatByGlom_out %>% filter(!is.na(name.to))
+synDatByGlom_out$id.from<- PBRename(synDatByGlom_out$name.from,synDatByGlom_out$bodyid)
+synDatByGlom_out$id.to <- PBRename(synDatByGlom_out$name.to,synDatByGlom_out$partner)
+
+# Find the number of synapses per type
+glomSyns_out <- synDatByGlom_out %>% group_by(id.from,name.from,type.to) %>% summarize(numSyns = n())
+
+# Average over the neurons
+glomSynsStats_out <- glomSyns_out %>% group_by(name.from,type.to) %>% summarize(meanSyns = mean(numSyns))
+glomSynsStats_out$supertype <- supertype(glomSynsStats_out$type.to)
+
+# Plot    
+g_glomOuts <- ggplot(glomSynsStats_out) + geom_bar(aes(x = as.factor(name.from),y=meanSyns,fill=as.factor(supertype)),stat="identity") + 
+  theme_cowplot() + theme(axis.text.x = element_text(angle=90)) +
+  scale_fill_manual(values = stCols$pal, breaks = stCols$breaks)
+print(g_glomOuts)
+```

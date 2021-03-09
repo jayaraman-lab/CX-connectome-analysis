@@ -98,7 +98,7 @@ WMFromConTab <- function(conTab, preids, postids){
   
   for (i in 1:length(preids)){
     for (j in 1:length(postids)){
-      w = conTab[which(conTab$id.from == preids[i] & conTab$id.to == postids[j]),]$ROIweight
+      w = conTab[which(conTab$nameOrder.from == preids[i] & conTab$nameOrder.to == postids[j]),]$ROIweight
       if (length(w) > 0)
         justWeights[i,j] = w
     }
@@ -115,8 +115,8 @@ EPGToD7Mat <- function(PBNronTypeStr){
     "POST",
     "PB",
     synThresh= 0) %>% filter(type.from == "EPG" & type.to == "Delta7")
-  EPG_2_Delta7$nameid = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
-  EPG_2_Delta7$partnerid = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
+  EPG_2_Delta7$nameOrder.from = paste(as.character(EPG_2_Delta7$name.from), as.character(EPG_2_Delta7$from), sep = "_")
+  EPG_2_Delta7$nameOrder.to = paste(as.character(EPG_2_Delta7$name.to), as.character(EPG_2_Delta7$to), sep = "_")
   
   # Get the D7 to EPG connections weight matrix
   Delta7_2_PBTp <- getConnectionTable(
@@ -124,8 +124,8 @@ EPGToD7Mat <- function(PBNronTypeStr){
     "POST",
     "PB",
     synThresh= 0) %>% filter(type.from == "Delta7" & type.to == PBNronTypeStr)
-  Delta7_2_PBTp$nameid = paste(as.character(Delta7_2_PBTp$name.from), as.character(Delta7_2_PBTp$from), sep = "_")
-  Delta7_2_PBTp$partnerid = paste(as.character(Delta7_2_PBTp$name.to), as.character(Delta7_2_PBTp$to), sep = "_")
+  Delta7_2_PBTp$nameOrder.from = paste(as.character(Delta7_2_PBTp$name.from), as.character(Delta7_2_PBTp$from), sep = "_")
+  Delta7_2_PBTp$nameOrder.to = paste(as.character(Delta7_2_PBTp$name.to), as.character(Delta7_2_PBTp$to), sep = "_")
   
   # Get the EPG and D7 names and glomeruli
   allEPGids <- paste(getTypesTable(c("EPG"))$name,
@@ -208,6 +208,32 @@ EPGToD7Transform <- function(PBTpStr,actProf){
     PBTpInput_byGlom <- PBTpInput_byGlom[order(PBTpInput_byGlom$glom),]
     PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, pkGlom), 
                               head(PBTpInput_byGlom$act, -pkGlom))
+    if (PBTpStr %in% c("PEG","PFGs") & pkGlom > 6){
+      PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, 2), 
+                                head(PBTpInput_byGlom$act, -2))
+    }
+    if (PBTpStr %in% c("PFL1","PFL3")){
+      if ((pkGlom > 8) & (pkGlom < 15)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -2), 
+                                  head(PBTpInput_byGlom$act, 2))
+      } else if ((pkGlom > 2) | (pkGlom > 15)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -1), 
+                                  head(PBTpInput_byGlom$act, 1))
+      }
+      
+    }
+    if (PBTpStr == "PFL2"){
+      if (pkGlom > 7){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -3), 
+                                  head(PBTpInput_byGlom$act, 3))
+      }
+    }
+    if (PBTpStr == "PFR_b"){
+      if ((pkGlom > 7) & (pkGlom < 14)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -2), 
+                                  head(PBTpInput_byGlom$act, 2))
+      }
+    }
     colnames(PBTpInput_byGlom) <- c("glom",paste0("act",pkGlom))
     
     # Store the values across circular permutations

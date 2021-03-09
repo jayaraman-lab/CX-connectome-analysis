@@ -65,7 +65,8 @@ neuprint_login()
 
 ### Select types for comparison
 ```{r}
-myTypeList = paste0(c("ExR"),seq(1,8))
+myTypeList = c("ER3a_a","ER3a_b","ER3a_c","ER3a_d","ER1_a","ER1_b")
+  #paste0(c("ExR"),seq(1,8))
   #c(unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type), unique(getBodyIdsForList(paste0( c("PEN"),".*"))$type))
   #c("PFR_a", "PFR_b", unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type), "vDeltaJ", "vDeltaK", "vDeltaL", "vDeltaM")
   #c("FB6A","FB6C_a","FB6C_b","FB6D","FB6E","FB6F","FB6G","FB6H","FB6I","FB6Z","FB7A","FB7B","FB7K","FB7L","FB5J","FB5H","FB5I","FB5AA", "FB5AB","FB1D","FB1E")
@@ -78,7 +79,7 @@ myTypeList_lat = paste0(myTypeList, side)
 #c("ExR.*")#,"GLNO","LCNOpm","LCNOp"
 #unique(getBodyIdsForList(paste0( c("ER2"),".*"))$type)
 
-saveName = "ExR_comparison"
+saveName = "ER1-3_comparison"
 
 saveDir = "../neuprintR_analysis_plots/"
 ```
@@ -187,7 +188,7 @@ for(st in c(0,2,3)){
   show(bar)
   
   ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'.pdf', sep=''),plot = bar, device='pdf', path = "../neuprintR_analysis_plots/",
-      scale = 1, width=25, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+      scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
 }
 
 ```
@@ -220,7 +221,7 @@ for(st in c(0,2,3)){
   show(bar)
   
   ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'_nonNorm.pdf', sep=''),plot = bar, device='pdf', path = "../neuprintR_analysis_plots/",
-      scale = 1, width=25, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+      scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
 }
 
 ```
@@ -229,7 +230,7 @@ for(st in c(0,2,3)){
 # select inputs to focus types in main input regions
 ```{r}
 myROIs = unique(myTypes_filt$roi)[unique(myTypes_filt$roi)!="EB"] #
-myROIsName ="allButEB" #"allROIbutNO" # "allROIbutEB" #paste(myROIs, collapse = '-') #"PB_EB_NOr" #
+myROIsName = "allROIbutEB" #paste(myROIs, collapse = '-')#"allButEB" #"allROIbutNO" # #"PB_EB_NOr" #
 myROIs  
 
 ```
@@ -256,7 +257,7 @@ conMatPlot = addMatrixPlotLabs(conMatPlot, "Inputs",  "",paste(myROIs, collapse 
 print(conMatPlot)
 
 plotW = 7
-plotH = 15#20
+plotH = 12#20
 
 ggsave(paste("connectivityMatrix_",saveName,'_in_',myROIsName,'_', weightMeasure,'_fromNBag.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
   scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
