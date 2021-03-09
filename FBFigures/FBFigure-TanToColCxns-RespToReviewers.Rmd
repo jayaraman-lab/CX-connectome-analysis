@@ -1,0 +1,118 @@
+---
+title: "FB tangential connectivity"
+output: html_notebook
+---
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(neuprintrExtra)
+library(cowplot)
+library(reshape2)
+library(patchwork)
+library(visNetwork)
+library(ggnewscale)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+
+options(nat.plotengine = 'rgl')
+```
+
+Specify plotting text sizes
+```{r}
+stCols <- supertype2Palette()
+stCols$breaks <- append(stCols$breaks,'OA-VPM3')
+stCols$pal <- append(stCols$pal,'#000000FF')
+```
+
+Get the different types of FB neurons
+```{r}
+FBNrons <- neuprint_bodies_in_ROI("FB") %>% mutate(type = neuprint_get_meta(bodyid)$type)
+FBTypes <- FBNrons$type %>% unique()
+FBTypesCol <- FBTypes[which(grepl("PF",FBTypes) |
+                           grepl("FS",FBTypes) |
+                           grepl("FC",FBTypes) |
+                           grepl("FR",FBTypes) |
+                           grepl("vDelta",FBTypes) |
+                           grepl("hDelta",FBTypes)
+                           )]
+FBTypesTan <- FBTypes[which(grepl("FB",FBTypes) |
+                              grepl("OA-VPM3",FBTypes))]
+FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
+                             grepl("SA1_a",FBTypes) |
+                             grepl("SA1_b",FBTypes) | 
+                             grepl("SA2_a",FBTypes) |
+                             grepl("SA2_b",FBTypes) |
+                             grepl("SA3",FBTypes)
+                           )]
+```
+
+Get the FBt neuron bag
+```{r}
+FBtBag <- neuronBag(getTypesTable(FBTypesTan))
+```
+
+Select the FBt to FB columnar connections
+```{r}
+FBtToFBCol <- FBtBag$outputs_raw %>% filter(grepl("PF",type.to), roi == "FB")
+```
+
+Get the columnar neuron glom
+```{r}
+GlomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+               "L1","L2","L3","L4","L5","L6","L7","L8","L9")
+FBtToFBCol$PBGlom <- FBtToFBCol$name.to %>% lapply(function(x) gsub(".*[_](R[[:digit:]]|L[[:digit:]])[_].*", "\\1", x)) %>% unlist()
+FBtToFBCol$PBGlom <- factor(FBtToFBCol$PBGlom, levels = as.factor(GlomOrder))
+```
+
+Get the FB layer
+```{r}
+FBtToFBCol$FBlayer <- FBtToFBCol$name.from %>% lapply(function(x) gsub("(FB[[:digit:]]).*", "\\1", x)) %>% unlist()
+FBtToFBCol$FBlayer <- factor(FBtToFBCol$FBlayer, levels = as.factor(FBtToFBCol$FBlayer %>% unique() %>% unlist() %>% sort(decreasing=TRUE)))
+```
+
+Select only connections that pass the type to type test
+```{r}
+FBtToFBCol_T2T <- FBtBag$outputs %>% filter(grepl("PF",type.to), roi == "FB")
+preTypes <- FBtToFBCol_T2T$type.from %>% unique() %>% unlist()
+postTypes <- FBtToFBCol_T2T$type.to %>% unique() %>% unlist()
+
+FBtToFBCol_filtered <- data.frame(matrix(ncol = ncol(FBtToFBCol), nrow = 0))
+colnames(FBtToFBCol_filtered) <- colnames(FBtToFBCol)
+
+for (pre in 1:length(preTypes)){
+  for (post in 1:length(postTypes)){
+    t2tDat <- FBtToFBCol_T2T %>% filter(type.from == preTypes[pre],
+                                        type.to == postTypes[post])
+    if (nrow(t2tDat) > 0){
+      n2nDat <- FBtToFBCol %>% filter(type.from == preTypes[pre],
+                                      type.to == postTypes[post])
+      FBtToFBCol_filtered <- rbind(FBtToFBCol_filtered, n2nDat)
+    }
+  }
+}
+```
+
+Plot the connections per layer by type
+```{r, fig.asp=4, out.width=600px}
+PFTypes <- FBtToFBCol_filtered$type.to %>% unique() %>% sort()
+FBLayers <- FBtToFBCol_filtered$FBlayer %>% unique() %>% sort()
+for (t in 1:length(PFTypes)){
+  for (l in 1:length(FBLayers)){
+    PFDat <- FBtToFBCol_filtered %>% filter(type.to == PFTypes[t], FBlayer == FBLayers[l])
+    if (nrow(PFDat)>0){
+      FB2ColPlt <- ggplot(PFDat) + geom_point(aes(x = PBGlom, y = ROIweight, color = type.from),alpha=0.25) +
+        facet_grid(rows = vars(type.from)) + ggtitle(PFTypes[t])
+      print(FB2ColPlt)
+    }
+  }
+}
+```
+
+
