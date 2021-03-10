@@ -1,14 +1,11 @@
-################### A collection of functions for loading, processing, and plotting FB synapse distributions ##################
-
-
-
-###############################################################################################################################
-################## Function for loading FB synapses by layer ##################################################################
-
+##### A collection of functions for loading, processing, and plotting FB synapse distributions ##################
 
 
 Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
-  
+  #' Function for loading FB synapses by layer, with associated partner type and other meta information.
+  #' @param BodyIDs A list of bodyIDs
+  #' @param BodyIDs A string for an ROI (e.g. "FBl1")
+  #' @param BodyIDs A string for an FB layer (e.g. ""FBl1")
   
   SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)
   
@@ -21,6 +18,9 @@ Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
   SynLocs$Layer=Layer
   return(SynLocs)
 }
+
+
+
 
 
 
