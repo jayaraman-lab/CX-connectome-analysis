@@ -7,21 +7,13 @@ Load the libraries
 ```{r}
 library(nat)
 library(neuprintr)
-library(tidyverse)
-library(tidygraph)
-library(ggraph)
-library(gridExtra)
-library(paletteer)
 library(neuprintrExtra)
-library(cowplot)
 library(reshape2)
 library(patchwork)
-library(visNetwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
-#source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\connectivityMatricesTools.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("..\\FBFigures\\FBNetworkVisUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\PBFigures\\PBAnalysisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
 options(nat.plotengine = 'rgl')
 ```
 
@@ -388,25 +380,25 @@ print(DN_plt_imp)
 ```
 Save the plots
 ```{r}
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\EPGToPFLCM.pdf",EPGToPFL23Plt,
+ggsave("EPGToPFLCM.pdf",EPGToPFL23Plt,
        width=4, height=4, units = "in")
 ```
 ```{r}
 PFL23ToDNPlt <- PFL2ToDNPlt + PFL3ToDNPlt + plot_layout(widths = c(1,2), guides = 'collect')
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\PFLToDNCM.pdf",PFL23ToDNPlt,
+ggsave("PFLToDNCM.pdf",PFL23ToDNPlt,
        width=3.5, height=2.5, units = "in")
 ```
 ```{r}
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\PFLBumpAct.pdf",PFLactAll,
+ggsave("PFLBumpAct.pdf",PFLactAll,
        width=6, height=2.5, units = "in")
 ```
 ```{r}
 sumPFL_plts_imp <- sumPFL2_plt_imp + sumPFL3_plt_imp
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\EPGToPFLActImp.pdf",sumPFL_plts_imp,
+ggsave("EPGToPFLActImp.pdf",sumPFL_plts_imp,
        width=3.5, height=1.5, units = "in")
 ```
 ```{r}
 DN_plts <- DN_From_PFL2_plt + DN_From_PFL3_plt + plot_layout(widths = c(1,2))
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\outputs etc\\v5\\Individual Files\\DTE\\EPGToPFLToDNAct.pdf",DN_plts,
+ggsave("EPGToPFLToDNAct.pdf",DN_plts,
        width=4, height=2.5, units = "in")
 ```

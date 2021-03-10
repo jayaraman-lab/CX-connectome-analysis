@@ -6,20 +6,12 @@ Load the libraries
 ```{r}
 library(nat)
 library(neuprintr)
-library(tidyverse)
-library(tidygraph)
-library(ggraph)
-library(gridExtra)
-library(paletteer)
 library(neuprintrExtra)
-library(cowplot)
 library(reshape2)
 library(patchwork)
-library(visNetwork)
-library(ggnewscale)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("FBNetworkVisUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\R\\visualizeConnectivityTables.R")
 
 options(nat.plotengine = 'rgl')
 ```
@@ -86,7 +78,6 @@ T2TPlt_FBTan_FBTan <- ggplot(T2T_FBTanToFBTan) +
   xlab("post-synaptic type") + ylab("pre-synaptic type")
 
 print(T2TPlt_FBTan_FBTan)
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-type-to-type.pdf",T2TPlt_FBTan_FBTan)
 ```
 
 Plot the FBt to FB col connections
@@ -225,14 +216,12 @@ print(T2TPlt_FBTan_FBCol_Comp)
 ```{r}
 inOutCmp <- T2TPlt_FBCol_FBTan / T2TPlt_FBTan_FBCol_Comp
 print(inOutCmp)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBTanConnectivity_InOutComp.pdf",inOutCmp)
 ```
 
 
 Print and save
 ```{r}
 tanPlts <- (T2TPlt_FBTan_FBCol + T2TPlt_FBTan_FBTan) / T2TPlt_FBCol_FBTan + plot_layout(nrow = 2, heights = c(2, 1))
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FBTanConnectivity.pdf",tanPlts)
 ```
 
 Use FB2B_a as an example - plot downstream types
@@ -266,8 +255,6 @@ FB2B_T2T_Post_Plt <- plotConnectivityMatrix(T2T_FB2B_a_Post, byGroup = "type") +
         legend.title = element_text(size=4))
 
 print(FB2B_T2T_Post_Plt)
-
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FB2B_a_Downstream.pdf",FB2B_T2T_Post_Plt)
 ```
 
 Use FB2B_a as an example - plot upstream types
@@ -294,8 +281,6 @@ FB2B_T2T_Pre_Plt <- plotConnectivityMatrix(T2T_FB2B_a_Pre, byGroup = "type") +
         legend.title = element_text(size=4))
 
 print(FB2B_T2T_Pre_Plt)
-
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_10_TanConnectivity\\FB2B_a_Upstream.pdf",FB2B_T2T_Pre_Plt)
 ```
 
 
@@ -326,8 +311,7 @@ for (t in 1:length(FBts_ToPlt)){
     ggtitle(FBts_ToPlt[t])
   
   print(FBt_syn_plt)
-  
-#ggsave(paste0("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\",FBts_ToPlt[t],"-selfSynLocs.pdf"),FBt_syn_plt)
+
 }
 ```
 
@@ -374,8 +358,6 @@ for (t in 1:length(typesFrom)){
 }
 
 print(FBt_Plt)
-
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtToFBt-neuron-to-neuron.pdf",FBt_Plt)
 ```
 
 
@@ -403,7 +385,6 @@ histRL <- ggplot(difsPerSide) + geom_histogram(aes(x=diff),binwidth=1,center=0) 
 
 hists <- histAll + histRL + plot_layout(widths=c(4,1))
 print(hists)
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\FBtCounts.pdf",hists)
 ```
 
 Get the synapses by ROI for the FBts
@@ -450,6 +431,4 @@ FBtLayerROIs_Plt$ROI <- FBtLayerROIs_Plt$ROI %>% lapply(function(x) str_split(x,
 FBtLayerPlt <- ggplot(FBtLayerROIs_Plt) + geom_col(aes(x=value,y=layer,fill=ROI)) + facet_grid(cols=vars(ROI),rows=vars(InOut)) + 
   theme_paper() + xlab("number of types")
 print(FBtLayerPlt)
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\CRE_LAL_SNP_dists.pdf",
-#       FBtLayerPlt, height=2, width = 3)
 ```

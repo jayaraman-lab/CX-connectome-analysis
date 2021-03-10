@@ -12,11 +12,10 @@ library(cowplot)
 library(reshape2)
 library(igraph)
 library(ggraph)
-library(paletteer)
 library(patchwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\R\\visualizeConnectivityTables.R")
+source("..\\EBFigures\\EBUtils.R")
 ```
 
 Specify the types of interest and get the neuronBag for them
@@ -115,7 +114,7 @@ CXRNN <- ggraph(g,layout='sugiyama', layers=CXNodes$layer,vgap=2) +
         axis.ticks = element_blank())
 
 print(CXRNN)
-ggsave('C:\\Users\\dantu\\Dropbox (Personal)\\Professional\\Figures\\FIBSEM\\CXRNN_V5_noLabel.pdf',CXRNN,
+ggsave('CXRNN_V5_noLabel.pdf',CXRNN,
        width = 16, height = 9, units = "in")
 ```
 
@@ -183,7 +182,7 @@ ERRNN <- ggraph(g)+#,layout='sugiyama', layers=ER3Nodes$layer,vgap=10) +
         axis.ticks = element_blank())
 
 print(ERRNN)
-ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\ERRNN_force.pdf',ERRNN)
+ggsave('ERRNN_force.pdf',ERRNN)
 ```
 ERBag
 Plot the ordered connection table
@@ -208,7 +207,7 @@ print(ERCT_Rand_Plt)
 Save the plot
 ```{r}
 RadnVsOrd_ER <- ERCT_Rand_Plt + ERCT_Ordered_Plt + plot_layout(guides='collect')
-ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\OrderedVsShuffledCT_ER.pdf',RadnVsOrd_ER,
+ggsave('OrderedVsShuffledCT_ER.pdf',RadnVsOrd_ER,
        width = 8, height = 4, units = "in")
 ```
 
@@ -244,7 +243,7 @@ print(FBCT_Rand_Plt)
 Save the plot
 ```{r}
 RadnVsOrd <- FBCT_Rand_Plt + FBCT_Ordered_Plt + plot_layout(guides='collect')
-ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\OrderedVsShuffledCT.pdf',RadnVsOrd,
+ggsave('OrderedVsShuffledCT.pdf',RadnVsOrd,
        width = 8, height = 4, units = "in")
 ```
 

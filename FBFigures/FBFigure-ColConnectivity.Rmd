@@ -17,9 +17,9 @@ library(cowplot)
 library(reshape2)
 library(patchwork)
 library(visNetwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("FBNetworkVisUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\R\\visualizeConnectivityTables.R")
 ```
 
 Specify plotting parameters
@@ -160,7 +160,6 @@ for (g in 1:length(colGps)){
 }
   
 print(T2TPlt_FBCol_Manual)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBColConnectivity_Filtered.pdf", #T2TPlt_FBCol_Manual)
 ```
 
 
@@ -226,7 +225,6 @@ plPlt <- ggplot(melt(pathLengths_ToPlt)) + geom_tile(aes(x=type.to,y=type.from,f
   facet_grid(rows = vars(variable)) + 
   theme(axis.text.x = element_text(angle=90))
 print(plPlt)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\PathLengths.pdf",plPlt)
 ```
 
 
@@ -311,8 +309,6 @@ dOut_Plt <- dendPlot(outClust$hc,FALSE) + geom_hline(yintercept = 0.8)
 
 clustPlts <- dIn_Plt / dOut_Plt
 print(clustPlts)
-
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\clustTrees.pdf",clustPlts)
 ```
 
 Look at the cosine distance between cluster
@@ -429,9 +425,9 @@ print(clustPlt)
 Combine, plot, and save
 ```{r}
 allClustPlts <- outClustPlt / inClustPlt
-ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\FBColCor_Filtered.pdf",allClustPlts)
+allClustPlts
 
-ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\FBColCor_clust2clust.pdf",clustPlt)
+clustPlt
 
 ```
 
@@ -442,9 +438,7 @@ Specify an x and y lookup table of the location for each neuron type
 xyLookup <- xyLookupTableInner()
 
 gCT <- graphConTab(T2T_FBCol,xyLookup,FALSE,TRUE)
-#pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\AllColumnarConnections_Static_Filtered.pdf")
 print(gCT)
-#dev.off()
 ```
 
 Create a dynamic visualization of the FB network data
@@ -502,7 +496,7 @@ for (st in 1:length(stCols$breaks)){
 }
 
 # Save the plot
-visSave(v, "C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB_Main\\AllColumnarConnections_Filtered.html",
+visSave(v, "AllColumnarConnections_Filtered.html",
         selfcontained = TRUE, background = "white")
 
 ```
@@ -590,5 +584,4 @@ for (g in 1:length(stFrom)){
 }
 
 print(sub_T2T_Plt)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan #2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_ColNronNetwork\\vDSubNet-all_type-to-type.pdf",sub_T2T_Plt)
 ```

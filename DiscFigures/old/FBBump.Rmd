@@ -294,3 +294,103 @@ actEBPBFB <- (g_EB | plot_spacer() | plot_spacer() | plot_spacer()) /
 
 print(actEBPBFB)
 ```
+
+
+Plot a connection table
+```{r}
+#typesPre <- c("PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv")
+typesPre <- c("PFNd","PFNp_c","hDeltaA","vDeltaK")
+#typesPost <- c("hDeltaA","hDeltaB","hDeltaC","hDeltaD","hDeltaE","hDeltaF",
+#               "hDeltaG","hDeltaH","hDeltaI","hDeltaJ","hDeltaK","hDeltaL","hDeltaM")
+#typesPost <- c("vDeltaA_a","vDeltaA_b","vDeltaB","vDeltaC","vDeltaD","vDeltaE","vDeltaF",
+#               "vDeltaG","vDeltaH","vDeltaI","vDeltaJ","vDeltaK","vDeltaL","vDeltaM")
+typesPost <- c("hDeltaA","vDeltaK","PFL2","PFL3")
+
+conTab <- getConnectionTable(getTypesTable(typesPre)$bodyid,"POST","FB",synThresh=0) %>% filter(type.to %in% typesPost)
+conTab$id.from <- FBRename(conTab$name.from,conTab$from)
+conTab$id.to <- FBRename(conTab$name.to,conTab$to)
+```
+
+```{r}
+conmatPlot <- ggplot(conTab) + 
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(conTab$ROIweight),
+                       limits=c(0,max(conTab$ROIweight))) +
+  geom_tile(aes(id.to,id.from,fill=ROIweight)) +
+  theme_cowplot() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
+        axis.text.y = element_text(size=4)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+
+offset <- 0.5
+types <- conTab$type.from %>% unique() %>% sort()
+for (t in 1:length(types)){
+  numNrons <- nrow(conTab %>% filter(type.from == types[t]) %>% select(id.from) %>% unique())
+  offset <- offset + numNrons
+  conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
+}
+
+offset <- 0.5
+types <- conTab$type.to %>% unique() %>% sort()
+for (t in 1:length(types)){
+  offset <- offset + nrow(conTab %>% filter(type.to == types[t]) %>% select(id.to) %>% unique())
+  conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
+}
+
+ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\EBPBFBBumps_conTab.pdf",conmatPlot,
+       width = 4, height = 4,units="in")
+```
+
+Follow a bump from the EB to the PB to the FB (for a PFX type)
+```{r}
+# Specify the FB types of interest
+nronTypes <- c("PFGs","PFNd","PFL2","PFL3")
+
+# Create a list to hold the plots
+p_list <- list()
+
+for (t in 1:length(nronTypes)){
+  # Get the type information
+  typeDat <- getTypesTable(nronTypes[t])
+  typeDat$gloms <- lapply(typeDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+  typeDat$LR <- lapply(typeDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+  typeDat$cols <- lapply(typeDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+  typeDat$cols <- factor(typeDat$cols, levels = unique(typeDat$cols) %>% sort())
+  typeDat$id <- FBRename(typeDat$name,typeDat$bodyid)
+
+  # Place the activity into the given type
+  typeDat$act <- lapply(typeDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+  # Average over each column
+  colAve <- typeDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+  
+  # Plot
+  p_list[[t]] <- ggplot(colAve) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) + 
+    theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+    ggtitle(nronTypes[t])
+}
+
+pdf("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_6_ColNronNetwork\\FBBumps_col.pdf")
+grid.arrange(grobs = p_list,ncol = 1)
+dev.off()
+```
+
+Move it to the FB (via PFG mapping)
+```{r}
+# Get the PFG info
+PFGDat <- getTypesTable("PFGs")
+PFGDat$gloms <- lapply(PFGDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+PFGDat$LR <- lapply(PFGDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+PFGDat$cols <- lapply(PFGDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+PFGDat$cols <- factor(PFGDat$cols, levels = unique(PFGDat$cols) %>% sort())
+
+# Place the activity into the given type
+PFGDat$act <- lapply(PFGDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+# Average over each column
+colAve <- PFGDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+
+# Plot
+g_FB_PFG <- ggplot(colAve) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) +
+  theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+  ggtitle("PFGs") 
+```
