@@ -1,12 +1,11 @@
 ---
-title: "Notebook getting FB synapses, performing PCA, and saving the data"
+title: "Notebook getting FB synapses, performing PCA, and saving the data. C"
 output:
   html_document:
     df_print: paged
 ---
 
-### Command to clear environment is: rm(list = ls(all.names = TRUE))
-### Command to update is remotes::update_packages('neuprintr')
+
 ### Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -18,6 +17,7 @@ library(RColorBrewer)
 library(ggraph)
 library(robustbase)
 require(alphahull)
+library(neuprintrExtra)
 options(nat.plotengine = 'rgl')
 ```
 
@@ -47,19 +47,16 @@ neuprint_login()
 ### Get general functions
 ```{r}
 
-source("../inputOutputRegionsVis.r")
-source("../GetNeuronsInRoi.r")
-source("../SynapsePCAUtils.r")
+source("../R/SynapsePCAUtils.r")
 source("FB_SynapseDistribution_Utils.r")
 
 ```
 
 
-### Get neurons in the ROI and
-### Exclude neurons not in known FB columnar types
+### Get neurons in the ROI and exclude neurons that aren't FB columnar types
 ```{r}
 
-# get all FB bodies
+# Get all FB bodies
 NamedBodies=getNeuronsInRoiTable("FB",0)
 
 
@@ -76,9 +73,8 @@ ColumnarBodies=subset(NamedBodies, NamedBodies$type %in% IncludedTypes)
 ```
 
 
-### Get synapse distributions for all columnar neurons (or load previous data) and all layers
-```{r}
-
+### Get synapse locations for all columnar neurons and all layers
+```{r warning=FALSE}
 
 # Get synapses in layers 1-9
 SynLocs_L1=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl1","L1") 
@@ -116,9 +112,8 @@ save(FBC_SynsAll, Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_
      Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses_Raw.RData",sep=""))
 
 
-# Remove SynLocs of layers
+# Remove layer-specific variables
 rm(list = c('SynLocs_L1','SynLocs_L2','SynLocs_L3','SynLocs_L4','SynLocs_L5','SynLocs_L6','SynLocs_L7','SynLocs_L8','SynLocs_L9'))
-
 
 ```
 
@@ -143,11 +138,10 @@ Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
 # Center synapses and mesh points at new origin
 ```{r}
 
-# define new origin from roi center of mass
+# Define new origin from roi center of mass
 origin = getCOM(Mesh_FB_Points)
 
-
-#reset orgin of all layers
+# Reset orgin of all layers
 Mesh_FB_Points = resetOrigin(Mesh_FB_Points, origin)
 Mesh_FB_L1_Points = resetOrigin(Mesh_FB_L1_Points, origin)
 Mesh_FB_L2_Points = resetOrigin(Mesh_FB_L2_Points, origin)
@@ -163,17 +157,17 @@ Mesh_FB_L9_Points = resetOrigin(Mesh_FB_L9_Points, origin)
 # Reset origin of all synapses 
 FBC_SynsAll = resetOrigin(FBC_SynsAll, origin)
 
-
 ```
 
 
-# Perform PCA and rotation to get axes
+# Perform PCA. Then rotate the PCs so that FB layers are mostly in x/y plane.
+# Then project synapses locations into new reference frame.
 ```{r}
 
-#get eigenvectors
+# Get eigenvectors
 roiEigen = covPCA(Mesh_FB_Points)
 
-# Rotate PCs some
+# Rotate PCs
 RotMat=makeRotMatYZ(-33) # 33
 roiEigen$vectors= roiEigen$vectors %*% RotMat
 RotMat=makeRotMatXY(-3) # -3
@@ -191,11 +185,8 @@ Mesh_FB_L7_Points = changeBasis(Mesh_FB_L7_Points, roiEigen)
 Mesh_FB_L8_Points = changeBasis(Mesh_FB_L8_Points, roiEigen)
 Mesh_FB_L9_Points = changeBasis(Mesh_FB_L9_Points, roiEigen)
 
-
 # Project synapses into PCA space
 FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
-
-
 
 ```
 
@@ -203,13 +194,12 @@ FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 # Get pre and post neuron names based on bodyids
 ```{r}
 
-# Get pre and post body names (to get PB columns later)
+# Add pre and post body names to FBC_SynsAll (to get PB columns later)
 BodyId_And_Names=NamedBodies[c("bodyid","name")]
 BodyId_And_PartnerNames=NamedBodies[c("bodyid","name")]
 colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
 FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_Names, by="bodyid")
 FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
-
 
 ```
 
@@ -217,7 +207,6 @@ FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
 
 # Plot data in new and old reference frame
 ```{r message=FALSE}
-
 
 # Make scatter plot new projection
 ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
@@ -255,14 +244,12 @@ ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  
 remove(data2)
 
 
-
-
 ```
 
 
 
 
-# Get rid of original frame (the lowercase x,y,z data)
+# Get rid of original reference frame (the lowercase x,y,z data)
 ```{r}
 
 # Meshes
@@ -277,10 +264,8 @@ Mesh_FB_L7_Points=Mesh_FB_L7_Points[ , !(names(Mesh_FB_L7_Points) %in% c("x","y"
 Mesh_FB_L8_Points=Mesh_FB_L8_Points[ , !(names(Mesh_FB_L8_Points) %in% c("x","y","z"))]
 Mesh_FB_L9_Points=Mesh_FB_L9_Points[ , !(names(Mesh_FB_L9_Points) %in% c("x","y","z"))]
 
-
 #Synapses
 FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
-
 
 ```
 
@@ -290,7 +275,7 @@ FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
 # Get outlines of each layer
 ```{r}
 
-# Get XY outlines of each layer, with Y direction reverse so dorsal is up
+# Get XY outlines of each layer, with Y direction reversed so dorsal is up
 alpha=155
 Outline_FB_XY=MeshOutline(Mesh_FB_Points, "XY", alpha_rad=alpha)
 Outline_L1_XY=MeshOutline(Mesh_FB_L1_Points, "XY", alpha_rad=alpha)
@@ -304,7 +289,7 @@ Outline_L8_XY=MeshOutline(Mesh_FB_L8_Points, "XY", alpha_rad=alpha)
 Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY", alpha_rad=alpha)
 
 
-# Get XZ outlines of each layer, with Y direction reverse so dorsal is up
+# Get XZ outlines of each layer, with Y direction reversed so dorsal is up
 Outline_FB_XZ=MeshOutline(Mesh_FB_Points, "XZ", alpha_rad=alpha)
 Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ", alpha_rad=alpha)
 Outline_L2_XZ=MeshOutline(Mesh_FB_L2_Points, "XZ", alpha_rad=alpha)
@@ -317,7 +302,8 @@ Outline_L8_XZ=MeshOutline(Mesh_FB_L8_Points, "XZ", alpha_rad=alpha)
 Outline_L9_XZ=MeshOutline(Mesh_FB_L9_Points, "XZ", alpha_rad=alpha)
 
 
-# Check layer 4/7, which have holes
+# Check that each layer's outline has been computed correctly. 
+# Mesh shapes may be updated in the future and new values for alpha_rad may need to chosen above. 
 ggplot() + geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=Z), colour= 'blueviolet',  size=1, alpha = 0.05) + 
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
   geom_path(data=Outline_L1_XZ, aes(x=c1, y=c2), size = 1) 
