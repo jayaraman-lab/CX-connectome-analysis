@@ -6,60 +6,12 @@ Load the libraries
 ```{r}
 library(nat)
 library(neuprintr)
-library(tidyverse)
-library(tidygraph)
-library(ggraph)
-library(gridExtra)
-library(paletteer)
 library(neuprintrExtra)
-library(cowplot)
 library(reshape2)
 library(patchwork)
-library(visNetwork)
-library(ggnewscale)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBFigures\\FBNetworkVisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
-```
-
-Function to rename FB neurons
-```{r}
-FBRename <- function(name,id){
-  
-  # From a unique nameif from the PB type, the PB gloms where it arborizes, and the bodyid
-  name  <- gsub("\\s*\\([^\\)]+\\)","",as.character(name))
-  name  <- gsub("\\^","-",as.character(name))
-  nameid <- paste(name, as.character(id), sep='-')
-  
-  # Extract the unique names and types
-  allNames = nameid %>% unique() %>% sort()
-  nameLabels = name %>% unique() %>% sort()
-  types = strsplit(allNames,'_') %>% lapply(function(x){x[[1]]}) %>% unique() %>% unlist()
-  types = gsub("([\\(\\)])", "\\\\\\1",types)
-  
-  # Sort the names by the order of the glomeruli in the PB and exchange the bodyid for a number
-  newNames = c()
-  for (tp in 1:length(types)){
-    allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] <- 
-      allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
-    nmOrder <- allNames[which(grepl(paste0('^',types[tp],"_"),allNames))] %>% sort()
-    nms <- nameLabels[which(grepl(paste0('^',types[tp],"_"),nameLabels))]
-    for (n in 1:length(nms)){
-      nmsNow <- nmOrder[which(grepl(nms[n],nmOrder))]
-      nmsNow <- paste(nms[n],seq(1:length(nmsNow)),sep='-')
-      nmOrder[which(grepl(nms[n],nmOrder))] <- nmsNow
-    }
-    newNames = append(newNames,nmOrder)
-  }
-  # Create a lookup table between the old and new names
-  nmSwap <- data.frame(oldNm = allNames, newNm = newNames)
-  
-  # Swap in the new names
-  nameid <- lapply(nameid, function(x) nmSwap$newNm[match(x, nmSwap$oldNm)]) %>%
-    factor(levels = nmSwap$newNm)
-  
-  return(nameid)
-}
+source("..\\R\\paperTheme.R")
+source("FBNetworkVisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
 ```
 
 Find all of the AB neurons
@@ -104,8 +56,6 @@ T2TPlt_AB_L <- plotConnectivityMatrix(T2T_AB_L, byGroup = "type") +
 
 TCTPlt_AB <- T2TPlt_AB_R + T2TPlt_AB_L + plot_layout(ncol = 4)
 print(TCTPlt_AB)
-
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-AB.pdf",TCTPlt_AB)
 ```
 
 Look at inputs in FB to FB->AB neurons
@@ -122,7 +72,6 @@ T2TPlt_ABFromFB <- plotConnectivityMatrix(T2T_ABFromFB, byGroup = "type") +
     coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90, hjust=1,vjust=0)) +
     guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', title.theme = element_text(angle = 90), barwidth = 0.5, title.hjust = 0.5))
 T2TPlt_ABFromFB
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABFromFB.pdf",T2TPlt_ABFromFB)
 ```
 
 Look at outputs in FB from AB->FB neurons
@@ -139,7 +88,6 @@ T2TPlt_ABToFB <- plotConnectivityMatrix(T2T_ABToFB, byGroup = "type") +
     coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90, hjust=1,vjust=0)) +
     guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5))
 T2TPlt_ABToFB
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\TypeToType-ABToFB.pdf",T2TPlt_ABToFB)
 ```
 
 Plot the column specific connectivity between vDA_a, vDa_b, FS4A, and FS4B and the R or L AB
@@ -181,7 +129,5 @@ AB
 ABROIplts <- col2ROI_plt_vDA_as + col2ROI_plt + plot_layout(design = layout)
 
 print(ABROIplts)
-#ggsave("C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_AB\\columnToROIMap.pdf",ABROIplts,
-#       height = 2, width = 8.5)
 ```
 

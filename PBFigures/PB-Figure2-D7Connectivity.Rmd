@@ -10,9 +10,9 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("\PBAnalysisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
+source("..\\R\\paperTheme.R")
 ```
 
 Get the EPG and D7 connections
@@ -27,8 +27,6 @@ EPGD7T2TConn <- plotConnectivityMatrix(EPGD7Bag$outputs %>% filter((roi=="PB") &
   guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5))
 
 EPGD7T2TConn
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_T2T.pdf",EPGD7T2TConn,
-#       width=4, height=3, units = "in")
 ```
 
 Plot the neuron-to-neuron connections between the EPGs and the Delta7s
@@ -46,8 +44,6 @@ EPGD7ToSelf_CM <- ggplot(EPGD7ToSelf) +
   coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
   guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
 print(EPGD7ToSelf_CM)
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPGD7ToSelf_CM.pdf",EPGD7ToSelf_CM ,
-#       width=5, height=5, units = "in")
 ```
 
 Convert the EPG to D7 connection table to a weight matrix and shift the rows to align the peaks
@@ -261,7 +257,6 @@ Print the inputs and average activity for the vonMises and impulse profiles
 ```{r}
 EPGToD7TransPlt <- (g_EPGact_in_PB_glomAve + PBEPGToD7Prof_vM) /(g_EPGact_in_PB_glomAve_imp + PBEPGToD7Prof_imp)
 EPGToD7TransPlt
-#save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\EPGToD7ToEPGMeanProfilesAndInputs.pdf',EPGToD7TransPlt)
 ```
 
 
@@ -332,8 +327,6 @@ gStats_all <- ggplot(all_stats,aes(x=type,y=resid)) + geom_point(size=5, pch = 2
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0)) + 
   scale_fill_manual(values = c('black','white'))
 print(gStats_all)
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\CosFitStats.pdf",gStats_all,
-#       width=5, height=2.5, units = "in")
 ```
 
 Plot the neuron-to-neuron connections between the EPGs or Delta7s
@@ -391,10 +384,6 @@ PFXPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFXTpNames)) +
 PFXPlt <- structureMatrixPlotByType_lines(PFXPlt)
 
 PFNPlts <-  PFN1Plt / PFN2Plt + plot_layout(guides = 'collect')
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_To_PFNs.pdf",PFNPlts,
-       width=8, height=10.5, units = "in")
 
 PEFXPlts <-  PBEBPlt / PFXPlt + plot_layout(guides = 'collect')
-ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\EPG_D7_To_PEFXs.pdf",PEFXPlts,
-       width=8, height=10.5, units = "in")
 ```

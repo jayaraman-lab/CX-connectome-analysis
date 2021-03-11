@@ -1,5 +1,5 @@
 ---
-title: "PB Figure 5 - Neuromodulatory neuron connectivity"
+title: "Neuromodulatory neuron connectivity - PB"
 output: html_notebook
 ---
 
@@ -10,9 +10,9 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\PBFigures\\PBAnalysisUtils.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
-source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("PBAnalysisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
+source("..\\R\\paperTheme.R")
 ```
 
 Get the EPG and D7 connections
@@ -27,6 +27,4 @@ P19LPsPConn <- plotConnectivityMatrix(P19LPsPBag$outputs %>% filter(roi=="PB"), 
   guides(fill = guide_colourbar(title = 'output contribution', title.position = 'left', barwidth = 0.5, title.theme = element_text(angle = 90)))
 
 P19LPsPConn
-#ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\PB\\Panels\\P1-9_LPsP_T2T.pdf",P19LPsPConn,
-#       width=4, height=3, units = "in")
 ```
