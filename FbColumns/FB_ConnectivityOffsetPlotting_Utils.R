@@ -1,10 +1,15 @@
 ################### A collection of functions for plotting FB connectivity information ##################
 
 
-Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_field, body_field){
+Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_field){
+  #' Function for parsing neuron names to extract PB glomeruli and FB column info.
+  #' @param DF A dataframe containing a column with neuron names
+  #' @param name_field Name of column with neuron names
+  #' @param side_field   Name of new column containing side (L/R)  info
+  #' @param PBglom_field Name of new column containing PB glomeruli info
+  #' @param FBcol_field  Name of new column containing FB column info
   
-  
-  # Assign side (pb or fb column half)
+  # Assign side
   DF[[side_field]]=NA
   DF[[side_field]][grepl("_R",DF[[name_field]])]<-"R"
   DF[[side_field]][grepl("_L",DF[[name_field]])]<-"L"
@@ -17,16 +22,21 @@ Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_
   DF[[PBglom_field]][which(!is.na(LeftColumns))]=LeftColumns[which(!is.na(LeftColumns))]
   DF[[PBglom_field]]=sapply(DF[[PBglom_field]], substring, 2, 3)
   
-  # Assign FB columns of FX, PFX, and Delta0
+  # Assign FB columns
   DF[[FBcol_field]]=NA
   DF[[FBcol_field]]=str_extract(DF[[name_field]], "_C(\\d+)")
   DF[[FBcol_field]]=sapply(DF[[FBcol_field]], substring, 2, 4)
   
-
-  
   return(DF)
-  
 }
+
+
+
+
+
+
+
+
 
 
 Plot_Connectivity_Mappings <- function(PFX_Types, PFX_FB_Outputs, PFX_FB_Inputs, PFX_Dir_Connectivity){
