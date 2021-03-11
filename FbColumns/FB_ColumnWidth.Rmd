@@ -1,13 +1,10 @@
 ---
-title: "Notebook plotting offsets in connectivity between PB-FB-XX neurons and other columnar neurons"
+title: "Notebook for plotting FB columnar neuron arbor width and inter-column distance"
 output:
   html_document:
     df_print: paged
 ---
 
-
-### Command to clear environment is: rm(list = ls(all.names = TRUE))
-### Command to update is remotes::update_packages('neuprintr')
 ### Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -36,11 +33,10 @@ library(svglite)
 options(nat.plotengine = 'rgl')
 ```
 
-
-### Configurable inputs: choose ROI and save/plot directories
+### Make directories where figures will be saved to
 ```{r}
 
-# Directory to save data to.
+# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
 # Directory to save plots to.
@@ -50,15 +46,12 @@ PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
-
 ```
-
 
 ### Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
-
 
 ### Get general functions
 ```{r}
@@ -66,32 +59,10 @@ neuprint_login()
 source("FB_SynapseDistribution_Utils.r")
 source("FB_LayerOutline_Utils.r")
 source("FB_ConnectivityOffsetPlotting_Utils.r")
-source("../visualizeConnectivityTables.r", chdir = TRUE)
-source("../inputOutputRegionsVis.r")
-source("../GetNeuronsInRoi.r")
 
 ```
-
-
-
-# Get all FB bodies and columnar types
-```{r}
-
-NamedBodies = Get_AllNeurons_InRoi("FB", FALSE)
-NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
-Columnar_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "PF" ) | startsWith(NamedBodies$bodytype, "FR" ) | 
-               startsWith(NamedBodies$bodytype, "FS" ) | startsWith(NamedBodies$bodytype, "FC" ) | startsWith(NamedBodies$bodytype, "vDelta" ) | 
-               startsWith(NamedBodies$bodytype, "hDelta" )] ))
-
-FBBodyCount=NamedBodies %>% group_by(bodytype) %>% summarize(NumofNeurons=n())
-FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
-
-```
-
-
 
 # Load pre-processed synapse location data and remove variables that won't be used
-# NOTE: Need to rebuild this periodically in case types/names get changed
 ```{r}
 
 load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
@@ -99,14 +70,11 @@ rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","
           "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
 
 # Assign Side, PB glom, and FB col info
-FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
-
+FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
 
 ```
 
-
-
-# Get the line that bisects each FB layer in the XZ (horizontal) plane
+# Get the line that bisects each FB layer in the XZ (horizontal) plane.
 ```{r}
 
 Mid_L1=Get_Mid(Outline_L1_XZ)
@@ -118,8 +86,12 @@ Mid_L6=Get_Mid(Outline_L6_XZ)
 Mid_L7=Get_Mid(Outline_L7_XZ)
 Mid_L8=Get_Mid(Outline_L8_XZ)
 
-
 ```
+
+
+
+
+
 
 
 
