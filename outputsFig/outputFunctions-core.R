@@ -1,11 +1,39 @@
 library(igraph)
 library(Matrix)
 
+
 ## A custom retyping that splits DNb01 in 2 groups
 customRetyping <- function(connections,postfix=c("raw", "to", "from")){
+  # DNb01
   connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),nameModifiers=c("_1_R","_2_R"),postfix=postfix,redefinePartners=T)
+  # PLP042_a divided in two groups
+  connections <- redefineTypeByBodyId(connections,sets=list(951018323,1224400894),nameModifiers=c("_2_R","_2_R"),postfix=postfix,redefinePartners=T)
   connections <- cxRetyping(connections,postfix=postfix)
 }
+
+## Supertyping customized
+customOutputSupertype <- function(typesTable,postfix = c("raw", "to", "from"),extraTypes=""){
+  postfix <- match.arg(postfix)
+  if (postfix == "raw") postfix <- "" else postfix <- paste0(".",postfix)
+  
+  postSp <- paste0("supertype",postfix)
+  postDT <- paste0("databaseType",postfix)
+  postSp3 <- paste0("supertype3",postfix)
+  postT <- paste0("type",postfix)
+  
+  mutate(typesTable,
+         !!paste0("customSupertype",postfix) := case_when(
+           !!(sym(postSp)) %in% c("PFL","PFR") ~ as.character(!!(sym(postDT))),
+           grepl("ExR[2-6]",!!(sym(postSp))) ~ "ExR2-6",
+           !!(sym(postSp3))=="EB Columnar" ~ "EB Columnar",
+           grepl("FB[6-7]",!!(sym(postSp))) ~ "FB6-7",
+           grepl("FB[8-9]",!!(sym(postSp))) ~ "FB8-9",
+           !!(sym(postT)) %in% extraTypes ~ as.character(!!(sym(postSp3))),
+           TRUE ~ as.character(!!(sym(postSp)))))
+  
+}
+
+
 
 simulate_roi_contra <- function(roiSummary,roiSet){
   simulated <- mutate(roiSummary,type=lrInvert(type),

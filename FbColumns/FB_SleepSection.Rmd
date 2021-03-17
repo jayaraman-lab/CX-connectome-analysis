@@ -155,7 +155,7 @@ Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames
 
 
 # Get upstream and downstream partners of 23E10 neurons
-dFB23E10_Bag=neuronBag(dFB23E10_Meta, slctROI="FB")
+dFB23E10_Bag=neuronBag(dFB23E10_MetaAll, slctROI="FB")
 dFB23E10_Outputs=dFB23E10_Bag[["outputs_raw"]]
 dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
 
@@ -170,7 +170,7 @@ dFB23E10_InputsOutputs_Vectors=cbind(dFB23E10_Outputs_Vectors, dFB23E10_Inputs_V
 
 
 # Compute cosine distance
-MetaNames=dFB23E10_Meta[c("bodyid","name","type")]
+MetaNames=dFB23E10_MetaAll[c("bodyid","name","type")]
 dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "cosine", MetaNames)
 
 
@@ -377,21 +377,21 @@ graph = tbl_graph(NODES, EDGES)
 
 # colors
 pcCols <- paletteer_d("Polychrome::palette36")
-col_vector=rev(c(pcCols[15],pcCols[13],"gray50"))
+col_vector=rev(c("dodgerblue3","magenta3","gray50"))
 
 
 # Make plot and save
 P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
   geom_edge_fan( aes(width=weight, color=COLORZ), 
                  arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(1, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=16) +
+  geom_node_point(color=NODES$COLORZ, size=18) +
   geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
   theme_classic() + 
   theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
         axis.line=element_blank(),axis.text.x=element_blank(),
         axis.text.y=element_blank(),axis.ticks=element_blank(),
         axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
+  scale_edge_width(range = c(1.25,3)) + scale_edge_color_manual(values=col_vector)
 ggsave(paste(PlotDir, "FIGURE_SleepWake_N2N_Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8.2, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 
@@ -565,7 +565,7 @@ remove(SW_Downstream_Layer, SW_Downstream_Layer_Sum)
 
 
 # Chose number of steps to consider
-Step=1
+Step=2
 
 
 # Get pathways, grouped by type.from and type.to
@@ -752,7 +752,7 @@ sum(AllUpstream %in% unique(SW_KnownUpstream$type.from[SW_KnownUpstream$supertyp
 
 
 # Chose number of steps to consider
-Step=1
+Step=2
 
 
 # Get pathways, grouped by type.from and type.to

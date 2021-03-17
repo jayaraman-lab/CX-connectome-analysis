@@ -13,99 +13,72 @@ library(reshape2)
 library(patchwork)
 library(ggnewscale)
 library(gridExtra)
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
-source("C:\\Users\\turnerevansd\\Documents\\FIBSEM\\neuprintR-notebooks\\R\\paperTheme.R")
-```
-
-Specify plotting text sizes
-```{r}
-update_geom_defaults("text", list(size = 6*0.35))
-theme_paper <- function(...){
-  theme_cowplot(font_size=7,rel_small=6/7,rel_tiny = 5/7,rel_large = 8/7) + theme(strip.background = element_blank(),...)
-  }
+source("EBUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
+source("..\\R\\paperTheme.R")
 ```
 
 
-Get the connection matrix between the EPGs, EPGts, PEN1s, PEN2s, and PEGs in the EB
+Get the connection matrix between the EPGs, PEN_as, PEN_bs, and PEGs in the EB
 ```{r}
-neurons = c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
+neurons <- c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
 
 EBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "POST",
-  "EB")
+"POST",
+"EB")
 EBColConTab <- EBColConTab %>% filter(type.to %in% neurons)
-EBColConTab$id.from <- EBGlomOrder(EBColConTab$name.from,EBColConTab$from,"EB")
-EBColConTab$id.to <- EBGlomOrder(EBColConTab$name.to,EBColConTab$to,"EB")
-
-plotOrder <- c("EPG","PEN1","PEN2","PEG")
-fromLevelsOld <- levels(EBColConTab$id.from)
-fromLevelsNew <-  c()
-toLevelsOld <- levels(EBColConTab$id.to)
-toLevelsNew <-  c()
-for (p in 1:length(plotOrder)){
-  fromLevelsNew <- fromLevelsNew %>%
-    append(fromLevelsOld[which(grepl(paste0(plotOrder[p],'_'),fromLevelsOld))])
-  toLevelsNew <- toLevelsNew %>%
-    append(toLevelsOld[which(grepl(paste0(plotOrder[p],'_'),toLevelsOld))])
-}
-EBColConTab$id.from <- factor(EBColConTab$id.from,fromLevelsNew)
-EBColConTab$id.to <- factor(EBColConTab$id.to,toLevelsNew)
-
-conmatPlot <- ggplot(EBColConTab) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(EBColConTab$weightRelative),
-                       limits=c(0,max(EBColConTab$weightRelative))) +
-  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
-  theme_cowplot() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,size=4,hjust=1),
-        axis.text.y = element_text(size=4)) +
-  xlab("post-synaptic neuron") + ylab("pre-synaptic neuron")
-
-offset <- 0.5
-types <- c("EPG","EPGt","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
-for (t in 1:length(types)){
-  numNrons <- nrow(EBColConTab %>% filter(type.from == types[t]) %>% select(id.from) %>% unique())
-  offset <- offset + numNrons
-  conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
-}
-
-offset <- 0.5
-types <- c("EPG","EPGt","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
-for (t in 1:length(types)){
-  offset <- offset + nrow(EBColConTab %>% filter(type.to == types[t]) %>% select(id.to) %>% unique())
-  conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
-}
-
-print(conmatPlot)
 ```
 
+Plot the connectivity table, sorting the neurons by either their EB position or by their PB glomeruli
 ```{r}
-save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\EBColConmat-PBOriented.pdf',conmatPlot)
-```
+neuropil <- c("EB","PB")
 
-Look at the total number of input synapses by PB glom
-```{r}
-EBColConTab$glomname.from <- sapply(EBColConTab$id.from %>% as.character(),
-                                    function(i) strsplit(i,'-')[[1]][1]) %>%
-  unlist() %>% as.character()
-EBColConTab$num.from <- sapply(EBColConTab$id.from %>% as.character(),
-                                    function(i) strsplit(i,'-')[[1]][2]) %>%
-  unlist() %>% as.character()
-typesFrom <- c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
-typesTo <- list()
-typesTo[[1]] <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG")
-typesTo[[2]] <- c("PEN_b(PEN2)")
-typesTo[[3]] <- c("EPG")
-typesTo[[4]] <- c("EPG")
-
-g_synsIn <- list()
-for (t in 1:length(typesToConsider)){
-  g_synsIn[[t]] <- ggplot(EBColConTab %>% filter(type.from == typesFrom[t] & type.to %in% typesTo[[t]])) +
-    geom_bar(stat='identity',aes(x = id.to, y = ROIweight, fill=id.from)) +
-    theme_cowplot() + theme(axis.text.x = element_text(angle = 90)) + ggtitle(paste0('from ',typesFrom[t]))
-  print(g_synsIn[[t]])
+plts <- list()
+for (n in 1:length(neuropil)){
+  EBColConTab$nameOrder.from <- EBGlomOrder(EBColConTab$name.from,EBColConTab$from, neuropil[n])
+  EBColConTab$nameOrder.to <- EBGlomOrder(EBColConTab$name.to,EBColConTab$to, neuropil[n])
+  
+  plotOrder <- c("EPG","PEN1","PEN2","PEG")
+  fromLevelsOld <- levels(EBColConTab$nameOrder.from)
+  fromLevelsNew <-  c()
+  toLevelsOld <- levels(EBColConTab$nameOrder.to)
+  toLevelsNew <-  c()
+  for (p in 1:length(plotOrder)){
+    fromLevelsNew <- fromLevelsNew %>%
+      append(fromLevelsOld[which(grepl(paste0(plotOrder[p],'_'),fromLevelsOld))])
+    toLevelsNew <- toLevelsNew %>%
+      append(toLevelsOld[which(grepl(paste0(plotOrder[p],'_'),toLevelsOld))])
+  }
+  EBColConTab$nameOrder.from <- factor(EBColConTab$nameOrder.from,fromLevelsNew)
+  EBColConTab$nameOrder.to <- factor(EBColConTab$nameOrder.to,toLevelsNew)
+  
+  conmatPlot <- plotConnectivityMatrix(EBColConTab, byGroup = "id_sort") + 
+    coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+    ggtitle(neuropil[n])
+  
+  offset <- 0.5
+  types <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
+  for (t in 1:length(types)){
+    numNrons <- nrow(EBColConTab %>% filter(type.from == types[t]) %>% select(nameOrder.from) %>% unique())
+    offset <- offset + numNrons
+    conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
+  }
+  
+  offset <- 0.5
+  types <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
+  for (t in 1:length(types)){
+    offset <- offset + nrow(EBColConTab %>% filter(type.to == types[t]) %>% select(nameOrder.to) %>% unique())
+    conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
+  }
+  
+  plts[[n]] <- conmatPlot
 }
-
 ```
+```{r}
+print(plts[[1]] / plts[[2]] + plot_layout(guides = 'collect'))
+```
+
 
 Look at the PB connections
 ```{r}
@@ -115,13 +88,13 @@ PBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
   "POST",
   "PB")
 PBColConTab <- PBColConTab %>% filter(type.to %in% neurons)
-PBColConTab$id.from <- EBGlomOrder(PBColConTab$name.from,PBColConTab$from,"PB")
-PBColConTab$id.to <- EBGlomOrder(PBColConTab$name.to,PBColConTab$to,"PB")
+PBColConTab$nameOrder.from <- EBGlomOrder(PBColConTab$name.from,PBColConTab$from,"PB")
+PBColConTab$nameOrder.to <- EBGlomOrder(PBColConTab$name.to,PBColConTab$to,"PB")
 
 plotOrder <- c("EPG","PEN1","PEN2","PEG")
-fromLevelsOld <- levels(PBColConTab$id.from)
+fromLevelsOld <- levels(PBColConTab$nameOrder.from)
 fromLevelsNew <-  c()
-toLevelsOld <- levels(PBColConTab$id.to)
+toLevelsOld <- levels(PBColConTab$nameOrder.to)
 toLevelsNew <-  c()
 for (p in 1:length(plotOrder)){
   fromLevelsNew <- fromLevelsNew %>%
@@ -129,23 +102,20 @@ for (p in 1:length(plotOrder)){
   toLevelsNew <- toLevelsNew %>%
     append(toLevelsOld[which(grepl(paste0(plotOrder[p],'_'),toLevelsOld))])
 }
-PBColConTab$id.from <- factor(PBColConTab$id.from,fromLevelsNew)
-PBColConTab$id.to <- factor(PBColConTab$id.to,toLevelsNew)
+PBColConTab$nameOrder.from <- factor(PBColConTab$nameOrder.from,fromLevelsNew)
+PBColConTab$nameOrder.to <- factor(PBColConTab$nameOrder.to,toLevelsNew)
 
 PBColConTab <- PBColConTab %>% filter(type.to != 'EPG' & type.from == 'EPG')
 
-conmatPlot <- ggplot(PBColConTab) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(PBColConTab$weightRelative),
-                       limits=c(0,max(PBColConTab$weightRelative))) +
-  geom_tile(aes(id.to,id.from,fill=weightRelative)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+conmatPlot <- plotConnectivityMatrix(PBColConTab, byGroup = "id_sort") + 
+    coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+    ggtitle("PB")
 
 offset <- 0.5
 types <- c("EPG","EPGt","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
 for (t in 1:length(types)){
-  numNrons <- nrow(PBColConTab %>% filter(type.from == types[t]) %>% select(id.from) %>% unique())
+  numNrons <- nrow(PBColConTab %>% filter(type.from == types[t]) %>% select(nameOrder.from) %>% unique())
   offset <- offset + numNrons
   conmatPlot <- conmatPlot + geom_hline(yintercept = offset)
 }
@@ -153,94 +123,24 @@ for (t in 1:length(types)){
 offset <- 0.5
 types <- c("EPG","EPGt","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
 for (t in 1:length(types)){
-  offset <- offset + nrow(PBColConTab %>% filter(type.to == types[t]) %>% select(id.to) %>% unique())
+  offset <- offset + nrow(PBColConTab %>% filter(type.to == types[t]) %>% select(nameOrder.to) %>% unique())
   conmatPlot <- conmatPlot + geom_vline(xintercept = offset)
 }
 
 print(conmatPlot)
 ```
 
-```{r}
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\PBColConmat.pdf',
-       conmatPlot, width = 4, height = 4)
-```
-
-Look at the differing connectivity between PEN1s and PEN2s - PB
-```{r}
-neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
-
-PBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "PRE",
-  "PB")
-PBColConTab <- PBColConTab %>% filter(!is.na(type.from))
-
-T2T_PENs_PB <- getTypeToTypeTable(PBColConTab)
-
-T2T_conmatPlot_PB <- ggplot(T2T_PENs_PB) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_PENs_PB$weightRelative),
-                       limits=c(0,max(T2T_PENs_PB$weightRelative))) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
-```
-Look at the differing connectivity between PEN1s and PEN2s - EB, PRE
-```{r}
-neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
-
-EBColConTab_PRE <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "PRE",
-  "EB")
-EBColConTab_PRE <- EBColConTab_PRE %>% filter(!is.na(type.from))
-
-T2T_PENs_EB_PRE <- getTypeToTypeTable(EBColConTab_PRE)
-
-T2T_conmatPlot_EB_PRE <- ggplot(T2T_PENs_EB_PRE) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_PENs_EB_PRE$weightRelative),
-                       limits=c(0,max(T2T_PENs_EB_PRE
-                                      $weightRelative))) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
-```
-Look at the differing connectivity between PEN1s and PEN2s - EB, POST
-```{r}
-neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
-
-EBColConTab_POST <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "POST",
-  "EB")
-EBColConTab_POST <- EBColConTab_POST %>% filter(!is.na(type.to))
-
-T2T_PENs_EB_POST <- getTypeToTypeTable(EBColConTab_POST)
-
-T2T_conmatPlot_EB_POST <- ggplot(T2T_PENs_EB_POST) + 
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*max(T2T_PENs_EB_POST$weightRelative),
-                       limits=c(0,max(T2T_PENs_EB_POST
-                                      $weightRelative))) +
-  geom_tile(aes(type.to,type.from,fill=weightRelative)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
-```
-
-```{r}
-PEN1VsPEN2 <- (T2T_conmatPlot_PB + T2T_conmatPlot_EB_PRE) / T2T_conmatPlot_EB_POST
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\EB\\columnarToColumnar\\PEN1VsPEN2.pdf',
-       PEN1VsPEN2, width = 8, height = 4)
-```
 
 Plot a force network of the EPG and PEN1 connections
 First, get the connectivity tables
 ```{r}
-nrons = c("EPG","PEN_a(PEN1)","EPGt")
-EBColBag = neuronBag(getTypesTable(nrons))
+nrons <- c("EPG","PEN_a(PEN1)")
+EBColBag <- neuronBag(getTypesTable(nrons))
 EBCol_CT <- EBColBag$outputs_raw %>% 
   filter(type.to %in% nrons,
          roi %in% c("PB","EB"))
-EBCol_CT$id.from <- EBGlomOrder(EBCol_CT$name.from,EBCol_CT$from,"EB")
-EBCol_CT$id.to <- EBGlomOrder(EBCol_CT$name.to,EBCol_CT$to,"EB")
+EBCol_CT$nameOrder.from <- EBGlomOrder(EBCol_CT$name.from,EBCol_CT$from,"EB")
+EBCol_CT$nameOrder.to <- EBGlomOrder(EBCol_CT$name.to,EBCol_CT$to,"EB")
 ```
 
 Now, convert it into an igraph function
@@ -248,12 +148,12 @@ Now, convert it into an igraph function
 library(igraph)
 library(ggraph)
 
-EBColNodes <- c(as.character(EBCol_CT$id.to),as.character(EBCol_CT$id.from)) %>% unique() %>% as.data.frame()
+EBColNodes <- c(as.character(EBCol_CT$nameOrder.to),as.character(EBCol_CT$nameOrder.from)) %>% unique() %>% as.data.frame()
 colnames(EBColNodes) <- "nodes"
 EBColNodes$supertype <- EBColNodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
 EBColNodes$label <- EBColNodes$nodes %>% sapply(function(n) substring(n,gregexpr("_L|_R",n)[[1]][1]+1,gregexpr("_L|_R",n)[[1]][1]+2))
 
-EBColEdges <- EBCol_CT %>% mutate(from = id.from, to = id.to, weight = ROIweight) %>%
+EBColEdges <- EBCol_CT %>% mutate(from = nameOrder.from, to = nameOrder.to, weight = ROIweight) %>%
   select(from,to,weight)
 EBColEdges$supertype.from <- EBColEdges$from %>% as.character() %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
 
@@ -264,10 +164,6 @@ colBreaks = c("EPG_L","EPG_R","PEN1_L","PEN1_R","EPGt_L","EPGt_R")
 colPal = c("purple","purple4","red","skyblue","mediumpurple","mediumpurple4")
 sTScale <- scale_colour_manual(values=colPal,breaks = colBreaks)
 sTScale_edge <- scale_edge_colour_manual(values=colPal,breaks = colBreaks, guide = FALSE)
-
-#sTs <- supertype2Palette()
-#sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
-#sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
 
 
 EBColForceGraph <- ggraph(g) +
@@ -288,6 +184,59 @@ EBColForceGraph <- ggraph(g) +
         axis.ticks = element_blank())
 
 print(EBColForceGraph)
-ggsave('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\EB_PB\\EBColForceNetwork_wLabels_wEPGt.pdf',EBColForceGraph)
 ```
 
+
+Look at the differing connectivity between PEN1s and PEN2s - PB
+```{r}
+neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
+
+PBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
+  "PRE",
+  "PB")
+PBColConTab <- PBColConTab %>% filter(!is.na(type.from))
+
+T2T_PENs_PB <- getTypeToTypeTable(PBColConTab)
+
+T2T_conmatPlot_PB <- plotConnectivityMatrix(T2T_PENs_PB, byGroup = "type") + 
+    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+    ggtitle("PB")
+```
+Look at the differing connectivity between PEN1s and PEN2s - EB, PRE
+```{r}
+neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
+
+EBColConTab_PRE <- getConnectionTable(getTypesTable(neurons)$bodyid,
+  "PRE",
+  "EB")
+EBColConTab_PRE <- EBColConTab_PRE %>% filter(!is.na(type.from))
+
+T2T_PENs_EB_PRE <- getTypeToTypeTable(EBColConTab_PRE)
+
+T2T_conmatPlot_EB_PRE <- plotConnectivityMatrix(T2T_PENs_EB_PRE, byGroup = "type") + 
+    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', title.theme = element_text(angle = 90), barwidth = 0.5, title.hjust = 0.5)) +
+    ggtitle("EB")
+```
+Look at the differing connectivity between PEN1s and PEN2s - EB, POST
+```{r}
+neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
+
+EBColConTab_POST <- getConnectionTable(getTypesTable(neurons)$bodyid,
+  "POST",
+  "EB")
+EBColConTab_POST <- EBColConTab_POST %>% filter(!is.na(type.to))
+
+T2T_PENs_EB_POST <- getTypeToTypeTable(EBColConTab_POST)
+
+T2T_conmatPlot_EB_POST <- plotConnectivityMatrix(T2T_PENs_EB_POST, byGroup = "type") + 
+    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+    ggtitle("EB")
+```
+
+```{r}
+PEN1VsPEN2 <- (T2T_conmatPlot_PB + T2T_conmatPlot_EB_PRE) / T2T_conmatPlot_EB_POST
+print(PEN1VsPEN2)
+```

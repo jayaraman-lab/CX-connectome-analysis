@@ -1,0 +1,125 @@
+---
+title: "Pathways from known types figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(ggraph)
+library(tidygraph)
+```
+
+```{r message=FALSE}
+source("../outputsFig/outputFunctions-display.R")
+source("../outputsFig/outputFunctions-core.R")
+source("../R/paperTheme_linux.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Inputs/"
+load("inputsBasics.RData")
+```
+
+```{r}
+allNodes <-  readRDS("all-nodes_Inputs.rds")
+CX_inGraph <- readRDS("input_graph.rds")
+knownTypesTable <- readRDS("known-table.rds")
+allKnownTypes <- unique(knownTypesTable$type) 
+```
+
+
+```{r}
+endpointsInfluence <- readRDS("endpoints-influence_Inputs.rds")
+mainEndpointInfluencers <- readRDS("main-endpoints_Inputs.rds")
+load("mainSourcesAndConns.Rdata")
+CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
+CXinFull <- readRDS("pathwayWeightsTable_Inputs.rds")
+```
+
+```{r}
+endpointsPalette <- c("Unknown"="grey80",
+                       "CX"=p36[2],
+                        "5HT"=p36[14],
+                        "OA"=p36[16],
+                        "Peptidergic"=p36[28],
+                        "DAN"=p36[29],
+                       "MBON"=p36[4],
+                       "LH"=p36[31],
+                       "DN"=p36[24],
+                       "Fru"=p36[30],
+                       "KC"=p36[13],
+                       "Antennal lobe"=p36[20],
+                       "Clock"=p36[6],
+                       "Visual PNs"=p36[32],
+                       "Other Sensory"=p36[3])
+
+endpointsLevels <- c(  "Unknown",
+                       "CX",
+                        "5HT",
+                        "OA",
+                        "Peptidergic",
+                        "DAN",
+                       "MBON",
+                       "LH",
+                       "DN",
+                       "Fru",
+                       "KC",
+                       "Antennal lobe",
+                       "Clock",
+                       "Visual PNs",
+                       "Other Sensory")
+```
+
+```{r}
+endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,type.to %in% mainFFConns$mainContributee),type.to,supertype3.to,supertype.from) %>% summarize(Path_weight=sum(Path_weight)) %>% 
+   mutate(supertype.from=factor(supertype.from,levels=endpointsLevels)) %>% ungroup()
+unknownInfluence <- group_by(endpointsInfluenceSummary,type.to,supertype3.to) %>% summarize(supertype.from="Unknown",Path_weight=1-sum(Path_weight)) %>% ungroup()
+endpointsInfluenceSummary <- rbind(endpointsInfluenceSummary,unknownInfluence)
+#endpointsInfluenceSummary$supertype3.to[endpointsInfluenceSummary$supertype3.to %in% c("EB Columnar","ER","ExR","FB Tangential","FB Output","FB Columnar","PB Input","LNO","SA")] <- "CX"
+#endpointsInfluenceSummary$supertype3.to[endpointsInfluenceSummary$supertype3.to %in% c("EB Columnar","ER","ExR","FB Tangential","FB Output","FB Columnar","PB Input","LNO","SA")] <- "CX"
+endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.from != "CX" & type.to %in% mainFFConns$mainContributee)
+
+#endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) + scale_fill_manual(name="Source supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.to,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
+
+
+FBtSummary <- filter(endpointsInfluenceSummaryMainFF,supertype3.to=="FB Tangential") %>% mutate(layer.to=gsub("FB","",str_extract(type.to,"FB[1-9]")))
+
+endpointsCompositionMainFB <- ggplot(FBtSummary,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) + scale_fill_manual(name="Source supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~layer.to,scales = "free",space="free") + ylab("pathway weight") + xlab("CX input type")
+
+endpointsCompositionMainFFOthers <- ggplot(filter(endpointsInfluenceSummaryMainFF,supertype3.to != "FB Tangential"),aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) + scale_fill_manual(name="Source supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.to,scales = "free",space="free") + ylab("pathway weight") + xlab("CX input type")
+
+endpointsCompositionMainFB #/ endpointsCompositionMainFFKnown
+endpointsCompositionMainFFOthers
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"inputCompositionFBt.svg"),endpointsCompositionMainFB,base_width=10,base_height=3)
+save_plot(paste0(outputsFolder,"inputCompositionOthers.svg"),endpointsCompositionMainFFOthers,base_width=7,base_height=3)
+```
+
+```{r}
+customContributorsPalette <- customSupertypePalette
+```
+
+
+```{r}
+CXinFFSources <- filter(CXinFull,type.from %in% endpointsInfluence$type.from & type.from %in% mainFFConns$type.from & fullCXwr>0.005 & type.from %in% knownTypesTable$type) %>% mutate(supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)],
+                                                                                                                                             customType.to=CXOutputNeurons$customSupertype[match(databaseType.to,CXOutputNeurons$databaseType)]) 
+
+
+CXinFFEndpointsAll <- filter(CXinFull, type.from %in% mainFFConns$type.from & !type.from %in% mainEndpointInfluencers & fullCXwr>0.05) %>% mutate(supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)],
+                                                                                                                                              customType.to=CXOutputNeurons$customSupertype[match(databaseType.to,CXOutputNeurons$databaseType)])
+CXFFInfl <- ggplot(CXinFFSources,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to))+ scale_fill_manual(name="Target supertype",values=c(supertype3Palette,"Other"="grey90"))+facet_grid(.~supertype.from,scale="free",space="free")+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) + ylab("total pathway weight") + xlab("CX output type")
+
+CXFFInfl 
+
+```
+
+
+

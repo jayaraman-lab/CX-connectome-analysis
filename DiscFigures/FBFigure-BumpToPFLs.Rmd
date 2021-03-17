@@ -1,0 +1,404 @@
+---
+title: "FB Figure PFL inputs from the bump"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+source("..\\FBFigures\\FBNetworkVisUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\PBFigures\\PBAnalysisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
+options(nat.plotengine = 'rgl')
+```
+
+Function to convert a connection table into a weight matrix
+```{r}
+conTabToWM <- function(conTab, allPreIds, allPostIds){
+  # Create a matrix of just the weights
+  justWeights = matrix(0L,nrow=length(allPreIds),ncol=length(allPostIds))
+  for (i in 1:length(allPreIds)){
+    for (j in 1:length(allPostIds)){
+      w = conTab[which(as.character(conTab$nameOrder.from) == as.character(allPreIds[i]) &
+                         as.character(conTab$nameOrder.to) == as.character(allPostIds[j])),]$weight
+      if (length(w) > 0)
+        justWeights[i,j] = w
+    }
+  }
+  
+  rownames(justWeights) <- allPreIds
+  colnames(justWeights) <- allPostIds 
+  return(justWeights)
+}
+```
+
+Get the EPG neuron bag
+```{r}
+EPGBag <- neuronBag(getTypesTable("EPG"))
+```
+
+Get the EPG to PFL2,3 connectivity
+```{r}
+EPGToPFL23 <- EPGBag$outputs_raw %>% filter((type.to %in% c("PFL2","PFL3")) & (roi=="PB"))
+EPGToPFL23$nameOrder.to <- PBRename(EPGToPFL23$name.to,EPGToPFL23$to)
+EPGToPFL23$nameOrder.from <- PBRename(EPGToPFL23$name.from,EPGToPFL23$from)
+```
+
+Plot the EPG to PFL2,3 connectivity
+```{r}
+cmax=100
+
+EPGToPFL23Plt <- ggplot(EPGToPFL23) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                         midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  facet_grid(cols = vars(type.to),space="free", scales="free")
+print(EPGToPFL23Plt)
+```
+
+Get all of the EPG ids
+```{r}
+EPGids <- levels(EPGToPFL23$nameOrder.from)
+```
+
+Get all of the PFL ids
+```{r}
+PFL2ids <- levels(PBRename(filter(EPGToPFL23,type.to == "PFL2")$name.to,filter(EPGToPFL23,type.to == "PFL2")$to))
+PFL3ids <- levels(PBRename(filter(EPGToPFL23,type.to == "PFL3")$name.to,filter(EPGToPFL23,type.to == "PFL3")$to))
+```
+
+Convert the connection tables to weight matrices
+```{r}
+EPG_To_PFL2 <- conTabToWM(EPGToPFL23, EPGids, PFL2ids)
+EPG_To_PFL3 <- conTabToWM(EPGToPFL23, EPGids, PFL3ids)
+```
+
+Find the activity in the PFLs that results from a bump at various locations in the EB
+```{r}
+gloms = c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+PBglomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+                 "L1","L2","L3","L4","L5","L6","L7","L8","L9")
+vMprof <- vonMisesProf()
+
+# Create arrays to hold the PFL activity
+PFL2_PB_act <- data.frame(id = as.character(PFL2ids))
+PFL3_PB_act <- data.frame(id = as.character(PFL3ids))
+
+
+# Move the bump around the EB
+for (mov in 1:length(vonMisesProf())) {
+  
+  # Get the bump profile in the PB
+  actProfvM <- data.frame(act = c(tail(vMprof,-mov),head(vMprof,mov)),glom = gloms)
+  actProfvM$glom <- factor(actProfvM$glom,levels=as.factor(PBglomOrder))
+  
+  # Place the bump into the EPGs
+  EPG_PB_act <- data.frame(id = as.character(EPGids))
+  EPG_PB_act$glom <- lapply(EPG_PB_act$id, function(id) strsplit(strsplit(id,'-')[[1]][1],'_')[[1]][2]) %>% unlist()
+  EPG_PB_act$act <- lapply(EPG_PB_act$glom, function(g) actProfvM[which(actProfvM$glom == g),]$act) %>% unlist()
+  
+  # Find the projected PFL activity
+  EPG_PB_act$id <- factor(EPG_PB_act$id, levels = rownames(EPG_To_PFL2))
+  PFL2_PB_act[EPG_PB_act[which.max(EPG_PB_act$act),]$glom] <- EPG_PB_act$act %*% EPG_To_PFL2 %>% as.numeric()
+  
+  EPG_PB_act$id <- factor(EPG_PB_act$id, levels = rownames(EPG_To_PFL3))
+  PFL3_PB_act[EPG_PB_act[which.max(EPG_PB_act$act),]$glom] <- EPG_PB_act$act %*% EPG_To_PFL3 %>% as.numeric()
+}
+
+```
+
+Plot the activity vs. position
+```{r}
+pltGloms = c("R5","L4","R6","L3","R7","L2","R8","L1",
+             "R1","L8","R2","L7","R3","L6","R4","L5")
+
+PFL2_plt_dat <- melt(PFL2_PB_act, id.vars = 'id',variable.name='peakGlom',value.name='act')
+PFL2_plt_dat$id <- factor(PFL2_plt_dat$id,levels=PFL2ids)
+PFL2_plt_dat$peakGlom <- factor(PFL2_plt_dat$peakGlom,levels=pltGloms)
+PFL2_act_plt <- ggplot(PFL2_plt_dat) + 
+  geom_tile(aes(x=id,y=peakGlom,fill=act)) + 
+  scale_fill_gradient(low="white",high="black",limits=c(0,200)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) + 
+  xlab("neuron name") + ylab('glom. of peak EPG act.')
+
+PFL3_plt_dat <- melt(PFL3_PB_act, id.vars = 'id',variable.name='peakGlom',value.name='act')
+PFL3_plt_dat$id <- factor(PFL3_plt_dat$id,levels=PFL3ids)
+PFL3_plt_dat$peakGlom <- factor(PFL3_plt_dat$peakGlom,levels=pltGloms)
+PFL3_act_plt <- ggplot(PFL3_plt_dat) + 
+  geom_tile(aes(x=id,y=peakGlom,fill=act)) + 
+  scale_fill_gradient(low="white",high="black",limits=c(0,200)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90),
+                        axis.title.y = element_blank()) + 
+  xlab("neuron name")
+
+PFL_plts <- PFL2_act_plt + PFL3_act_plt
+print(PFL_plts)
+```
+
+Sum the activity across PFLs
+```{r}
+summedPFL2act <- PFL2_plt_dat %>% group_by(peakGlom) %>% summarize(netAct = sum(act))
+summedPFL2act$type.from <- "PFL2"
+summedPFL3act <- PFL3_plt_dat %>% group_by(peakGlom) %>% summarize(netAct = sum(act))
+summedPFL3act$type.from <- "PFL3"
+#summedPFLact <- rbind(summedPFL2act,summedPFL3act)
+#summedPFLact$peakGlom <- factor(summedPFLact$peakGlom, levels = gloms)
+
+#sum_PFL_plts <- ggplot(summedPFLact) + geom_line(aes(x=peakGlom,y=netAct,group=1)) +
+#  facet_grid(cols = vars(type.from)) +
+#  theme_paper()
+
+sumPFL2_plt <- ggplot(summedPFL2act) + geom_line(aes(x=peakGlom,y=netAct,group=1)) + coord_flip() + 
+  theme_paper() + ylim(c(300,550)) +
+  theme(axis.title.y = element_blank()) + ylab("summed act.")
+sumPFL3_plt <- ggplot(summedPFL3act) + geom_line(aes(x=peakGlom,y=netAct,group=1)) + coord_flip() + 
+  theme_paper() + ylim(c(300,550)) +
+  theme(axis.title.y = element_blank()) + ylab("summed act.")
+  
+PFLactAll <- PFL2_act_plt + sumPFL2_plt + PFL3_act_plt + sumPFL3_plt + plot_layout(widths = c(3,1,3,1),guides='collect')
+print(PFLactAll)
+```
+
+Get the PFL to DN connection table
+```{r}
+PFLs_to_DNs <- getConnectionTable(getTypesTable(c("PFL2","PFL3")),"POST") %>% filter(grepl("DN",type.to))
+PFLs_to_DNs$nameOrder.from <- PBRename(PFLs_to_DNs$name.from,PFLs_to_DNs$from)
+PFLs_to_DNs$nameOrder.to <- PBRename(PFLs_to_DNs$name.to,PFLs_to_DNs$to)
+```
+
+Plot the connection table
+```{r}
+cmax=100
+PFL2ToDNPlt <- ggplot(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL2"))) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_fixed(ratio=1)
+print(PFL2ToDNPlt)
+
+PFL3ToDNPlt <- ggplot(PFLs_to_DNs %>% filter((type.to != "MDN") & (type.from == "PFL3"))) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) +
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")  +
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_fixed(ratio=1)
+print(PFL3ToDNPlt)
+```
+
+Multiply the PFL2 and PFL3 "activity" by the DN weights
+```{r}
+typesTo <- PFLs_to_DNs$type.to %>% unique() %>% sort()
+DNact_PFL2 <- data.frame(peakGlom <- c(),
+                         act <- c(),
+                         name <- c())
+DNact_PFL3 <- data.frame(peakGlom <- c(),
+                         act <- c(),
+                         name <- c())
+for (t in 1:length(typesTo)){
+  PFL2_To_DN <- conTabToWM(PFLs_to_DNs, PFL2ids, 
+                           PFLs_to_DNs %>% filter(type.to == typesTo[t]) %>% select(nameOrder.to) %>% unlist() %>% as.character() %>% unique() %>% sort())
+  PFL3_To_DN <- conTabToWM(PFLs_to_DNs, PFL3ids, 
+                           PFLs_to_DNs %>% filter(type.to == typesTo[t]) %>% select(nameOrder.to) %>% unlist() %>% as.character() %>% unique() %>% sort())
+  for (r in 2:ncol(PFL2_PB_act)){
+    DNact_PFL2 <- rbind(DNact_PFL2,
+                        data.frame(peakGlom = colnames(PFL2_PB_act)[r],
+                                   input = max(as.numeric(unlist(PFL2_PB_act[,r])) %*% PFL2_To_DN),
+                                   name = typesTo[t]))
+  }
+  for (r in 2:ncol(PFL3_PB_act)){
+    DNact_PFL3 <- rbind(DNact_PFL3,
+                        data.frame(peakGlom = colnames(PFL3_PB_act)[r],
+                                   input = max(as.numeric(unlist(PFL3_PB_act[,r])) %*% PFL3_To_DN),
+                                   name = typesTo[t]))
+  }
+  
+}
+```
+
+Plot it
+```{r}
+DNact_PFL2$peakGlom <- factor(DNact_PFL2$peakGlom, levels = rev(pltGloms))
+DNact_PFL3$peakGlom <- factor(DNact_PFL3$peakGlom, levels = rev(pltGloms))
+
+DN_From_PFL2_plt <- ggplot(DNact_PFL2 %>% filter(name %in% c("DNa03","DNb01"))) + geom_line(aes(x=peakGlom,y=input,group=name)) +
+  facet_grid(cols = vars(name),scales="free") +
+  theme_paper() +
+  theme(axis.text.x = element_text(angle=90)) +
+  xlab('glom. of peak EPG act.') + ylab('summed act') +
+  theme(axis.text.x = element_text(angle=90)) + coord_flip()
+
+DN_From_PFL3_plt <- ggplot(DNact_PFL3 %>% filter(name %in% c("DNa02","DNa03","DNa04","DNb01"))) + geom_line(aes(x=peakGlom,y=input,group=name)) +
+  facet_grid(cols = vars(name),scales="free") +
+  theme_paper() +
+  xlab('glom. of peak EPG act.') + ylab('summed act') +
+  theme(axis.text.x = element_text(angle=90)) + coord_flip()
+
+DN_plt <- PFL2ToDNPlt + DN_From_PFL2_plt + PFL3ToDNPlt + DN_From_PFL3_plt + plot_layout(widths = c(1,2,1,4))
+print(DN_plt)
+```
+
+Now, do the same for an impulse input
+Find the activity in the PFLs that results from an impulse input at various locations in the EB
+```{r}
+impProf <- vector(mode="numeric",length = 16)
+impProf[8] <- 1
+
+# Create arrays to hold the PFL activity
+PFL2_PB_act_imp <- data.frame(id = as.character(PFL2ids))
+PFL3_PB_act_imp <- data.frame(id = as.character(PFL3ids))
+
+
+# Move the bump around the EB
+for (mov in 1:length(impProf)) {
+  
+  # Get the bump profile in the PB
+  actProfImp <- data.frame(act = c(tail(impProf,-mov),head(impProf,mov)),glom = gloms)
+  actProfImp$glom <- factor(actProfImp$glom,levels=as.factor(PBglomOrder))
+  
+  # Place the bump into the EPGs
+  EPG_PB_act <- data.frame(id = as.character(EPGids))
+  EPG_PB_act$glom <- lapply(EPG_PB_act$id, function(id) strsplit(strsplit(id,'-')[[1]][1],'_')[[1]][2]) %>% unlist()
+  EPG_PB_act$act <- lapply(EPG_PB_act$glom, function(g) actProfImp[which(actProfImp$glom == g),]$act) %>% unlist()
+  
+  # Find the projected PFL activity
+  EPG_PB_act$id <- factor(EPG_PB_act$id, levels = rownames(EPG_To_PFL2))
+  PFL2_PB_act_imp[EPG_PB_act[which.max(EPG_PB_act$act),]$glom] <- EPG_PB_act$act %*% EPG_To_PFL2 %>% as.numeric()
+  
+  EPG_PB_act$id <- factor(EPG_PB_act$id, levels = rownames(EPG_To_PFL3))
+  PFL3_PB_act_imp[EPG_PB_act[which.max(EPG_PB_act$act),]$glom] <- EPG_PB_act$act %*% EPG_To_PFL3 %>% as.numeric()
+}
+
+```
+
+Plot the activity vs. position
+```{r}
+PFL2_plt_dat_imp <- melt(PFL2_PB_act_imp, id.vars = 'id',variable.name='peakGlom',value.name='act')
+PFL2_plt_dat_imp$id <- factor(PFL2_plt_dat_imp$id,levels=PFL2ids)
+PFL2_plt_dat_imp$peakGlom <- factor(PFL2_plt_dat_imp$peakGlom,levels=pltGloms)
+PFL2_act_plt_imp <- ggplot(PFL2_plt_dat_imp) + 
+  geom_tile(aes(x=id,y=peakGlom,fill=act)) + 
+  scale_fill_gradient(low="white",high="black") + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90))
+
+PFL3_plt_dat_imp <- melt(PFL3_PB_act_imp, id.vars = 'id',variable.name='peakGlom',value.name='act')
+PFL3_plt_dat_imp$id <- factor(PFL3_plt_dat_imp$id,levels=PFL3ids)
+PFL3_plt_dat_imp$peakGlom <- factor(PFL3_plt_dat_imp$peakGlom,levels=pltGloms)
+PFL3_act_plt_imp <- ggplot(PFL3_plt_dat_imp) + 
+  geom_tile(aes(x=id,y=peakGlom,fill=act)) + 
+  scale_fill_gradient(low="white",high="black") + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90))
+
+PFL_plts_imp <- PFL2_act_plt_imp + PFL3_act_plt_imp
+print(PFL_plts_imp)
+```
+Multiply the PFL2 and PFL3 "activity" by the DN weights
+```{r}
+DNact_PFL2_imp <- data.frame(peakGlom <- c(),
+                         act <- c(),
+                         name <- c())
+DNact_PFL3_imp <- data.frame(peakGlom <- c(),
+                         act <- c(),
+                         name <- c())
+for (t in 1:length(typesTo)){
+  PFL2_To_DN <- conTabToWM(PFLs_to_DNs, PFL2ids, 
+                           PFLs_to_DNs %>% filter(type.to == typesTo[t]) %>% select(nameOrder.to) %>% unlist() %>% as.character() %>% unique() %>% sort())
+  PFL3_To_DN <- conTabToWM(PFLs_to_DNs, PFL3ids, 
+                           PFLs_to_DNs %>% filter(type.to == typesTo[t]) %>% select(nameOrder.to) %>% unlist() %>% as.character() %>% unique() %>% sort())
+  for (r in 2:ncol(PFL2_PB_act_imp)){
+    DNact_PFL2_imp <- rbind(DNact_PFL2_imp,
+                        data.frame(peakGlom = colnames(PFL2_PB_act_imp)[r],
+                                   input = max(as.numeric(unlist(PFL2_PB_act_imp[,r])) %*% PFL2_To_DN),
+                                   name = typesTo[t]))
+  }
+  for (r in 2:ncol(PFL3_PB_act_imp)){
+    DNact_PFL3_imp <- rbind(DNact_PFL3_imp,
+                        data.frame(peakGlom = colnames(PFL3_PB_act_imp)[r],
+                                   input = max(as.numeric(unlist(PFL3_PB_act_imp[,r])) %*% PFL3_To_DN),
+                                   name = typesTo[t]))
+  }
+  
+}
+```
+
+Sum the activity across PFLs
+```{r}
+summedPFL2act_imp <- PFL2_plt_dat_imp %>% group_by(peakGlom) %>% summarize(netAct = sum(act))
+summedPFL2act_imp$type.from <- "PFL2"
+summedPFL2act_imp$peakGlom <- factor(summedPFL2act_imp$peakGlom, levels = rev(pltGloms))
+summedPFL3act_imp <- PFL3_plt_dat_imp %>% group_by(peakGlom) %>% summarize(netAct = sum(act))
+summedPFL3act_imp$type.from <- "PFL3"
+summedPFL3act_imp$peakGlom <- factor(summedPFL3act_imp$peakGlom, levels = rev(pltGloms))
+#summedPFLact_imp <- rbind(summedPFL2act_imp,summedPFL3act_imp)
+#summedPFLact_imp$peakGlom <- factor(summedPFLact_imp$peakGlom, levels = pltGloms)
+
+#sum_PFL_plts_imp <- ggplot(summedPFLact_imp) + geom_line(aes(x=peakGlom,y=netAct,group=1)) +
+#  facet_grid(cols = vars(type.from)) +
+#  theme_paper()
+
+sumPFL2_plt_imp <- ggplot(summedPFL2act_imp) + geom_line(aes(x=peakGlom,y=netAct,group=1)) + #coord_flip() + 
+  theme_paper() + ylim(c(0,300)) +
+  xlab('glom. of peak EPG act.') + ylab("summed act.") + theme(axis.text.x = element_text(angle=90))
+sumPFL3_plt_imp <- ggplot(summedPFL3act_imp) + geom_line(aes(x=peakGlom,y=netAct,group=1)) + #coord_flip() + 
+  theme_paper() + ylim(c(0,300)) +
+  theme(axis.title.y = element_blank()) + xlab('glom. of peak EPG act.') + theme(axis.text.x = element_text(angle=90))
+
+print(sumPFL2_plt_imp)
+print(sumPFL3_plt_imp)
+```
+
+Plot it
+```{r}
+DNact_PFL2_imp$peakGlom <- factor(DNact_PFL2_imp$peakGlom, levels = rev(pltGloms))
+DNact_PFL3_imp$peakGlom <- factor(DNact_PFL3_imp$peakGlom, levels = rev(pltGloms))
+
+DN_From_PFL2_plt_imp <- ggplot(DNact_PFL2_imp %>% filter(name != "MDN")) + geom_line(aes(x=peakGlom,y=input,group=name)) +
+  facet_grid(rows = vars(name),scales="free") +
+  ggtitle("inputs from PFL2") + theme_paper() +
+  xlab('glom. of peak EPG act.') + ylab('summed act') +
+  theme(axis.text.x = element_text(angle=90))
+
+DN_From_PFL3_plt_imp <- ggplot(DNact_PFL3_imp  %>% filter(name != "MDN")) + geom_line(aes(x=peakGlom,y=input,group=name)) +
+  facet_grid(rows = vars(name),scales="free") +
+  ggtitle("inputs from PFL3") + theme_paper() +
+  xlab('glom. of peak EPG act.') + ylab('summed act') +
+  theme(axis.text.x = element_text(angle=90))
+
+DN_plt_imp <- DN_From_PFL2_plt_imp + DN_From_PFL3_plt_imp
+print(DN_plt_imp)
+```
+Save the plots
+```{r}
+ggsave("EPGToPFLCM.pdf",EPGToPFL23Plt,
+       width=4, height=4, units = "in")
+```
+```{r}
+PFL23ToDNPlt <- PFL2ToDNPlt + PFL3ToDNPlt + plot_layout(widths = c(1,2), guides = 'collect')
+ggsave("PFLToDNCM.pdf",PFL23ToDNPlt,
+       width=3.5, height=2.5, units = "in")
+```
+```{r}
+ggsave("PFLBumpAct.pdf",PFLactAll,
+       width=6, height=2.5, units = "in")
+```
+```{r}
+sumPFL_plts_imp <- sumPFL2_plt_imp + sumPFL3_plt_imp
+ggsave("EPGToPFLActImp.pdf",sumPFL_plts_imp,
+       width=3.5, height=1.5, units = "in")
+```
+```{r}
+DN_plts <- DN_From_PFL2_plt + DN_From_PFL3_plt + plot_layout(widths = c(1,2))
+ggsave("EPGToPFLToDNAct.pdf",DN_plts,
+       width=4, height=2.5, units = "in")
+```

@@ -1,0 +1,66 @@
+---
+title: "Fru neurons outputs figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure8-VisualPNs/"
+```
+
+```{r}
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+CX_outGraph <- readRDS("output_graph.rds")
+CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
+load("mainTargetsAndConns.Rdata")
+load("outputsBasics.RData")
+knownTypesTable <- readRDS("known-table.rds")
+CXoutFull <- readRDS("pathwayWeightsTable.rds")
+```
+
+```{r}
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal)
+names(customGraphPalette)[2] <- "Source"
+```
+
+
+## What are all Visual PNs in the (reduced) network?
+
+```{r}
+
+CXoutFFEndpointFru <- filter(CXoutFull,(supertype3.to == "Fru") & fullCXwr>0.0005) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                                         supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                                         customSupertype = case_when(supertype.from %in% c("PFL") ~ databaseType.from,
+                                                                                                                                                     grepl("ExR8",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                                     type.from %in% c("PFR_b_L*") ~ databaseType.from,
+                                                                                                                                                     TRUE ~ "Other")
+                                                                                                                                                    
+                                                                                                                         )
+
+moreFruPlot <- ggplot(CXoutFFEndpointFru,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("Descending neuron")  + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+
+moreFruPlot
+```

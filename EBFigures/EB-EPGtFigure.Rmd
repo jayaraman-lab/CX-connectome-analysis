@@ -1,0 +1,139 @@
+---
+title: "EPGs vs EPGts"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(ggnewscale)
+library(gridExtra)
+
+source("..\\PBFigures\\PBAnalysisUtils.R")
+source("..\\R\\paperTheme.R")
+source("..\\R\\visualizeConnectivityTables.R")
+```
+
+
+Compare the EPG and EPGt connections in the PB - inputs
+```{r}
+EPGt_CT_PB_PRE <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"PRE","PB")
+EPGt_CT_PB_PRE <- EPGt_CT_PB_PRE %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+EPGt_T2T_PB_PRE <- getTypeToTypeTable(EPGt_CT_PB_PRE)
+
+T2TPlot_EPGt_PB_PRE <- plotConnectivityMatrix(EPGt_T2T_PB_PRE, byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', title.theme = element_text(angle = 90), barwidth = 0.5, title.hjust = 0.5))
+
+print(T2TPlot_EPGt_PB_PRE)
+```
+Compare the EPG and EPGt connections in the PB - outputs
+```{r}
+EPGt_CT_PB_POST <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"POST","PB")
+EPGt_CT_PB_POST <- EPGt_CT_PB_POST %>% filter(!is.na(type.to) & !is.na(type.from)) %>%
+  filter(type.to !="SIFa" & type.from !="SIFa")
+
+EPGt_T2T_PB_POST <- getTypeToTypeTable(EPGt_CT_PB_POST,
+                                  pThresh=0.1)
+
+T2TPlot_EPGt_PB_POST <- plotConnectivityMatrix(EPGt_T2T_PB_POST, byGroup = "type", connectionMeasure="outputContribution") + 
+    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'output contribution', direction = 'horizontal', title.position = 'top', barheight = 0.5))
+
+print(T2TPlot_EPGt_PB_POST)
+```
+
+
+Get the total number of input and output synapses by roi
+```{r}
+EPG_ROIs <- neuprint_get_roiInfo(getTypesTable(c("EPG","EPGt"))$bodyid)
+```
+
+Plot the relative number of output synapses
+```{r}
+EPG_outputROIs <- EPG_ROIs %>% select(bodyid,PB.downstream,EB.downstream,`LAL(R).downstream`)
+EPG_outputROIs[is.na(EPG_outputROIs)] <- 0
+colnames(EPG_outputROIs) <- c("bodyid","PB","EB","LAL")
+EPG_outputROIs <- melt(EPG_outputROIs,id.vars='bodyid',value.name='syns',variable.name = 'ROI')
+EPG_outputROIs <- EPG_outputROIs %>% mutate(type = neuprint_get_meta(bodyid)$type,
+                                          name = neuprint_get_meta(bodyid)$name)
+EPG_outputROIs$nameid <- PBRename(EPG_outputROIs$name,EPG_outputROIs$bodyid)
+EPG_outputROIs$ROI <- factor(EPG_outputROIs$ROI,levels = c("EB","PB","LAL"))
+
+relEPGOutputs <- ggplot(EPG_outputROIs,aes(color=as.factor(type),y=syns,x=ROI)) +
+  geom_point(position=position_jitterdodge(dodge.width=0.4),alpha=0.5,size=3) +
+  theme_cowplot() + scale_y_continuous(expand = c(0, 0)) + 
+  ylab("presynapses") +
+  scale_color_manual(values = supertype2Palette()$pal,
+                     breaks = supertype2Palette()$breaks) +
+  coord_cartesian(clip = 'off')
+
+relEPGOutputs
+```
+
+
+Compare the EPG and EPGt connections in the EB - inputs
+```{r}
+EPGt_CT_EB_PRE <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"PRE","EB")
+EPGt_CT_EB_PRE <- EPGt_CT_EB_PRE %>% filter(!is.na(type.to) & !is.na(type.from))
+
+EPGt_T2T_EB_PRE <- getTypeToTypeTable(EPGt_CT_EB_PRE)
+
+T2TPlot_EPGt_EB_PRE <- plotConnectivityMatrix(EPGt_T2T_EB_PRE, byGroup = "type") + 
+    coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+    guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', title.theme = element_text(angle = 90), barwidth = 0.5, title.hjust = 0.5))
+
+print(T2TPlot_EPGt_EB_PRE)
+```
+
+
+Create weight matrices that compare the PEN1 and PEN2 connectivity in the EB
+```{r}
+EPGt_CT_EB_PRE <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"PRE","EB",synThresh= 0)
+EPGt_CT_EB_PRE <- EPGt_CT_EB_PRE %>% filter(type.from %in% c('PEN_a(PEN1)','PEN_b(PEN2)'))
+EPGt_CT_EB_PRE$nameOrder.from <- PBRename(EPGt_CT_EB_PRE$name.from, EPGt_CT_EB_PRE$from)
+EPGt_CT_EB_PRE$nameOrder.to <- PBRename(EPGt_CT_EB_PRE$name.to, EPGt_CT_EB_PRE$to)
+
+pltLevels <- levels(EPGt_CT_EB_PRE$nameOrder.to)
+pltLevels <- c(pltLevels[47:48],pltLevels[1:46],pltLevels[49:50])
+EPGt_CT_EB_PRE$nameOrder.to <- factor(EPGt_CT_EB_PRE$nameOrder.to,levels=pltLevels)
+
+conmatPlot_EPGt_EB_PRE <- plotConnectivityMatrix(EPGt_CT_EB_PRE, byGroup = "id_sort") + 
+  coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+  geom_vline(xintercept = 2.5) + geom_vline(xintercept = 48.5) + geom_vline(xintercept = 50.5) +
+  geom_hline(yintercept = 20.5) + geom_hline(yintercept = 42.5) +
+  ggtitle("EB")
+
+print(conmatPlot_EPGt_EB_PRE)
+```
+
+Create weight matrices that compare the PEN1 and PEN2 connectivity in the PB
+```{r}
+EPGt_CT_PB_POST <- getConnectionTable(getTypesTable(c("EPG","EPGt"))$bodyid,"POST","PB",synThresh= 0)
+EPGt_CT_PB_POST <- EPGt_CT_PB_POST %>% filter(!is.na(type.to) & !is.na(type.from))
+EPGt_CT_PB_POST <- EPGt_CT_PB_POST %>% filter(type.to %in% c('PEN_a(PEN1)','PEN_b(PEN2)'))
+EPGt_CT_PB_POST$nameOrder.from <- PBRename(EPGt_CT_PB_POST$name.from, EPGt_CT_PB_POST$from)
+EPGt_CT_PB_POST$nameOrder.to <- PBRename(EPGt_CT_PB_POST$name.to, EPGt_CT_PB_POST$to)
+
+
+pltLevels <- levels(EPGt_CT_PB_POST$nameOrder.from)
+pltLevels <- c(pltLevels[47:48],pltLevels[1:46],pltLevels[49:50])
+EPGt_CT_PB_POST$nameOrder.from <- factor(EPGt_CT_PB_POST$nameOsrder.from,levels=pltLevels)
+
+conmatPlot_EPGt_PB_POST <- plotConnectivityMatrix(EPGt_CT_PB_POST, byGroup = "id_sort") + 
+  coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
+  geom_hline(yintercept = 2.5) + geom_hline(yintercept = 48.5) + geom_hline(yintercept = 50.5) +
+  geom_vline(xintercept = 20.5) + geom_vline(xintercept = 42.5) +
+  ggtitle("PB")
+
+print(conmatPlot_EPGt_PB_POST)
+```   

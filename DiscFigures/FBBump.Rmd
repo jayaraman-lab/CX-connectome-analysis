@@ -1,0 +1,296 @@
+---
+title: "FB bump tracking"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(gridExtra)
+source("..\\PBFigures\\PBAnalysisUtils.R")
+source("..\\FBFigures\\FBNetworkVisUtils.R")
+```
+
+Function to convert a connection table into a weight matrix
+```{r}
+conTabToWM <- function(conTab, allPreIds, allPostIds){
+  # Create a matrix of just the weights
+  justWeights = matrix(0L,nrow=length(allPreIds),ncol=length(allPostIds))
+  for (i in 1:length(allPreIds)){
+    for (j in 1:length(allPostIds)){
+      w = conTab[which(as.character(conTab$id.from) == as.character(allPreIds[i]) &
+                         as.character(conTab$id.to) == as.character(allPostIds[j])),]$weight
+      if (length(w) > 0)
+        justWeights[i,j] = w
+    }
+  }
+  
+  rownames(justWeights) <- allPreIds
+  colnames(justWeights) <- allPostIds 
+  return(justWeights)
+}
+```
+
+
+Create a bump in the EB
+```{r}
+gloms = c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
+actProfvM$glom <- factor(actProfvM$glom,levels=gloms)
+
+g_EB <- ggplot(actProfvM) + geom_line(aes(x=glom,y=act,group=1)) + theme_cowplot() + scale_x_discrete(expand = c(0,0)) + ggtitle('EB \"activity\"')
+```
+
+Move it to the PB (via EPG mapping)
+```{r}
+actProfvM <- rbind(actProfvM, data.frame(act = c(0,0), glom = c("L9","R9")))
+glomOrder <- c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+               "L1","L2","L3","L4","L5","L6","L7","L8","L9")
+actProfvM$glom <- factor(actProfvM$glom,levels=as.factor(glomOrder))
+actProfvM$LR <- lapply(actProfvM$glom, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+
+g_PB <- ggplot(actProfvM) + geom_line(aes(x=glom,y=act,group=1,color=LR)) + theme_cowplot() + scale_x_discrete(expand = c(0,0))  + ggtitle('PB \"activity\"') + guides(color=FALSE)
+```
+
+Look at how it moves to the D7s
+```{r}
+conTab <- getConnectionTable(getTypesTable("EPG")$bodyid,"POST","PB") %>% 
+  filter(type.to == "Delta7")
+conTab$id.from <- PBRename(conTab$name.from,conTab$from)
+conTab$id.to <- PBRename(conTab$name.to,conTab$to)
+
+WM <- conTabToWM(conTab,unique(conTab$id.from),unique(conTab$id.to))
+
+EPGDat <- data.frame(name = rownames(WM))
+EPGDat$glom <- lapply(EPGDat$name, function(n) strsplit(strsplit(n,'_')[[1]][2],'-')[[1]][1]) %>% unlist() %>% as.character()
+EPGDat$act <- lapply(EPGDat$glom, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+D7Dat <- data.frame(name = colnames(WM), act =  as.vector(EPGDat$act %*% WM))
+D7Dat$glom1 <- lapply(D7Dat$name, function(n) substring(strsplit(n,'_')[[1]][2],1,2)) %>% unlist() %>% as.character()
+D7Dat$glom2 <- lapply(D7Dat$name, function(n) substring(strsplit(n,'_')[[1]][2],3,4)) %>% unlist() %>% as.character()
+D7Dat$glom3 <- lapply(D7Dat$name, function(n) substring(strsplit(n,'_')[[1]][2],5,6)) %>% unlist() %>% as.character()
+
+D7Dat <- melt(D7Dat, id = c("name","act"), value.name = c("glom"))
+D7Dat <- D7Dat[which(D7Dat$glom != ""),]
+
+D7aveAct <- D7Dat %>% group_by(glom) %>% summarize(meanAct = mean(act))
+D7aveAct$LR <- lapply(D7aveAct$glom, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+D7aveAct$glom <- factor(D7aveAct$glom, levels = as.factor(c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
+                                                          "L1","L2","L3","L4","L5","L6","L7","L8","L9")))
+D7aveAct$meanAct <- D7aveAct$meanAct / max(D7aveAct$meanAct)
+
+g_PB_D7 <- ggplot(D7aveAct) + geom_line(aes(x=glom,y=meanAct,group=1,color=LR)) + theme_cowplot() + scale_x_discrete(expand = c(0,0))  + ggtitle('D7 \"activity\"') + guides(color=FALSE)
+```
+
+Move it to the FB (via PFGs mapping)
+```{r}
+PFType <- "PFGs"
+
+# Get the info for the PFX type
+PFtypeDat <- getTypesTable(PFType)
+PFtypeDat$gloms <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+PFtypeDat$LR <- lapply(PFtypeDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+PFtypeDat$cols <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+PFtypeDat$cols <- factor(PFtypeDat$cols, levels = unique(PFtypeDat$cols) %>% sort())
+PFtypeDat$id <- FBRename(PFtypeDat$name,PFtypeDat$bodyid)
+
+# Place the activity into the given type
+PFtypeDat$act <- lapply(PFtypeDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+# Average over each column
+colAve_PFGs <- PFtypeDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+
+# Plot the presynaptic "activity"
+g_FB_PFGs <- ggplot(colAve_PFGs) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) +
+    theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+    ggtitle("PFGs") + guides(color=FALSE)
+```
+
+Move it to the FB (via PFL3 mapping)
+```{r}
+PFType <- "PFL3"
+
+# Get the info for the PFX type
+PFtypeDat <- getTypesTable(PFType)
+PFtypeDat$gloms <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+PFtypeDat$LR <- lapply(PFtypeDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+PFtypeDat$cols <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+PFtypeDat$cols <- factor(PFtypeDat$cols, levels = unique(PFtypeDat$cols) %>% sort())
+PFtypeDat$id <- FBRename(PFtypeDat$name,PFtypeDat$bodyid)
+
+# Place the activity into the given type
+PFtypeDat$act <- lapply(PFtypeDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+# Average over each column
+colAve_PFL <- PFtypeDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+
+# Plot the presynaptic "activity"
+g_FB_PFL <- ggplot(colAve_PFL) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) +
+    theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+    ggtitle("PFL3") + guides(color=FALSE)
+```
+
+Move it to the FB (via PFNd mapping)
+```{r}
+PFType <- "PFNd"
+
+# Get the info for the PFX type
+PFtypeDat <- getTypesTable(PFType)
+PFtypeDat$gloms <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+PFtypeDat$LR <- lapply(PFtypeDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+PFtypeDat$cols <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+PFtypeDat$cols <- factor(PFtypeDat$cols, levels = unique(PFtypeDat$cols) %>% sort())
+PFtypeDat$id <- FBRename(PFtypeDat$name,PFtypeDat$bodyid)
+
+# Place the activity into the given type
+PFtypeDat$act <- lapply(PFtypeDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+# Average over each column
+colAve_PFN <- PFtypeDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+
+# Plot the presynaptic "activity"
+g_FB_PFNd <- ggplot(colAve_PFN) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) +
+    theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+    ggtitle("PFNd") + guides(color=FALSE)
+```
+
+Copy the bump from a the R or L PFNd neurons to a second neuron and plot
+```{r}
+FPost <- "hDeltaA"
+
+# Get the info for the postsynaptic FB type
+FPostDat <- getTypesTable(FPost)
+FPostDat$cols <- lapply(FPostDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+FPostDat$cols <- factor(FPostDat$cols, levels = as.factor(c("C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12")))
+FPostDat$id <- FBRename(FPostDat$name,FPostDat$bodyid)
+
+# Get the connection table between the two types
+conTab <- getConnectionTable(getTypesTable(PFType)$bodyid,"POST","FB") %>% filter(type.to == FPost)
+conTab$id.from <- FBRename(conTab$name.from,conTab$from)
+conTab$id.to <- FBRename(conTab$name.to,conTab$to)
+
+# Get info about the pre and post neurons
+allPreIds = PFtypeDat$id
+allPostIds = FPostDat$id
+
+# Create a matrix of just the weights
+justWeights = matrix(0L,nrow=length(allPreIds),ncol=length(allPostIds))
+for (i in 1:length(allPreIds)){
+  for (j in 1:length(allPostIds)){
+    w = conTab[which(conTab$id.from == allPreIds[i] & conTab$id.to == allPostIds[j]),]$weight
+    if (length(w) > 0)
+      justWeights[i,j] = w
+  }
+}
+
+# Use the weights to get the downstream "activity"
+act_L <- PFtypeDat$act
+act_L[which(PFtypeDat$LR == "R")] <- 0 
+FPostDat$act_L <- act_L %*% justWeights %>% as.vector()
+FPostDat$act_L <- FPostDat$act_L / max(FPostDat$act_L)
+act_R <- PFtypeDat$act
+act_R[which(PFtypeDat$LR == "L")] <- 0 
+FPostDat$act_R <- act_R %*% justWeights %>% as.vector()
+FPostDat$act_R <- FPostDat$act_R / max(FPostDat$act_R)
+
+# Average the activy across columns
+colAve_hDA <- FPostDat %>% group_by(cols) %>% summarize(meanAct_L = mean(act_L),
+                                                   meanAct_R = mean(act_R))
+
+# Plot it
+g_FB_hDA <- ggplot(colAve_hDA) + geom_line(aes(x=cols,y=meanAct_L,group="L"),color='red',linetype='dashed') +
+  geom_line(aes(x=cols,y=meanAct_R,group="R"),color='cyan',linetype='dashed') +
+  theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+  ggtitle(paste0(PFType," -> ",FPost))
+```
+
+Move it to the FB (via PFNp_a mapping)
+```{r}
+PFType <- "PFNp_c"
+
+# Get the info for the PFX type
+PFtypeDat <- getTypesTable(PFType)
+PFtypeDat$gloms <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][3]) %>% unlist() %>% as.character()
+PFtypeDat$LR <- lapply(PFtypeDat$gloms, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
+PFtypeDat$cols <- lapply(PFtypeDat$name, function(n) strsplit(n,'_')[[1]][4]) %>% unlist() %>% as.character()
+PFtypeDat$cols <- factor(PFtypeDat$cols, levels = unique(PFtypeDat$cols) %>% sort())
+PFtypeDat$id <- FBRename(PFtypeDat$name,PFtypeDat$bodyid)
+
+# Place the activity into the given type
+PFtypeDat$act <- lapply(PFtypeDat$gloms, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
+
+# Average over each column
+colAve_PFN <- PFtypeDat %>% group_by(cols,LR) %>% summarize(meanAct = mean(act))
+
+# Plot the presynaptic "activity"
+g_FB_PFNp_c <- ggplot(colAve_PFN) + geom_line(aes(x=cols,y=meanAct,group=LR,color=LR)) +
+    theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+    ggtitle("PFNp_c") + guides(color=FALSE)
+```
+
+Copy the bump from a the R or L PFNd neurons to a second neuron and plot
+```{r}
+FPost <- "vDeltaK"
+
+# Get the info for the postsynaptic FB type
+FPostDat <- getTypesTable(FPost)
+FPostDat$cols <- lapply(FPostDat$name, function(n) strsplit(n,'_')[[1]][2]) %>% unlist() %>% as.character()
+FPostDat$cols <- factor(FPostDat$cols, levels = as.factor(c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9")))
+FPostDat$id <- FBRename(FPostDat$name,FPostDat$bodyid)
+
+# Get the connection table between the two types
+conTab <- getConnectionTable(getTypesTable(PFType)$bodyid,"POST","FB") %>% filter(type.to == FPost)
+conTab$id.from <- FBRename(conTab$name.from,conTab$from)
+conTab$id.to <- FBRename(conTab$name.to,conTab$to)
+
+# Get info about the pre and post neurons
+allPreIds = PFtypeDat$id
+allPostIds = FPostDat$id
+
+# Create a matrix of just the weights
+justWeights = matrix(0L,nrow=length(allPreIds),ncol=length(allPostIds))
+for (i in 1:length(allPreIds)){
+  for (j in 1:length(allPostIds)){
+    w = conTab[which(as.character(conTab$id.from) == as.character(allPreIds[i]) &
+                       as.character(conTab$id.to) == as.character(allPostIds[j])),]$weight
+    if (length(w) > 0)
+      justWeights[i,j] = w
+  }
+}
+
+# Use the weights to get the downstream "activity"
+act_L <- PFtypeDat$act
+act_L[which(PFtypeDat$LR == "R")] <- 0 
+FPostDat$act_L <- act_L %*% justWeights %>% as.vector()
+act_R <- PFtypeDat$act
+act_R[which(PFtypeDat$LR == "L")] <- 0 
+FPostDat$act_R <- act_R %*% justWeights %>% as.vector()
+FPostDat$act_R <- FPostDat$act_R / max(FPostDat$act_R)
+
+# Average the activy across columns
+colAve_vDK <- FPostDat %>% group_by(cols) %>% summarize(meanAct_L = mean(act_L),
+                                                   meanAct_R = mean(act_R))
+colAve_vDK$meanAct_L <- colAve_vDK$meanAct_L / max(colAve_vDK$meanAct_L)
+colAve_vDK$meanAct_R <- colAve_vDK$meanAct_R / max(colAve_vDK$meanAct_R)
+
+# Plot it
+g_FB_vDK <- ggplot(colAve_vDK) + geom_line(aes(x=cols,y=meanAct_L,group="L"),color='red',linetype='dashed') +
+  geom_line(aes(x=cols,y=meanAct_R,group="R"),color='cyan',linetype='dashed') +
+  theme_cowplot() + scale_x_discrete(expand = c(0,0)) +
+  ggtitle(paste0(PFType," -> ",FPost))
+```
+
+Combine the plots and save
+```{r}
+actEBPBFB <- (g_EB | plot_spacer() | plot_spacer() | plot_spacer()) /
+  (g_PB | g_PB_D7 | plot_spacer() | plot_spacer()) /
+  (g_FB_PFGs | g_FB_PFNd | g_FB_PFNp_c | g_FB_PFL) /
+  (plot_spacer() | g_FB_hDA | g_FB_vDK | plot_spacer())
+
+print(actEBPBFB)
+```

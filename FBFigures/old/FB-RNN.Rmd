@@ -1,0 +1,79 @@
+---
+title: "FB connectivity force layout"
+output: html_notebook
+---
+
+Load the libraries
+```{r}
+library(neuprintr)
+library(neuprintrExtra)
+library(tidyverse)
+library(cowplot)
+library(reshape2)
+library(igraph)
+library(ggraph)
+library(tidygraph)
+library(paletteer)
+library(patchwork)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\EBFigures\\EBUtils.R")
+```
+
+First, get the type to type connectivity table
+```{r}
+nrons <- neuprint_bodies_in_ROI("FB") %>% mutate(type = neuprint_get_meta(bodyid)$type) %>% filter(grepl("PF|FC|FR|FS|vDelta|hDelta|FB",type)) %>% select(type) %>% unique() %>% unlist() %>% as.character()
+FB_Post <- getConnectionTable(getTypesTable(nrons),"POST","FB") %>% filter(t)
+FB_Post <- FB_Post %>% filter(grepl("PF|FC|FR|FS|vDelta|hDelta|FB",type.to))
+FB_T2T <- getTypeToTypeTable(FB_Post)
+```
+
+Now, convert it into an igraph function
+```{r}
+library(igraph)
+FBNodes <- c(FB_T2T$type.to,FB_T2T$type.from) %>% unique() %>% as.data.frame()
+colnames(FBNodes) <- "nodes"
+FBNodes$supertype <- FBNodes$nodes %>% supertype()
+
+FBEdges <- FB_T2T %>% mutate(from = type.from, to = type.to, weight = weightRelative) %>%
+  select(from,to,weight)
+FBEdges$supertype.from <- FBEdges$from %>% supertype()
+
+g <- graph_from_data_frame(FBEdges, directed = TRUE, vertices = FBNodes)
+
+# Assign colors to the supertypes
+sTs <- supertype2Palette()
+sTs$breaks <- c(sTs$breaks,c("TuBu","WED","LAL","DN"))
+sTs$pal <- c(sTs$pal, c(paletteer_d("Polychrome::palette36")[1:4]))
+names(sTs$pal) <- sTs$breaks
+sTScale <- scale_colour_manual(values=sTs$pal,breaks = sTs$breaks)
+sTScale_edge <- scale_edge_colour_manual(values=sTs$pal,breaks = sTs$breaks,guide = FALSE)
+
+layout <- create_layout(g, layout = 'lgl')
+
+FBRNN <- ggraph(layout) +
+  geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
+                      strength=1,
+                      end_cap = circle(0.2, 'cm')) + 
+  geom_edge_loop(aes(direction=45,span=90,width=weight,color=supertype.from,strength=1),alpha=0.5) +
+  geom_node_point(aes(color=supertype),size=3) + 
+  scale_edge_width(range = c(0, 2)) +
+  sTScale_edge +
+  sTScale +
+  #geom_node_text(aes(label=CXNodes$nodes)) +
+  theme_paper() +
+  coord_fixed(ratio = 1,clip="off") + 
+  theme(axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+print(FBRNN)
+ggsave('C:\\Users\\dantu\\Dropbox (Personal)\\Professional\\Figures\\FIBSEM\\FBRNN.pdf',FBRNN)
+```
+
+
+
+
+
+

@@ -1,0 +1,83 @@
+---
+title: "PB Figure 3"
+output: html_notebook
+---
+
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+library(ggnewscale)
+library(gridExtra)
+
+source("PBAnalysisUtils.R")
+source("..\\R\\visualizeConnectivityTables.R")
+source("..\\R\\paperTheme.R")
+```
+
+
+Get the connection tables from EPGs, D7s, IBSpsP, and SpsP Neurons to other FB types
+```{r}
+nronTypes <- c("EPG","Delta7","IbSpsP","SpsP",
+               "PEN_a(PEN1)","PEN_b(PEN2)","PEG",
+               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+               "PFGs","PFR_a","PFR_b","PFL1","PFL2","PFL3")
+ROI = "PB"
+  
+# Get the connection tables
+conTab <- getConnectionTable(getTypesTable(nronTypes)$bodyid,
+                             "POST",ROI) %>% filter(type.to %in% nronTypes)
+```
+
+```{r}
+typeToType <- getTypeToTypeTable(conTab)
+
+plt_order = c("Delta7","EPG","IbSpsP", "PEN_a(PEN1)","PEN_b(PEN2)","PEG","PFGs",
+              "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFNv",
+              "PFL1","PFL2","PFL3","PFR_a","PFR_b","SpsP")
+typeToType$type.from <- factor(typeToType$type.from,levels=plt_order)
+typeToType$type.to <- factor(typeToType$type.to,levels=plt_order)
+
+conmatPlot_T2T <- plotConnectivityMatrix(typeToType %>% filter(type.from %in% c("SpsP","PFNv","IbSpsP")), byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', title.position = 'left', barwidth = 0.5, title.theme = element_text(angle = 90)))
+
+print(conmatPlot_T2T)
+```
+
+Look at PFNv connectivity in the FB
+```{r}
+nronTypes <- c("PFNv")
+ROI = "CX"
+  
+# Get the connection tables
+conTab_PFNv_PRE <- getConnectionTable(getTypesTable(nronTypes)$bodyid,"PRE",ROI)
+
+typeToType_PFNv_PRE <- getTypeToTypeTable(conTab_PFNv_PRE)
+
+plt_order = c("Delta7","EPG","IbSpsP","LPsP","ExR5","OA-VPM3","FB1H","FB4B","FB4M","PFR_b","LNO2","LNO3","PFNv")
+typeToType_PFNv_PRE$type.from = factor(typeToType_PFNv_PRE$type.from, levels = plt_order)
+
+conmatPlot_PFNv <- plotConnectivityMatrix(typeToType_PFNv_PRE %>% filter(type.from != "PFR_b"), byGroup = "type") + 
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5))
+
+conmatPlot_PFNv
+#save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PFNvInputs.pdf',conmatPlot_PFNv)
+```
+
+Create a Hanesch plot showing where the IbSpsP neurons get their input
+```{r}
+
+IbSpsPs <- getTypesTable("IbSpsP")
+
+ISP_ins <- getROISummary(IbSpsPs)
+
+IbSpsP_in_ROIs <- haneschPlot(ISP_ins)
+
+IbSpsP_in_ROIs
+```

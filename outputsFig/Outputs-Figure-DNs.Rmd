@@ -1,0 +1,389 @@
+---
+title: "Pathways to DNs figure"
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(neuprintrExtra)
+library(nat)
+library(Cairo)
+library(paletteer)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+```
+
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source("../R/paperTheme_linux.R")
+source("../R/neuronMeshes.R")
+#source("../R/table2ggraphUtils.R")
+outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure10-DNs/"
+```
+
+```{r}
+CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+CX_outGraph <- readRDS("output_graph.rds")
+CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
+load("mainTargetsAndConns.Rdata")
+load("outputsBasics.RData")
+knownTypesTable <- readRDS("known-table.rds")
+CXoutFull <- readRDS("pathwayWeightsTable.rds")
+```
+
+```{r}
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal)
+names(customGraphPalette)[2] <- "Source"
+```
+
+
+## What are all DNs in the (reduced) network?
+
+```{r}
+
+CXoutFFEndpointDNs <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(type.to,"DN?")) & fullCXwr>0.0005) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                                         supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                                         customSupertype = case_when(supertype.from=="PFL" ~ databaseType.from,
+                                                                                                                                                     grepl("ExR[7-8]",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                                     supertype.from=="FR2" ~ as.character(supertype.from),
+                                                                                                                                                     TRUE ~ "Other"),
+                                                                                                                         target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
+                                                                                                                                               type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck+halteres",
+                                                                                                                                               type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck+wings+halteres",
+                                                                                                                                               type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
+                                                                                                                                               TRUE ~ "?"
+                                                                                                                                               )     
+                                                                                                                         )
+
+
+
+CXoutFFEndpointDNsAll <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(type.to,"DN?"))) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                          supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                          customSupertype = case_when(supertype.from=="PFL" ~ databaseType.from,
+                                                                                                                                      grepl("ExR[7-8]",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                      supertype.from=="FR2" ~ as.character(supertype.from),
+                                                                                                                                      TRUE ~ "Other"),
+                                                                                                                         target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
+                                                                                                                                               type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck and halteres",
+                                                                                                                                               type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck, wings and halteres",
+                                                                                                                                               type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
+                                                                                                                                               TRUE ~ "?"
+                                                                                                                                               )     
+                                                                                                                         )
+
+moreDNsPlot <- ggplot(CXoutFFEndpointDNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("Descending neuron") + facet_grid(.~target.to,scale="free_x",space="free_x",switch = "x") + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
+
+moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type") + facet_wrap(.~target.to,scale="free_x")
+moreDNsPlot
+moreDNsPlotAll
+```
+```{r}
+save_plot(paste0(outputsFolder,"DNWeights.svg"),moreDNsPlot,base_width = 7,base_height=4.5)
+```
+
+
+### PFLs to DNs
+
+```{r}
+
+PFL_toDNs_Half <- as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL2_L","PFL2_R",
+                                               "PFL3_L*","PFL3_R*",
+                                               "LAL121_L",
+                                               "AOTU019_L",
+                                               "PS013_R",
+                                               "LAL018_R",
+                                               "LAL014_R",
+                                               "LAL046_R",
+                                               "LAL040_L",
+                                               "LAL010_R",
+                                               "CRE015_R",
+                                               "DNa03_R",
+                                               "DNa02_R",
+                                               "DNa01_R",
+                                               "DNa04_R",
+                                               "ExR7_R",
+                                               "LAL013_R",
+                                               "DNb01_2_R","DN?_5813078378",
+                                               "PS211_R",
+                                               "ExR7_L",
+                                               "ExR8_R",
+                                               "PS077_R",
+                                               "MBON27_L"))) %N>% mutate(x=case_when(
+                                                  type%in% c("PFL3_L*") ~ 1,
+                                                  type %in% c("PFL3_R*") ~ 2.2,
+                                                  type=="MBON27_L"~1.4,
+                                                  type %in% c("PFL2_L","ExR7_L") ~ 1.6,
+                                                  type %in% c("PFL2_R","DNa01_R","ExR7_R") ~ 1.8,
+                                                  type %in% c("LAL121_L","AOTU019_L","LAL040_L") ~ 2,
+                                                  type %in% c("CRE015_R","DNb01_2_R") ~ 0.8,
+                                                  type == "LAL018_R" ~ 1,
+                                                  type %in% c("DNa02_R","ExR8_R") ~ 1.1,
+                                                  type == "LAL014_R" ~ 1.4,
+                                                  type %in% c("LAL046_R","PS077_R") ~ 1.2,
+                                                  type == "LAL010_R" ~ 1.6,
+                                                  type == "LAL013_R" ~ 1.7,
+                                                  type == "DNa04_R" ~ 0.93,
+                                                  type == "DNa03_R" ~ 1.3,
+                                                  type %in% c("DN?_5813078378","PS013_R","PS211_R") ~ 0.6
+                                                  ),
+                                                  y=case_when(
+                                                     type %in% c("PFL2_L","PFL2_R","PFL3_L*","PFL3_R*") ~ 3,
+                                                     type %in% c("PS013_R","PS013_L","LAL046_R","LAL046_L","LAL121_R","CRE015_R") ~ 2.2,
+                                                     type %in% c("LAL046_R","LAL014_R","LAL121_L") ~ 2,
+                                                     type %in% c("LAL018_R","LAL010_R","PS211_R") ~ 1.8,
+                                                     type %in% c("AOTU019_L") ~ 2.6,
+                                                     type == "LAL040_L" ~ 1.2,
+                                                     type %in% c("ExR7_R","ExR7_L","MBON27_L","ExR8_R","PS077_R") ~ 0.3,
+                                                     type == "LAL013_R" ~ 0.5,
+                                                     type %in% c("DNb01_2_R","DN?_5813078378","DNa03_R","DNa03_L","DNa02_R","DNa02_L","DNa01_R","DNa04_R")~1
+                                                  )) %>% selectSupertypeSet(default_level = 1) %>%
+   customOutputSupertype() %>% mutate(customSupertype=case_when(customSupertype=="MBON27" ~ "MBON",TRUE ~ customSupertype)) %E>% mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)])
+
+
+
+PFL2DNsHalfPlot <- ggraph(PFL_toDNs_Half,layout="manual",x=x,y=y) + geom_vline(xintercept = 2,lty=2,color="grey50")+ geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=customSupertype),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
+
+#PFL2DN23Plot <- baseGraph(PFL_toDN2_3bi,minW=0.001,layout="manual",x=x,y=y)
+PFL2DNsHalfPlot 
+```
+
+
+
+
+```{r}
+
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL121_R"))$bodyid,
+                   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU019_R"))$bodyid,
+                   "PFL"=filter(CXNeurons,type %in% c("PFL3_L*"))$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","AOTU(R)"),saveName = "PFLtoBil",neuronPalette = c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]]))
+
+
+```
+
+```{r}
+PFLBilAnat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"PFLtoBil-front.png"),scale=1.6)# + 
+  # draw_image(paste0(outputsFolder,"PFLtoBil-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+
+PFLBilAnat
+```
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL018_R"))$bodyid,
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS013_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type =="DNa04_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "ipsiToDNa04",neuronPalette = customGraphPalette)
+
+```
+
+```{r}
+ipsiDNa04Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ipsiToDNa04-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL010_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type %in%"DNa02_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "IpsiToDNa02",neuronPalette = customGraphPalette)
+```
+
+```{r}
+IpsiDNa02Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IpsiToDNa02-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+layout = c(
+   area(t=3,b=5,l=2,r=6),
+   area(t=8,b=15,l=2,r=10),
+   area(t=2,b=6,l=7,r=10),
+   area(t=17,b=22,l=2,r=5),
+   area(t=17,b=22,l=7,r=10)
+)
+
+#figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + PFLBilAnat + ipsiDNa04Anat + IpsiDNa02Anat + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 7: connections to descending neurons",theme=theme(title=element_text(size=12,face="bold")))& 
+#  theme(plot.tag.position = c(-0.05, 1.05))
+figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + plot_spacer() + plot_spacer() + plot_spacer() + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 9: connections to descending neurons",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& 
+  theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure7-DNs.pdf"),figureDNs,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-DNs.svg"),figureDNs,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+
+## Full PFL reachable graph (for Ref)
+
+```{r}
+PFLsToDN<- getLocalSubgraph(c("ExR8_R","ExR7_R","ExR7_L","PFL3_L*","PFL2_R","PFL3_R*","LAL112_R"),c("DNa01_R","DNa02_R","DNa03_R","DNa04_R","DNb01_2_R","DN?_5813078378","MDN_R","LAL111_R"),CX_outGraphBi,order=1) 
+PFLsToDNPlot <- ggraph(PFLsToDN,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
+
+PFLsToDNPlot
+```
+
+
+## DNp15 16/17
+
+```{r}
+pathsToDNp15<- getLocalSubgraph(c("ExR8_R","ExR8_L"),c("DNp15_R","DNp16/17_R"),CX_outGraphBi,order=1) 
+pathsToDNp15Plot <- ggraph(pathsToDNp15,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + coord_cartesian(clip="off") + theme(legend.position = c(0.05,0.9))
+pathsToDNp15Plot
+```
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "ExR8"=filter(CXOutputNeurons,type =="ExR8_R")$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "ExR8toInt",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+ExR8ToInt <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ExR8toInt-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+DNp15Id <- neuprint_search("DNp15_R")
+```
+
+
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "DN"=DNp15Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "IntToDNp15",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+intToDNp15 <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IntToDNp15-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+## DNp32
+
+```{r}
+pathsToDNp32<- getLocalSubgraph(c("FR2_R","FR2_L"),c("DNp32_R"),CX_outGraphBi,order=1) 
+pathsToDNp32Plot <- ggraph(pathsToDNp32,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + theme(legend.position=c(0.6,0.5))
+pathsToDNp32Plot
+```
+
+## MDNs
+```{r}
+pathsToMDN<- getLocalSubgraph(c("PFL2_L","PFL2_R","PFL3_R*","ExR6_L"),c("MDN_L","MDN_R"),CX_outGraph,order=1) 
+pathsToMDNPlot <- ggraph(pathsToMDNManual_left,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + scale_x_continuous(trans="reverse")
+pathsToMDNPlot
+```
+```{r}
+pathsToMDNManual_left <- as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL2_L","PFL2_R","MBON30_R","PFL3_L*","MDN_R","MDN_L","LAL160_R","LAL161_R","LAL040_R"))) 
+
+pathsToMDNManual_right <- as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL2_L","PFL2_R","PS010_R","MDN_L"))) %N>%
+   mutate(type=case_when(type=="MDN_L" ~ "MDN_L_c",
+                         TRUE ~type),
+          name=type)
+   
+
+pathsToMDNManual <- graph_join(pathsToMDNManual_left,pathsToMDNManual_right) %N>%
+   mutate(x=case_when(type %in% c("PFL2_L") ~ 0.3,
+                      type %in% c("LAL160_R","LAL161_R","LAL040_R") ~ 1,
+                      type %in% c("PFL2_R") ~ 0.5,
+                      type %in% c("PS010_R") ~ 0.5,
+                      type == "MBON30_R" ~ 0.7,
+                      type %in% c("PFL3_L*") ~ 0.9,
+                      type %in% c("MDN_L") ~ 1.3,
+                      type == "MDN_R" ~ 1.15,
+                      type == "MDN_L_c" ~ 0.85),
+          y=case_when(type %in% c("PFL2_L","PFL2_R","PFL3_L*","MBON30_R") ~ 3,
+                      type %in% c("MDN_L","MDN_L_c") ~ 1.1,
+                      type == "MDN_R" ~0.9,
+                      type == "PS010_R" ~ 2,
+                      type %in% c("LAL160_R") ~ 2,
+                      type %in% c("LAL161_R") ~ 1.7,
+                      type == "LAL040_R" ~ 2.5)) %>% 
+   selectSupertypeSet(default_level = 1) %>%
+   customOutputSupertype()  %>% mutate(customSupertype=case_when(customSupertype=="MDN" ~ "DN",
+                                                                 customSupertype=="MBON30" ~ "MBON",TRUE ~ customSupertype)) %E>% mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)])
+
+MDNsPlot <- ggraph(pathsToMDNManual,layout="manual",x=x,y=y) + geom_vline(xintercept = 1,lty=2,color="grey50")+ geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=customSupertype),size=4)+geom_node_text(aes(label=type),nudge_y = 0.1)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + theme(legend.position=c(0.85,0.9))
+
+#PFL2DN23Plot <- baseGraph(PFL_toDN2_3bi,minW=0.001,layout="manual",x=x,y=y)
+MDNsPlot
+```
+```{r}
+ps10Id <- neuprint_search("PS010_R")
+
+displayAnatomies(list(
+                   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+                   "PS"=ps10Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","CRE(R)","SPS(R)"),saveName = "PFL2-to-Int",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+```{r}
+MDNId <- neuprint_search("MDN",field="type")
+
+displayAnatomies(list(
+   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDN",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDNLight",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+
+
+```{r}
+PFL22int <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-front.png"),scale=1.6,clip="on") +
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+layout <- c(
+   area(t=3,b=5,l=2,r=3),
+   area(t=2,b=6,l=5,r=7),
+   area(t=2,b=6,l=8,r=10),
+   area(t=8,b=12,l=2,r=4),
+   area(t=8,b=12,l=5,r=10),
+   area(t=14,b=19,l=2,r=10)
+)
+
+#figure7SI1 <- pathsToDNp15Plot + ExR8ToInt + intToDNp15 + pathsToDNp32Plot + MDNsPlot +  PFL22int + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 7 SI1: other DNs reached",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
+figure9SI1 <- pathsToDNp15Plot + plot_spacer() + plot_spacer() + pathsToDNp32Plot + MDNsPlot + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 9 SI1: other DNs reached",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.svg"),figure9SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+

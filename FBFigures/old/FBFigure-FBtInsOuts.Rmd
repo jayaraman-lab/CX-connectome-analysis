@@ -1,0 +1,70 @@
+---
+title: "FB Analysis - "
+output: html_notebook
+---
+
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\visualizeConnectivityTables.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\R\\paperTheme.R")
+source("C:\\Users\\dantu\\Documents\\neuprintR-notebooks\\FBNetworkVisUtils.R")
+```
+
+Get the synapses by ROI for the FBts
+```{r}
+FBtTypes <- neuprint_search("FB.*",field="type") %>% select(type) %>% unlist() %>% as.character()
+FBtROIs <- neuprint_get_roiInfo(getTypesTable(FBtTypes)$bodyid) %>% mutate(type = neuprint_get_meta(bodyid)$type, name = neuprint_get_meta(bodyid)$name)
+```
+
+Select only the right side neurons, average across instances, and look at only the SNP, CRE, and LAL
+```{r}
+FBtROIs_R_Av <- FBtROIs[which(grepl("_R",FBtROIs$name)),] %>% 
+  select(type,name,bodyid,
+         "SNP(R).upstream","SNP(R).downstream",
+         "CRE(R).upstream","CRE(R).downstream",
+         "LAL(R).upstream","LAL(R).downstream") %>%
+  replace_na(list("SNP(R).upstream" = 0,"SNP(R).downstream" = 0,
+                  "CRE(R).upstream" = 0,"CRE(R).downstream" = 0,
+                  "LAL(R).upstream" = 0,"LAL(R).downstream" = 0)) %>%
+  as.data.frame()
+colnames(FBtROIs_R_Av) <- c("type","name","bodyid",
+                            "SNP.up","SNP.down",
+                            "CRE.up","CRE.down",
+                            "LAL.up","LAL.down")
+
+FBtROIs_R_Av <- FBtROIs_R_Av %>% group_by(type) %>% summarize(SNP.upstream = mean(SNP.up),SNP.downstream = mean(SNP.down),
+                                                              CRE.upstream = mean(CRE.up),CRE.downstream = mean(CRE.down),
+                                                              LAL.upstream = mean(LAL.up),LAL.downstream = mean(LAL.down))
+
+FBtROIs_R_Av$layer <- lapply(FBtROIs_R_Av$type, function(x) str_sub(x,3,3)) %>% unlist()
+
+FBtLayerROIs <- FBtROIs_R_Av %>% group_by(layer) %>% summarize(SNP.inputs = length(which(SNP.upstream >3)),
+                                                               SNP.outputs = length(which(SNP.downstream >3)),
+                                                               CRE.inputs = length(which(CRE.upstream>3)),
+                                                               CRE.outputs = length(which(CRE.downstream>3)),
+                                                               LAL.inputs = length(which(LAL.upstream>3)),
+                                                               LAL.outputs = length(which(LAL.downstream>3)))
+```
+Plot the distributions
+```{r}
+FBtLayerROIs_Plt <- FBtLayerROIs %>% melt(id.vars =c("layer"),variable.name=c("ROI"))
+FBtLayerROIs_Plt$InOut <- FBtLayerROIs_Plt$ROI %>% lapply(function(x) str_split(x,'[.]')[[1]][2]) %>% unlist()
+FBtLayerROIs_Plt$ROI <- FBtLayerROIs_Plt$ROI %>% lapply(function(x) str_split(x,'[.]')[[1]][1]) %>% unlist()
+
+FBtLayerPlt <- ggplot(FBtLayerROIs_Plt) + geom_col(aes(x=value,y=layer,fill=ROI)) + facet_grid(cols=vars(ROI),rows=vars(InOut)) + 
+  theme_paper() + xlab("number of types")
+print(FBtLayerPlt)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\CRE_LAL_SNP_dists.pdf",
+       FBtLayerPlt, height=2, width = 3)
+
+FBtLayerPlt <- ggplot(FBtLayerROIs_Plt) + geom_line(aes(y=value,x=layer,group=ROI,color=ROI)) + coord_flip() + facet_grid(cols=vars(InOut)) + 
+  theme_paper() + xlab("number of types")
+print(FBtLayerPlt)
+ggsave("C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB\\FIGURE_FB_TanConnectivity\\CRE_LAL_SNP_dists_line.pdf",
+       FBtLayerPlt, height=2, width = 2)
+```

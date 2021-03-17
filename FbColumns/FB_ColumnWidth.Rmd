@@ -1,0 +1,616 @@
+---
+title: "Notebook for plotting FB columnar neuron arbor width and inter-column distance"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+library(paletteer)
+library(quantmod)
+library(prismatic)
+library(svglite)
+options(nat.plotengine = 'rgl')
+```
+
+### Make directories where figures will be saved to
+```{r}
+
+# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_ColumnWidth/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_SynapseDistribution_Utils.r")
+source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+
+```
+
+# Load pre-processed synapse location data and remove variables that won't be used
+```{r}
+
+load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
+          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
+
+# Assign Side, PB glom, and FB col info
+FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
+
+```
+
+# Get the line that bisects each FB layer in the XZ (horizontal) plane.
+```{r}
+
+Mid_L1=Get_Mid(Outline_L1_XZ)
+Mid_L2=Get_Mid(Outline_L2_XZ)
+Mid_L3=Get_Mid(Outline_L3_XZ)
+Mid_L4=Get_Mid(Outline_L4_XZ)
+Mid_L5=Get_Mid(Outline_L5_XZ)
+Mid_L6=Get_Mid(Outline_L6_XZ)
+Mid_L7=Get_Mid(Outline_L7_XZ)
+Mid_L8=Get_Mid(Outline_L8_XZ)
+
+```
+
+
+
+
+
+
+
+
+# Get synapse distribution information from FX neurons and plot the data for review
+```{r}
+
+
+# Make plotting directories
+Fx_Dir=paste(PlotDir,"FX_Plots_All","/",sep="")
+Fx_Dir_Dist=paste(Fx_Dir,"FX_MeasureWidth","/",sep="")
+Fx_Dir_SynScatter=paste(Fx_Dir,"FX_SynScatter","/",sep="")
+Fx_Dir_Crosses=paste(Fx_Dir,"FX_Crosses","/",sep="")
+if (!dir.exists(Fx_Dir)){dir.create(Fx_Dir)}
+if (!dir.exists(Fx_Dir_Dist)){dir.create(Fx_Dir_Dist)}
+if (!dir.exists(Fx_Dir_SynScatter)){dir.create(Fx_Dir_SynScatter)}
+if (!dir.exists(Fx_Dir_Crosses)){dir.create(Fx_Dir_Crosses)}
+
+
+# Get all FX neurons (FC, FS, FR)
+FX_SynsAll=subset(FBC_SynsAll, !(is.na(FBcol)) & startsWith(type,"F"))
+FX_SynsAll$FBcol=factor(FX_SynsAll$FBcol, levels=sort(unique(FX_SynsAll$FBcol)) )
+
+
+# Get synapse distributions per layer
+FX_Distribution=Get_SynLayerDistribution(FX_SynsAll, 25, Fx_Dir_Dist) # 25 is good here, needs to match PFX/vDelta threshold below.
+
+
+# Plot distribution of all synapses in entire FB and by layer
+PlotSyns_byColumn(FX_SynsAll, "FX All", "FX_All", Fx_Dir, TRUE, TRUE)
+PlotSyns_byLayer(FX_SynsAll, "FX All", "FX_All_Layers", "FBcol", Fx_Dir_SynScatter, TRUE, TRUE)
+
+
+
+# Get average X/Z position of each column in each layer
+FX_Column_Positions = as.data.frame(FX_Distribution %>% group_by(FBcol, Layer, type) %>% 
+                                      summarise(X_Mean = mean(X_Mean), Y_Mean=mean(Y_Mean), Z_Mean = mean(Z_Mean),
+                                                Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
+                                                Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
+                                                Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
+                                           
+ 
+
+# Plot the distribution of FX column positions for all FX neuron types and each FX type individually 
+PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All", Fx_Dir_Crosses, FALSE, FX_Column_Positions$id)
+PlotColumn_Types(FX_Column_Positions, "FX_Columns", Fx_Dir_Crosses, FALSE, FX_Column_Positions$id) 
+
+
+# Subset FX column positions to include only those neurons that innervate all columns in a layer
+FX_ColumnsInnervatedPerLayer= FX_Column_Positions %>% group_by(type, Layer) %>% summarise(n=n())
+FX_ColumnsInnervatedPerLayer= subset(FX_ColumnsInnervatedPerLayer, n==9) 
+
+
+# Get just those layers where the FX neuron types innervates all columns
+FX_Column_Positions= inner_join(FX_Column_Positions, FX_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+# Replot data
+PlotColumn_Aves(FX_Column_Positions, "FX_Columns_All_Clean", Fx_Dir_Crosses, FALSE,  FX_Column_Positions$id)
+PlotColumn_Types(FX_Column_Positions, "FX_Columns_Clean", Fx_Dir_Crosses, FALSE,  FX_Column_Positions$id) 
+
+
+# Subset FX_Distribution based on neurons that innervate all columns of a layer
+FX_Distribution_Columns= inner_join(FX_Distribution, FX_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+remove(FX_Distribution)
+
+```
+
+
+
+
+
+# Get PB-FB-XX (ie PFX) synapse distribution data and plot the data for review
+```{r}
+
+
+# Make PB-FB-X  plotting directory
+PFX_Dir=paste(PlotDir,"PFX_Plots_All","/",sep="")
+PFX_Dir_Dist=paste(PFX_Dir,"PFX_MeasureWidth","/",sep="")
+PFX_Dir_Crosses=paste(PFX_Dir,"PFX_Crosses","/",sep="")
+PFX_Dir_SynScatter=paste(PFX_Dir,"PFX_SynScatter","/",sep="")
+if (!dir.exists(PFX_Dir)){dir.create(PFX_Dir)}
+if (!dir.exists(PFX_Dir_Dist)){dir.create(PFX_Dir_Dist)}
+if (!dir.exists(PFX_Dir_Crosses)){dir.create(PFX_Dir_Crosses)}
+if (!dir.exists(PFX_Dir_SynScatter)){dir.create(PFX_Dir_SynScatter)}
+
+
+# Get PB-FB-XX neuron synapse locations per layer
+PFX_SynsAll=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
+PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir_Dist) # 25 is good here, as some types have low synapse counts
+
+
+# Plot distribution of all synapses in entire FB and by layer
+PlotSyns_byColumn(PFX_SynsAll, "PFX All", "PFX_All", PFX_Dir, TRUE, TRUE)
+PlotSyns_byLayer(PFX_SynsAll, "PFX All", "PFX_All_Layers", "FBcol", PFX_Dir_SynScatter, TRUE, TRUE)
+
+
+
+# Get average X/Z position of each column in each layer
+PFX_Column_Positions = as.data.frame(PFX_Distribution %>% group_by(FBcol, Layer, type) %>% 
+                                      summarise(X_Mean = mean(X_Mean), Y_Mean=mean(Y_Mean), Z_Mean = mean(Z_Mean),
+                                                Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
+                                                Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
+                                                Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
+                                           
+ 
+
+# Plot the distribution of PFX column positions for all PFX neuron types and each PFX type individually 
+PlotColumn_Aves(PFX_Column_Positions, "PFX_Columns_All", PFX_Dir_Crosses, FALSE, PFX_Column_Positions$id)
+PlotColumn_Types(PFX_Column_Positions, "PFX_Columns", PFX_Dir_Crosses, FALSE, PFX_Column_Positions$id) 
+
+
+# Subset PFX column positions to include only those neurons that innervate all columns in a layer
+PFX_ColumnsInnervatedPerLayer= PFX_Column_Positions %>% group_by(type, Layer) %>% summarise(n=n())
+PFX_ColumnsInnervatedPerLayer= subset(PFX_ColumnsInnervatedPerLayer, n==9) 
+
+
+# Get just those layers where the PFX neuron types innervates all columns
+PFX_Column_Positions= inner_join(PFX_Column_Positions, PFX_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+# Replot data
+PlotColumn_Aves(PFX_Column_Positions, "PFX_Columns_All_Clean", PFX_Dir_Crosses, FALSE,  PFX_Column_Positions$id)
+PlotColumn_Types(PFX_Column_Positions, "PFX_Columns_Clean", PFX_Dir_Crosses, FALSE,  PFX_Column_Positions$id) 
+
+
+# Subset PFX_Distribution based on neurons that innervate all columns of a layer
+PFX_Distribution_Columns= inner_join(PFX_Distribution, PFX_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+remove(PFX_Distribution)
+
+```
+
+
+
+
+
+# Get vDelta synapse distribution data and plot the data for review
+```{r}
+
+
+# Make plotting directory
+D0_Dir=paste(PlotDir,"D0_Plots_All","/",sep="")
+D0_Dir_Dist=paste(D0_Dir,"D0_MeasureWidth","/",sep="")
+D0_Dir_Crosses=paste(D0_Dir,"D0_Crosses","/",sep="")
+D0_Dir_SynScatter=paste(D0_Dir,"D0_SynScatter","/",sep="")
+if (!dir.exists(D0_Dir)){dir.create(D0_Dir)}
+if (!dir.exists(D0_Dir_Dist)){dir.create(D0_Dir_Dist)}
+if (!dir.exists(D0_Dir_Crosses)){dir.create(D0_Dir_Crosses)}
+if (!dir.exists(D0_Dir_SynScatter)){dir.create(D0_Dir_SynScatter)}
+
+# Get vDelta neuron synapse locations per layer
+D0_SynsAll=subset(FBC_SynsAll, startsWith(type,"vDelta") & !FBcol=="C0") # Removes delta12s
+D0_Distribution=Get_SynLayerDistribution(D0_SynsAll, 25, D0_Dir_Dist) 
+
+
+# Plot distribution of all synapses in entire FB and by layer
+PlotSyns_byColumn(D0_SynsAll, "D0 All", "D0_All", D0_Dir, TRUE, TRUE)
+PlotSyns_byLayer(D0_SynsAll, "D0 All", "D0_All_Layers", "FBcol", D0_Dir_SynScatter, TRUE, TRUE)
+
+
+# Get average X/Z position of each column in each layer
+D0_Column_Positions = as.data.frame(D0_Distribution %>% group_by(FBcol, Layer, type) %>% 
+                                      summarise(X_Mean = mean(X_Mean), Y_Mean=mean(Y_Mean), Z_Mean = mean(Z_Mean),
+                                                Cross_XL_X = mean(Cross_XL_X), Cross_XL_Z = mean(Cross_XL_Z),
+                                                Cross_XR_X = mean(Cross_XR_X), Cross_XR_Z = mean(Cross_XR_Z),
+                                                Cross_YU_X = mean(Cross_YU_X), Cross_YU_Z = mean(Cross_YU_Z),
+                                                Cross_YD_X = mean(Cross_YD_X), Cross_YD_Z = mean(Cross_YD_Z))) %>%
+                                                mutate(id=paste(as.character(type),as.character(FBcol),sep="_"))
+                                           
+ 
+# Plot the distribution of D0 column positions for all D0 neuron types and each D0 type individually 
+PlotColumn_Aves(D0_Column_Positions, "D0_Columns_All", D0_Dir_Crosses, FALSE, D0_Column_Positions$id)
+PlotColumn_Types(D0_Column_Positions, "D0_Columns", D0_Dir_Crosses, FALSE, D0_Column_Positions$id) 
+
+
+# Subset D0 column positions to include only those neurons that innervate all columns in a layer
+D0_ColumnsInnervatedPerLayer= D0_Column_Positions %>% group_by(type, Layer) %>% summarise(n=n())
+D0_ColumnsInnervatedPerLayer= subset(D0_ColumnsInnervatedPerLayer, n==9) 
+
+
+# Get just those layers where the D0 neuron types innervates all columns
+D0_Column_Positions= inner_join(D0_Column_Positions, D0_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+# Replot data
+PlotColumn_Aves(D0_Column_Positions, "D0_Columns_All_Clean", D0_Dir_Crosses, FALSE,  D0_Column_Positions$id)
+PlotColumn_Types(D0_Column_Positions, "D0_Columns_Clean", D0_Dir_Crosses, FALSE,  D0_Column_Positions$id) 
+
+
+# Subset D0_Distribution based on neurons that innervate all columns of a layer
+D0_Distribution_Columns= inner_join(D0_Distribution, D0_ColumnsInnervatedPerLayer, by = c("type","Layer"))
+
+
+remove(D0_Distribution)
+
+```
+
+
+
+# ##################################################################################################################
+# ######### Figure 1: Mean mean synapse locations per neuron, K-means, and columnar measure ########################
+# ##################################################################################################################
+
+
+
+```{r}
+
+# Modeling packages
+library(cluster)     # for general clustering algorithms
+library(factoextra)  # for visualizing cluster results 
+library(stringr)
+
+# Make plotting directory
+Columnar_Dir=paste(PlotDir,"Columnar","/",sep="")
+if (!dir.exists(Columnar_Dir)){dir.create(Columnar_Dir)}
+
+source("FB_SynapseDistribution_Utils.r")
+
+# Loop over PFX types and plot each neurons mean synapse location to show clustering
+PFX_Types=unique(PFX_Distribution_Columns$type)
+for (ttt in 1:length(PFX_Types)){
+  
+  # Plot each neuron's mean location for all layers
+  Temp_Distribution = subset(PFX_Distribution_Columns, type == PFX_Types[ttt])
+  colnames(Temp_Distribution)[colnames(Temp_Distribution) %in% c("X_Mean","Y_Mean","Z_Mean")] = c("X","Y","Z")
+  Temp_Distribution$FBcol=factor(Temp_Distribution$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  if (ttt==1){PLOTLEGEND=TRUE}else{PLOTLEGEND=FALSE}
+  PlotSyns_byLayer(Temp_Distribution, as.character(PFX_Types[ttt]), paste(PFX_Types[ttt], "All",sep="_"),
+                   "FBcol", Columnar_Dir, PLOTLEGEND, PLOTLEGEND)
+}
+
+
+# Plot disribution of synapse cloud widths
+PFX_Distribution_Columns$supertype2 =NA
+PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFN")]="PFN"
+PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFG")]="PFGs"
+PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFR")]="PFR"
+PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFL")]="PFL"
+
+P_Hist = ggplot(PFX_Distribution_Columns, aes(x=X_HW_Orth*2/LayerLength, group = supertype2 , color = supertype2 )) + 
+  geom_freqpoly(aes(y = stat(ncount)), binwidth=1/9/5) +
+  scale_x_continuous( limits = c(0, 4/9), expand = c(0,0) , 
+        breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2), signif(3/9, digits=2), signif(4/9, digits=2))) +
+  theme_classic() + theme(text = element_text(size=12)) + scale_color_CX_supertype()
+
+ggsave(paste(Columnar_Dir, "PFX_SynapseWidth", ".pdf",sep=""), plot = P_Hist, device='pdf',
+       scale = 1, width = 4, height = 2, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+
+
+
+```
+
+
+# Plot histogram of distances between neurons in adjacent columns
+```{r}
+
+# Make data with just the information need
+InterColumnDistance = PFX_Distribution_Columns[c("X_Mean","Y_Mean","Z_Mean","type","Layer","FBcol","Side","bodyid")]
+InterColumnDistance = within(InterColumnDistance,  ID <- paste(type, Layer, FBcol,Side,bodyid,sep="_"))
+InterColumnDistance = InterColumnDistance[c("X_Mean","Y_Mean","Z_Mean","ID")]
+
+# Convert to matrix and use dist() to calculate all pairwise distances
+InterColumnDistance= InterColumnDistance %>% 
+  column_to_rownames("ID") %>% #make the ID the rownames. dist will use these> NB will not work on a tibble
+  dist() %>% 
+  as.matrix() %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "ID.x") %>% #capture the row IDs
+  gather(key = ID.y, value = dist, -ID.x) %>% 
+  filter(ID.x < ID.y) %>% 
+  as_tibble()
+
+# Parse column names to get back Layer, Column, and type information on the neuron pairs
+InterColumnDistance=Assign_FBcol_PBglom(InterColumnDistance, "ID.x", "Side.X", "Layer.X", "FBcol.X", "bodyid.X")
+InterColumnDistance=Assign_FBcol_PBglom(InterColumnDistance, "ID.y", "Side.Y", "Layer.Y", "FBcol.Y", "bodyid.Y")
+InterColumnDistance$type.X=str_split_fixed(InterColumnDistance$ID.x, "_", Inf)[,1]
+InterColumnDistance$type.Y=str_split_fixed(InterColumnDistance$ID.y, "_", Inf)[,1]
+
+
+# Only consider distances between neuron pairs of the same type and between adjacent columns
+InterColumnDistance=subset(InterColumnDistance, type.X==type.Y & Layer.X == Layer.Y)
+InterColumnDistance=subset(InterColumnDistance, (FBcol.X == "C1" & FBcol.Y == "C2") | 
+                                                (FBcol.X == "C2" & FBcol.Y == "C3") |
+                                                (FBcol.X == "C3" & FBcol.Y == "C4") |
+                                                (FBcol.X == "C4" & FBcol.Y == "C5") |
+                                                (FBcol.X == "C5" & FBcol.Y == "C6") |
+                                                (FBcol.X == "C6" & FBcol.Y == "C7") |
+                                                (FBcol.X == "C7" & FBcol.Y == "C8") |
+                                                (FBcol.X == "C8" & FBcol.Y == "C9") )
+
+
+# Get layer lengths and normalize the distances bewteen neurons
+LayerLengths=unique(PFX_Distribution_Columns[c("Layer","LayerLength")])
+colnames(LayerLengths)[colnames(LayerLengths) == "Layer"]="Layer.X"
+LayerLengths$Layer.X=as.character(LayerLengths$Layer.X)
+InterColumnDistance=inner_join(InterColumnDistance, LayerLengths, by = "Layer.X")
+InterColumnDistance$Distance_Norm=InterColumnDistance$dist/InterColumnDistance$LayerLength.y
+
+# Group into supertypes
+InterColumnDistance$supertype2 =NA
+InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFN")]="PFN"
+InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFG")]="PFGs"
+InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFR")]="PFR"
+InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFL")]="PFL"
+
+# Plot the data
+P_Hist = ggplot(InterColumnDistance, aes(x=Distance_Norm, group = supertype2 , color = supertype2 )) + 
+  geom_freqpoly(aes(y = stat(ncount)), binwidth=1/9/5) +
+  scale_x_continuous( limits = c(0, 4/9), expand = c(0,0) , 
+        breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2), signif(3/9, digits=2), signif(4/9, digits=2))) +
+  theme_classic() + theme(text = element_text(size=12)) + scale_color_CX_supertype()
+
+ggsave(paste(Columnar_Dir, "PFX_InterColumnDistance", ".pdf",sep=""), plot = P_Hist, device='pdf',
+       scale = 1, width = 4, height = 2, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+
+
+
+```
+
+
+
+# Code for trying k-means with different number of clusters (OLD)
+```{r}
+
+
+
+Temp_Distribution = subset(PFX_Distribution_Columns, type == "PFNp_b" & Layer=="L1")
+colnames(Temp_Distribution)[colnames(Temp_Distribution) %in% c("X_Mean","Y_Mean","Z_Mean")] = c("X","Y","Z")
+
+A=fviz_nbclust(
+  Temp_Distribution[c("X","Y","Z")], 
+  kmeans, 
+  k.max = 12,
+  method = "wss",
+  diss = get_dist( Temp_Distribution[c("X","Y","Z")], method = "euclidean"),
+  nboot=100
+)
+
+A + ylim(0,10^8)
+  
+
+```
+
+
+
+# ##################################################################################################################
+# ######### Figure 2: PB-FB mappings ###############################################################################
+# ##################################################################################################################
+
+
+# Plot PB glomerulus to FB column mappings
+```{r}
+
+# Make plotting directory
+Mappings_Dir=paste(PlotDir,"PbFbMappings","/",sep="")
+if (!dir.exists(Mappings_Dir)){dir.create(Mappings_Dir)}
+
+
+PFX_Distribution_Columns$FBcol_Con=0
+PFX_Distribution_Columns$FBcol =  factor(PFX_Distribution_Columns$FBcol, levels = c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+PFX_Distribution_Columns$PBglom = factor(PFX_Distribution_Columns$PBglom, levels= c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                                                    "R1","R2","R3","R4","R5","R6","R7","R8","R9")) 
+
+
+
+# Plot NEW PB->FB mapping as a graph
+source("FB_SynapseDistribution_Utils.r")
+PFX_GlomToColumn_Sym=Plot_PBglom_FBcol_Mapping(PFX_Distribution_Columns, Mappings_Dir, "SYM")
+
+
+```
+
+
+
+
+
+
+# ##################################################################################################################
+# ######### Figure ?: Column widths ################################################################################
+# ##################################################################################################################
+
+
+# Plot width of all cell types
+```{r}
+
+
+
+# Get all synapse distribution data
+All_Distributions=rbind(FX_Distribution_Columns, PFX_Distribution_Columns, D0_Distribution_Columns)
+
+
+
+##################### Group by neuron type ###########################
+# Group my neuron type and average
+
+All_TypeSummary=All_Distributions %>% group_by(type, Layer) %>% summarise(Width = mean(X_HW_Orth*2), SEM= sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_SEM = sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_TypeSummary=subset(All_TypeSummary, !is.na(All_TypeSummary$SEM))
+
+# Make plot
+ggplot(All_TypeSummary, aes(x=Layer, y=Width, group=type, color=type)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=Width-SEM, ymax=Width+SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,6000))
+
+
+ggplot(All_TypeSummary, aes(x=Layer, y=NormWidth, group=type, color=type)) + 
+  geom_line() + geom_point()+ geom_errorbar(aes(ymin=NormWidth-Norm_SEM, ymax=NormWidth+Norm_SEM), width=.25,position=position_dodge(0)) +
+  ylim(c(0,0.4))
+
+
+##################### Group by neuron class ###########################
+
+All_Distributions$Grouping=NA
+All_Distributions$type=as.character(All_Distributions$type)
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "vDelta") ]  ="vDelta"
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "FC") |
+                            startsWith(All_Distributions$type, "FR") |
+                            startsWith(All_Distributions$type, "FS") ]  ="FX"
+All_Distributions$Grouping[ startsWith(All_Distributions$type, "PF") ]  ="PB-FB-XX"
+All_Distributions$Grouping=factor(All_Distributions$Grouping, levels = c("vDelta", "FX", "PB-FB-XX"))
+
+
+All_GroupSummary=All_Distributions %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), CON= 1.96*sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_CON = 1.96*sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_GroupSummary=subset(All_GroupSummary, !is.na(All_GroupSummary$CON))
+
+
+
+P1<-ggplot(All_GroupSummary, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) +  geom_line(size=0.5) + 
+  geom_linerange(aes(ymin=NormWidth-Norm_CON, ymax=NormWidth+Norm_CON), size=1, fatten = 1) +
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.text.x = element_text(size=18),  
+    axis.text.y = element_text(size=18)) + 
+    scale_y_continuous( limits = c(0, 3/9), expand = c(0,0) , breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2), signif(3/9, digits=2))) +
+    ylab("Width (% of layer width)") +
+    geom_hline(yintercept=signif(1/9, digits=2), linetype="dashed", color = "black") + 
+    geom_hline(yintercept=signif(2/9, digits=2), linetype="dashed", color = "black") 
+
+ggsave(paste(PlotDir, "NeuronClass_NormWidth_ByLayer" , ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+
+
+##################### Group by neuron types ###########################
+
+
+All_Distributions_Fx_PFX=subset(All_Distributions, Grouping %in% c("FX","PB-FB-XX") )
+
+
+All_Distributions_Fx_PFX$Grouping=NA
+All_Distributions_Fx_PFX$type=as.character(All_Distributions_Fx_PFX$type)
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FC")] = "FC"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FR")] = "FR"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "FS")] = "FS"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFN")] = "PFN"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFL")] = "PFL"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFG")] = "PFG"
+All_Distributions_Fx_PFX$Grouping[ startsWith(All_Distributions_Fx_PFX$type, "PFR")] = "PFR"
+All_Distributions_Fx_PFX$Grouping=factor(All_Distributions_Fx_PFX$Grouping, levels = c("FC", "FR", "FS", "PFN", "PFL", "PFG", "PFR"))
+
+
+
+All_GroupSummary_Fx_PFX=All_Distributions_Fx_PFX %>% group_by(Grouping, Layer) %>% summarise(Width = mean(X_HW_Orth*2), CON= 1.96*sd(X_HW_Orth*2)/length(X_HW_Orth)^0.5,
+  NormWidth=mean((X_HW_Orth*2)/LayerLength), Norm_CON = 1.96*sd((X_HW_Orth*2)/LayerLength)/length(X_HW_Orth)^0.5 )
+All_GroupSummary_Fx_PFX=subset(All_GroupSummary_Fx_PFX, !is.na(All_GroupSummary_Fx_PFX$CON))
+
+
+
+P1<-ggplot(All_GroupSummary_Fx_PFX, aes(x=Layer, y=NormWidth, group=Grouping, color=Grouping)) +  geom_line(size=0.5) + 
+  geom_linerange(aes(ymin=NormWidth-Norm_CON, ymax=NormWidth+Norm_CON), size=1, fatten = 1) +
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.text.x = element_text(size=18),  
+    axis.text.y = element_text(size=18)) + 
+    scale_y_continuous( limits = c(0, 2/9), expand = c(0,0) , breaks = c(0, signif(1/9, digits=2), signif(2/9, digits=2))) +
+    ylab("Width (% of layer width)") +
+    geom_hline(yintercept=signif(1/9, digits=2), linetype="dashed", color = "black")
+
+
+ggsave(paste(PlotDir, "ColumnarType_NormWidth_ByLayer" , ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

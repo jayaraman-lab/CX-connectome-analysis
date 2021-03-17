@@ -300,7 +300,7 @@ plotCorrMatCluster <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName){
   Data4Clust <- Data4Clust %>% select(tail(colnames(Data4Clust),ncol(Data4Clust)-1)) # chop off the first column
   
   # Plot the correlation matrix among type.to; Cluster and rearrange the Type2TypeConnTab
-  Type2TypeConnTab_HCbyTo <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,Data4Clust,'type.to')
+  Type2TypeConnTab_HCbyTo <- plotCorrClusterByCol(PlotDir,Type2TypeConnTab, Type2TypeConnTabName,Data4Clust,'type.to')
 
   # Plot the correlation matrix among type.from; Cluster and rearrange the Type2TypeConnTab
   Data4Clust <- t(Data4Clust) # transpose Data4Clust to plot correlations between type.from
@@ -341,6 +341,7 @@ plotCorrClusterByCol <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,D
   
   return(Type2TypeConnTab_hc)
 }
+
 
 # Modified from Hannah: Cluster and plot the cosine distance matrix from a connectivity table data frame
 cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plotFacet=TRUE){
@@ -386,6 +387,7 @@ cosDistClusterPlot <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,plo
 }
 
 cosDistClusterPlotBySide <- function(PlotDir,Type2TypeConnTab,Type2TypeConnTabName,InpOrOutp){
+  
   Type2TypeConnMatBySide <- connectivityMatrix(Type2TypeConnTab,slctROIs=unique(as.vector(Type2TypeConnTab$roi)),allToAll=FALSE,from="type.from",to="type.to",value="weightRelative",ref=InpOrOutp)
   Type2TypeConnMatBySide_CosDist <- cos_dist(Type2TypeConnMatBySide)
   

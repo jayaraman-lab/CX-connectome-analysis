@@ -65,9 +65,13 @@ neuprint_login()
 
 ### Select types for comparison
 ```{r}
-myTypeList = c("GLNO","LNO1","LNO2","LNO3","LNOa", "LCNOpm","LCNOp") #paste0(c("ExR"),seq(1,8))
-#c(unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type),  "PEN_a.*", "PEN_b.*")
-side ="_R" # "_L"#
+myTypeList = c("ER3a_a","ER3a_b","ER3a_c","ER3a_d","ER1_a","ER1_b")
+  #paste0(c("ExR"),seq(1,8))
+  #c(unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type), unique(getBodyIdsForList(paste0( c("PEN"),".*"))$type))
+  #c("PFR_a", "PFR_b", unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type), "vDeltaJ", "vDeltaK", "vDeltaL", "vDeltaM")
+  #c("FB6A","FB6C_a","FB6C_b","FB6D","FB6E","FB6F","FB6G","FB6H","FB6I","FB6Z","FB7A","FB7B","FB7K","FB7L","FB5J","FB5H","FB5I","FB5AA", "FB5AB","FB1D","FB1E")
+  #c("GLNO","LNO1","LNO2","LNO3","LNOa", "LCNOpm","LCNOp") #
+side ="_R" # "_R"#
 myTypeList_lat = paste0(myTypeList, side)
 #c(paste0(myTypeList, side), paste0(c("PEN_a(PEN1)", "PEN_b(PEN2)"), side))
 
@@ -75,9 +79,7 @@ myTypeList_lat = paste0(myTypeList, side)
 #c("ExR.*")#,"GLNO","LCNOpm","LCNOp"
 #unique(getBodyIdsForList(paste0( c("ER2"),".*"))$type)
 
-saveName = "LNO_comparison"
-
-minWeightRel = 0.01 #used to filter connectivity tables
+saveName = "ER1-3_comparison"
 
 saveDir = "../neuprintR_analysis_plots/"
 ```
@@ -119,7 +121,9 @@ myTypes = myTypes_bag$names
 ### Generate dataframe of inputs to types of interest
 # Filter based on rois to use
 ```{r}
-minsyn = 10
+minsyn = 3
+minWeightRel = 0.001 #used to filter connectivity tables
+
 
 myTypes_in_filt = myTypes_in %>% filter(roi %in% slctROIs) %>%
   #filter(type.to %in% c(paste0(myTypeList,side))) %>%
@@ -151,10 +155,10 @@ ggplot(data = plotData) +
 # Visualize in bar graph different input types
 ```{r}
 inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
-  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","outputContribution", "dir")) %>% 
+  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","weight","absoluteWeight","outputContribution", "dir")) %>% 
     mutate(ref = type.to, measure=weightRelative) %>% rename(databaseType=databaseType.from)
   
-  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "outputContribution", "dir")) %>% 
+  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "weight","absoluteWeight","outputContribution", "dir")) %>% 
     mutate(ref = type.from, measure=outputContribution) %>% rename(databaseType=databaseType.to)
   
   if(supertypeLevel == 0){
@@ -163,12 +167,6 @@ inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supert
     
     outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,
                         exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% mutate(partner = supertype, partner2=supertype2)
-  }else if(supertypeLevel == -1){
-    inData <- supertype(inData) %>% selectSupertypeSet(default_level = 3,exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) 
-    %>% mutate(partner = supertype, partner2=supertype2)
-    
-    outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3)
-    %>% mutate(partner = supertype, partner2=supertype2)
   }else{
     inData = supertype(inData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
     outData = supertype(outData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
@@ -179,70 +177,60 @@ inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supert
 
 ```
 
-```{r}
-inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
-
-  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","outputContribution", "dir")) %>% mutate(ref = type.to, measure=weightRelative)
-  
-  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "outputContribution", "dir")) %>% mutate(ref = type.from, measure=outputContribution)
-  
-  if(supertypeLevel == 0){
-    inData <- supertype(inData) %>% selectSupertypeSet(default_level = 3,
-                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% 
-      mutate(partner = supertype, partner2=supertype2)
-    
-    outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,
-                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>%
-      mutate(partner = supertype, partner2=supertype2)
-    
-  }else if(supertypeLevel == -1){
-    inData <- supertype(inData) %>% selectSupertypeSet(default_level = 3,exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>% 
-      mutate(partner = supertype, partner2=supertype2)
-    
-    outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,exceptions = list("EB Columnar"=3,"FB Columnar"=3,"FB Tangential"=3,"FB Interneuron"=3,"FB Output"=3,"Antennal lobe"=3,"LH"=3),exceptionLevelMatch = 3) %>%
-      mutate(partner = supertype, partner2=supertype2)
-  }else{
-    inData = inData %>% mutate(partner=supertype(type.from,supertypeLevel))
-    outData = outData %>% mutate(partner=supertype(type.to,supertypeLevel))
-  }
-  data = bind_rows(inData,outData)
-  return(data)
-}
-```
-
-
-```{r}
+```{r, warning=FALSE}
 for(st in c(0,2,3)){
   myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
   
   if(sum(is.na(myTypes_filt$partner)) > 0){
     myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
   }
-  bar = inOutContributionPlot(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free")
+  bar = inOutContributionPlot(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free") 
   show(bar)
   
   ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'.pdf', sep=''),plot = bar, device='pdf', path = "../neuprintR_analysis_plots/",
-      scale = 1, width=25, height=10, units ="cm", dpi = 600, limitsize = TRUE)
-  
-  #bar2 = inOutContributionPlot(myTypes_filt) + facet_grid(rows=vars(roi), cols=vars(dir))
-  #show(bar2)
-  
-  #ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'_v2.pdf', sep=''),plot = bar2, device='pdf', path = "../neuprintR_analysis_plots/",
-  #    scale = 1, width=15, height=33, units ="cm", dpi = 600, limitsize = TRUE)
+      scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
 }
 
 ```
 
-```{r}
-myTypes_filt0 = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  0) %>% filter(roi %in% slctROIs_r)
+```{r, warning=FALSE}
+
+inOutContributionPlotNotNorm <- function(data){
+  source("R/paperTheme.R")
+  ncol = length(unique(data$partner))
+  data = data %>% ungroup() %>% group_by(partner, roi, dir, ref) %>% summarise(measure = sum(absoluteWeight))
+  bar = ggplot(data, aes(x=ref, y=measure, fill=partner)) + 
+    geom_bar(position = "stack",stat="identity") + 
+    theme_classic() + theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+  
+  if(ncol <= 31){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(data$partner)))[c(-seq(5))])
+  }else if(ncol <= 36){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=length(unique(data$partner))))
+  }#else{ ...add a better colormap than the default}
+  return(bar)
+}
+
+for(st in c(0,2,3)){
+  myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
+  
+  if(sum(is.na(myTypes_filt$partner)) > 0){
+    myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
+  }
+  bar = inOutContributionPlotNotNorm(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free")
+  show(bar)
+  
+  ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'_nonNorm.pdf', sep=''),plot = bar, device='pdf', path = "../neuprintR_analysis_plots/",
+      scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
 ```
 
 ### Compare input and outputs to these types
 # select inputs to focus types in main input regions
 ```{r}
-myROIs = unique(myTypes_filt$roi)[unique(myTypes_filt$roi)!="EB"] 
-#c("PB", "EB", "NO(R)") #c("LAL(R)","WED(R)", "GNG")#
-myROIsName = "allROIbutEB"#paste(myROIs, collapse = '-') #"PB_EB_NOr" #
+myROIs = unique(myTypes_filt$roi)[unique(myTypes_filt$roi)!="EB"] #
+myROIsName = "allROIbutEB" #paste(myROIs, collapse = '-')#"allButEB" #"allROIbutNO" # #"PB_EB_NOr" #
 myROIs  
 
 ```
@@ -269,7 +257,7 @@ conMatPlot = addMatrixPlotLabs(conMatPlot, "Inputs",  "",paste(myROIs, collapse 
 print(conMatPlot)
 
 plotW = 7
-plotH = 15#20
+plotH = 12#20
 
 ggsave(paste("connectivityMatrix_",saveName,'_in_',myROIsName,'_', weightMeasure,'_fromNBag.pdf', sep=''), plot = conMatPlot, device='pdf', path = "../neuprintR_analysis_plots/",
   scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
@@ -279,7 +267,7 @@ ggsave(paste("connectivityMatrix_",saveName,'_in_',myROIsName,'_', weightMeasure
 ```{r}
 weightMeasure ="weightRelative" 
 groupBy = "type"
-cmax = max(typesOutput_combiRoi$weightRelative)
+cmax = max(is.finite(typesOutput_combiRoi$weightRelative))
 
 conMatPlot = plotConnectivityMatrix(typesOutput_combiRoi, byGroup = groupBy, weightMeasure , cmax)
 conMatPlot = addMatrixPlotLabs(conMatPlot, "Outputs",  "",paste(myROIs, collapse = '-'), weightMeasure)
@@ -327,19 +315,19 @@ hcl=hclust(conmat_cd)
 
 cut = 0.8
 tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
-dev.print(pdf, paste0("../neuprintR_analysis_plots/inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag_tree.pdf'), width=6, height=4)
+dev.print(pdf, paste0("../neuprintR_analysis_plots/inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag_tree.pdf'), width=12, height=6)
 
 clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
 
 typePreClusters <- stack(clu.h) %>% rename(type = ind, preclust=values) %>% arrange(preclust)
 
-ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag.pdf', sep=''), plot = plt, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag.pdf', sep=''), plot = plt, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1, width = 16, height = 16, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 # Cluster output vectors to reference neurons
 
 ```{r}
-conmat <- connectivityMatrix( typesOutput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+conmat <- connectivityMatrix( typesOutput_combiRoi %>% filter(is.finite(weightRelative) ), "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
 
 conmat_cd = cos_dist(conmat)
 plt <- myplot_dist(conmat_cd, order=TRUE) + theme_paper(axis.text.x = element_text(angle = 90)) 
@@ -350,18 +338,18 @@ hcl=hclust(conmat_cd)
 cut = 0.7#0.8
 tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/outputCorrelation_",saveName,'_', myROIsName,'_nBag_tree.pdf'), width=6, height=4)
+dev.print(pdf, paste0("../neuprintR_analysis_plots/outputCorrelation_",saveName,'_', myROIsName,'_nBag_tree.pdf'), width=12, height=6)
 
 clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
 
 typeClusters <- stack(clu.h) %>% rename(type = ind, clust=values) %>% arrange(clust)
 
-ggsave( paste("outputCorrelation_",saveName,'_', myROIsName,'_nBag.pdf', sep=''), plot = plt, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+ggsave( paste("outputCorrelation_",saveName,'_', myROIsName,'_nBag.pdf', sep=''), plot = plt, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1, width = 16, height = 16, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 
 ```{r}
-conmat <- connectivityMatrix( typesOutput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+conmat <- connectivityMatrix( typesOutput_combiRoi %>% filter(is.finite(weightRelative) ), "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
 conmat_cd = cos_dist(t(conmat))
 plt <- myplot_dist(conmat_cd, order=TRUE)
 plt
@@ -388,7 +376,7 @@ NAtypes = typesInput_combiRoi %>% filter(is.na(databaseType.from)) %>% select(ty
 #inputDatabaseTypes = c(inputDatabaseTypes,NAtypes$type.from)
 inputTypes = unique(typesInput_combiRoi$type.from)
 
-myInputTypes_bag = create_neuronBag(inputDatabaseTypes)
+myInputTypes_bag = neuronBag(inputDatabaseTypes)
 
 # Filter out neurons from left side
 splitLR = TRUE
