@@ -10,11 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-This code utilizes the tools in nat for single neuron morphology analyses. In particular, we use it to approximation the distance down the neurons arbors from a synapse to a putative spike initiation zone to see if there is any ordering among the types of synapses dependent upon the synapse partner. To do so, we subset the neuron to the ROI of interest and define a rootpoint at the putative spike intiation zone (considered here to be at the near the start of the axon based on Gouwens & Wilson, 2009). Note that, for our purposes, any point between this putative spike initiation zone and where the synapses of interest occur will be a sufficient point for the rootpoint as the ordering of the synapses will be consistent relative to any of these points.
+This code utilizes the tools in nat for single neuron morphology analyses. In particular, we use it to approximation the electrotonic distance from a synapse to a putative spike initiation zone to see if there is any ordering among the types of synapses dependent upon the synapse partner. To do so, we subset the neuron to the ROI of interest and define a rootpoint at the putative spike intiation zone (considered here to be at the near the start of the axon based on Gouwens & Wilson, 2009). Note that, for our purposes, any point between this putative spike initiation zone and where the synapses of interest occur will be a sufficient point for the rootpoint as the ordering of the synapses will be consistent relative to any of these points.
 
 In particular, we utilize the correspondence between the nat tools and igraph. Specifically, using nat we can transform a neuron object into a graph for which the weights of the edges are the Euclidean distance between the vertices. Assuming the vertices are placed in such a way to calculate the neural morphology, the weighted distance between two vertices is a decent approximation of the arbor distance between the two points. A synapse is considered to be at the node closest (in Euclidean distance) to the synapse location. For more info see http://natverse.org/nat/articles/neurons-as-graph.html.
 
-Here, we look at EPGs and the input they receive in the EB. The following code will walk through how to subset and fix the neural graphs needed for the analysis, some results including a hierarchy of input modality based on the distance between synapses and the determined rootpoint, along with some basic tools for analysing other aspects of the neural morphology.
+Here, we look at EPGs and the input they receive in the EB. The following code will walk through how to subset and fix the neural graphs needed for the analysis and some results on the hierarchy of input modality based on the electrotonic distance between synapses and the determined rootpoint.
 
 ## Setup
 
@@ -29,7 +29,7 @@ library(tidyr)
 library(dplyr)
 require(matlib)
 library(neuprintrExtra)
-source("./R/SynapsePCAUtils.R")
+source("../R/SynapsePCAUtils.R")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
@@ -39,7 +39,7 @@ require(alphahull)
 ```{r, message=FALSE, warning=FALSE}
 require(RColorBrewer)
 library("paletteer")
-source('./R/paperTheme.R')
+source('../R/paperTheme.R')
 ```
 
 
@@ -53,7 +53,7 @@ conn = neuprint_login()
 Load in info about EPGs, Ring neurons, and other neuron types we're interested in.
 ```{r neuron info}
 # neurons for which you care about the synaptic locations
-nronType = 'EL'
+nronType = 'EPG'
 nron_info = neuprint_search(paste(".*", nronType, ".*", sep = ""))
 head(nron_info)
 ```
@@ -81,7 +81,6 @@ Note, the neurons whose graphs are oriented incorrectly is a subset of the neuro
 ```{r read in neurons}
 # 15-18, 21, 23 are not oriented correctly, hence are not currently appropriate for this analysis
 if(nronType == 'EPG'){
-  disoriented = c(15:18,21,23)
   epgt = grep('EPGt',nron_info$name)
   epgR1 = grep('R1',nron_info$name)
   exclude = unique(c(epgt, epgR1))
@@ -98,10 +97,53 @@ if(is.null(exclude)){
 } else {
   nronList = neuprint_read_neurons(nron_info$bodyid[-exclude])
 }
+```
 
-if(!is.null(disoriented)){
-  adjustRP = hemibrain_reroot(nronList[disoriented])
-  nronList = nronList[-disoriented]
+Find neurons with disoriented graphs. (Needed for EPGs, not ELs)
+intersect each neuron with each significant ROI
+find shortest path between points in each ROI to rootpoint
+shortest path of these tells you which ROI the rootpoint is closest too
+```{r}
+if(!ignore){
+
+# Significant ROIs for EPGs
+sigROI = c('EB','PB')
+sigROI_mesh = lapply(sigROI, FUN = neuprint_ROI_mesh)
+
+distancesDF = data.frame()
+
+for(roiMesh in sigROI_mesh){
+  nronROI = lapply(nronList, function(n) subset(n, pointsinside(n, surf = roiMesh)))
+  rpPN = sapply(nronList, function(n) n$d[rootpoints(n),'PointNo'])
+  roiNodes = lapply(nronROI, function(n) n$d$PointNo)
+  distRPtoROI = mapply(function(n,rp,nodes) min(distances(as.ngraph(n, weights = T), v = as.character(rp), to = as.character(nodes), mode = 'out')), n = nronList, rp = rpPN, nodes = roiNodes)
+  
+  if(ncol(distancesDF) == 0){
+    distancesDF = as.data.frame(distRPtoROI)
+  } else {
+    distancesDF = cbind(distancesDF, distRPtoROI)
+  }
+  
+}
+
+colnames(distancesDF) = sigROI
+distancesDF$closestROI = colnames(distancesDF)[apply(distancesDF,1,which.min)]
+
+closestROInum = table(distancesDF$closestROI)
+closestROInum
+
+closestROIname = names(which.max(closestROInum))
+disoriented = nronList[distancesDF$closestROI != closestROIname]
+
+}
+```
+
+Fix the disoriented graphs using hemibrain_reroot().
+```{r}
+
+if(length(disoriented) > 0){
+  nronList = setdiff(nronList, disoriented)
+  adjustRP = hemibrain_reroot(disoriented)
   nronList = c(nronList, adjustRP)
 }
 
@@ -109,8 +151,7 @@ if(!is.null(disoriented)){
 
 ```
 
-
-Find the synapses onto the E-PGs that are from the types of neurons we're interested in and add the partner type info to the data frame.
+Find the synapses that are from the types of neurons we're interested in and add the partner type info to the data frame.
 ```{r synapses}
 # this grabs all the synapses for you
 nron_synapses = lapply(nronList, function(nron) nron$connectors)
@@ -146,7 +187,7 @@ Doing this, however, often results in "fracturing" the neuron. That is, if we we
 
 The following is an example of a neuron that was fractured when we grab just the arbors that intersect the EB ROI. Here, the black arbors and the cyan arbors have been separated by the subsetting process and the red circles indicate where the fracture has occurred.
 ```{r}
-exInd = 9
+exInd = 8
 nron = nronMainROI[[exInd]]
 plot(nron, WithNodes = F)
 compList = decompose(as.ngraph(nron), mode = 'weak')
@@ -288,7 +329,7 @@ nronGraphs = mapply(pruneGraph, nronGraphs, nronList, nronMainROI_synapses, SIMP
 
 With the fixed graphs, we can fix the subsetted neurons. For example, if we look at the neuron that previously got fractured, we can now see that those fractures have been healed and an appropriate rootpoint can now be determined. Below, we show the newly determined rootpoint for the neuron in purple while the previous fracture points are shown in red. 
 ```{r}
-exInd = 9
+exInd = 8
 nron = subset(nronList[[exInd]], PointNo %in% V(nronGraphs[[exInd]])$name)
 plot(nron, WithNodes = F)
 p = nron$d[rootpoints(nron),]
@@ -317,70 +358,15 @@ Let's update our subsetted neurons now that we have the correct graphs for them.
 ```{r}
 nronMainROI = nmapply(function(nron,g) subset(nron, PointNo %in% V(g)$name), nronList, g = nronGraphs) 
 ```
-
-```{r}
-
-nronDat = nlapply(nronMainROI, function(nron){
-  distToRoot = distances(as.ngraph(nron, weights = T), v = as.character(nron$d$PointNo[rootpoints(nron)]), to = as.character(unique(nron$d$PointNo)), mode = 'out')
-  distToRoot = distToRoot[match(nron$d$PointNo, unique(nron$d$PointNo))]
-  distToRoot = distToRoot/125 # converts distance to microns
-  cbind(nron$d, distToRoot)
-})
-
-```
-
-```{r}
-
-nronDatAll = data.frame(PointNo=double(),Label=double(),X=double(),Y=double(),Z=double(),W=double(),Parent=double())
-for(nron in nronDat){
-  nronDatAll = rbind(nronDatAll,nron)
-}
-
-```
-
-```{r}
-nsamp = 10000
-inds = sample(1:dim(nronDatAll)[1], nsamp)
-
-ggplot(nronDatAll[inds,]) +
-  geom_point(aes(x = distToRoot, y = W/125))
-
-```
-
-
-```{r}
-Vivid_Red = '#F6222E'
-
-PB_mesh = neuprint_ROI_mesh(roi = 'PB')
-GA_mesh = neuprint_ROI_mesh(roi = 'GA(R)')
-
-nopen3d()
-plot3d(mainROI_mesh, add = T, alpha = 0.25, col = 'grey')
-plot3d(PB_mesh, add = T, alpha = 0.25, col = 'grey')
-plot3d(GA_mesh, add = T, alpha = 0.25, col = 'grey')
-exInd = 2
-nron = nronList[[exInd]]
-plot3d(nron, add = T, WithNodes = F, col = 'black')
-rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
-points3d(rp$X, rp$Y, rp$Z, col = Vivid_Red, cex = 1)
-
-exInd = 9
-nron = nronList[[exInd]]
-plot(nron, WithNodes = F)
-rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
-points(rp$X, rp$Y, col = Vivid_Red, cex = 1)
-```
-
+Example neuron and rootpoint.
 ```{r}
 
 if(!ignore){
 exInd = 2
 nron = nronList[[exInd]]
 rp = nronMainROI[[exInd]]$d[rootpoints(nronMainROI[[exInd]]),]
-pdf('../neuprintR_analysis_plots/EPG_example.pdf')
 plot(nron, WithNodes = F)
 points(rp$X, rp$Y, col = '#1CFFCEFF', cex = 1, pch = 19)
-dev.off()
 }
 
 ```
@@ -430,18 +416,9 @@ points(p$X, p$Y, col = 'purple', cex = 1)
 ```
 
   
-Now we can compute the distance between the synapses of interest and the rootpoint. 
-```{r}
+Now we can compute the electrotonic distance between the synapses of interest and the rootpoint.
 
-nronMainROI_synapses = mapply(function(nron,syn){
-  distToRoot = distances(as.ngraph(nron, weights = T), v = as.character(nron$d$PointNo[rootpoints(nron)]), to = as.character(unique(syn$treenode_id)), mode = 'out')
-  distToRoot = distToRoot[match(syn$treenode_id, unique(syn$treenode_id))]
-  distToRoot = distToRoot/125 # converts distance to microns
-  syn = cbind(syn, distToRoot)
-}, nron = nronMainROI, syn = nronMainROI_synapses, SIMPLIFY = F)
-
-```
-
+This function does that.
 ```{r}
 
 electrotonicDist <- function(nron,syn){
@@ -466,19 +443,10 @@ syn = cbind(syn, electroDist)
 
 ```
 
+Run it for every neuron.
 ```{r}
 nronMainROI_synapses = mapply(electrotonicDist, nron = nronMainROI, syn = nronMainROI_synapses, SIMPLIFY = F)
 
-```
-
-```{r}
-nronMainROI_synapses = mapply(function(nron,syn){
-  g = as.ngraph(nron,weights = T)
-  diam = vertex_attr(g, 'diam', index = as.character(unique(syn$treenode_id)))
-  diam = diam[match(syn$treenode_id, unique(syn$treenode_id))]
-  diam = diam/125
-  syn = cbind(syn, diam)
-}, nron = nronMainROI, syn = nronMainROI_synapses, SIMPLIFY = F)
 ```
 
 Turn this into one big dataframe:
@@ -495,8 +463,6 @@ It's useful to also have a normalized representation of the distance to the root
 ```{r}
 
 synapses = synapses %>% group_by(bodyid) %>%
-              mutate(normDist = distToRoot - min(distToRoot)) %>%
-              mutate(normDist = normDist/(max(normDist))) %>%
               mutate(normEDist = electroDist - min(electroDist)) %>%
               mutate(normEDist = normEDist/(max(normEDist))) %>%
               ungroup()
@@ -576,41 +542,11 @@ Vivid_Blue = "#2ED9FF"
 Strong_Purplish_Blue = '#3283FE'
 pink = '#FA0087'
 
-modalityCMap =c(Vivid_Violet,Very_Light_Yellowish_Green,Vivid_Blue,Strong_Purplish_Blue,pink)
-
-modalityCMap =c(Strong_Purplish_Blue,Vivid_Blue,Vivid_Violet,Very_Light_Yellowish_Green,pink)
+modalityCMap =c(Very_Light_Yellowish_Green,Vivid_Blue,Vivid_Violet,pink,Strong_Purplish_Blue)
 
 
 ```
 
-Do distance to rootpoint and width of arbor correlate?
-```{r}
-nsamp = 5000
-inds = sample(1:dim(synapsesPre)[1], nsamp)
-
-ggplot(synapsesPre[inds,]) +
-  geom_point(aes(x = distToRoot, y = diam))
-
-ggplot(filter(synapsesPre, bodyid == synapses$bodyid[10])) +
-  geom_point(aes(x = distToRoot, y = diam))
-
-```
-
-
-Do distance to rootpoint and electrotonic distance correlate?
-```{r}
-
-elecVsDist = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','ms','sleep'))) +
-  geom_point(aes(x = distToRoot, y = electroDist, color = modality),alpha = 0.3) + 
-  scale_colour_manual(values = modalityCMap) +
-  theme_paper() +
-  facet_wrap(~factor(bodyid))
-
-print(elecVsDist)
-
-#ggsave(paste('elecVsDist_eg', nronType, '.pdf', sep = ""), plot = elecVsDist, device='pdf', path = "../neuprintR_analysis_plots/")
-
-```
 
 Look at the CDF's of the synapse distributions for a single neuron where synapses are grouped into modality types. Here we're only looking at the synapses ONTO this particular EPG (i.e., pre not post).
 
@@ -618,36 +554,11 @@ A nice one:
 
 ```{r}
 if(!ignore){
-modalityCDFPlot = ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[2], modality %in% c('cv','iv','motor','ms','sleep')), aes(x = normDist, color = modality)) +
-    stat_ecdf(geom = "step") +
-    scale_colour_manual(values = modalityCMap) +
-    theme_paper() +
-    labs(x = 'normalized distance', y = 'CDF')
-} else {
-
-modalityCDFPlot = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','ms','sleep')), aes(x = normDist, color = modality)) +
-    stat_ecdf(geom = "step") +
-    scale_colour_manual(values = modalityCMap) +
-    theme_paper() +
-    labs(x = 'normalized distance', y = 'CDF') +
-  facet_wrap(~bodyid)
-
-
-}
-
-print(modalityCDFPlot)
-
-#ggsave(paste('modalityCDF_', nronType, '.pdf', sep = ""), plot = modalityCDFPlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-```
-
-```{r}
-if(!ignore){
 modalityCDFPlot = ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[24], modality %in% c('cv','iv','motor','ms','sleep')), aes(x = normEDist, color = modality)) +
     stat_ecdf(geom = "step") +
     scale_colour_manual(values = modalityCMap) +
     theme_paper() +
-    labs(x = 'normalized electrotonic distance', y = 'CDF') + 
+    labs(x = 'normalized electrotonic distance to rootpoint', y = 'CDF') + 
   facet_wrap(~bodyid)
 } else {
 
@@ -655,7 +566,7 @@ modalityCDFPlot = ggplot(filter(synapsesPre, modality %in% c('cv','iv','motor','
     stat_ecdf(geom = "step") +
     scale_colour_manual(values = modalityCMap) +
     theme_paper() +
-    labs(x = 'normalized electrotonic distance', y = 'CDF') +
+    labs(x = 'normalized electrotonic distance to rootpoint', y = 'CDF') +
   facet_wrap(~bodyid)
 
 
@@ -669,19 +580,6 @@ print(modalityCDFPlot)
 ```
 
 In order to get a sense of what these distributions look like across all of the EPGs, one thing we can do is compare the medians of the distributions. 
-```{r}
-medOfDist_nronType = filter(synapses, prepost == 1, modality %in% c('cv','iv','motor','ms','sleep')) %>% 
-  group_by(bodyid, partnerType) %>%
-  summarize(med = median(normDist))
-
-medOfDist = filter(synapses, prepost == 1) %>% group_by(bodyid, modality) %>%
-            summarize(med = median(normDist)) %>%
-            filter(modality %in% c('cv','iv','motor','ms','sleep')) %>%
-            group_by(bodyid) %>%
-            mutate(rankOrder = rank(med)) %>%
-            ungroup()
-
-```
 
 ```{r}
 medOfEDist_nronType = filter(synapses, prepost == 1, modality %in% c('cv','iv','motor','ms','sleep')) %>% 
@@ -697,22 +595,6 @@ medOfEDist = filter(synapses, prepost == 1) %>% group_by(bodyid, modality) %>%
 
 ```
 
-```{r}
-
-medOfDist = medOfDist %>% mutate(modNum = case_when(
-  modality == 'motor' ~ 1,
-  modality == 'ms' ~ 2,
-  modality == 'iv' ~ 3,
-  #modality == 'pol' ~ 4,
-  modality == 'cv' ~ 4,
-  modality == 'sleep' ~ 5
-)) #%>%
-  #mutate(eg = case_when(
-  #  bodyid == nron_info_kept$bodyid[2] ~ 1,
-  #  TRUE ~ 0
-  #))
-
-```
 
 ```{r}
 
@@ -723,22 +605,9 @@ medOfEDist = medOfEDist %>% mutate(modNum = case_when(
   #modality == 'pol' ~ 4,
   modality == 'cv' ~ 4,
   modality == 'sleep' ~ 5
-)) #%>%
-  #mutate(eg = case_when(
-  #  bodyid == nron_info_kept$bodyid[2] ~ 1,
-  #  TRUE ~ 0
-  #))
-
+)) 
 ```
 
-```{r}
-if(!ignore){
-medOfDist_nronType = medOfDist_nronType %>% mutate(eg = case_when(
-    bodyid == nron_info_kept$bodyid[2] ~ 1,
-    TRUE ~ 0
-  ))
-}
-```
 
 ```{r}
 if(!ignore){
@@ -761,115 +630,21 @@ medOfEDist = medOfEDist %>% mutate(eg = case_when(
 
 If we look at the distributions of the medians of the synaptic distributions for each modality, we see a general trend.
 ```{r}
-
-medViolinPlot = ggplot(medOfDist) +
-  geom_violin(aes(x = factor(modality, levels = c('motor','ms','iv','pol','cv','sleep')), y = med, fill = modality), color = '#5A5156') +
-  theme_paper() +
-  scale_fill_manual(values = modalityCMap) +
-  labs(x = 'modality', y = 'median')
-
-print(medViolinPlot)
-
-medHivePlot = ggplot(medOfDist) +
-  #geom_dotplot(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156', binaxis = 'y', stackdir = 'center', binwidth = 1/54) +
-  geom_line(aes(x = modNum, y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
-  geom_point(aes(x = modNum, y = med, fill = modality, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
-  theme_paper() +
-  guides(fill = 'legend') +
-  scale_fill_manual(values = modalityCMap) +
-  scale_color_manual(values = c('black','lightgray',modalityCMap)) +
-  labs(x = 'modality', y = 'median') #+
-  #ylim(0.25,0.95)
-
-print(medHivePlot)
-  
-#ggsave(paste('medianDists_hive_jitter_', nronType, '.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-```
-
-```{r}
 medHivePlot = ggplot(medOfEDist) +
-  #geom_dotplot(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med, fill = modality), color = '#5A5156', binaxis = 'y', stackdir = 'center', binwidth = 1/54) +
-  #geom_line(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
-  geom_line(aes(x = modNum, y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
+  geom_line(aes(x = factor(modality, levels = c('motor','ms','iv','cv','sleep')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
+  #geom_line(aes(x = modNum, y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
   geom_point(aes(x = modNum, y = med, fill = modality, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
   theme_paper() +
   guides(fill = 'legend') +
   scale_fill_manual(values = modalityCMap) +
   scale_color_manual(values = c('lightgray','black',modalityCMap)) +
-  labs(x = 'modality', y = 'median') #+
-  #ylim(0.25,0.95)
+  labs(x = 'modality', y = 'median') 
 
 print(medHivePlot)
   
 #ggsave(paste('medianDists_hive_jitter_', nronType, '_ED.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 
 ```
-
-
-```{r}
-medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% motor)) +
-  geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
-  #geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid)), color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
-  geom_point(aes(x = factor(partnerType), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
-  theme_paper() +
-  guides(fill = 'legend') +
-  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
-  scale_color_manual(values = c('lightgray','black')) +
-  labs(x = 'partner type', y = 'median') +
-  ylim(0.05,0.85)
-
-print(medHivePlot)
-  
-#ggsave(paste('medianDists_hive_jitter_', nronType, '_motor.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% ms)) +
-  #geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
-  geom_line(aes(x = factor(partnerType), y = med,  group = factor(bodyid)),color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
-  geom_point(aes(x = factor(partnerType), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
-  theme_paper() +
-  guides(fill = 'legend') +
-  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
-  scale_color_manual(values = c('lightgray','black')) +
-  labs(x = 'partner type', y = 'median') +
-  ylim(0.05,0.85)
-
-print(medHivePlot)
-  
-#ggsave(paste('medianDists_hive_jitter_', nronType, '_ms.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% iv)) +
-  #geom_line(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
-  geom_line(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med,  group = factor(bodyid)),color = 'lightgray', position = position_dodge(0.5), size = 0.5) +
-  geom_point(aes(x = factor(partnerType, levels = c('ER3w','ER2_a','ER2_b','ER2_c','ER2_d','ER4m','ER4d')), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
-  theme_paper() +
-  guides(fill = 'legend') +
-  #scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
-  scale_color_manual(values = c('lightgray','black')) +
-  labs(x = 'partner type', y = 'median') +
-  ylim(0.05,0.85)
-
-print(medHivePlot)
-  
-#ggsave(paste('medianDists_hive_jitter_', nronType, '_iv.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-medHivePlot = ggplot(filter(medOfDist_nronType, partnerType %in% cv)) +
-  #geom_line(aes(x = factor(partnerType, levels = c('ER3p_a','ERp_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med,  group = factor(bodyid), color = factor(eg)), position = position_dodge(0.5), size = 0.5) +
-  geom_line(aes(x = factor(partnerType, levels = c('ER3p_a','ER3p_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med,  group = factor(bodyid)), color = 'lightgray',position = position_dodge(0.5), size = 0.5) +
-  geom_point(aes(x = factor(partnerType, levels = c('ER3p_a','ER3p_b','ER3m','ER3d_a','ER3d_b','ER3d_c','ER3d_d','ER3a_a','ER3a_b','ER3a_c','ER3a_d')), y = med, fill = partnerType, group = factor(bodyid)), color = 'black', pch = 21, position = position_dodge(0.5), size = 3, alpha = 0.75) +
-  theme_paper() +
-  guides(fill = 'legend') +
- # scale_fill_manual(values = c('#9D49F5','#D3A4F7')) +
-  scale_color_manual(values = c('lightgray','black')) +
-  labs(x = 'partner type', y = 'median') +
-  ylim(0.05,0.85)
-
-print(medHivePlot)
-  
-#ggsave(paste('medianDists_hive_jitter_', nronType, '_cv.pdf', sep = ""), plot = medHivePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-```
-
 
 
 ```{r}
@@ -958,41 +733,6 @@ Using these medians, we can also rank order modality for each EPG seperately. No
 
 ```{r}
 if(!ignore){
-currentOrdering = sort(nron_info_kept$bodyid, decreasing = T)
-sortingLevel2 = currentOrdering[c(3,9,13,29,34,43)]
-sortingLevel3 = currentOrdering[c(11,15,27,28,30,44)]
-sortingLevel4 = currentOrdering[c(17)]
-sortingLevel5 = currentOrdering[c(32)]
-sortingLevel = c(sortingLevel2, sortingLevel3, sortingLevel4, sortingLevel5)
-sortingLevel1 = setdiff(currentOrdering, sortingLevel)
-sortingLevel = c(sortingLevel1, sortingLevel)
-
-rankOrderingPlot = ggplot(medOfDist) +
-  geom_tile(aes(x = rankOrder, y = factor(bodyid, levels = rev(sortingLevel)), fill = modality), color = '#5A5156') +
-  #geom_tile(aes(x = rankOrder, y = as.factor(bodyid), fill = modality), color = '#5A5156') +
-  theme_paper() +
-  theme(axis.text.y = element_blank(), legend.position="top") +
-  labs(y = "neurons", x = "rank order") +
-  scale_fill_manual(values = modalityCMap)
-
-print(rankOrderingPlot)
-} else {
-  rankOrderingPlot = ggplot(medOfDist) +
-  geom_tile(aes(x = rankOrder, y = factor(bodyid), fill = modality), color = '#5A5156') +
-  theme_paper() +
-  theme(axis.text.y = element_blank(), legend.position="top") +
-  labs(y = "neurons", x = "rank order") +
-  scale_fill_manual(values = modalityCMap)
-
-print(rankOrderingPlot)
-}
-
-#ggsave(paste('rankOrdering_', nronType, '.pdf', sep = ""), plot = rankOrderingPlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-```
-
-```{r}
-if(!ignore){
 currentOrdering = sort(unique(synapses$bodyid), decreasing = T)
 sortingLevel2 = currentOrdering[c(3,9,12,13,29,34,43)]
 sortingLevel3 = currentOrdering[c(8,16,18,28,35)]
@@ -1041,20 +781,6 @@ The next thing one might ask is if we can quantify how "far away" the synaptic d
 To do this, we need to modify the data structure a bit.
 ```{r}
 if(!ignore){
-medOfDist = medOfDist %>% group_by(bodyid) %>%
-              mutate(orderingType = case_when(
-                bodyid %in% sortingLevel1 ~ 1,
-                bodyid %in% sortingLevel2 ~ 2,
-                bodyid %in% sortingLevel3 ~ 3,
-                bodyid %in% sortingLevel4 ~ 4,
-                bodyid %in% sortingLevel5 ~ 5
-              )) %>%
-              ungroup()
-}
-```
-
-```{r}
-if(!ignore){
 medOfEDist = medOfEDist %>% group_by(bodyid) %>%
               mutate(orderingType = case_when(
                 bodyid %in% sortingLevel1 ~ 1,
@@ -1078,22 +804,6 @@ medOfEDist = medOfEDist %>% group_by(bodyid) %>%
 ```
 
 ```{r}
-
-dfRank1 = filter(medOfDist, rankOrder == 1) %>% select(-c(rankOrder,modNum)) %>% rename(modality1 = modality, med1 = med)
-dfRank2 = filter(medOfDist, rankOrder == 2) %>% select(-c(rankOrder,modNum)) %>% rename(modality2 = modality, med2 = med)
-dfRank3 = filter(medOfDist, rankOrder == 3) %>% select(-c(rankOrder,modNum)) %>% rename(modality3 = modality, med3 = med)
-dfRank4 = filter(medOfDist, rankOrder == 4) %>% select(-c(rankOrder,modNum)) %>% rename(modality4 = modality, med4 = med)
-dfRank5 = filter(medOfDist, rankOrder == 5) %>% select(-c(rankOrder,modNum)) %>% rename(modality5 = modality, med5 = med)
-
-medOfDistWide = merge(dfRank1, dfRank2)
-medOfDistWide = merge(medOfDistWide, dfRank3)
-medOfDistWide = merge(medOfDistWide, dfRank4)
-medOfDistWide = merge(medOfDistWide, dfRank5)
-
-```
-
-
-```{r}
 dfRank1 = filter(medOfEDist, rankOrder == 1) %>% select(-c(rankOrder,modNum)) %>% rename(modality1 = modality, med1 = med)
 dfRank2 = filter(medOfEDist, rankOrder == 2) %>% select(-c(rankOrder,modNum)) %>% rename(modality2 = modality, med2 = med)
 dfRank3 = filter(medOfEDist, rankOrder == 3) %>% select(-c(rankOrder,modNum)) %>% rename(modality3 = modality, med3 = med)
@@ -1107,18 +817,6 @@ medOfEDistWide = merge(medOfEDistWide, dfRank5)
 ```
 
 And calculate the difference of medians between distributions with consecutive rank orderings.
-
-```{r}
-
-medOfDistWide = medOfDistWide %>% 
-                  mutate(dist12 = med2 - med1) %>%
-                  mutate(dist23 = med3 - med2) %>%
-                  mutate(dist34 = med4 - med3) %>%
-                  mutate(dist45 = med5 - med4)
-
-```
-
-
 ```{r}
 
 medOfEDistWide = medOfEDistWide %>% 
@@ -1126,25 +824,6 @@ medOfEDistWide = medOfEDistWide %>%
                   mutate(dist23 = med3 - med2) %>%
                   mutate(dist34 = med4 - med3) %>%
                   mutate(dist45 = med5 - med4)
-
-```
-
-```{r}
-l = length(nronList)
-
-distBetween = data.frame(bodyid = medOfDistWide$bodyid,dist = c(medOfDistWide$dist12, medOfDistWide$dist23, medOfDistWide$dist34, medOfDistWide$dist45), betweenWho = c(rep('1-2',times = l), rep('2-3',times = l),rep('3-4',times = l),rep('4-5',times = l)))
-
-if(!ignore){
-distBetween = data.frame(bodyid = medOfDistWide$bodyid, orderingType = medOfDistWide$orderingType, dist = c(medOfDistWide$dist12, medOfDistWide$dist23, medOfDistWide$dist34, medOfDistWide$dist45), betweenWho = c(rep('1-2',times = l), rep('2-3',times = l),rep('3-4',times = l),rep('4-5',times = l)))
-
-distBetween = distBetween %>% mutate(flag = case_when(
-  betweenWho == '1-2' & orderingType %in% c(4,5) ~ 1,
-  betweenWho == '2-3' & orderingType %in% c(2,5) ~ 1,
-  betweenWho == '3-4' & orderingType == 3 ~ 1,
-  betweenWho == '4-5' & orderingType == 4 ~ 1,
-  TRUE ~ 0
-))
-}
 
 ```
 
@@ -1179,32 +858,6 @@ If we look at the overall distribution of these distances, we do observe that th
 Also note the difference in scale of the last plot in comparison to the rest, indicating that the distribution for the sleep modality (as this modality is ranked 5th for all ordering groups) is consistently far from the rest.
 
 ```{r}
-if(!ignore){
-distDistancePlot = ggplot(distBetween) +
-  geom_boxplot(aes(y = dist, x = factor(flag), color = as.factor(flag))) +
-  facet_grid(.~betweenWho) +
-  scale_color_manual(values = c('#5A5156',Vivid_Red)) +
-  theme_paper() +
-  theme(legend.position = 'none') +
-  labs(y = "median distance", x = "ordering", title = 'Median distance between distributions of rank orders:') +
-  scale_x_discrete(labels = c('standard', 'permuted'))
-
-print(distDistancePlot)
-} else {
-  distDistancePlot = ggplot(distBetween) +
-  geom_boxplot(aes(y = dist)) +
-  facet_grid(.~betweenWho) +
-  theme_paper() +
-  labs(y = "median distance", x = "ordering", title = 'Median distance between distributions of rank orders:')
-
-print(distDistancePlot)
-}
-
-
-#ggsave(paste('distDistance_', nronType, '.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
-```
-
-```{r}
 
 distDistancePlot = ggplot(EdistBetween) +
   geom_boxplot(aes(y = dist, x = factor(flag), color = as.factor(flag))) +
@@ -1217,94 +870,13 @@ distDistancePlot = ggplot(EdistBetween) +
 
 print(distDistancePlot)
 
-ggsave(paste('distDistance_', nronType, '_ED.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
+#ggsave(paste('distDistance_', nronType, '_ED.pdf', sep = ""), plot = distDistancePlot, device='pdf', path = "../neuprintR_analysis_plots/")
 ```
-
-
-```{r}
-if(!ignore){
-ggplot(distBetween) +
-  geom_point(aes(y = dist, x = factor(bodyid, levels = EBLevels), color = as.factor(flag)))  +
-  facet_wrap(.~betweenWho, scales = 'free') +
-  scale_color_manual(values = c('#5A5156',Vivid_Red)) +
-  theme_paper() +
-  theme(legend.position = 'none') +
-  scale_x_discrete(labels = as_labeller(labName))
-}
-
-```
-
-
-
-
-Preferably, we will calculate the electrotonic distance of the synapses to have a better idea of the impact that synapse will have at the spike initiation zone (approximated by the rootpoint). This is still be to be done. In general, we are able to calculate the number of branchpoints between the rootpoint and synapses, the width of the arbor at the synapse, the Strahler order of the arbors, etc.
 
 
 ## Results 2: Does depth or radial position in the EB better predict the distance from the synapse to the root point?
 
 Another interesting question we can answer with this type of analysis is whether the distance to the rootpoint of a ring neuron's synapses correspond to where that ring neuron arborizes in the EB? And if so, is it the radial position or the depth of the arbors that matter? 
-
-For a first shot at this question, we will order the different types of ring neurons based off of the ring neuron SI figure. Note, this is a very rough approximation.
-```{r}
-
-ringLevelsRadial = c('ER4d','ER4m','ER2_c','ER2_d','ER2_b','ER2_a','ER6','ER5','ER3a_d','ER3a_c','ER3a_b','ER3a_a','ER3d_d','ER3d_c','ER3d_b','ER3d_a','ER3w','ER1_b','ER1_a','ER3m','ER3p_b','ER3p_a')
-
-ringLevelsDepth = c('ER6','ER1_a','ER1_b','ER3p_a','ER3w','ER3p_b','ER3m','ER2_d','ER2_b','ER2_a','ER2_c','ER4m','ER4d','ER3a_a','ER3d_c','ER3d_b','ER3d_d','ER3d_a','ER3a_c','ER3a_b','ER3a_d','ER5')
-
-```
-
-
-We can now compare how the radial position ordering correlates with the distance to the rootpoint vs. how the depth position ordering does. Here we show an example of a single neuron that looks particularly nice.  
-```{r}
-if(ignore){
-  nron_info_kept = nron_info
-}
-
-ggp1 <- ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[11], modality %in% c('cv','iv','ms','sleep','other')), aes(x = factor(partnerType, levels = ringLevelsRadial), y = normDist)) +
-    geom_violin() +
-  ggtitle("Ordered by approximate radial position") +
-    theme(axis.text.x = element_text(angle = 90)) +
-    labs(y = "normalized distance", x = "partner type")
-  
-ggp2 <- ggplot(filter(synapsesPre, bodyid == nron_info_kept$bodyid[11], modality %in% c('cv','iv','ms','sleep','other')), aes(x = factor(partnerType, levels = ringLevelsDepth), y = normDist)) +
-    geom_violin() +
-  ggtitle("Ordered by approximate depth ") +
-    theme(axis.text.x = element_text(angle = 90), axis.text.y = element_blank()) +
-    labs(y = "", x = "partner type")
-  
-g1 <- ggplotGrob(ggp1)
-g2 <- ggplotGrob(ggp2)
-g <- cbind(g1,g2, size = "first")
-grid::grid.newpage()
-grid::grid.draw(g)
-
-```
-
-
-To make sure this is a consistent pattern across all the EPGs, we can look at the violin plots including all (input) synapses for all neurons.
-```{r}
-ggp1 <- ggplot(filter(synapsesPre, modality %in% c('cv','iv','ms','sleep','other')), aes(x = factor(partnerType, levels = ringLevelsRadial), y = normDist)) +
-    geom_violin() +
-  ggtitle("Ordered by approximate radial position") +
-    theme(axis.text.x = element_text(angle = 90)) +
-    labs(y = "normalized distance", x = "partner type")
-  
-ggp2 <- ggplot(filter(synapsesPre, modality %in% c('cv','iv','ms','sleep','other')), aes(x = factor(partnerType, levels = ringLevelsDepth), y = normDist)) +
-    geom_violin() +
-  ggtitle("Ordered by approximate depth") +
-    theme(axis.text.x = element_text(angle = 90), axis.text.y = element_blank()) +
-    labs(y = "", x = "partner type")
-  
-g1 <- ggplotGrob(ggp1)
-g2 <- ggplotGrob(ggp2)
-g <- cbind(g1,g2, size = "first")
-grid::grid.newpage()
-grid::grid.draw(g)
-
-```
-
-
-Obviously, we will want to do this in a more rigorous fashion. In particular, we should calculate the depth/radial position of each synapse separately (rather than grouping them by ring neuron type) and compare to the distance to root of that synapse. This is still to be done.
 
 #----------------- FROM HANNAH'S CODE -----------------
 
@@ -1389,7 +961,7 @@ synapses = synapses %>% mutate(quadrant = case_when(
 
 ```
 
-
+This will take a minute.
 ```{r}
 synOutline <- ahull(x=filter(synapses, prepost == 1)$radial, y=filter(synapses, prepost == 1)$depth, alpha=2)
 outline = data.frame(synOutline$arcs)
@@ -1408,96 +980,6 @@ outline = bind_rows(outline, outline[1,]) # close the shape
 meshOutline <- ahull(x=roiMeshPtsNewCoord$depth,y=roiMeshPtsNewCoord$radial,alpha=100/125)
 outline = data.frame(meshOutline$arcs)
 #outline = bind_rows(outline, outline[1,]) # close the shape
-
-```
-
-
-```{r}
-radPosVsDistPlot <- ggplot(filter(synapses, prepost == 1)) +
-  geom_point(aes(y = normDist, x = radial, color = depth), size = 1, alpha = 0.05) +
-  theme_paper() +
-  scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,40), limits=c(0, 40)) +
-  labs(y = 'normalized distance', x = 'radial position') #+
-  #facet_wrap(~ quadrant)
-
-print(radPosVsDistPlot)
-
-#ggsave('radPosVsDist.pdf', plot = radPosVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-depthVsDistPlot <-ggplot(filter(synapses, prepost == 1)) +
-  geom_point(aes(y = normDist, x = depth, color = radial), size = 1, alpha = 0.05) +
-  theme_paper() +
-  scale_colour_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,40), limits=c(0, 40)) +
-  labs(y = 'normalized distance', x = 'depth') #+
-  #facet_wrap(~ quadrant)
-
-print(depthVsDistPlot)
-
-#ggsave('depthVsDist.pdf', plot = depthVsDistPlot, device='pdf', path = "../neuprintR_analysis_plots/")
-
-depthVsRadialPlot <- ggplot(filter(synapses, prepost == 1)) +
-  geom_point(aes(x = radial, y = depth, color = normDist), size = 1, alpha = 0.05) +
-  theme_paper() +
-  scale_colour_gradientn(colours = rev(brewer.pal(5,"BuPu")), breaks=c(0,1), limits=c(0, 1)) +
-  labs(x = 'radial position', y = 'depth')# +
-  #facet_wrap(~ quadrant)
-
-print(depthVsRadialPlot)
-
-#ggsave('depthVsRadial.pdf', plot = depthVsRadialPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-
-depthVsRadialPlot <- ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'))) +
-  geom_point(aes(x = radial, y = depth, color = modality), size = 1, alpha = 0.05) +
-  theme_paper() +
-  scale_colour_manual(values = modalityCMap) +
-  labs(x = 'radial position', y = 'depth') +
-  #facet_wrap(~ quadrant) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1)))
-
-print(depthVsRadialPlot)
-```
-
-```{r}
-
-for(pt in unique(synapses$partnerType)){
-
-  depthVsRadialPlot <- ggplot(filter(synapses, partnerType == pt)) +
-  geom_point(aes(x = radial, y = depth, color = normDist), size = 1, alpha = 0.05) +
-  theme_paper() +
-  scale_colour_gradientn(colours = rev(brewer.pal(5,"BuPu")), breaks=c(0,1), limits=c(0, 1)) +
-  labs(x = 'radial position', y = 'depth', title = pt) +
-  facet_wrap(~ prepost, labeller = labeller(prepost = c('1' = 'to EPG', '0' = 'from EPG'))) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5)
-
-print(depthVsRadialPlot)
-
-#ggsave(paste("depthVsRadial_",pt,'.pdf', sep=''), plot = depthVsRadialPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-}
-
-```
-
-
-
-
-```{r}
-
-xmax = ceiling(max(synapses$depth))
-ymax = ceiling(max(synapses$radial))
-dx = 0.75
-dy = 0.75
-#dx = 100
-#dy = 100
-sampsx = seq(dx,xmax-dx,2*dx)
-sampsy = seq(dy,ymax-dy,2*dy)
-meanNormDist = data.frame(x = rep(sampsx, times = length(sampsy)), y = rep(sampsy, each = length(sampsx)))
-z = rep(NA, length(meanNormDist$x))
-for(i in seq(1,length(meanNormDist$x))){
-  d = meanNormDist$x[i]
-  r = meanNormDist$y[i]
-  z[i] = mean(synapses$normDist[(synapses$radial < r + dx) & (synapses$radial >= r - dx) & (synapses$depth < d + dx) & (synapses$depth >= d - dx)])
-}
-
-meanNormDist = cbind(meanNormDist, z)
 
 ```
 
@@ -1523,25 +1005,6 @@ meanNormEDist = cbind(meanNormEDist, z)
 
 ```
 
-
-
-```{r}
-
-depthVRadDensPlot = ggplot() +
-  stat_density_2d(data = filter(synapses, prepost == 1), aes(x = depth, y = radial, alpha = stat(nlevel)), fill = 'grey', bins = 40, contour_var = 'ndensity', geom = 'polygon')+
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
-  geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  scale_colour_gradientn(colours = rev(brewer.pal(9,"Blues")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper() +
-  coord_fixed(ratio = 1) +
-  geom_point(data = rootPtsNewCoord, aes(y = radial, x = depth), color = '#5A5156', alpha = 0.75)
-
-print(depthVRadDensPlot)
-
-ggsave(paste('depthVsRadial_', nronType, '.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-
-```
-
 ```{r}
 
 depthVRadDensPlot = ggplot() +
@@ -1555,7 +1018,7 @@ depthVRadDensPlot = ggplot() +
 
 print(depthVRadDensPlot)
 
-ggsave(paste('depthVsRadial_', nronType, '_ED.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_', nronType, '_ED.pdf', sep = ""), plot = depthVRadDensPlot, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 ```
 
@@ -1572,7 +1035,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms
 
 print(depthVRadMod)
 
-ggsave(paste('depthVsRadial_modalities_',nronType,'_new.pdf', sep = ""), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities_',nronType,'_new.pdf', sep = ""), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 ```
@@ -1588,7 +1051,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor'))) 
   coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-ggsave(paste('depthVsRadial_modalities_',nronType,'_motor.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities_',nronType,'_motor.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
@@ -1599,7 +1062,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
   coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-ggsave(paste('depthVsRadial_modalities',nronType,'_ms.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities',nronType,'_ms.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
   stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
@@ -1609,7 +1072,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
   coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-ggsave(paste('depthVsRadial_modalities',nronType,'_iv.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities',nronType,'_iv.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('cv'))) +
   stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
@@ -1619,7 +1082,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('cv'))) +
   coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-ggsave(paste('depthVsRadial_modalities',nronType,'_cv_new.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities',nronType,'_cv_new.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('sleep'))) +
   stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
@@ -1629,279 +1092,7 @@ depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('sleep'))) 
   coord_fixed(ratio = 1)
 
 print(depthVRadMod)
-ggsave(paste('depthVsRadial_modalities',nronType,'_sleep_new.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
+#ggsave(paste('depthVsRadial_modalities',nronType,'_sleep_new.pdf'), plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
 
 
 ```
-
-```{r}
-if(!ignore){
-synapses = synapses %>% mutate(permGroup = case_when(
-  bodyid %in% sortingLevel1 ~ '1',
-  bodyid %in% sortingLevel2 ~ '2',
-  bodyid %in% sortingLevel3 ~ '3',
-  bodyid %in% sortingLevel4 ~ '4',
-  bodyid %in% sortingLevel5 ~ '5'
-)) %>% mutate(perm23 = case_when(
-  permGroup %in% c('1','3','4') ~ '0',
-  permGroup %in% c('2','5') ~ '1'))
-}
-
-```
-
-```{r}
-if(!ignore){
-depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'), perm23 == '0')) +
-  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
-  scale_fill_manual(values = modalityCMap) +
-  geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper() +
-  coord_fixed(ratio = 1)
-
-print(depthVRadMod)
-
-#ggsave('depthVsRadial_modalities_perm23-0.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-
-depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('motor','ms','cv','iv','sleep'), perm23 == '1')) +
-  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
-  scale_fill_manual(values = modalityCMap) +
-  geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  theme_paper() +
-  coord_fixed(ratio = 1)
-
-print(depthVRadMod)
-
-#ggsave('depthVsRadial_modalities_perm23-1.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-}
-
-```
-
-```{r}
-if(!ignore){
-depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('ms'))) +
-  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
-  scale_fill_manual(values = modalityCMap[4]) +
-  theme_paper() +
-  #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1)) +
-  facet_wrap(~perm23) +
-  coord_fixed(ratio = 1)
-
-print(depthVRadMod)
-
-#ggsave('depthVsRadial_ms_perm23_noContour.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-
-depthVRadMod = ggplot(filter(synapses, prepost == 1, modality %in% c('iv'))) +
-  stat_density_2d(aes(y = radial, x = depth, fill = modality, alpha = stat(nlevel)), bins = 40, contour_var = 'ndensity', geom = 'polygon')+
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) +
-  scale_fill_manual(values = modalityCMap[2]) +
-  theme_paper() +
-  #geom_contour(data = meanNormDist, aes(x = x, y = y, z = z, color = stat(level))) +
-  #scale_colour_gradientn(colours = rev(brewer.pal(9,"Greys")), breaks=c(0,1), limits=c(0, 1))  +
-  facet_wrap(~perm23) +
-  coord_fixed(ratio = 1)
-
-print(depthVRadMod)
-
-#ggsave('depthVsRadial_iv_perm23_noContour.pdf', plot = depthVRadMod, device='pdf', path = "../neuprintR_analysis_plots/", scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-}
-```
-
-
-
-
-
-## Tools for analysing neuron morphology
-
-Find the lengths of the arbors (defined as the length from each endpoint in the EB to the rootpoint) of a neuron.
-```{r}
-fullArborLengths <- function(nron){
-  ep = nron$d$PointNo[endpoints(nron)]
-  rp = nron$d$PointNo[rootpoints(nron)]
-  arbDist = distances(as.ngraph(nron, weights = T), v = as.character(rp), to = as.character(ep), mode = 'out')
-  arbDist = arbDist/125
-  return(arbDist)
-}
-```
-
-Applying this to the EPGs in the EB:
-```{r warning = F}
-arbLen = lapply(nronMainROI, fullArborLengths)
-numArbors = sapply(arbLen, length)
-arbLen = data.frame(bodyid = rep(names(arbLen), times = numArbors), len = unlist(arbLen))
-
-ggplot(arbLen) +
-  geom_histogram(aes(x = len, y = stat(ncount)), fill = 'white', alpha = 0.4) +
-  theme_dark() +
-  facet_wrap(~ factor(bodyid)) +
-  labs(x = 'arbor lengths')
-```
-
-Find the lengths of the arbor segments (defined as the length between consecutive branchpoints/branchpoint to endpoint/rootpoint to branchpoint) of a neuron.
-```{r}
-arborSegmentLengths <- function(nron){
-  nronSG = segmentgraph(nron, weights = T)
-  arborSegLen = E(nronSG)$weight
-  arborSegLen = arborSegLen/125
-  return(arborSegLen)
-}
-```
-  
-Applying this to the EPGs in the EB:
-```{r warning = F}
-arbSegLen = lapply(nronMainROI, arborSegmentLengths)
-numArbSegs = sapply(arbSegLen, length)
-arbSegLen = data.frame(bodyid = rep(names(arbSegLen), times = numArbSegs), len = unlist(arbSegLen))
-
-ggplot(arbSegLen) +
-  geom_histogram(aes(x = len, y = stat(ncount)), fill = 'white', alpha = 0.4) +
-  theme_dark() +
-  facet_wrap(~ factor(bodyid)) +
-  labs(x = 'arbor segment lengths')
-```
-
-
-We can also grab the individual arbors of a neuron for further analysis.
-```{r}
-arbors <- function(nron){
-  nronSG = segmentgraph(nron, weights = T)
-  V(nronSG)$name = V(nronSG)$label
-  
-  ep = nron$d$PointNo[endpoints(nron)]
-  rp = nron$d$PointNo[rootpoints(nron)]
-  
-  arb = shortest_paths(nronSG, from = as.character(rp), to = as.character(ep), mode = 'out', output = 'both')
-  arbPathWeights = sapply(arb$epath, function(a) c(0, a$weight/125))
-  arbPathVertices = sapply(arb$vpath, function(a) a$name)
-  
-  arborPaths = data.frame(nodes = unlist(arbPathVertices), dist = unlist(arbPathWeights))
-  
-  numArbNodes = sapply(arbPathVertices, length)
-  arborPaths$arborID = rep(seq(1:length(arbPathVertices)), times = numArbNodes)
-  arborPaths$nodeOrder = unlist(sapply(numArbNodes, function(n) 1:n))
-  
-  return(arborPaths)
-}
-```
-
-Applying this to the EPGs in the EB, we can pull out how many arbor segments make up a full arbor for each neuron:
-```{r warning = F}
-arb = lapply(nronMainROI, arbors)
-arb = bind_rows(arb, .id = 'bodyid')
-
-plotDF = arb %>%
-          group_by(bodyid, arborID) %>%
-          arrange(desc(nodeOrder)) %>%
-          slice(1) %>%
-          ungroup()
-
-ggplot(plotDF) +
-  geom_histogram(aes(x = nodeOrder, y = stat(ncount)), fill = 'white', alpha = 0.4) +
-  theme_dark() +
-  facet_wrap(~ factor(bodyid)) + 
-  labs(x = 'number of segments per full arbor')
-```
-
-We can also look at the Strahler order of the neuron graphs. This function add the Strahler number of each point to the neuron data frame.
-```{r}
-addStrahler <- function(nron){
-  so = strahler_order(nron)
-  nron$d$strahler = so$points
-  return(nron)
-}
-```
-
-
-This function calculates the arbor length of the arbors of different Strahler orders.
-```{r}
-strahArborLen <- function(nron){
-  
-  if(!("strahler" %in% colnames(nron$d))){
-    nron = addStrahler(nron)
-  }
-
-  nronSG = segmentgraph(nron, weights = T)
-  V(nronSG)$name = V(nronSG)$label
-  
-  ep = nron$d$PointNo[endpoints(nron)]
-  rp = nron$d$PointNo[rootpoints(nron)]
-  bp = nron$d$PointNo[branchpoints(nron)]
-  
-  curr = ep
-  if(any(curr == rp)){
-    curr = curr[-which(curr == rp)]
-  }
-  strahArborLen = data.frame()
-  keepGoing = T
-  while(keepGoing){
-    
-    neigh = adjacent_vertices(nronSG, v = as.character(curr), mode = 'in')
-    neigh = sapply(neigh, function(n) n$name)
-    edgeIDs = get.edge.ids(nronSG, as.character(c(rbind(neigh, curr))))
-    temp = data.frame(strahler = nron$d$strahler[nron$d$PointNo %in% curr], len = E(nronSG)$weight[edgeIDs])
-    strahArborLen = rbind(strahArborLen, temp)
-    
-    curr = unique(neigh)
-    if(any(curr == rp)){
-      curr = curr[-which(curr == rp)]
-    }
-    
-    if(length(curr) == 0){
-      keepGoing = F
-    }
-  }
-  
-  strahArborLen$len = strahArborLen$len/125
-  
-  return(strahArborLen)
-}
-
-```
-
-Applying this to the EPGs in the EB:
-```{r}
-nronMainROI = nlapply(nronMainROI, addStrahler)
-
-strahArbLen = lapply(nronMainROI, strahArborLen)
-strahArbLen = bind_rows(strahArbLen, .id = 'bodyid')
-
-#Calculate the total arbor length for each Strahler number.
-
-strahSumm = strahArbLen %>% group_by(bodyid, strahler) %>%
-              summarise(totalArbLen = sum(len))
-
-# make data frame with just synapse info
-nronSyn = mapply(function(nron, synDF){
-  filter(nron$d, PointNo %in% synDF$treenode_id)
-}, n = nronMainROI, synDF = nronMainROI_synapses, SIMPLIFY = F)
-nronSyn = bind_rows(nronSyn, .id = 'bodyid')
-
-strahSumm = merge(strahSumm, nronSyn %>% group_by(bodyid, strahler) %>% summarise(numSyn = n()), all.x = T)
-
-strahSumm[is.na(strahSumm)] = 0
-
-strahSumm = strahSumm %>% mutate(numSynPerLen = numSyn/totalArbLen)
-
-```
-
-What does the total arbor length of each Strahler order tend to be?
-```{r}
-ggplot(strahSumm) +
-  geom_boxplot(aes(x = as.factor(strahler), y = totalArbLen)) +
-  labs(x = "Strahler order", y = "sum of lengths of arbors (total arbor length)")
-```
-
-How many synapses per total arbor length does there tend to be for each Strahler order?
-```{r}
-ggplot(strahSumm) +
-  geom_boxplot(aes(x = as.factor(strahler), y = numSynPerLen)) +
-  labs(x = "Strahler order", y = "ratio of number of synapses to total arbor length")
-```
-
-
-
