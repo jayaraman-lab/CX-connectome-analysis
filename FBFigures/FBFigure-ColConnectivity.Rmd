@@ -22,6 +22,53 @@ source("..\\R\\paperTheme.R")
 source("..\\R\\visualizeConnectivityTables.R")
 ```
 
+Define a function to filter a type to type connection table by the percentage of pre and post neurons that are connected
+```{r}
+perConnectFilter <- function(T2T_FBCol, prePercent, postPercent){
+  T2T_FBCol_filtered <- T2T_FBCol
+
+  preTypes <-  T2T_FBCol$type.from %>% unique() 
+  for (pre in 1:length(preTypes)){
+    
+    preBIDs <- neuprint_get_meta(getTypesTable(preTypes[pre]))$bodyid
+    preCols <- neuprint_get_meta(getTypesTable(preTypes[pre]))$name %>% 
+      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+      unlist() %>% unique()
+    
+    conTab_Now <- getConnectionTable(preBIDs,"POST","FB")
+    
+    postTypes <- conTab_Now$type.to %>% unique()
+    postTypes <- postTypes[which(postTypes %in% (T2T_FBCol$type.to %>% unique()))]
+    
+    for (post in 1:length(postTypes)){
+      
+      postBIDs <- neuprint_get_meta(getTypesTable(postTypes[post]))$bodyid
+      postCols <- neuprint_get_meta(getTypesTable(postTypes[post]))$name %>% 
+        lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+        unlist() %>% unique()
+      
+      conTab_Specific <- conTab_Now %>% filter(type.to == postTypes[post])
+      conTab_Specific$id.from <- FBRename(conTab_Specific$name.from, conTab_Specific$from)
+      conTab_Specific$id.to <- FBRename(conTab_Specific$name.to, conTab_Specific$to)
+  
+      fromCols <- conTab_Specific$name.from %>% 
+        lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+        unlist() %>% unique()
+      
+      toCols <- conTab_Specific$name.to %>% 
+        lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
+        unlist() %>% unique()
+      
+      if ((length(fromCols) < (prePercent * length(preCols))) ||
+          (length(toCols) < (postPercent * length(postCols)))) {
+          T2T_FBCol_filtered <- T2T_FBCol_filtered %>% filter(type.from != preTypes[pre] | type.to != postTypes[post])
+        }
+    }
+  }
+  return(T2T_FBCol_filtered)
+}
+```
+
 Specify plotting parameters
 ```{r}
 stCols <- supertype2Palette()
@@ -54,6 +101,52 @@ FBTypesAB <- FBTypes[which(grepl("SAF",FBTypes) |
                            )]
 ```
 
+Get the type to type table
+```{r}
+N2N_FBCol <- getConnectionTable(getTypesTable(FBTypesCol)$bodyid, "POST", slctROI = "FB") %>% filter(type.to %in% FBTypesCol)
+T2T_FBCol <- getTypeToTypeTable(N2N_FBCol)
+```
+
+
+Get the number of type to type connections as a function of percentages
+```{r}
+perVals <- seq(from = 0, to = 1, by = 0.05)
+
+allT2T_FBCol <-  data.frame(matrix(ncol = (ncol(T2T_FBCol)+2), nrow = 0))
+colnames(allT2T_FBCol) <- c(colnames(T2T_FBCol), 'pVal','perVal')
+for (per in 1:length(perVals)){
+  T2T_FBCol_filtered <- perConnectFilter(T2T_FBCol, perVals[per], perVals[per])
+  T2T_FBCol_filtered$perVal <- perVals[per]
+
+  allT2T_FBCol <- rbind(allT2T_FBCol, T2T_FBCol_filtered)
+}
+
+```
+
+
+Plot the number of types included by threshold percentage
+```{r, fig.width = 2, fig.height = 2}
+numTps <-  data.frame(matrix(ncol = (2), nrow = 0))
+colnames(numTps) <- c('numTypes','perVal')
+
+for (per in 1:length(perVals)){
+  datNow <- data.frame('numTypes' = nrow(allT2T_FBCol %>% filter(perVal == perVals[per])),
+                       'perVal' = perVals[per])
+  numTps <- rbind(numTps, datNow)
+}
+
+perThreshPlt <- ggplot(numTps) + geom_point(aes(x = perVal, y = numTypes), size = 1) +
+  geom_line(aes(x = perVal, y = numTypes)) +
+  theme_paper() + 
+  coord_cartesian(xlim = c(0,1), ylim = c(0,650), expand = FALSE, clip = 'off') + 
+  geom_vline(xintercept = 2/3, linetype = 'dashed') + 
+  xlab('percentage of neurons in the connection') +
+  ylab('number of types')
+ggsave('C:\\Users\\dantu\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\FirstDraftFigs\\FB_Main\\NumTypesInColToColCxnsByPer.pdf', perThreshPlt,
+       width = 2, height = 2)
+```
+
+
 Create a neuronBag with the FB columnar types and lateralize it
 ```{r}
 FBcol_nbag <- neuronBag(getTypesTable(FBTypesCol),slctROI="FB",omitInputs=TRUE)
@@ -72,46 +165,7 @@ Check that a chosen percentage of pre and postsynaptic columnar neurons are feat
 prePercent <- 2/3
 postPercent <- 2/3
 
-T2T_FBCol_filtered <- T2T_FBCol
-
-preTypes <-  T2T_FBCol$type.from %>% unique() 
-for (pre in 1:length(preTypes)){
-  
-  preBIDs <- neuprint_get_meta(getTypesTable(preTypes[pre]))$bodyid
-  preCols <- neuprint_get_meta(getTypesTable(preTypes[pre]))$name %>% 
-    lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
-    unlist() %>% unique()
-  
-  conTab_Now <- getConnectionTable(preBIDs,"POST","FB")
-  
-  postTypes <- conTab_Now$type.to %>% unique()
-  postTypes <- postTypes[which(postTypes %in% (T2T_FBCol$type.to %>% unique()))]
-  
-  for (post in 1:length(postTypes)){
-    
-    postBIDs <- neuprint_get_meta(getTypesTable(postTypes[post]))$bodyid
-    postCols <- neuprint_get_meta(getTypesTable(postTypes[post]))$name %>% 
-      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
-      unlist() %>% unique()
-    
-    conTab_Specific <- conTab_Now %>% filter(type.to == postTypes[post])
-    conTab_Specific$id.from <- FBRename(conTab_Specific$name.from, conTab_Specific$from)
-    conTab_Specific$id.to <- FBRename(conTab_Specific$name.to, conTab_Specific$to)
-
-    fromCols <- conTab_Specific$name.from %>% 
-      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
-      unlist() %>% unique()
-    
-    toCols <- conTab_Specific$name.to %>% 
-      lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
-      unlist() %>% unique()
-    
-    if ((length(fromCols) < (prePercent * length(preCols))) ||
-        (length(toCols) < (postPercent * length(postCols)))) {
-        T2T_FBCol_filtered <- T2T_FBCol_filtered %>% filter(type.from != preTypes[pre] | type.to != postTypes[post])
-      }
-  }
-}
+T2T_FBCol_filtered <- perConnectFilter(T2T_FBCol, prePercent, postPercent)
 ```
 
 Sort the type to type table manually
