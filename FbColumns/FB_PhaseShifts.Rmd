@@ -1,0 +1,175 @@
+---
+title: "Notebook for plotting PB-FB phase shifts (discrete + continuous mappings, FB connectivity)"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+library(paletteer)
+library(quantmod)
+library(prismatic)
+library(svglite)
+options(nat.plotengine = 'rgl')
+```
+
+### Make directories where figures will be saved to
+```{r}
+
+# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_ColumnLocations/"
+
+# Directory to save kmeans cluster results to
+PlotDirKmean=paste(PlotDir,"Delta_Kmeans/",sep='')
+
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+if (!dir.exists(PlotDirKmean)){dir.create(PlotDirKmean)}
+
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+#source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+source("FB_SynapseDistribution_Utils.r")
+
+```
+
+
+# Load pre-processed synapse location data and remove variables that won't be used
+```{r}
+
+load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
+          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
+
+# Assign Side, PB glom, and FB col info
+FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
+
+```
+
+
+# Plot discrete PB glomeruli to FB column mappings for all PB-FB-XX types
+```{r}
+
+```
+
+
+# Plot the median location of each neuron's synapse cloud as a way to show where column locations are
+# and how evenly spaced they are.
+```{r}
+
+# Get median column locations, by layer, for all FB columnar neurons (the ones the only have single FB arbors)
+ColumnPositions_All= FBC_SynsAll %>% group_by(bodyid, name, Layer, type) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), numsyns=n())
+ColumnPositions_All$LR="Neither"
+ColumnPositions_All$prepost="Neither"
+
+# Get median column locations, across all layers , for all FB columnar neurons (the ones the only have single FB arbors)
+ColumnPositions_All_FB= FBC_SynsAll %>% group_by(bodyid, name, type) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), numsyns=n())
+ColumnPositions_All_FB$LR="Neither"
+ColumnPositions_All_FB$prepost="Neither"
+ColumnPositions_All_FB$Layer="FB"
+
+# Combine layer and all-FB locations
+ColumnPositions_All_FB=ColumnPositions_All_FB[colnames(ColumnPositions_All)]
+ColumnPositions_All=rbind(as.data.frame(ColumnPositions_All),as.data.frame(ColumnPositions_All_FB))
+remove(ColumnPositions_All_FB)
+
+# Assign PB-FB-XX shapes based on L/R PB innervation
+Delta_ColumnPositions=Assign_FBcol_PBglom(Delta_ColumnPositions, "name", "Side", "PBglom", "FBcol", "bodyid")
+ColumnPositions_All=Assign_FBcol_PBglom(ColumnPositions_All, "name", "Side", "PBglom", "FBcol", "bodyid")
+ColumnPositions_All$prepost[startsWith(ColumnPositions_All$type,"PF")]=ColumnPositions_All$Side[startsWith(ColumnPositions_All$type,"PF")]
+ColumnPositions_All=ColumnPositions_All[colnames(Delta_ColumnPositions)]
+
+# Get rid of neurons with two arbors, whose locations were computed above
+ColumnPositions_All=subset(ColumnPositions_All,!bodyid %in% unique(Delta_ColumnPositions$bodyid))
+
+# Add the neurons with two arbors back in
+ColumnPositions_All=rbind(as.data.frame(ColumnPositions_All),as.data.frame(Delta_ColumnPositions))
+
+# Make bodyid a factor
+ColumnPositions_All$bodyid=as.factor(ColumnPositions_All$bodyid)
+
+# Loop over columnar cell types and make plots
+for (ttt in 1:length(Columnar_Types)){
+  
+  # Get synapses for just this neuron type
+  TempTypeSynsAll=subset(ColumnPositions_All, type == Columnar_Types[ttt])
+  
+  # Find max columns for this type
+  TempColNum=length(unique(TempTypeSynsAll$FBcol))
+    
+  # Plot median neuron location for all FB layers
+  CurrentLayer="FB"
+  PlotData=subset(TempTypeSynsAll, Layer==CurrentLayer)
+  eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+  PlotData=GetColorFactor(PlotData, TempColNum)
+  Colors=GetColorPalette(PlotData, TempColNum)
+  PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
+  
+  
+  # Loop over layers
+  TempLayers=unique(TempTypeSynsAll$Layer)
+  for (lll in 1:length(TempLayers)){
+    
+    CurrentLayer=TempLayers[lll]
+    PlotData=subset(TempTypeSynsAll, Layer == CurrentLayer)
+    eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+    PlotData=GetColorFactor(PlotData, TempColNum)
+    Colors=GetColorPalette(PlotData, TempColNum)
+    PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
+    
+  }
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
