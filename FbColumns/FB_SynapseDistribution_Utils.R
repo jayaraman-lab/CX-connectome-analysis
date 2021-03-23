@@ -1,11 +1,12 @@
 ##### A collection of functions for loading, processing, and plotting FB synapse distributions ##################
 
 
+
+###############################################################################################################################
+################# Functions for loading raw synapse locations #################################################################
+
 Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
   #' Function for loading FB synapses by layer, with associated partner type and other meta information.
-  #' @param BodyIDs A list of bodyIDs
-  #' @param ROI A string for an ROI (e.g. "FBl1")
-  #' @param Layer A string for an FB layer (e.g. ""FBl1")
   
   SynLocs =  neuprint_get_synapses(BodyIDs, roi = ROI)
   
@@ -21,53 +22,143 @@ Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
 
 
 
-
-
-
 ###############################################################################################################################
-################# Function for plotting synapse distribution for all FB layers ################################################
+################# Functions getting mean arbor locations for hDelta neurons and C0 vDelta neurons #############################
 
 
+Kmeans_Synapses <- function(TempSynapseData){
+  
+  # Perform K-means clusters (n=2 clusters to get pre/post arbors)
+  TempSynLocs=TempSynapseData[c("X","Y")]
+  k2 <- kmeans(TempSynLocs, centers = 2)
+  TempClusters=k2$cluster
+  Centers=k2$centers
+  
+  # assign clusters to left or right half of FB
+  Cluster_LR=data.frame(Cluster=c(1,2),LR=NA)
+  if (Centers[1,1] > Centers[2,1]){
+    Cluster_LR$LR=c("L","R")
+  } else {
+    Cluster_LR$LR=c("R","L")
+  }
+  TempSynapseData$LR[TempClusters==1]=Cluster_LR$LR[1]
+  TempSynapseData$LR[TempClusters==2]=Cluster_LR$LR[2]
+  
+  return(TempSynapseData)
+}
 
-PlotSyns_byLayer <- function(Plot_Syns, Type, PlotName, Grouping, DIR, TOPLOT_TF, TOPLOTLEGEND_TF){
+
+ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
   
-  P1 = Plot_Layer(Plot_Syns, "L1", Outline_L1_XZ, paste("L1 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P2 = Plot_Layer(Plot_Syns, "L2", Outline_L2_XZ, paste("L2 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P3 = Plot_Layer(Plot_Syns, "L3", Outline_L3_XZ, paste("L3 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P4 = Plot_Layer(Plot_Syns, "L4", Outline_L4_XZ, paste("L4 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P5 = Plot_Layer(Plot_Syns, "L5", Outline_L5_XZ, paste("L5 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P6 = Plot_Layer(Plot_Syns, "L6", Outline_L6_XZ, paste("L6 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P7 = Plot_Layer(Plot_Syns, "L7", Outline_L7_XZ, paste("L7 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P8 = Plot_Layer(Plot_Syns, "L8", Outline_L8_XZ, paste("L8 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
-  P9 = Plot_Layer(Plot_Syns, "L9", Outline_L9_XZ, paste("L9 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XZ")
+  # Calculate median position of L/R arbors and assign as input or output arbor (or neithers, in case of vDelta)
+  TempColumnPositions= TempSynapseData %>% group_by(LR) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), prepost=mean(prepost), numsyns=n())
+  TempColumnPositions$bodyid=TempSynapseData$bodyid[1]
+  TempColumnPositions$type=TempSynapseData$type[1]
+  TempColumnPositions$name=TempSynapseData$name[1]
+  TempColumnPositions$Layer=Kmeans_layer
+  if (startsWith(TempSynapseData$type[1],"vDelta")){
+    TempColumnPositions$prepost="Neither"
+  } else if (startsWith(TempSynapseData$type[1],"hDelta")) {
+    InputInd=which(TempColumnPositions$prepost == min(TempColumnPositions$prepost))
+    if (length(InputInd)==1){
+      TempColumnPositions$prepost[InputInd] = "Input"
+      if (InputInd == 1){
+        TempColumnPositions$prepost[2] = "Output"
+      } else {
+        TempColumnPositions$prepost[1] = "Output"
+      }
+    } else { # if length of prepost min is 2, then both arbors are inputs
+      TempColumnPositions$prepost="Input"}
+  }
   
-  P12<-ggarrange(plotlist=list(P9,P8,P7,P6,P5,P4,P3,P2,P1), ncol =3, nrow = 3)
-  ggsave(paste(DIR, PlotName,"_XZ.pdf",sep=""),
-         plot = P12, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE)
-  ggsave(paste(DIR, PlotName,"_XZ.png",sep=""),
-         plot = P12, device='png', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE)
+  return(TempColumnPositions)
   
-  P1b = Plot_Layer(Plot_Syns, "L1", Outline_L1_XY, paste("L1 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P2b = Plot_Layer(Plot_Syns, "L2", Outline_L2_XY, paste("L2 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P3b = Plot_Layer(Plot_Syns, "L3", Outline_L3_XY, paste("L3 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P4b = Plot_Layer(Plot_Syns, "L4", Outline_L4_XY, paste("L4 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P5b = Plot_Layer(Plot_Syns, "L5", Outline_L5_XY, paste("L5 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P6b = Plot_Layer(Plot_Syns, "L6", Outline_L6_XY, paste("L6 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P7b = Plot_Layer(Plot_Syns, "L7", Outline_L7_XY, paste("L7 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P8b = Plot_Layer(Plot_Syns, "L8", Outline_L8_XY, paste("L8 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
-  P9b = Plot_Layer(Plot_Syns, "L9", Outline_L9_XY, paste("L9 ", Type,sep=""), Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, "XY")
+}   
+
+
+Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLayer, PlotDirTemp){
   
-  P12b<-ggarrange(plotlist=list(P9b,P8b,P7b,P6b,P5b,P4b,P3b,P2b,P1b), ncol =3, nrow = 3)
-  ggsave(paste(DIR, PlotName,"_XY.pdf",sep=""),
-         plot = P12b, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE,  useDingbats=FALSE)
-  ggsave(paste(DIR, PlotName,"_XY.pdf",sep=""),
-         plot = P12b, device='pdf', scale = 1, width = 10, height = 12, units ="in", dpi = 500, limitsize = TRUE,  useDingbats=FALSE)
+  P1=ggplot() + geom_point(data=subset(TempSynapseData,LR=="L"), aes(x=X, y=Z), colour="midnightblue" ,  size=1, alpha = 0.1) + 
+    geom_point(data=subset(TempSynapseData,LR=="R"), aes(x=X, y=Z), colour="black" ,  size=1, alpha = 0.05) +
+    geom_point(data=(TempColumnPositions), aes(x=X, y=Z, color=prepost),  size=5, alpha = 1) +
+    coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1) + 
+    ggtitle(paste( TempSynapseData$type[1], " ", as.character(TempSynapseData$bodyid[1]), " ", CurrentLayer, sep="" )) +  theme_bw() +
+    guides(colour = guide_legend(override.aes = list(alpha = 1)))
+  
+  
+  ggsave(paste(PlotDirTemp, TempSynapseData$type[1], " ", as.character(TempSynapseData$bodyid[1]), " ", CurrentLayer, ".png", sep=""),
+         plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 150, limitsize = TRUE)
+  
+}
+
+
+GetColorPalette <- function(TempSynapseData, TempColNum){
+  
+  # get color palette
+  if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B"))
+  } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD4F39", "#7D26CD", "#63B8FF", "#FF1493")
+  } else if (TempColNum == 6 & startsWith(TempSynapseData$type[1],'hDelta')){
+    Colors=c("#CD4F39","#7D26CD","#63B8FF","#CD4F39","#7D26CD","#63B8FF")
+  } else if (startsWith(TempSynapseData$type[1],'vDelta')){
+    Colors=color(c("Gray50","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
+  } else if (startsWith(TempSynapseData$type[1],'PF') | startsWith(TempSynapseData$type[1],'FS') | 
+             startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
+    Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
+  }
+  
+  return(Colors)
+}
+
+
+GetColorFactor <- function(TempSynapseData, TempColNum){
+  
+  # get color palette
+  if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12") )
+  } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8") )
+  } else if (TempColNum == 6 & startsWith(TempSynapseData$type[1],'hDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6") )
+  } else if (startsWith(TempSynapseData$type[1],'vDelta')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  } else if (startsWith(TempSynapseData$type[1],'PF') | startsWith(TempSynapseData$type[1],'FS') | 
+             startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
+    TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
+  }
+  
+  return(TempSynapseData)
+}
+
+
+PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG){
+  
+  # Conversion vector from pixels to microns
+  Convert=8/1000 # 8 nm/pixel, divided by 1000 nm per um.
+  
+  P3=ggplot() + geom_point(data=TempSynapseData, aes(x=X*Convert, y=-Z*Convert, colour=FBcol, shape=prepost),  size=4, alpha = 0.75) + 
+    coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
+    ggtitle(paste(TempSynapseData$type[1], " ", CurrentLayer , "   Neurons = ", length(unique(TempSynapseData$bodyid)) ,
+                  " of ", as.character(length(unique(TempTypeSynsAll$bodyid))) ,
+                  "   Total Syns = ", sum(TempSynapseData$numsyns),  sep=""))  +
+    scale_color_manual(values=Colors, drop=FALSE) + xlim(-9000*Convert,9000*Convert) + ylim(-6000*Convert, 6000*Convert) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  
+  ggsave(paste(FigDirPDF, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".pdf", sep=""),
+         plot = P3, device='pdf', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  
+  ggsave(paste(FigDirPNG, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".png", sep=""),
+         plot = P3, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 200, limitsize = TRUE)
+  
+  
 }
 
 
 
 ###############################################################################################################################
-################# Function for plotting synapse distribution of each individual FB layer ######################################
+################# Functions for plotting average FB columnar neuron locations #################################################
 
 
 
@@ -88,62 +179,15 @@ Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, 
   
   # Make plot
   P1 <- Plot_Synapse_Distribution(PlotData, View, Outline, ColorVar, col_vector, DIR, PlotName, Layer_To_Plot, TOPLOT_TF, TOPLOTLEGEND_TF)
-
-  return(P1)
-}
-
-
-
-###############################################################################################################################
-################# Generic plotting function for synapse distributions  ################################################
-
-
-
-Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=2){
-  
-  # Get view
-  if (VIEW=="XY"){
-    PlotData = PlotData[!colnames(PlotData)=="Z"]
-    colnames(PlotData)[colnames(PlotData)=="Y"]="Z"
-    PlotData$Z=-PlotData$Z
-  }
-  
-  # Plot just the data for now
-  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar, shape=Side) ,  size=Size, alpha = 1, stroke = 0) + 
-    geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
-
-  # Save with scaled visible if TOPLOTLEGEND_TF us TRUE
-  if (TOPLOTLEGEND_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2 , "_Legend.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
-  }  
-  
-  # Format the rest of the plot, get rid of axes
-  P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-      scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
-      panel.background = element_rect(fill = "transparent", color = NA), # bg of the panel
-      plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
-      panel.grid.major = element_blank(), # get rid of major grid
-      panel.grid.minor = element_blank(), # get rid of minor grid
-      legend.background = element_rect(fill = "transparent", color = NA), # get rid of legend bg
-      legend.box.background = element_rect(fill = "transparent", color = NA) # get rid of legend panel bg
-    )
-  
-  # Save plot
-  if (TOPLOT_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2, VIEW, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
-  } 
   
   return(P1)
 }
-
-
-
-###############################################################################################################################
-################# Function for getting color map of FB columns or PB glomeruli ################################################
 
 
 
 GetColorMap <- function(Grouping){
+  #' Function for getting color map of FB columns or PB glomeruli
+  #' 
   if (Grouping == "FBcol_Old"){
     col_vector=brewer.pal(8, "Paired")
     col_vector[9]=col_vector[1]
@@ -164,151 +208,48 @@ GetColorMap <- function(Grouping){
 
 
 
-###############################################################################################################################
-################# Function for plotting synapse distribution for each FB layer ################################################
 
-
-
-PlotSyns_byColumn <- function(Plot_Syns, Title, PlotName, DIR, TOPLOT_TF, TOPLOTLEGEND_TF){
+Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=2){
   
-  # Get color vector
-  col_vector=GetColorMap("FBcol")
-  
-  ### XY View
-  P1 <- Plot_Synapse_Distribution(Plot_Syns, "XY", Outline_FB_XY, Plot_Syns$FBcol, col_vector, DIR, PlotName, "XY", TOPLOT_TF, TOPLOTLEGEND_TF)
-  
-  ### XZ View
-  P1 <- Plot_Synapse_Distribution(Plot_Syns, "XZ", Outline_FB_XZ, Plot_Syns$FBcol, col_vector, DIR, PlotName, "XZ", TOPLOT_TF, TOPLOTLEGEND_TF)
-  
-}
-
-
-###############################################################################################################################
-####### Functions for plotting column positions as defined by Fx neuron synapses locations ####################################
-
-
-PlotColumn_Types<- function(Plot_Syns, PlotName, DIR, PLOT, ID){
-  Types=unique(Plot_Syns$type)
-  for (nnn in 1:length(Types)){
-    Temp_Type=subset(Plot_Syns, type == as.character(Types[nnn]))
-    T_ID=ID[Plot_Syns$type == as.character(Types[nnn]) ]
-    PlotColumn_Aves(Temp_Type, paste(PlotName, "_", Types[nnn],sep="") , DIR, PLOT, T_ID)
+  # Get view
+  if (VIEW=="XY"){
+    PlotData = PlotData[!colnames(PlotData)=="Z"]
+    colnames(PlotData)[colnames(PlotData)=="Y"]="Z"
+    PlotData$Z=-PlotData$Z
   }
-}
-
-
-
-PlotColumn_Aves <- function(Plot_Syns, PlotName, DIR, PLOT, T_ID){
   
+  # Plot just the data for now
+  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar, shape=Side) ,  size=Size, alpha = 1, stroke = 0) + 
+    geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
   
-  # get layers
-  Layers_All=sort(unique(as.character(Plot_Syns$Layer)))
+  # Save with scaled visible if TOPLOTLEGEND_TF us TRUE
+  if (TOPLOTLEGEND_TF==TRUE){
+    ggsave(paste(DIR, PlotName,"_",PlotName2 , "_Legend.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+  }  
   
-  # Make plots
-  l1=Plot_Crosses(Plot_Syns, 1, DIR, PlotName, PLOT, T_ID)
-  l2=Plot_Crosses(Plot_Syns, 2, DIR, PlotName, PLOT, T_ID)
-  l3=Plot_Crosses(Plot_Syns, 3, DIR, PlotName, PLOT, T_ID)
-  l4=Plot_Crosses(Plot_Syns, 4, DIR, PlotName, PLOT, T_ID)
-  l5=Plot_Crosses(Plot_Syns, 5, DIR, PlotName, PLOT, T_ID)
-  l6=Plot_Crosses(Plot_Syns, 6, DIR, PlotName, PLOT, T_ID)
-  l7=Plot_Crosses(Plot_Syns, 7, DIR, PlotName, PLOT, T_ID)
-  l8=Plot_Crosses(Plot_Syns, 8, DIR, PlotName, PLOT, T_ID)
-  
-  
-  # Save plot
-  PP=ggarrange(l8,l7,l6, l5, l4, l3, l2, l1,  nrow = 3, ncol = 3)
-  ggsave(paste(DIR, PlotName, "_AllLayer" , ".png",sep=""), plot = PP, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent") 
-
-}
-
-
-Plot_Crosses <- function(Plot_Syns, LayerToPlot, DIR, PlotName, PLOT, ID){
-  
-  # Get color vector
-  col_vector=GetColorMap("FBcol")
-  
-  # Get mean positions for this layer
-  Temp_Dist=subset(Plot_Syns, Layer == paste("L",as.character(LayerToPlot),sep="")) 
-  colnames(Temp_Dist)[which(colnames(Temp_Dist) %in% c("X_Mean","Z_Mean"))] = c("X","Z")
-  Temp_ID=ID[Plot_Syns$Layer == paste("L",as.character(LayerToPlot),sep="")]
-  
-  # Get layer outline 
-  eval(parse( text= paste("Outline=Outline_L", as.character(LayerToPlot),"_XZ",sep="") ))
-  
-  # Get cross lines
-  Horizontal=data.frame(X=c(Temp_Dist[,"Cross_XL_X"], Temp_Dist[,"Cross_XR_X"]), Y=c(Temp_Dist[,"Cross_XL_Z"], Temp_Dist[,"Cross_XR_Z"]),
-                        ID=c(Temp_ID, Temp_ID), COLOR=c(as.character(Temp_Dist[,"FBcol"]), as.character(Temp_Dist[,"FBcol"])))
-  Vertical=data.frame(X=c(Temp_Dist[,"Cross_YU_X"], Temp_Dist[,"Cross_YD_X"]), Y=c(Temp_Dist[,"Cross_YU_Z"], Temp_Dist[,"Cross_YD_Z"]),
-                        ID=c(Temp_ID, Temp_ID), COLOR=c(as.character(Temp_Dist[,"FBcol"]), as.character(Temp_Dist[,"FBcol"])))
-  
-
-  # Plot data
-  p1 <- ggplot() + geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) +
-    geom_line(data=Horizontal, aes(x=X, y=Y, group=ID, color=COLOR)) + 
-    geom_line(data=Vertical, aes(x=X, y=Y, group=ID, color=COLOR)) +
-    geom_point(data=Temp_Dist, aes(x=X,y=Z, color= FBcol),size=2 ) +
-    theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
+  # Format the rest of the plot, get rid of axes
+  P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
     scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
       panel.background = element_rect(fill = "transparent", color = NA), # bg of the panel
       plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
       panel.grid.major = element_blank(), # get rid of major grid
       panel.grid.minor = element_blank(), # get rid of minor grid
       legend.background = element_rect(fill = "transparent", color = NA), # get rid of legend bg
-      legend.box.background = element_rect(fill = "transparent", color = NA), # get rid of legend panel bg
-      panel.border = element_rect( fill = NULL,
-                                   colour = NULL,
-                                   size = NULL,
-                                   linetype = NULL,
-                                   color = NULL,
-                                   inherit.blank = TRUE)
-    ) 
-                     
+      legend.box.background = element_rect(fill = "transparent", color = NA) # get rid of legend panel bg
+    )
   
-
+  # Save plot
+  if (TOPLOT_TF==TRUE){
+    ggsave(paste(DIR, PlotName,"_",PlotName2, VIEW, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
+  } 
   
-  if (PLOT==TRUE){
-  ggsave(paste(DIR, PlotName, "_L", as.character(LayerToPlot) , ".png",sep=""), plot = p1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
-  }
-  return(p1)
+  return(P1)
 }
 
 
 
 ###############################################################################################################################
-### Function for assigning FB columns to D0 neurons, here based on input column ###############################################
-
-D0_OutputPlot_Connectivity <- function(D0_FB_Outputs){
-  
-  OutputsPlot_Sub <- ggplot(D0_FB_Outputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
-                         midpoint =0.5*max(D0_FB_Outputs$weightRelative),
-                         limits=c(0,max(D0_FB_Outputs$weightRelative))) + 
-    geom_tile(aes(FBcol.to, InputName,  fill=weightRelative)) + 
-    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
-    theme(axis.text.y = element_blank()) + xlab("FB Columnar Type (POST)") + ylab("Delta0 Type (PRE)")
-  
-  return(OutputsPlot_Sub)
-}
-
-
-D0_InputPlot_Connectivity <- function(D0_FB_Inputs){
-  
-  InputsPlot_Sub <- ggplot(D0_FB_Inputs) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
-                         midpoint =0.5*max(D0_FB_Inputs$weightRelative),
-                         limits=c(0,max(D0_FB_Inputs$weightRelative))) + 
-    geom_tile(aes(OutputName, FBcol.from, fill=weightRelative)) + 
-    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both") +
-    theme(axis.text.x = element_blank()) + ylab("FB Columnar Type (PRE)") + xlab("Delta0 Type (POST)")
-  
-  return(InputsPlot_Sub)
-}
-
-
-
-
-###############################################################################################################################
-### Function for plotting mapping between PB glom and FB cols #################################################################
+################# Functions for plotting mapping between PB glom and FB cols ##################################################
 
 
 
