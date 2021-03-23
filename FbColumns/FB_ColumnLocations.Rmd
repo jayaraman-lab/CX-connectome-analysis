@@ -1,0 +1,82 @@
+---
+title: "Notebook for plotting average FB columnar neuron locations"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+library(paletteer)
+library(quantmod)
+library(prismatic)
+library(svglite)
+options(nat.plotengine = 'rgl')
+```
+
+### Make directories where figures will be saved to
+```{r}
+
+# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_ColumnWidth/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+source("FB_ColumnWidthCompute.r")
+
+```
+
+# Load pre-processed synapse location data and remove variables that won't be used
+```{r}
+
+load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
+          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
+
+# Assign Side, PB glom, and FB col info
+FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
+
+```
+
+
+
+
+
+
+
