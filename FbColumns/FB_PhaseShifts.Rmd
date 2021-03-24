@@ -188,8 +188,37 @@ for (ttt in 1:length(PbFb_Types)){
 
 
 # Plot a few connectivity matrices to show that PB-FB phase shifts are realized in connectivity
-```{r}
+```{r message=FALSE, warning=FALSE}
 
+# Pick a pre (PB-FB-XX type) and post (and downstream FB columnar type) 
+Pre="PFNp_a"
+Post="vDeltaL"
+
+# Get connectivity matrix
+ConnectMeta=subset(FB_Bodies_Meta, type %in% c(Pre,Post))
+PbFb_Bag=neuronBag(ConnectMeta, slctROI="FB")
+Connect_Mat=PbFb_Bag$outputs_raw
+Connect_Mat=subset(Connect_Mat, databaseType.from==Pre & databaseType.to==Post)
+
+# Get PB glomerulus and FB column info from neuron names and compute average relative weights
+Connect_Mat=Assign_FBcol_PBglom(Connect_Mat, "name.from", "Side.from", "PBglom.from", "FBcol.from")
+Connect_Mat=Assign_FBcol_PBglom(Connect_Mat, "name.to", "Side.to", "PBglom.to", "FBcol.to")
+Connect_Mat_Phase=Connect_Mat %>% group_by(PBglom.from, FBcol.to) %>% summarise(weightRelative=mean(weightRelative))
+
+# Set factor levels so PB glomruli and FB columns are arrange properly along each axis
+Connect_Mat_Phase$PBglom.from=factor(Connect_Mat_Phase$PBglom.from,
+    levels=c("L9","R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1","R9"))
+Connect_Mat_Phase$FBcol.to=factor(Connect_Mat_Phase$FBcol.to,
+    levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
+
+# Plot connectivity matrix
+P1 <- ggplot(Connect_Mat_Phase) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.03, limits=c(0,0.06)) +
+  geom_tile(aes(FBcol.to,PBglom.from,fill=weightRelative)) + scale_y_discrete(drop=FALSE) + theme_classic() +
+  ggtitle(paste(Pre, " to ", Post, sep="")) + theme(axis.text.x = element_text(angle = 90))
+P1
+ggsave(paste(PlotDir, Pre, "_to_", Post,"_PhaseShift", ".png", sep=""),
+       plot = P1, device='png', scale = 1, width = 4, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
 ```
