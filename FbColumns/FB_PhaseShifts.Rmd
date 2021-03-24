@@ -104,7 +104,7 @@ for (ttt in 1:length(PbFb_Types)){
   TempTypeSynsAll=subset(ColumnPositions_All, type == PbFb_Types[ttt] & !is.na(PBglom))
   
   
-  # Find layer with most synapses and assume it has axon/dendrites
+  # Find layer with most synapses 
   TempSynsPerLayer=subset(TempTypeSynsAll, !Layer=="FB") %>% group_by(Layer) %>% summarize(numsyns=mean(numsyns)) ###
   MaxLayer=as.character(TempSynsPerLayer$Layer[which(TempSynsPerLayer$numsyns == max(TempSynsPerLayer$numsyns))]) ###
   
@@ -176,7 +176,7 @@ for (ttt in 1:length(PbFb_Types)){
     scale_edge_width(range = c(0.75,0.9)) + xlim(-80,80) + ylim(-50,80)
     
   ggsave(paste(PlotDir, "ColumnLocs_", PbFb_Types[ttt], "_", as.character(CurrentLayer),"_",EdgeType, ".png", sep=""),
-         plot = P1, device='png', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+         plot = P1, device='png', scale = 1, width = 12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 }
 
