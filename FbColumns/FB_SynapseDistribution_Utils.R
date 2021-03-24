@@ -166,34 +166,18 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
 
 
 
-GetColorMap <- function(Grouping){
-  #' Function for getting color map of FB columns or PB glomeruli
-  #' 
-  if (Grouping == "FBcol_Old"){
-    col_vector=brewer.pal(8, "Paired")
-    col_vector[9]=col_vector[1]
-    col_vector=col_vector[c(1,4,7,2,5,8,3,6,9)]
-  } else if (Grouping == "FBcol"){
-    col_vector=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
-  } else if (Grouping == "FBcol_Function"){
-    col_vector=color(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688"))
-  } else if (Grouping == "PBglom") {
-    L_col_vector=brewer.pal(8, "Paired")
-    L_col_vector[9]=L_col_vector[1]
-    L_col_vector=L_col_vector[c(1,4,7,2,5,8,3,6,9)]
-    R_col_vector=rev(L_col_vector)
-    col_vector=c(L_col_vector, R_col_vector)
-  }
-  return(col_vector)
-}
 
-
-
-Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
+Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
+  
+  
+  # Get rid of neurons with "irreg" in name (e.g. some PFNp_d), which have weird wiring patterns
+  PFX_Distribution=subset(PFX_Distribution, !is.na(PBglom))
+  PFX_Distribution$PBglom=factor(PFX_Distribution$PBglom, levels=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+                                                                   "R1","R2","R3","R4","R5","R6","R7","R8","R9"))
   
   # Get number of neurons going from each glom to each column
-  PFX_GlomToColumn=PFX_Distribution %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n(), FBcol_Con= mean(FBcol_Con))
-  PFX_GlomToColumn=PFX_GlomToColumn %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n(), FBcol_Con= mean(FBcol_Con))
+  PFX_GlomToColumn=PFX_Distribution %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n()) 
+  PFX_GlomToColumn=PFX_GlomToColumn %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n()) 
   
   
   PB_FB_Types=unique(PFX_GlomToColumn$type)
@@ -222,13 +206,13 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
     
     
     # Get column vector
-    col_vector=GetColorMap("FBcol_Function")
-    PB_FB_Mapping$Color = order(PB_FB_Mapping$FBcol)
+    col_vector=color(rev(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688",
+                       "#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688")))
     
     
     P1<-ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) +
-      geom_edge_diagonal(aes(width=Num_Neurons,color=FBcol),alpha=0.5,strength=0.5) +
-      geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector)  +
+      geom_edge_diagonal(aes(width=Num_Neurons,color=PBglom),alpha=0.5,strength=0.5) +
+      geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector, drop=FALSE)  +
       geom_node_text(aes(label=name),angle=40,size=4, nudge_y = c(rep(0.06,18),rep(-0.06,9)) ) +
       theme_classic() + 
       theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
@@ -237,36 +221,10 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR, NAME){
             axis.title.x=element_blank(),axis.title.y=element_blank()) + 
       ggtitle(PB_FB_Mapping$type[1])
     
-    ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P1, device='png', scale = 1, width = 8, height = 4.5, units ="in", dpi = 500, limitsize = TRUE) 
-    ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], "_", NAME, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 4.5, units ="in", dpi = 500, limitsize = TRUE) 
-    
-    
-    PB_FB_Mapping$COL=as.numeric(sapply(PB_FB_Mapping$FBcol, substring, 2, 2))
-
-    
-    R_PB=subset(PB_FB_Mapping, startsWith(as.character(PBglom), "R"))
-    L_PB=subset(PB_FB_Mapping, startsWith(as.character(PBglom), "L"))
-    L_PB$PBglom=factor(L_PB$PBglom, levels = sort(unique(L_PB$PBglom), decreasing = TRUE))
-    
-    P2 <- ggplot() + geom_point(data=R_PB, aes(x=FBcol_Con, y=PBglom, size=1)) + 
-      geom_point(data=R_PB, aes(x=COL, y=PBglom, size=1), color="blue") +
-      scale_x_continuous(breaks=seq(from=1,to=9), limits=c(0,10)) 
-    
-    P3 <- ggplot() + geom_point(data=L_PB, aes(x=FBcol_Con, y=PBglom, size=1)) + 
-      geom_point(data=L_PB, aes(x=COL, y=PBglom, size=1), color="blue") +
-      scale_x_reverse(breaks=seq(from=1,to=9), limits=c(10,0)) 
-      
-    
-    P12=ggarrange(P2,P3,ncol=1,nrow=2)
-    P123=ggarrange(P1, P12, ncol=2, nrow=1)
-    
-    
-    ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".png",sep=""), plot = P123, device='png', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
-    ggsave(paste(DIR, "Mapping_", PB_FB_Mapping$type[1], "_", NAME, ".pdf",sep=""), plot = P123, device='pdf', scale = 1, width = 12, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
+    ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], ".png",sep=""), plot = P1, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
     
     
   }
-  return(PFX_GlomToColumn)
 }
 
 
