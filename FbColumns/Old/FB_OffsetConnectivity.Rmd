@@ -1,0 +1,530 @@
+---
+title: "Notebook plotting offsets in connectivity between PB-FB-XX neurons and other columnar neurons"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+### Command to clear environment is: rm(list = ls(all.names = TRUE))
+### Command to update is remotes::update_packages('neuprintr')
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+options(nat.plotengine = 'rgl')
+```
+
+### Configurable inputs: choose ROI and save/plot directories
+```{r}
+
+# Directory to save data to.
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/OffsetConnectivity/"
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+# Other plotting directories
+PFX_Dir_Connectivity=paste(PlotDir,"PFX_ConnectivityOffsets","/",sep="")
+PFX_Dir_Lat=paste(PlotDir,"PFX_Left_VS_Right","/",sep="")
+PFX_Dir_PI=paste(PlotDir,"PFX_PI","/",sep="")
+if (!dir.exists(PFX_Dir_Connectivity)){dir.create(PFX_Dir_Connectivity)}
+if (!dir.exists(PFX_Dir_Lat)){dir.create(PFX_Dir_Lat)}
+if (!dir.exists(PFX_Dir_PI)){dir.create(PFX_Dir_PI)}
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_SynapseDistribution_Utils.r")
+source("FB_LayerOutline_Utils.r")
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+#source("../InputOutputByTypeUtils.r", chdir = TRUE)
+#source("../neuprintQueryUtils.r", chdir = TRUE)
+source("../visualizeConnectivityTables.r", chdir = TRUE)
+source("../inputOutputRegionsVis.r")
+source("../GetNeuronsInRoi.r")
+
+
+```
+
+
+# Get all FB bodies and columnar types
+```{r}
+
+NamedBodies = Get_AllNeurons_InRoi("FB", FALSE)
+NamedBodies = ComputeRelativeSynapseCounts(NamedBodies)
+Columnar_Types=sort(unique( NamedBodies$bodytype[ startsWith(NamedBodies$bodytype, "PF" ) | startsWith(NamedBodies$bodytype, "FR" ) | 
+               startsWith(NamedBodies$bodytype, "FS" ) | startsWith(NamedBodies$bodytype, "FC" ) | startsWith(NamedBodies$bodytype, "Delta" )] ))
+
+FBBodyCount=NamedBodies %>% group_by(bodytype) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, bodytype %in% Columnar_Types)
+
+```
+
+
+# Load pre-processed synapse location data and remove variables that won't be used
+# NOTE: Need to rebuild this periodically in case types/names get changed
+```{r}
+
+load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
+rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
+          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
+
+# Assign Side, PB glom, and FB col info
+FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "bodyname", "Side", "PBglom", "FBcol", "bodyid")
+
+
+```
+
+
+
+# Plot connectivity of PB-FB-XX neurons to check for offsets predicted from PB glom to FB col mappings
+```{r}
+
+
+# Get input and output tables
+PFX_Types=unique(NamedBodies$bodytype[startsWith(NamedBodies$bodytype, "PF" )])
+PFX_Bag=create_neuronBag(PFX_Types, slctROI="FB")
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+PFX_FB_Inputs_All=PFX_Bag[["inputs_raw"]]
+
+
+# Subset data on columnar types
+PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
+PFX_FB_Inputs_All=subset(PFX_FB_Inputs_All, databaseType.from %in% Columnar_Types)
+
+
+# Assign PBglom, FBcol, and Side from neuron names
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+PFX_FB_Inputs_All=Assign_FBcol_PBglom(PFX_FB_Inputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+PFX_FB_Inputs_All=Assign_FBcol_PBglom(PFX_FB_Inputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+
+
+# Order input table
+PFX_FB_Inputs_All$PBglom.to=factor(PFX_FB_Inputs_All$PBglom.to, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PFX_FB_Inputs_All$FBcol.from=factor(PFX_FB_Inputs_All$FBcol.from, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0",
+                                                                         "DC14","DC13","DC12","DC11","DC10","DC09","DC08","DC07","DC06","DC05","DC04","DC03","DC02","DC01")))
+PFX_FB_Inputs_All$name.from=factor(PFX_FB_Inputs_All$name.from, levels = unique((PFX_FB_Inputs_All$name.from)[order(PFX_FB_Inputs_All$FBcol.from)]) )
+PFX_FB_Inputs_All$name.to=factor(PFX_FB_Inputs_All$name.to, levels = unique((PFX_FB_Inputs_All$name.to)[order(PFX_FB_Inputs_All$FBcol.to)]) )
+
+
+# Order ouput table
+PFX_FB_Outputs_All$PBglom.from=factor(PFX_FB_Outputs_All$PBglom.from, levels = rev(c("R9","L1","R8","L2","R7","L3","R6","L4","R5","L5","R4","L6","R3","L7","R2","L8","R1","L9")))
+PFX_FB_Outputs_All$FBcol.to=factor(PFX_FB_Outputs_All$FBcol.to, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0",
+                                                                         "DC14","DC13","DC12","DC11","DC10","DC09","DC08","DC07","DC06","DC05","DC04","DC03","DC02","DC01")))
+PFX_FB_Outputs_All$name.to=factor(PFX_FB_Outputs_All$name.to, levels = unique((PFX_FB_Outputs_All$name.to)[order(PFX_FB_Outputs_All$FBcol.to)]) )
+PFX_FB_Outputs_All$name.from=factor(PFX_FB_Outputs_All$name.from, levels = unique((PFX_FB_Outputs_All$name.from)[order(PFX_FB_Outputs_All$FBcol.from)]) )
+
+
+# Plot connectivity matrices with PBgloms and FBcols arranged to show mapping
+Plot_Connectivity_Mappings(PFX_Types, PFX_FB_Outputs_All, PFX_FB_Inputs_All, PFX_Dir_Connectivity)
+
+
+```
+
+
+
+# Look for lateralized output patterns, where PB-FB-XX neurons of a single neuron type
+# target distinct downstream neurons depending on  whether the PB-FB-XX neurons come 
+# from the right bridge or left bridge.
+```{r}
+
+
+
+# Get unique pre-post pairs
+Pre_Post=distinct(PFX_FB_Outputs_All[c("type.from","type.to")])
+
+
+# Make to/from names
+PFX_FB_Outputs_All$from_name = paste(PFX_FB_Outputs_All$FBcol.from, PFX_FB_Outputs_All$from, sep="__")
+PFX_FB_Outputs_All$to_name   = paste(PFX_FB_Outputs_All$FBcol.to, PFX_FB_Outputs_All$to, sep="__")
+
+
+# Compute percent input from left and right PB types
+Scatter = PFX_FB_Outputs_All %>% group_by(to, Side.from, type.from, type.to) %>% summarise(weightRelative= sum(weightRelative))
+Scatter_L=subset(Scatter, Side.from=="L")
+colnames(Scatter_L)[colnames(Scatter_L) == "weightRelative"]="weightRelative_L"
+Scatter_R=subset(Scatter, Side.from=="R")
+colnames(Scatter_R)[colnames(Scatter_R) == "weightRelative"]="weightRelative_R"
+Scatter_All=full_join(Scatter_L, Scatter_R, by=c("to", "type.from","type.to"))
+Scatter_All$weightRelative_L[is.na(Scatter_All$weightRelative_L)]=0
+Scatter_All$weightRelative_R[is.na(Scatter_All$weightRelative_R)]=0
+rm(list=c("Scatter","Scatter_L","Scatter_R"))
+
+
+# Plot every PB-FB-XX to FB columnar type connectivity matrix and look for asymmetric connectivities
+ColColors=GetColorMap("FBcol")
+ColColors=c(ColColors[1],ColColors)
+Delta6Colors <- paletteer_d("Polychrome::dark")
+Detlta6Colors = Delta6Colors[c(1,2,3,4,5,6,8,9,11,7,17,18,20,1)]
+for (ppp in 1:length(Pre_Post$type.from)){
+  print(ppp)
+  
+  # Subset data and name neurons by column/glom and bodyid
+  Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+  Temp_Scatter = subset(Scatter_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+  Temp_Scatter = merge(Temp_Scatter, Temp_PFX_Out[c("to","FBcol.to")], by="to")
+  
+
+  # Calculate number of pre and post neurons
+  PreNum=length(unique(Temp_PFX_Out$from))
+  PostNum=length(unique(Temp_PFX_Out$to))
+  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.from[ppp]]
+  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$bodytype == Pre_Post$type.to[ppp]]
+  FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
+
+  
+  if (FBColtoNum>4 & PreNum/PreNum_All>0.25 & PostNum/PostNum_All >0.25){
+    
+    if (Temp_PFX_Out$type.from[1] == Temp_PFX_Out$type.to[1]){
+      Prefix="Recurrent"
+    } else {
+      Prefix=""
+    }
+    
+    XXX=unique(Temp_PFX_Out$to_name)
+    YYY=unique(Temp_PFX_Out$from_name)
+    P1 <- ggplot(Temp_PFX_Out) + 
+      theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+      scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                           midpoint =0.5*max(Temp_PFX_Out$weightRelative), limits=c(0,max(Temp_PFX_Out$weightRelative))) +
+      geom_tile(aes(to_name,from_name,fill=weightRelative)) + scale_x_discrete(breaks  = XXX, labels = substr(XXX,1,6))  + 
+      scale_y_discrete(breaks  = YYY, labels = substr(YYY,1,6))
+                    
+    
+    if (Temp_PFX_Out$type.to[1] %in% PFX_Types){
+      P1 = P1 + facet_grid(rows = vars(Side.from), cols=vars(Side.to), scales="free")
+    } else {
+      P1 = P1 + facet_grid(rows = vars(Side.from), scales="free_y")
+    }
+    
+    P1 = P1 +ggtitle(paste(Temp_PFX_Out$type.from[1], "(", as.character(PreNum), " of ", as.character(PreNum_All), ") to ",
+                           Temp_PFX_Out$type.to[1], "(", as.character(PostNum), " of ", as.character(PostNum_All), ") to ", sep=""))
+    
+
+     
+    if (Temp_PFX_Out$type.to[1] %in% PFX_Types | startsWith(Temp_PFX_Out$type.to[1], "Delta0")){
+      Temp_Scatter$FBcol.to=factor(Temp_Scatter$FBcol.to, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
+    } else if (startsWith(Temp_PFX_Out$type.to[1], "Delta6")) {
+      Temp_Scatter$FBcol.to=factor(Temp_Scatter$FBcol.to, levels = rev(c("DC14","DC13","DC12","DC11","DC10","DC09","DC08","DC07","DC06","DC05","DC04","DC03","DC02","DC01")))
+    }
+    
+    P2=ggplot() + geom_point(data=Temp_Scatter, aes(x=weightRelative_L, y=weightRelative_R, color=FBcol.to)) +
+      ggtitle(paste(Temp_PFX_Out$type.from[1]," to ",Temp_PFX_Out$type.to[1],sep="")) + theme_bw()
+    
+    if (Temp_PFX_Out$type.to[1] %in% PFX_Types | startsWith(Temp_PFX_Out$type.to[1], "Delta0")){
+      P2 = P2 + scale_color_manual(values=ColColors, drop=FALSE)
+    } else if (startsWith(Temp_PFX_Out$type.to[1], "Delta6")) {
+      P2 = P2 + scale_color_manual(values=Detlta6Colors, drop=FALSE)
+    }
+    
+    P3=ggarrange(P1,P2,nrow=1, ncol=2)
+    
+    ggsave(paste(PFX_Dir_Lat, Prefix, Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB.png",sep=""),
+           plot = P3, device='png', scale = 1, width =15, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+    
+  }
+}
+
+
+
+
+
+
+
+
+
+# Make scatter plot of all R vs L weights
+pcCols <- paletteer_d("Polychrome::palette36")
+PFXs_ThatOutput=unique(PFX_FB_Outputs_All$type.from)
+for (ppp in 1:length(PFXs_ThatOutput)){
+  
+  Scatter_Temp=subset(Scatter_All, type.from==PFXs_ThatOutput[ppp])
+  
+  
+  
+  ggplot() + geom_point(data=Scatter_Temp, aes(x=weightRelative_L, y=weightRelative_R, color=type.to)) + 
+    scale_color_manual(values=pcCols, drop=FALSE)
+  
+}
+
+
+hist(Scatter_All$weightRelative_L-Scatter_All$weightRelative_R,100) +ylim(c(0,200))
+
+
+
+
+
+# Plot PFNd to PFNd connectivity
+Temp_PFX_Out=subset(PFX_FB_Outputs_All, type.from == "PFNd" & type.to == "PFNd" & weightRelative >0.005)
+Temp_PFX_Out$from_name = paste(Temp_PFX_Out$PBglom.from, Temp_PFX_Out$from, sep="__")
+Temp_PFX_Out$to_name   = paste(Temp_PFX_Out$PBglom.to, Temp_PFX_Out$to, sep="__")
+  
+
+PP <- ggplot(Temp_PFX_Out) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*max(Temp_PFX_Out$weightRelative), limits=c(0,max(Temp_PFX_Out$weightRelative))) +
+  geom_tile(aes(to_name,from_name,fill=weightRelative)) +
+  facet_grid(rows = vars(Side.from), cols=vars(Side.to), scales="free") +
+  ggtitle(paste(Temp_PFX_Out$type.from[1]," to ",Temp_PFX_Out$type.to[1],sep=""))
+
+ggsave(paste(PFX_Dir_Lat, "Asym_", Temp_PFX_Out$type.from[1],"_to_",Temp_PFX_Out$type.to[1], "_inFB.png",sep=""),
+       plot = PP, device='png', scale = 1, width = 7.5, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+
+
+```
+
+
+
+
+# Look for evidence of PI motifs by plotting inputs to PFLs
+```{r}
+
+
+######## Part 1: Get the data ######################################################
+
+
+# Get full input/output connectivity tables for all FB columnar types
+Bag=buildInputsOutputsByType(Columnar_Types, slctROI="FB")
+FB_ColumnarInputs_All=Bag[["inputs_raw"]]
+
+
+# Subset data on columnar types
+FB_ColumnarInputs_All=subset(FB_ColumnarInputs_All, databaseType.from %in% Columnar_Types)
+
+
+# Assign PBglom, FBcol, and Side from neuron names
+FB_ColumnarInputs_All=Assign_FBcol_PBglom(FB_ColumnarInputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+FB_ColumnarInputs_All=Assign_FBcol_PBglom(FB_ColumnarInputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+
+
+# Give each neuron a unique name
+FB_ColumnarInputs_All$from_name = paste(FB_ColumnarInputs_All$FBcol.from, as.character(FB_ColumnarInputs_All$from), sep="__")
+FB_ColumnarInputs_All$to_name   = paste(FB_ColumnarInputs_All$FBcol.to, as.character(FB_ColumnarInputs_All$to), sep="__")
+
+
+
+######## Part 2: Look at inputs (and inputs to inputs) to PFLn ######################################################
+
+
+# Get a list of neuron types that give significant input to PFLn
+PFL_Type="PFL3"
+PFLn_Inputs=subset(FB_ColumnarInputs_All, type.to == PFL_Type)
+PFLn_InputsPerColumn=PFLn_Inputs %>% group_by(type.from, FBcol.from) %>% summarise(n=n()) %>%
+  group_by(type.from) %>% summarize(Columns = n())
+PFLn_InputsPerColumn_Filt = subset(PFLn_InputsPerColumn, (startsWith(type.from, "Delta6")  & Columns >= 4) | 
+                                                         (!startsWith(type.from, "Delta6") & Columns >= 4 ) )
+
+# Get the network
+PFLn_Network_Types=c(unique( PFLn_InputsPerColumn_Filt$type.from ), PFL_Type)
+PFLn_Input_Network=subset(FB_ColumnarInputs_All,  type.to %in% PFLn_Network_Types)
+PFLn_Input_Network=subset(PFLn_Input_Network, weight > 3)
+
+
+# Plot the full matrix
+P1=Plot_ColCol_Matix(PFLn_Input_Network)
+ggsave(paste(PFX_Dir_PI, PFL_Type, ".png",sep=""),
+           plot = P1, device='png', scale = 1, width =15, height = 15, units ="in", dpi = 500, limitsize = TRUE)
+
+
+P2=Plot_ColCol_Matix(subset(PFLn_Input_Network, type.from %in% Columnar_Types[startsWith(Columnar_Types,"Delta0")] ))
+ggsave(paste(PFX_Dir_PI, PFL_Type, "Delta0_Outputs.png",sep=""),
+       plot = P2, device='png', scale = 1, width =15, height = 15, units ="in", dpi = 500, limitsize = TRUE)
+
+
+P2=Plot_ColCol_Matix(subset(PFLn_Input_Network, type.from %in% Columnar_Types[startsWith(Columnar_Types,"Delta6")] ))
+ggsave(paste(PFX_Dir_PI, PFL_Type, "Delta6_Outputs.png",sep=""),
+       plot = P2, device='png', scale = 1, width =15, height = 15, units ="in", dpi = 500, limitsize = TRUE)
+
+
+P3=Plot_ColCol_Matix(subset(PFLn_Input_Network, type.from %in% Columnar_Types[!startsWith(Columnar_Types,"Delta6")] &
+                              type.from %in% Columnar_Types[!startsWith(Columnar_Types,"Delta0")]))
+ggsave(paste(PFX_Dir_PI, PFL_Type, "NonDelta_Outputs.png",sep=""),
+       plot = P3, device='png', scale = 1, width =15, height = 15, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+InputsPlot_Sub = plotConnectivityMatrix(PFLn_Input_Network, byGroup = "type", connectionMeasure = "weightRelative")
+ggsave(paste(PFX_Dir_PI, PFL_Type, "_Type.png",sep=""),
+       plot = InputsPlot_Sub, device='png', scale = 1, width =15, height = 15, units ="in", dpi = 500, limitsize = TRUE)
+
+
+### Need to look at INPUTS TO INPUTS, because we're likely missing something
+### Need to loop over PFN to PFL pathways and compute relative strengths
+
+
+
+```
+
+
+
+
+
+
+
+
+Load the libraries
+```{r}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(gridExtra)
+library(paletteer)
+library(visNetwork) 
+source("../pathways.R")
+source("../R/supertypeUtils.R", chdir = TRUE)
+source("../visualizeConnectivityTables.R")
+source("../neuprintQueryUtils.R", chdir = TRUE)
+source("../colorCodeLookup.R")
+source("../FBNetworkVisUtils.R")
+options(nat.plotengine = 'rgl')
+```
+
+Connect to neuprint
+```{r}
+neuprint_login()
+```
+
+Get a connection table (type to type)
+```{r}
+nronTypes <- c("PFN","Delta0","Delta6","PFR_a","PFG","FC","PFL","^FR","FS","PFR_b")
+ROI = "FB"
+  
+# Get the connection table
+conTab <- getConnectionTable_forSubset(getBodyIdsForList(nronTypes)$bodyid,
+                                         getBodyIdsForList(nronTypes)$bodyid,
+                                         ROI)
+
+typeToType_Clean <- getTypeToTypeTable(conTab)
+
+
+
+# try a different method of getting type to type
+conTab_New=conTab
+conTab_New=Assign_FBcol_PBglom(conTab_New, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
+conTab_New=Assign_FBcol_PBglom(conTab_New, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+conTab_New=subset(conTab_New, weight>=6)
+
+Column_Counts=conTab_New %>% group_by(type.from, type.to, FBcol.to) %>% summarize() %>% group_by(type.from, type.to) %>% summarize(NumOfCols=n())
+Column_Counts_Filt=subset(Column_Counts, NumOfCols>=8)
+
+
+typeToType_Clean = subset(typeToType_Clean, type.to %in% Column_Counts_Filt$type.to & type.from %in% Column_Counts_Filt$type.from)
+
+
+```
+
+
+Specify an x and y lookup table of the location for each neuron type
+```{r}
+xyLookup <- xyLookupTableInner()
+```
+
+
+Create a dynamic visualization of the FB network data
+```{r}
+# Get the table of nodes (types)
+nodes = data.frame(name = unique(c(typeToType_Clean$type.from,typeToType_Clean$type.to)))
+nodes$id <- 1:nrow(nodes)
+nodes$superType <- nodes$name %>% as.character %>% supertype()
+
+# Position the nodes according to the lookup table
+nodes$x <- sapply(nodes$name, function(x) xyLookup$x[match(x,xyLookup$type)])
+nodes$y <- sapply(nodes$name, function(x) xyLookup$y[match(x,xyLookup$type)])
+
+# Get the edges from the connection table
+edges <- typeToType_Clean[which((typeToType_Clean$type.from %in% nodes$name) & (typeToType_Clean$type.to %in% nodes$name)),] %>%
+  mutate(to = sapply(type.to, function(f) which(f == nodes$name)),
+         from = sapply(type.from, function(f) which(f == nodes$name)))
+edges$superType <- edges$type.from %>% as.character %>% supertype()
+  
+# Specify colors for the supertypes
+sTs <- xyLookup$type %>% as.character() %>% supertype() %>% unique() %>% sort()
+pcCols <- paletteer_d("Polychrome::palette36")
+sTCols <- c(pcCols[35],pcCols[32],pcCols[9],pcCols[3],pcCols[8],pcCols[17],pcCols[7],pcCols[26],pcCols[1])
+
+# Set the node properties for the visulization
+vis.nodes <- nodes[,c("name","id")]
+vis.nodes$type.name <- nodes$name %>% as.character()
+vis.nodes$title <- nodes$name %>% as.character()
+vis.nodes$label <- ""
+vis.nodes$font.size <- 12
+vis.nodes$x <- nodes$y*500
+vis.nodes$y <- nodes$x*500
+vis.nodes$size <- 10
+vis.nodes$color.background <- sTCols[match(nodes$superType,as.factor(sTs))]
+vis.nodes$color.highlight <- sTCols[match(nodes$superType,as.factor(sTs))]
+vis.nodes$color.border <- "black"
+vis.nodes$color.highlight.border <- "orange"
+vis.nodes$group <- as.character(nodes$superType)
+
+# Set the link properties for the visualization
+vis.links <- edges[,c("to","from")]
+vis.links$width <- edges$weightRelative*20
+vis.links$arrows <- "to"
+vis.links$smooth <- TRUE
+vis.links$color <- sTCols[match(edges$superType,as.factor(sTs))]
+
+# Create the visualization
+v <- visNetwork(vis.nodes, vis.links, width="100%", height="800px",main= "inputs -> outputs") %>% 
+  visNodes(fixed = TRUE) %>% 
+  visOptions(highlightNearest = list(enabled = TRUE, hover = TRUE, degree = 1,algorithm="hierarchical"), selectedBy = "type.name") 
+
+# Set a color for each group (need to do this for the legend)
+for (st in 1:length(sTs)){
+  v <- v %>% visGroups(groupname = sTs[st], color = sTCols[st])
+}
+
+# Add a legend and the ability to select multiple nodes
+v <- v %>% visLegend(width=0.2, main="super type",ncol=3) %>% visInteraction(multiselect = TRUE)
+
+# Save the plot
+visSave(v, "C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/OffsetConnectivity/PFX_Plots_All/PFX_PI/AllColumnarConnections.html", selfcontained = TRUE, background = "white")
+```
+
+
+
+
+
+
+
+
+
+
+
