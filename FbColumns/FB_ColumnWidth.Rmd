@@ -93,15 +93,13 @@ Mid_L8=Get_Mid(Outline_L8_XZ)
 
 # Make PB-FB-XX  plotting directory
 PFX_Dir=paste(PlotDir,"PFX_Plots_All","/",sep="")
-PFX_Dir_Dist=paste(PFX_Dir,"PFX_MeasureWidth","/",sep="")
 if (!dir.exists(PFX_Dir)){dir.create(PFX_Dir)}
-if (!dir.exists(PFX_Dir_Dist)){dir.create(PFX_Dir_Dist)}
 
 
 # Get PB-FB-XX neuron synapse distributions 
-# Example synapse clouds saved to PFX_Dir_Dist
+# Example synapse clouds saved to PFX_Dir
 PFX_SynsAll=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
-PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir_Dist) # 25 is good here, as some types have low synapse counts
+PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir) # 25 is good here, as some types have low synapse counts
 
 
 # Subset PFX_Distribution based on neurons that innervate all 9 columns of a layer
