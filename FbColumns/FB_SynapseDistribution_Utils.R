@@ -76,6 +76,7 @@ ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
 }   
 
 
+
 Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLayer, PlotDirTemp){
   
   P1=ggplot() + geom_point(data=subset(TempSynapseData,LR=="L"), aes(x=X, y=Z), colour="midnightblue" ,  size=1, alpha = 0.1) + 
@@ -90,6 +91,7 @@ Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLa
          plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 150, limitsize = TRUE)
   
 }
+
 
 
 GetColorPalette <- function(TempSynapseData, TempColNum){
@@ -112,6 +114,7 @@ GetColorPalette <- function(TempSynapseData, TempColNum){
 }
 
 
+
 GetColorFactor <- function(TempSynapseData, TempColNum){
   
   # get color palette
@@ -130,6 +133,7 @@ GetColorFactor <- function(TempSynapseData, TempColNum){
   
   return(TempSynapseData)
 }
+
 
 
 PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG){
@@ -158,30 +162,7 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
 
 
 ###############################################################################################################################
-################# Functions for plotting average FB columnar neuron locations #################################################
-
-
-
-Plot_Layer <- function(Plot_Syns, Layer_To_Plot, Outline, Title, Grouping, DIR, PlotName, TOPLOT_TF, TOPLOTLEGEND_TF, View){
-  
-  # Get data
-  PlotData=subset(Plot_Syns, Layer==Layer_To_Plot)
-  
-  # Get color map
-  col_vector=GetColorMap(Grouping)
-  
-  # Get color variable
-  if (Grouping == "FBcol"){
-    ColorVar=PlotData$FBcol
-  } else if (Grouping == "PBglom") {
-    ColorVar=PlotData$PBglom
-  }
-  
-  # Make plot
-  P1 <- Plot_Synapse_Distribution(PlotData, View, Outline, ColorVar, col_vector, DIR, PlotName, Layer_To_Plot, TOPLOT_TF, TOPLOTLEGEND_TF)
-  
-  return(P1)
-}
+################# Functions for plotting mapping between PB glom and FB cols ##################################################
 
 
 
@@ -205,51 +186,6 @@ GetColorMap <- function(Grouping){
   }
   return(col_vector)
 }
-
-
-
-
-Plot_Synapse_Distribution <- function(PlotData, VIEW, Outline, ColorVar, col_vector, DIR, PlotName, PlotName2, TOPLOT_TF, TOPLOTLEGEND_TF, Size=2){
-  
-  # Get view
-  if (VIEW=="XY"){
-    PlotData = PlotData[!colnames(PlotData)=="Z"]
-    colnames(PlotData)[colnames(PlotData)=="Y"]="Z"
-    PlotData$Z=-PlotData$Z
-  }
-  
-  # Plot just the data for now
-  P1 <- ggplot() + geom_point(data=PlotData, aes(x=X, y=Z, color=ColorVar, shape=Side) ,  size=Size, alpha = 1, stroke = 0) + 
-    geom_path(data=Outline, aes(x=c1, y=c2), size = 1) + xlim(c(-9000, 9000)) +  coord_fixed(ratio = 1) 
-  
-  # Save with scaled visible if TOPLOTLEGEND_TF us TRUE
-  if (TOPLOTLEGEND_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2 , "_Legend.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
-  }  
-  
-  # Format the rest of the plot, get rid of axes
-  P1 <- P1 + theme_void() + guides(fill=FALSE) + theme(legend.position = "none") +
-    scale_color_manual(values=col_vector, drop=FALSE)  +  theme(
-      panel.background = element_rect(fill = "transparent", color = NA), # bg of the panel
-      plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
-      panel.grid.major = element_blank(), # get rid of major grid
-      panel.grid.minor = element_blank(), # get rid of minor grid
-      legend.background = element_rect(fill = "transparent", color = NA), # get rid of legend bg
-      legend.box.background = element_rect(fill = "transparent", color = NA) # get rid of legend panel bg
-    )
-  
-  # Save plot
-  if (TOPLOT_TF==TRUE){
-    ggsave(paste(DIR, PlotName,"_",PlotName2, VIEW, ".pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
-  } 
-  
-  return(P1)
-}
-
-
-
-###############################################################################################################################
-################# Functions for plotting mapping between PB glom and FB cols ##################################################
 
 
 
