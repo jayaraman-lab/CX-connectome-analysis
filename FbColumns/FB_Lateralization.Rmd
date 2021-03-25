@@ -1,0 +1,89 @@
+---
+title: "Notebook for plotting PB-FB phase shifts (discrete + continuous mappings & FB connectivity)"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Load libraries
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(matlib)
+library(RColorBrewer)
+library(ggraph)
+library(robustbase)
+require(alphahull)
+library(zoo)
+library(ggpubr)
+library(ggraph)
+library(igraph)
+library(tidygraph)
+library(xlsx)
+library(dtplyr)
+library(neuprintrExtra)
+library("xlsx")
+library(tidyselect)
+library(paletteer)
+library(quantmod)
+library(prismatic)
+library(svglite)
+options(nat.plotengine = 'rgl')
+```
+
+### Make directories where figures will be saved to
+```{r}
+
+# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
+
+# Directory to save plots to.
+PlotDir=paste(SaveDir, "/Figure_PhaseShift/",sep="")
+
+# Create save/plot directory if they dont exists yet
+if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+```
+
+### Connect to neuprint server.
+```{r}
+neuprint_login()
+```
+
+### Get general functions
+```{r}
+
+source("FB_ConnectivityOffsetPlotting_Utils.r")
+source("FB_SynapseDistribution_Utils.r")
+
+```
+
+
+
+# Plot discrete PB glomeruli to FB column mappings for all PB-FB-XX types
+```{r message=FALSE, warning=FALSE}
+
+# Get all PB-FB-XX neurons and parse name to get PB glomeruli and FB column info
+FB_Bodies=getNeuronsInRoiTable("FB",0)
+FB_Bodies_Meta=neuprint_get_meta(FB_Bodies$bodyid)
+PB_FB_Bodies=subset(FB_Bodies_Meta, startsWith(type,"PF"))
+PB_FB_Bodies=Assign_FBcol_PBglom(PB_FB_Bodies, "name", "Side", "PBglom", "FBcol")
+
+# Make graphs showing number of neurons connecting each PB glomerulus to each FB column
+Plot_PBglom_FBcol_Mapping(PB_FB_Bodies, PlotDir)
+
+```
+
+
+
+
+
+
+
+
+
+
+
