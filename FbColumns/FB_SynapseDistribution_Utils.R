@@ -3,7 +3,7 @@
 
 
 ###############################################################################################################################
-################# Functions for loading raw synapse locations #################################################################
+################# Function for loading raw synapse locations ##################################################################
 
 Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
   #' Function for loading FB synapses by layer, with associated partner type and other meta information.
@@ -210,6 +210,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
                        "#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688")))
     
     
+    # Plot graph
     P1<-ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) +
       geom_edge_diagonal(aes(width=Num_Neurons,color=PBglom),alpha=0.5,strength=0.5) +
       geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector, drop=FALSE)  +
