@@ -76,8 +76,6 @@ FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 ```
 
 
-
-
 # Plot intra-FB connectivity matrices and assign to motifs
 ```{r message=FALSE, warning=FALSE}
 
@@ -207,9 +205,7 @@ ggsave(paste(PlotDir, "Top_PCs.png",sep=""),
        plot = PAll, device='png', scale = 1, width =7, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
 
-
 ```
-
 
 
 
@@ -217,7 +213,7 @@ ggsave(paste(PlotDir, "Top_PCs.png",sep=""),
 ```{r message=FALSE, warning=FALSE}
 
 
-# Make supertypes
+# Make connection supertypes
 Columnar_PC_Motifs$Motif=NA
 hDeltaTypes=Columnar_Types[startsWith(Columnar_Types,'hDelta')]
 VDeltaTypes=Columnar_Types[!startsWith(Columnar_Types,'hDelta') ]
@@ -227,65 +223,14 @@ Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% VDeltaTypes) & (Col
 Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% hDeltaTypes) & (Columnar_PC_Motifs$type.to %in% VDeltaTypes)] = "H to V"
 Columnar_PC_Motifs$Motif=factor(Columnar_PC_Motifs$Motif, levels=unique(Columnar_PC_Motifs$Motif))
 
-# Get colors
+
+# Get colors for the four connection types above
 pcCols <- paletteer_d("Polychrome::palette36")
 pcCols=pcCols[c(26,6,32,25)]
 
-# Loop over and plot every neurons matrix along with its place in the PCA space
-for (ppp in 1:length(Pre_Post$type.from)){
-  print(ppp)
-  
-  # Average across columns and plot (using all columns)
-  Temp_PFX_Out=subset(FB_Outputs_All, (type.from==Pre_Post$type.from[ppp]) & (type.to==Pre_Post$type.to[ppp]))
-  
-  
-  # Average across columns and plot (using all columns)
-  Temp_ColumnTable=Temp_PFX_Out %>% group_by(FBcol.from,FBcol.to) %>% summarize(weightRelative=mean(weightRelative))
-  
-  # Calculate number of pre and post neurons
-  PreNum=length(unique(Temp_PFX_Out$from))
-  PostNum=length(unique(Temp_PFX_Out$to))
-  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
-  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
-  FBColtoNum=length(unique(Temp_PFX_Out$FBcol.to))
-  
-  P1=ggplot(Temp_ColumnTable) + 
-    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5*max(Temp_ColumnTable$weightRelative), limits=c(0,max(Temp_ColumnTable$weightRelative))) +
-    geom_tile(aes(FBcol.to,FBcol.from,fill=weightRelative)) + ylab(Pre_Post$type.from[ppp]) + xlab(Pre_Post$type.to[ppp])
-  
-  
-  # Do the same, but for a fully connected 9 column scheme
-  Temp_ColumnTable9=Temp_PFX_Out %>% group_by(FBcol.from9,FBcol.to9) %>% summarize(weightRelative=mean(weightRelative))
-  
-  # Turn dataframe into a matrix, where implicitly missing connections have 0 weight. Store as vector.
-  all <- Temp_ColumnTable9 %>% expand(FBcol.from9, FBcol.to9) %>% distinct()
-  Temp_ColumnTable9_Full = Temp_ColumnTable9 %>% dplyr::right_join(all, by = c("FBcol.from9", "FBcol.to9"))
-  Temp_ColumnTable9_Full$weightRelative[is.na( Temp_ColumnTable9_Full$weightRelative)]=0
-  
-  P2=ggplot(Temp_ColumnTable9_Full) + 
-    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5*max(Temp_ColumnTable9_Full$weightRelative), limits=c(0,max(Temp_ColumnTable9_Full$weightRelative))) +
-    geom_tile(aes(FBcol.to9,FBcol.from9,fill=weightRelative)) + ylab(Pre_Post$type.from[ppp]) + xlab(Pre_Post$type.to[ppp])
-  
 
-  # Plot PCA space
-  CCC=pcCols[which(Columnar_PC_Motifs$Motif[ppp] == levels(Columnar_PC_Motifs$Motif))]
-  P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
-    geom_point(data=Columnar_PC_Motifs[ppp,],aes(x=V1, y=V2),color="red", fill=CCC, alpha=1,size=5,shape = 21) +
-    xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
-    xlim(-4.25,4.25) + ylim(0,8) + scale_color_manual(values=pcCols)
-
-  P4=ggarrange(P1,P2,P3,nrow=1,ncol=3)
-  ggsave(paste(PFX_Dir_Connectivity, Pre_Post$type.from[ppp],"_to_", Pre_Post$type.to[ppp], "_", as.character(ppp),"_inFB.png",sep=""), plot = P4, device='png', scale = 1, width =15, height = 3.5, units ="in", dpi = 250, limitsize = TRUE)
-  
-}
-
-
-# Make plot with all examples shown
-Example_Inds=c(11,23,47,14,10,229,24,3)
+# Make scatter plot of column to column connectivity location along first two PCs
+Example_Inds=c(11,23,232,14,10,45,24,3)
 
 CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))]   # PFNd --> hDeltaB #
 CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   # PFNv --> hDebtaB # 
@@ -307,34 +252,38 @@ P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),a
   geom_point(data=Columnar_PC_Motifs[Example_Inds[8],],aes(x=V1, y=V2),color="red", fill=CCC8, alpha=1,size=5,shape = 21) +
   xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
   xlim(-4,4) + ylim(0,8) + scale_color_manual(values=pcCols)
-ggsave(paste(PFX_Dir_Connectivity, "PCA_Scatter_Examples.pdf",sep=""), plot = P3, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
+ggsave(paste(PlotDir, "PCA_Scatter_Examples.png",sep=""), plot = P3, device='png', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
 
 
-# Loop over chosen examples and save connectivity matrices as PDFs
-library(scales)
-for (exex in 1:length(Example_Inds)){
+# Loop over examples and plot the column-to-column connectivity matrix next to its location in PCA space
+for (ppp in 1:length(Example_Inds)){
   
-  ppp=Example_Inds[exex]
-  print(ppp)
+  Ind=Example_Inds[ppp]
   
-  # Average across columns and plot (using all columns)
-  Temp_PFX_Out=subset(FB_Outputs_All, (type.from==Pre_Post$type.from[ppp]) & (type.to==Pre_Post$type.to[ppp]))
-  
-  # Average across columns and plot (using all columns)
+  # Get just this connection table
+  Temp_PFX_Out=subset(FB_Outputs_All, (type.from==Pre_Post$type.from[Ind]) & (type.to==Pre_Post$type.to[Ind]))
   Temp_ColumnTable=Temp_PFX_Out %>% group_by(FBcol.from,FBcol.to) %>% summarize(weightRelative=mean(weightRelative))
   
-  # Make plot
+  # Plot connectivity table
   P1=ggplot(Temp_ColumnTable) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
     scale_fill_gradient2(low="gray30", high="black", 
                         limits=c(0,0.04), oob=squish) + coord_fixed() +
-    geom_tile(aes(FBcol.to,FBcol.from,fill=weightRelative)) + ylab(Pre_Post$type.from[ppp]) + xlab(Pre_Post$type.to[ppp])
-  ggsave(paste(PFX_Dir_Connectivity, "FIGURE_", Pre_Post$type.from[ppp],"_to_", Pre_Post$type.to[ppp], "_", as.character(ppp),"_inFB.pdf",sep=""),
-         plot = P1, device='pdf', scale = 1, width =6, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+    geom_tile(aes(FBcol.to,FBcol.from,fill=weightRelative)) + ylab(Pre_Post$type.from[Ind]) + xlab(Pre_Post$type.to[Ind])
+  
+  # Plot location in PCA space
+  CCC=pcCols[which(Columnar_PC_Motifs$Motif[Ind] == levels(Columnar_PC_Motifs$Motif))]
+  P2=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
+    geom_point(data=Columnar_PC_Motifs[Ind,],aes(x=V1, y=V2),color="red", fill=CCC, alpha=1,size=5,shape = 21) +
+    xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
+    xlim(-4.25,4.25) + ylim(0,8) + scale_color_manual(values=pcCols)
+  
+  # Save figure
+  P4=ggarrange(P1,P2,nrow=1,ncol=2)
+  ggsave(paste(PlotDir, Pre_Post$type.from[Ind],"_to_", Pre_Post$type.to[Ind], "_", as.character(Ind),"_inFB.png",sep=""), 
+    plot = P4, device='png', scale = 1, width =15, height = 3.5, units ="in", dpi = 250, limitsize = TRUE)
   
 }
-  
-  
 
 
 
