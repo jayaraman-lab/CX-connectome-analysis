@@ -90,7 +90,7 @@ FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 # Get input and output tables
 PFX_Types=unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" )])
-PFX_Bag=create_neuronBag(PFX_Types, slctROI="FB")
+PFX_Bag=neuronBag(PFX_Types, slctROI="FB")
 PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
 
 
@@ -99,8 +99,8 @@ PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Type
 
 
 # Assign PBglom, FBcol, and Side from neuron names
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from", "from")
-PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to", "to")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to")
 
 
 # Set factors on FB columns
