@@ -1,5 +1,5 @@
 ---
-title: "Notebook for plotting PB-FB phase shifts (discrete + continuous mappings & FB connectivity)"
+title: "Notebook for plotting whether left and right PB-FB types target distinct neurons/types in FB (i.e. lateralization)"
 output:
   html_document:
     df_print: paged
@@ -40,9 +40,9 @@ options(nat.plotengine = 'rgl')
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
 # Directory to save plots to.
-PlotDir=paste(SaveDir, "/Figure_PhaseShift/",sep="")
+PlotDir=paste(SaveDir, "/Figure_Lateralization/",sep="")
 
-# Create save/plot directory if they dont exists yet
+# Create save/plot directories if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
@@ -61,28 +61,181 @@ source("FB_Analysis_Utils.r")
 ```
 
 
-
-# Plot discrete PB glomeruli to FB column mappings for all PB-FB-XX types
+# Get all FB bodies and columnar types
 ```{r message=FALSE, warning=FALSE}
 
-# Get all PB-FB-XX neurons and parse name to get PB glomeruli and FB column info
-FB_Bodies=getNeuronsInRoiTable("FB",0)
-FB_Bodies_Meta=neuprint_get_meta(FB_Bodies$bodyid)
-PB_FB_Bodies=subset(FB_Bodies_Meta, startsWith(type,"PF"))
-PB_FB_Bodies=Assign_FBcol_PBglom(PB_FB_Bodies, "name", "Side", "PBglom", "FBcol")
+NamedBodies=getNeuronsInRoiTable("FB",0)
+Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
+                                                    startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) | 
+                                                    startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
+FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
+FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
-# Make graphs showing number of neurons connecting each PB glomerulus to each FB column
-Plot_PBglom_FBcol_Mapping(PB_FB_Bodies, PlotDir)
+```
+
+
+# Get connectivity matrices for all PFX types
+```{r}
+
+# Get input and output tables
+PFX_Types=unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" )])
+PFX_Bag=neuronBag(PFX_Types, slctROI="FB")
+PFX_FB_Outputs_All=PFX_Bag[["outputs_raw"]]
+
+# Subset data on outputs that are FB columnar types
+PFX_FB_Outputs_All=subset(PFX_FB_Outputs_All, databaseType.to %in% Columnar_Types)
+
+# Assign PBglom, FBcol, and Side from neuron names
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from")
+PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to")
+
+```
+
+
+# Compute various metrics indicitive of lateralization (i.e. where the left and right
+# PB-FB-XX populations target either distinct downstream neurons or distinct neuron types)
+```{r message=FALSE, warning=FALSE}
+
+# Get unique pre-post pairs
+Pre_Post=distinct(PFX_FB_Outputs_All[c("type.from","type.to")])
+
+# Compute relative weight from left and right PB-FB-XX populations on single downstream neurons
+Scatter = PFX_FB_Outputs_All %>% group_by(Side.from, type.from, type.to, to) %>% summarise(weightRelative= sum(weightRelative))
+Scatter_L=subset(Scatter, Side.from=="L")
+colnames(Scatter_L)[colnames(Scatter_L) == "weightRelative"]="weightRelative_L"
+Scatter_R=subset(Scatter, Side.from=="R")
+colnames(Scatter_R)[colnames(Scatter_R) == "weightRelative"]="weightRelative_R"
+Scatter_All=full_join(Scatter_L, Scatter_R, by=c("to", "type.from","type.to"))
+Scatter_All$weightRelative_L[is.na(Scatter_All$weightRelative_L)]=0
+Scatter_All$weightRelative_R[is.na(Scatter_All$weightRelative_R)]=0
+rm(list=c("Scatter","Scatter_L","Scatter_R"))
+Scatter_All=Scatter_All[c("type.from","type.to","to","weightRelative_R","weightRelative_L")]
+Scatter_All = left_join(Scatter_All, distinct(PFX_FB_Outputs_All[c("to","FBcol.to")]), by="to")
+
+
+# Loop over every Pre/Post connection pair and compute:
+# 1) Lateralization (the proportjon of downstream neurons that receive input from the left or the right PB but not both)
+# 2) PostProportion (the proportjon of neurons in a downstream neuron type targeted by a PB-FB-XX neuron type)
+ConnectivityCriteria=data.frame(type.from=character(),type.to=character(),ColFromNum=numeric(),
+                                PreProportion=numeric(),PostProportion=numeric(), Lateralization=numeric(), AverageWeight=numeric())
+for (ppp in 1:length(Pre_Post$type.from)){
+
+  # Consider only this pre-post type
+  Temp_PFX_Out = subset(PFX_FB_Outputs_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+  Temp_Scatter = subset(Scatter_All, type.from == Pre_Post$type.from[ppp] & type.to == Pre_Post$type.to[ppp])
+
+  # Calculate Lateralization and PostProportion
+  PreNum=length(unique(Temp_PFX_Out$from))
+  PostNum=length(unique(Temp_PFX_Out$to))
+  FBColfromNum=length(unique(Temp_PFX_Out$FBcol.from))
+  PreNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.from[ppp]]
+  PostNum_All=FBColumnarBodyCount$NumofNeurons[FBColumnarBodyCount$type == Pre_Post$type.to[ppp]]
+  AverageWeight=mean((Temp_Scatter$weightRelative_L + Temp_Scatter$weightRelative_R)*PostNum/PostNum_All)
+  Lateralization=1-sum(Temp_Scatter$weightRelative_R > 0 & Temp_Scatter$weightRelative_L > 0)/PostNum_All
+  PostProportion=PostNum/PostNum_All
+  
+  # Add this data to ConnectivityCriteria
+  ConnectivityCriteria=rbind(ConnectivityCriteria, 
+  data.frame(type.from=Pre_Post$type.from[ppp],type.to=Pre_Post$type.to[ppp],ColFromNum=FBColfromNum,
+             PreProportion=PreNum/PreNum_All,PostProportion=PostProportion,Lateralization=Lateralization, AverageWeight=AverageWeight))
+  
+}
+
 
 ```
 
 
 
+# Plot the amount of left/right lateralized input as a function of the proportion of postsynaptic neurons
+# in each population and by the strength of the type-to-type connection. This shows that left/right lateralized
+# connectivity matrices are from inconsistent and have weak type-to-type connections.
+```{r message=FALSE, warning=FALSE}
+
+# remove PFLs
+ConnectivityCriteria=subset(ConnectivityCriteria, !startsWith(as.character(type.from),"PFL"))
+
+# Make supertype factor
+ConnectivityCriteria$PresynapticClass =NA
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFGs")]="PFGs"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFNa")]="PFNa"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFNd")]="PFNd"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFNm")]="PFNm (a/b)"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFNv")]="PFNv"
+ConnectivityCriteria$PresynapticClass [startsWith(as.character(ConnectivityCriteria$type.from),"PFR")]="PFR (a/b)"
+
+# Make scatter plot (note that some jitter is added to resolve overlapping points)
+ScatterColors <- paletteer_d("Polychrome::palette36")
+ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
+P1=ggplot() + geom_point(data=ConnectivityCriteria, aes(x=PostProportion, y=Lateralization, size=AverageWeight, color=PresynapticClass),
+                         alpha=0.8, shape=16, position= position_jitter(width = 0.025, height = 0.025)) +
+  scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1) +
+  xlab("Connection consistency")
+P1
+ggsave(paste(PlotDir, "Proportion_Vs_Lateralization_byWeight.png",sep=""),
+         plot = P1, device='png', scale = 1, width =7, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+
+
+```
 
 
 
+# For pre/post connections that are consistent, make scatter plot showing, for each downstream neuron,
+# how much input it receives from the left and right PB-FB-XX populations. Dots along the x/y axes 
+# represent neurons that receive input from the left or right PB-FB-XX populations (but not both).
+```{r message=FALSE, warning=FALSE}
+
+# Subset Scatter_All on consistent connections (where most neurons in both populatons are involved)
+Scatter_All_Consistent = subset(Scatter_All, !startsWith(type.from,"PFL"))
+Scatter_All_Consistent = left_join(Scatter_All_Consistent, ConnectivityCriteria, by=c("type.from","type.to"))
+Scatter_All_Consistent = subset(Scatter_All_Consistent, ColFromNum>7 & (PreProportion>0.6 | PostProportion>0.6) )
+
+# Make supertype factor
+Scatter_All_Consistent$PresynapticClass =NA
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFGs")]="PFGs"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNa")]="PFNa"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNd")]="PFNd"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNm")]="PFNm (a/b)"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFNv")]="PFNv"
+Scatter_All_Consistent$PresynapticClass [startsWith(as.character(Scatter_All_Consistent$type.from),"PFR")]="PFR (a/b)"
+
+# Make scatter plot for each supertype
+ScatterColors <- paletteer_d("Polychrome::palette36")
+ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
+LIM=max( c(Scatter_All_Consistent$weightRelative_L, Scatter_All_Consistent$weightRelative_R))
+P1=ggplot() + geom_point(data=Scatter_All_Consistent, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
+  scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1) + xlim(0,0.4) + ylim(0,0.4) + 
+    xlab("relative weight from left PB") + ylab("relative weight from right PB")
+P1
+ggsave(paste(PlotDir, "SingleNeuron_Left_Vs_Right.png",sep=""),
+         plot = P1, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+
+```
 
 
+
+# Make scatter plot showing, for each posynaptic neuron type, the relative weight from the 
+# left and right PB-FB-XX populations. If the left and right PB-FB-XX populations were to target
+# distinct downstream types, then we would expect to see points along the diagonal. 
+```{r message=FALSE, warning=FALSE}
+
+# Average Left/Right PB input by postsynaptic type. Need to multiple by PostProportion because not all
+# all postsynaptic neurons of a type receive input from the presynaptic type in question, and averaging
+# would miss these 0 weights. Multiplying the average weights by the proportion of downstream neurons targeted 
+# is the same as including the 0s. 
+Scatter_All_Consistent_bytype=Scatter_All_Consistent %>% group_by(type.from, type.to, PresynapticClass) %>%
+  summarise(weightRelative_R=mean(weightRelative_R*PostProportion), weightRelative_L=mean(weightRelative_L*PostProportion))
+
+
+P1=ggplot() + geom_point(data=Scatter_All_Consistent_bytype, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
+  scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1) + xlim(0,0.2) + ylim(0,0.2) +
+  xlab("relative weight from left PB") + ylab("relative weight from right PB")
+P1
+ggsave(paste(PlotDir, "NeuronType_Left_Vs_Right.png",sep=""),
+         plot = P1, device='png', scale = 1, width =5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+
+```
 
 
 
