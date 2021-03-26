@@ -212,8 +212,6 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
 ################# Functions for plotting mapping between PB glom and FB cols ##################################################
 
 
-
-
 Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
   
   
@@ -275,4 +273,47 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
   }
 }
 
+
+###############################################################################################################################
+################# Functions for performing PCA on column-to-column connection matrix ##########################################
+
+# Define a function for doing PCA on Vectors
+motifPCA <- function(PCA_In, Norm, Pre_Post){
+  
+  # Binarize or normalize data
+  if (Norm=="Binary"){
+    PCA_In[PCA_In>0.001]=1 #0.001
+  } 
+  
+  # calculate covariance matrix across dimensions 
+  cov = data.frame(cov(PCA_In))
+  
+  # calculate eigenvectors and values (columns contain PCs, ranked from most variance accounted for to least)
+  covEigen = eigen(cov) 
+  
+  # Project into PC space
+  NewData=PCA_In %*% covEigen$vectors
+  
+  # Make dataframe
+  PCA_Out=cbind(Pre_Post,as.data.frame(NewData))
+  
+  # Compute variance explained by first two PCs
+  PC_Cov=cov(NewData)
+  PC_Var=diag(PC_Cov)
+  PC12_Var=sum(PC_Var[c(1,2)])/sum(PC_Var)
+  print(paste(as.character(PC12_Var*100), " % of varianced explained by first two PCs",sep=""))
+  
+  OUT=list(PCA_Out, covEigen)
+  return(OUT)
+}
+
+
+# A function that converts a PC back into matrix form
+GetPC <- function(covEigen,PCNUM){
+  PC=covEigen$vectors[,PCNUM]
+  PC=matrix(PC,nrow=10,ncol=10)
+  rownames(PC)=colnames(PC)=paste("C",0:9,sep="")
+  PC=melt(PC)
+  return(PC)
+}
 
