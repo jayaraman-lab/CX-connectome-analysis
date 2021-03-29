@@ -1,4 +1,5 @@
-### This script contains functions computing the line that bisects an FB layer outline 
+### This script contains functions for computing the line that bisects an FB layer outline 
+### Column widths are computed along this line (i.e locally tangent to the FB layer)
 
 
 Get_Mid <- function(Outline){
@@ -77,7 +78,7 @@ BisectShape_Ortho <- function(UpperLower){
     Intercept=Upper$c2[ppp]-(Upper$c1[ppp]*Local_OrthoSlope)
     
     # make line that goes through this point
-    XXX_Temp=Lower$c1
+    XXX_Temp=Lower$c1 # x locations of the lower edge
     Line_Temp=data.frame(X = XXX_Temp , Y = XXX_Temp*Local_OrthoSlope + Intercept)
     
     # Find point of lower edge that intersects the line 
@@ -87,17 +88,6 @@ BisectShape_Ortho <- function(UpperLower){
     # Get average of two points
     Temp_df=data.frame( X = mean(c(Upper$c1[ppp],Lower$c1[IND])), Y = mean(c(Upper$c2[ppp],Lower$c2[IND])) )
     Mid=rbind(Mid,Temp_df)
-    
-    # Optional plotting for debugging
-    PLOT=0
-    if (PLOT==1){
-      plot_point=data.frame( X = Upper$c1[ppp], Y =Upper$c2[ppp] )
-      plot_point2=data.frame( X = Lower$c1[IND], Y =Lower$c2[IND] )
-      ggplot() +  geom_path(data=Upper, aes(x=c1, y=c2), size = 1, color="orange") +
-        geom_path(data=Lower, aes(x=c1, y=c2), size = 1, color="red") +
-        geom_path(data=Line_Temp, aes(x=X, y=Y), size = 1, color="green") +
-        geom_point(data=plot_point, aes(x=X, y=Y)) + geom_point(data=plot_point2, aes(x=X, y=Y)) + ylim(c( min(Lower$c2), max(Upper$c2)))
-    }
   }
   
   # Order and smooth
@@ -128,7 +118,8 @@ Extend_Mid <- function(Outline_MID, Outline){
   Outline_MID=rbind(Left_Line,Outline_MID)
 
   # Fill in Right side
-  Right_LocalSlope=median(diff(Outline_MID$Y[ seq( (length(Outline_MID$Y)-10),length(Outline_MID$Y)) ])/diff(Outline_MID$X[seq( (length(Outline_MID$Y)-10),length(Outline_MID$Y))]))
+  Right_LocalSlope=median(diff(Outline_MID$Y[ seq((length(Outline_MID$Y)-10),length(Outline_MID$Y)) ])/
+                          diff(Outline_MID$X[ seq((length(Outline_MID$Y)-10),length(Outline_MID$Y)) ]))
   Right_Intercept=Outline_MID$Y[length(Outline_MID$Y)] -  Right_LocalSlope*Outline_MID$X[length(Outline_MID$Y)]
   Right_Outline=subset(Outline, c1>4000)
   Right_Outline=Right_Outline[order(Right_Outline$c1),]
@@ -139,11 +130,6 @@ Extend_Mid <- function(Outline_MID, Outline){
   Right_Line=subset(Right_Line, X<Right_X & X>Outline_MID$X[length(Outline_MID$X)]+10)
   
   Outline_MID=rbind(Outline_MID,Right_Line)
-  
-  ggplot() +  geom_path(data=Outline, aes(x=c1, y=c2), size = 1, color="red") +
-    geom_path(data=Outline_MID, aes(x=X, y=Y), size = 1, color="orange") + coord_fixed(ratio = 1) +
-    geom_path(data=Left_Line, aes(x=X,y=Y),color="green")
-
   
   return(Outline_MID)
 }
