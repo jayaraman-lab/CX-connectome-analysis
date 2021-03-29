@@ -1,9 +1,10 @@
-##### A collection of functions for loading, processing, and plotting FB synapse distributions ##################
+##### A collection of functions analyzing FB synapse distributions, connectivity, etc.  ######################################
 
 
 
 ###############################################################################################################################
 ################# Function for loading raw synapse locations ##################################################################
+
 
 Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
   #' Function for loading FB synapses by layer, with associated partner type and other meta information.
@@ -19,7 +20,6 @@ Get_FBlayer_ColumnarSyns <- function(BodyIDs, ROI, Layer) {
   SynLocs$Layer=Layer
   return(SynLocs)
 }
-
 
 
 ###############################################################################################################################
@@ -51,8 +51,6 @@ Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_
 }
 
 
-
-
 Plot_ColCol_Matix <- function(PFLn_Input_Network){
   
   P1 <- ggplot(PFLn_Input_Network) +
@@ -68,7 +66,6 @@ Plot_ColCol_Matix <- function(PFLn_Input_Network){
 }
 
 
-
 ###############################################################################################################################
 ################# Functions getting mean arbor locations for hDelta neurons and C0 vDelta neurons #############################
 
@@ -81,7 +78,7 @@ Kmeans_Synapses <- function(TempSynapseData){
   TempClusters=k2$cluster
   Centers=k2$centers
   
-  # assign clusters to left or right half of FB
+  # Assign clusters to left or right half of FB
   Cluster_LR=data.frame(Cluster=c(1,2),LR=NA)
   if (Centers[1,1] > Centers[2,1]){
     Cluster_LR$LR=c("L","R")
@@ -123,7 +120,6 @@ ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
 }   
 
 
-
 Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLayer, PlotDirTemp){
   
   P1=ggplot() + geom_point(data=subset(TempSynapseData,LR=="L"), aes(x=X, y=Z), colour="midnightblue" ,  size=1, alpha = 0.1) + 
@@ -140,10 +136,9 @@ Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLa
 }
 
 
-
 GetColorPalette <- function(TempSynapseData, TempColNum){
   
-  # get color palette
+  # Get color palette
   if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
     Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B"))
   } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
@@ -161,10 +156,9 @@ GetColorPalette <- function(TempSynapseData, TempColNum){
 }
 
 
-
 GetColorFactor <- function(TempSynapseData, TempColNum){
   
-  # get color palette
+  # Get color palette
   if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
     TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12") )
   } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
@@ -180,7 +174,6 @@ GetColorFactor <- function(TempSynapseData, TempColNum){
   
   return(TempSynapseData)
 }
-
 
 
 PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG){
@@ -205,7 +198,6 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
   
   
 }
-
 
 
 ###############################################################################################################################
@@ -246,7 +238,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
     PB_FB_Mapping$to   = match(PB_FB_Mapping$FBcol,  nodes$name)
     
     
-    # build graph object
+    # Build graph object
     graph = tbl_graph(nodes, PB_FB_Mapping)
     
     
@@ -277,6 +269,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
 ###############################################################################################################################
 ################# Functions for performing PCA on column-to-column connection matrix ##########################################
 
+
 # Define a function for doing PCA on Vectors
 motifPCA <- function(PCA_In, Norm, Pre_Post){
   
@@ -285,10 +278,10 @@ motifPCA <- function(PCA_In, Norm, Pre_Post){
     PCA_In[PCA_In>0.001]=1 #0.001
   } 
   
-  # calculate covariance matrix across dimensions 
+  # Calculate covariance matrix across dimensions 
   cov = data.frame(cov(PCA_In))
   
-  # calculate eigenvectors and values (columns contain PCs, ranked from most variance accounted for to least)
+  # Calculate eigenvectors and values (columns contain PCs, ranked from most variance accounted for to least)
   covEigen = eigen(cov) 
   
   # Project into PC space
