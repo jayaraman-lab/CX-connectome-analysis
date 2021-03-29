@@ -33,27 +33,28 @@ library(svglite)
 options(nat.plotengine = 'rgl')
 ```
 
-### Make directories where figures will be saved to
+# Make directories where figures will be saved to
 ```{r}
 
 # Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
-# Directory to save plots to.
+# Directory to save main plots to
 PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_ColumnWidth/"
-
-# Create save/plot directory if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
+
+# Directory where synapse distribution plots will be saved to
+Distribution_Dir=paste(PlotDir,"Syn_Distribution_Examples","/",sep="")
+if (!dir.exists(Distribution_Dir)){dir.create(Distribution_Dir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
 source("FB_LayerOutline_Utils.r")
@@ -74,7 +75,8 @@ FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
 
 ```
 
-# Get the line that bisects each FB layer in the XZ (horizontal) plane.
+# Compute the line that approximately bisects each FB layer in the XZ (horizontal) plane, shown in yellow below.
+# The width of each neuron's arbor will be measured tangent to this line to account for the FB's curvature. 
 ```{r}
 
 Mid_L1=Get_Mid(Outline_L1_XZ)
@@ -88,19 +90,15 @@ Mid_L8=Get_Mid(Outline_L8_XZ)
 
 ```
 
-# Get PB-FB-XX (ie PFX) synapse distributions
+
+# Measure each neuron's arbor width (i.e. the width of its synapse distribution 
+# along a direction tangent to the bisecting line computed above)
 ```{r message=FALSE, warning=FALSE}
 
-# Make PB-FB-XX  plotting directory
-PFX_Dir=paste(PlotDir,"PFX_Plots_All","/",sep="")
-if (!dir.exists(PFX_Dir)){dir.create(PFX_Dir)}
-
-
-# Get PB-FB-XX neuron synapse distributions 
-# Example synapse clouds saved to PFX_Dir
+# Measure the width of each neurons synapse distribution 
+SynThresh=25 # 25 is good here, as some types have low synapse counts, making it hard to measure the distribution's width
 PFX_SynsAll=subset(FBC_SynsAll, !(is.na(PBglom)) & startsWith(type,"PF"))
-PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, 25, PFX_Dir) # 25 is good here, as some types have low synapse counts
-
+PFX_Distribution=Get_SynLayerDistribution(PFX_SynsAll, SynThresh, Distribution_Dir) 
 
 # Subset PFX_Distribution based on neurons that innervate all 9 columns of a layer
 PFX_ColumnsInnervatedPerLayer= PFX_Distribution %>% group_by(type, Layer) %>%  
@@ -111,17 +109,17 @@ remove(PFX_Distribution)
 ```
 
 
-# Plot histogram of arbor widths and inter-column spacing
+# Make a histogram showing the distribution of arbor widths for each supertype
 ```{r message=FALSE, warning=FALSE}
 
-# Plot disribution of synapse cloud widths
+# Group neurons into supertypes
 PFX_Distribution_Columns$supertype2 =NA
 PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFN")]="PFN"
 PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFG")]="PFGs"
 PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFR")]="PFR"
 PFX_Distribution_Columns$supertype2 [startsWith(as.character(PFX_Distribution_Columns$type),"PFL")]="PFL"
 
-
+# Plot the data
 P_Hist = ggplot(PFX_Distribution_Columns, aes(x=X_HW_Orth*2/LayerLength, group = supertype2 , color = supertype2 )) + 
   geom_freqpoly(aes(y = stat(ncount)), binwidth=1/9/5, size=1) +
   scale_x_continuous( limits = c(0, 4/9), expand = c(0,0) , 
@@ -129,20 +127,19 @@ P_Hist = ggplot(PFX_Distribution_Columns, aes(x=X_HW_Orth*2/LayerLength, group =
   theme_classic() + theme(text = element_text(size=12)) + scale_color_CX_supertype() +
   xlab("arbor width (fraction of layer)") + ylab("normalized proportion")
 P_Hist
-
-ggsave(paste(PlotDir, "PbFbXx_SynapseWidth", ".pdf",sep=""), plot = P_Hist, device='pdf',
+ggsave(paste(PlotDir, "PbFbXx_SynapseWidth", ".png",sep=""), plot = P_Hist, device='png',
        scale = 1, width = 4, height = 2, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
 
 ```
 
-# Plot histogram of distances between neurons in adjacent columns
+
+# Make a histogram showing the distribution of distances between neurons in adjacent columns
 ```{r message=FALSE, warning=FALSE}
 
-# Make data with just the information need
+# Get dataframe with just the information need
 InterColumnDistance = PFX_Distribution_Columns[c("X_Mean","Y_Mean","Z_Mean","type","Layer","FBcol","Side","bodyid")]
 InterColumnDistance = within(InterColumnDistance,  ID <- paste(type, Layer, FBcol,Side,bodyid,sep="_"))
 InterColumnDistance = InterColumnDistance[c("X_Mean","Y_Mean","Z_Mean","ID")]
-
 
 # Convert to matrix and use dist() to calculate all pairwise distances
 InterColumnDistance= InterColumnDistance %>% 
@@ -155,13 +152,11 @@ InterColumnDistance= InterColumnDistance %>%
   filter(ID.x < ID.y) %>% 
   as_tibble()
 
-
 # Parse column names to get back Layer, Column, and type information on the neuron pairs
 InterColumnDistance=Assign_FBcol_PBglom(InterColumnDistance, "ID.x", "Side.X", "Layer.X", "FBcol.X")
 InterColumnDistance=Assign_FBcol_PBglom(InterColumnDistance, "ID.y", "Side.Y", "Layer.Y", "FBcol.Y")
 InterColumnDistance$type.X=str_split_fixed(InterColumnDistance$ID.x, "_", Inf)[,1]
 InterColumnDistance$type.Y=str_split_fixed(InterColumnDistance$ID.y, "_", Inf)[,1]
-
 
 # Only consider distances between neuron pairs of the same type and between adjacent columns
 InterColumnDistance=subset(InterColumnDistance, type.X==type.Y & Layer.X == Layer.Y)
@@ -174,7 +169,6 @@ InterColumnDistance=subset(InterColumnDistance, (FBcol.X == "C1" & FBcol.Y == "C
                                                 (FBcol.X == "C7" & FBcol.Y == "C8") |
                                                 (FBcol.X == "C8" & FBcol.Y == "C9") )
 
-
 # Get layer lengths and normalize the distances bewteen neurons
 LayerLengths=unique(PFX_Distribution_Columns[c("Layer","LayerLength")])
 colnames(LayerLengths)[colnames(LayerLengths) == "Layer"]="Layer.X"
@@ -182,14 +176,12 @@ LayerLengths$Layer.X=as.character(LayerLengths$Layer.X)
 InterColumnDistance=inner_join(InterColumnDistance, LayerLengths, by = "Layer.X")
 InterColumnDistance$Distance_Norm=InterColumnDistance$dist/InterColumnDistance$LayerLength
 
-
-# Group into supertypes
+# Group neurons into supertypes
 InterColumnDistance$supertype2 =NA
 InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFN")]="PFN"
 InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFG")]="PFGs"
 InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFR")]="PFR"
 InterColumnDistance$supertype2 [startsWith(as.character(InterColumnDistance$type.X),"PFL")]="PFL"
-
 
 # Plot the data
 P_Hist = ggplot(InterColumnDistance, aes(x=Distance_Norm, group = supertype2 , color = supertype2 )) + 
@@ -199,8 +191,7 @@ P_Hist = ggplot(InterColumnDistance, aes(x=Distance_Norm, group = supertype2 , c
   theme_classic() + theme(text = element_text(size=12)) + scale_color_CX_supertype() +
   xlab("inter-column distance (fraction of layer)") + ylab("normalized proportion")
 P_Hist
-
-ggsave(paste(PlotDir, "PFX_InterColumnDistance", ".pdf",sep=""), plot = P_Hist, device='pdf',
+ggsave(paste(PlotDir, "PFX_InterColumnDistance", ".png",sep=""), plot = P_Hist, device='png',
        scale = 1, width = 4, height = 2, units ="in", dpi = 500, limitsize = TRUE,  bg = "transparent")
 
 ```
