@@ -250,7 +250,7 @@ motifPCA <- function(PCA_In, Norm, Pre_Post){
   # Calculate eigenvectors and values (columns contain PCs, ranked from most variance accounted for to least)
   covEigen = eigen(cov) 
   
-  # Project into PC space
+  # Project data into PC space
   NewData=PCA_In %*% covEigen$vectors
   
   # Make dataframe
@@ -279,7 +279,6 @@ GetPC <- function(covEigen,PCNUM){
 
 Plot_ColCol_Matix <- function(PFLn_Input_Network){
   #' Function for plotting column-to-column connectivity matrix
-  
   P1 <- ggplot(PFLn_Input_Network) +
     scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
                          midpoint =0.5*max(PFLn_Input_Network$weightRelative), 
@@ -288,7 +287,16 @@ Plot_ColCol_Matix <- function(PFLn_Input_Network){
     theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
           strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) +
     facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both")
-  
   return(P1)
+}
+
+
+Plot_PC_Matrix <- function(PCx, PC_Var, PC_Ind){
+  #' A function for plotting a principal component in matrix form
+  PX=ggplot(PCx) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
+    geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC", as.character(PC_Ind), " ", round(PC_Var$PropVar[PC_Ind]*1000)/1000)) + theme(legend.position="none") +
+    xlab("post column") + ylab("pre column")
+  return(PX)
 }
 
