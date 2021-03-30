@@ -51,28 +51,17 @@ Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_
 }
 
 
-Plot_ColCol_Matix <- function(PFLn_Input_Network){
-  
-  P1 <- ggplot(PFLn_Input_Network) +
-    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                         midpoint =0.5*max(PFLn_Input_Network$weightRelative), 
-                         limits=c(0,max(PFLn_Input_Network$weightRelative)*1)) +
-    geom_tile(aes(to_name,from_name,fill=weightRelative)) +
-    theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
-          strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) +
-    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both")
-  
-  return(P1)
-}
+
 
 
 ###############################################################################################################################
-################# Functions getting mean arbor locations for hDelta neurons and C0 vDelta neurons #############################
+################# Functions getting median arbor locations for hDelta neurons and C0 vDelta neurons #############################
 
 
 Kmeans_Synapses <- function(TempSynapseData){
+  #' Function for performing K-means clustering to get the two arbor positions for hDelta and C0 vDelta neurons
   
-  # Perform K-means clusters (n=2 clusters to get pre/post arbors)
+  # Perform K-means clustering (n=2 clusters to get pre/post arbors)
   TempSynLocs=TempSynapseData[c("X","Y")]
   k2 <- kmeans(TempSynLocs, centers = 2)
   TempClusters=k2$cluster
@@ -93,13 +82,16 @@ Kmeans_Synapses <- function(TempSynapseData){
 
 
 ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
-  
-  # Calculate median position of L/R arbors and assign as input or output arbor (or neithers, in case of vDelta)
+  #' Function for calculating the median position of the left and right arbors for hDelta and C0 vDelta neurons
+
+  # Calculate median column position
   TempColumnPositions= TempSynapseData %>% group_by(LR) %>% summarise(X=median(X),Y=median(Y), Z=median(Z), prepost=mean(prepost), numsyns=n())
   TempColumnPositions$bodyid=TempSynapseData$bodyid[1]
   TempColumnPositions$type=TempSynapseData$type[1]
   TempColumnPositions$name=TempSynapseData$name[1]
   TempColumnPositions$Layer=Kmeans_layer
+  
+  # Assign arbors as input or output (or neithers, in case of vDelta)
   if (startsWith(TempSynapseData$type[1],"vDelta")){
     TempColumnPositions$prepost="Neither"
   } else if (startsWith(TempSynapseData$type[1],"hDelta")) {
@@ -114,31 +106,25 @@ ComputeMeanArbor <- function(TempSynapseData, Kmeans_layer){
     } else { # if length of prepost min is 2, then both arbors are inputs
       TempColumnPositions$prepost="Input"}
   }
-  
   return(TempColumnPositions)
-  
 }   
 
 
 Plot_Kmeans <- function(TempSynapseData, TempColumnPositions, OUTLINE, CurrentLayer, PlotDirTemp){
-  
+  #' Function for plotting the K-means clustered synapse locations to make sure arbors are being separated properly
   P1=ggplot() + geom_point(data=subset(TempSynapseData,LR=="L"), aes(x=X, y=Z), colour="midnightblue" ,  size=1, alpha = 0.1) + 
     geom_point(data=subset(TempSynapseData,LR=="R"), aes(x=X, y=Z), colour="black" ,  size=1, alpha = 0.05) +
     geom_point(data=(TempColumnPositions), aes(x=X, y=Z, color=prepost),  size=5, alpha = 1) +
     coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1) + 
     ggtitle(paste( TempSynapseData$type[1], " ", as.character(TempSynapseData$bodyid[1]), " ", CurrentLayer, sep="" )) +  theme_bw() +
     guides(colour = guide_legend(override.aes = list(alpha = 1)))
-  
-  
   ggsave(paste(PlotDirTemp, TempSynapseData$type[1], " ", as.character(TempSynapseData$bodyid[1]), " ", CurrentLayer, ".png", sep=""),
          plot = P1, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 150, limitsize = TRUE)
-  
 }
 
 
 GetColorPalette <- function(TempSynapseData, TempColNum){
-  
-  # Get color palette
+  #' Function that gets columnar color palette according to each neuron type's columnar number
   if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
     Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B","#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#9A749A", "#00868B"))
   } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
@@ -151,14 +137,12 @@ GetColorPalette <- function(TempSynapseData, TempColNum){
              startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
     Colors=color(c("#CD4F39", "#7D26CD", "#63B8FF", "#FF1493", "#CD96CD", "#00868B", "#ADFF2F", "#0000FF", "#FFB90F"))
   }
-  
   return(Colors)
 }
 
 
 GetColorFactor <- function(TempSynapseData, TempColNum){
-  
-  # Get color palette
+  #' Function that sets factor levels on FB columns according to neuron type
   if (TempColNum == 12 & startsWith(TempSynapseData$type[1],'hDelta')){
     TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12") )
   } else if (TempColNum == 8 & startsWith(TempSynapseData$type[1],'hDelta')){
@@ -171,16 +155,17 @@ GetColorFactor <- function(TempSynapseData, TempColNum){
              startsWith(TempSynapseData$type[1],'FC') | startsWith(TempSynapseData$type[1],'FR')){
     TempSynapseData$FBcol=factor(TempSynapseData$FBcol, levels=c("C1","C2","C3","C4","C5","C6","C7","C8","C9") )
   }
-  
   return(TempSynapseData)
 }
 
 
-PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG){
+PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, CurrentLayer, FigDir){
+  #' Function for plotting the median synapse locations of all neurons of a given neuron type
   
-  # Conversion vector from pixels to microns
+  # Conversion factor from pixels to microns
   Convert=8/1000 # 8 nm/pixel, divided by 1000 nm per um.
   
+  # plot each neurons median synapse location
   P3=ggplot() + geom_point(data=TempSynapseData, aes(x=X*Convert, y=-Z*Convert, colour=FBcol, shape=prepost),  size=4, alpha = 0.75) + 
     coord_fixed(ratio = 1) +  geom_path(data=OUTLINE, aes(x=c1*Convert, y=-c2*Convert), size = 0.5) + 
     ggtitle(paste(TempSynapseData$type[1], " ", CurrentLayer , "   Neurons = ", length(unique(TempSynapseData$bodyid)) ,
@@ -189,14 +174,8 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
     scale_color_manual(values=Colors, drop=FALSE) + xlim(-9000*Convert,9000*Convert) + ylim(-6000*Convert, 6000*Convert) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_line(colour = "black"))
-  
-  ggsave(paste(FigDirPDF, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".pdf", sep=""),
-         plot = P3, device='pdf', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-  
-  ggsave(paste(FigDirPNG, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".png", sep=""),
+  ggsave(paste(FigDir, "ColumnLocs_", TempSynapseData$type[1], "_", as.character(CurrentLayer), ".png", sep=""),
          plot = P3, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 200, limitsize = TRUE)
-  
-  
 }
 
 
@@ -308,5 +287,21 @@ GetPC <- function(covEigen,PCNUM){
   rownames(PC)=colnames(PC)=paste("C",0:9,sep="")
   PC=melt(PC)
   return(PC)
+}
+
+
+Plot_ColCol_Matix <- function(PFLn_Input_Network){
+  #' Function for plotting column-to-column connectivity matrix
+  
+  P1 <- ggplot(PFLn_Input_Network) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                         midpoint =0.5*max(PFLn_Input_Network$weightRelative), 
+                         limits=c(0,max(PFLn_Input_Network$weightRelative)*1)) +
+    geom_tile(aes(to_name,from_name,fill=weightRelative)) +
+    theme(axis.text.x = element_blank(),axis.text.y = element_blank(), 
+          strip.placement = "outside", strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(type.from, desc(type.from)) ~ type.to, space="free", scales="free",switch="both")
+  
+  return(P1)
 }
 
