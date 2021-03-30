@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-### Load libraries
+# Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
@@ -33,40 +33,35 @@ library(svglite)
 options(nat.plotengine = 'rgl')
 ```
 
-### Make directories where figures will be saved to
+# Make directories where figures will be saved to
 ```{r}
 
 # Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
-# Directory to save plots to.
+# Directories to save plots to.
 PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Figure_ColumnLocations/"
-PlotDirKmean=paste(PlotDir,"Delta_Kmeans/",sep='')
-FigDirPNG=paste(PlotDir,"/FIG_ColPos_PNG/",sep='')
-FigDirPDF=paste(PlotDir,"/FIG_ColPos_PDF/",sep='')
+PlotDirKmean=paste(PlotDir,"Kmeans_Examples/",sep='')
+FigureDir=paste(PlotDir,"/Column_Locations/",sep='')
 
-
-# Create save/plot directory if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+# Create plot directories if they dont exists yet
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 if (!dir.exists(PlotDirKmean)){dir.create(PlotDirKmean)}
-if (!dir.exists(FigDirPNG)){dir.create(FigDirPNG)}
-if (!dir.exists(FigDirPDF)){dir.create(FigDirPDF)}
+if (!dir.exists(FigureDir)){dir.create(FigureDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
 source("FB_Analysis_Utils.r")
 
 ```
-
 
 # Load pre-processed synapse location data and remove variables that won't be used
 ```{r}
@@ -81,26 +76,22 @@ FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
 ```
 
 
-
 # For neurons with arbors in two non-contiguous columns (the hDelta and C0 vDeltas), loop over each neuron
 # and find the median location of its two arbors using K-mean clustering.
 ```{r message=FALSE, warning=FALSE}
 
-
 # Get all hDelta neurons and the C0 vDelta neurons (those that innervate C1/C9)
 Delta_SynsAll=subset(FBC_SynsAll, startsWith(type,"hDelta") | ((startsWith(type,"vDelta") & FBcol=="C0")) )
 Delta_Types=unique(Delta_SynsAll$type)
-
 
 # Make pre/post = 1/0
 Delta_SynsAll$prepost[Delta_SynsAll$prepost == "Output"] = 1
 Delta_SynsAll$prepost[Delta_SynsAll$prepost == "Input"] = 0
 Delta_SynsAll$prepost=as.numeric(Delta_SynsAll$prepost)
 
-
 # Loop over all individual neurons and find median location of pre/post arbors
-SynThresh=10 # Minimum number of synapses per layer to run kmeans on
-PLOT=TRUE    # Whether to plot every neuron's synaptic point clouder and kmean groups
+SynThresh=10 # Minimum number of synapses per layer to run kmeans on (10 is good here)
+PLOT=TRUE    # Whether to plot every neuron's synaptic point cloud and kmean groups
 Delta_ColumnPositions=data.frame(LR=character(),X=numeric(),Y=numeric(), Z=numeric(), 
                                  bodyid=character(), type=character(), name=character(),
                                  prepost=numeric(), Layer=character(), numsyns=numeric())
@@ -117,17 +108,15 @@ for (ttt in 1:length(Delta_Types)){
     TempNeuronData=subset(TempTypeSynsAll, bodyid == TempBodyIds[nnn])
     TempNeuronData$LR=NA
     
-    
     # Perform K-means on synapses from all layers, add data to dataframe, and plot
     CurrentLayer="FB"
     TempNeuronData=Kmeans_Synapses(TempNeuronData)
     CurrentColumnPositions=ComputeMeanArbor(TempNeuronData, CurrentLayer)
     Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
-    eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+    eval(parse(text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="")))
     if (PLOT==TRUE){Plot_Kmeans(TempNeuronData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
     
-    
-    # Loop over layers
+    # Now perform K-means on synapses in each layer, add data to dataframe, and plot
     TempLayers=sort(unique(TempNeuronData$Layer))
     for (lll in 1:length(TempLayers)){
   
@@ -136,30 +125,27 @@ for (ttt in 1:length(Delta_Types)){
       TempLayerData$LR=NA
       
       if (length(TempLayerData$bodyid)>=SynThresh){
-        # Perform K-means on synapses from this layer, add data to dataframe, and plot.
         # Note that not all layers will have two clear clusters, especially those with very few synapses,
-        # But these will get filtered out in the plotting step below.
+        # but these will get filtered out in the plotting steps in the next section.
         CurrentLayer=TempLayers[lll]
         TempLayerData=Kmeans_Synapses(TempLayerData)
         CurrentColumnPositions=ComputeMeanArbor(TempLayerData, CurrentLayer)
         
-        if ( abs(diff(CurrentColumnPositions$X))>3000){ # check to make sure the two clusters are actually well separated.
-          Delta_ColumnPositions=rbind(Delta_ColumnPositions,CurrentColumnPositions)
-          eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+        # check to make sure the two clusters are actually well separated in space before adding to dataframe.
+        if (abs(diff(CurrentColumnPositions$X))>3000){ 
+          Delta_ColumnPositions=rbind(Delta_ColumnPositions, CurrentColumnPositions)
+          eval(parse(text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="")))
           if (PLOT==TRUE){Plot_Kmeans(TempLayerData, CurrentColumnPositions, OUTLINE, CurrentLayer, PlotDirKmean)}
         }
       }
     }
-    
   }
 }
-
 
 ```
 
 
-
-# Plot the median location of each neuron's synapse cloud as a way to show where column locations are
+# Plot the median location of each neuron's synapse distribution as a way to show where column locations are
 # and how evenly spaced they are.
 ```{r message=FALSE, warning=FALSE}
 
@@ -177,7 +163,7 @@ ColumnPositions_All_FB$LR="Neither"
 ColumnPositions_All_FB$prepost="Neither"
 ColumnPositions_All_FB$Layer="FB"
 
-# Combine layer and all-FB locations
+# Combine layer-specific and all-FB column locations
 ColumnPositions_All_FB=ColumnPositions_All_FB[colnames(ColumnPositions_All)]
 ColumnPositions_All=rbind(as.data.frame(ColumnPositions_All),as.data.frame(ColumnPositions_All_FB))
 remove(ColumnPositions_All_FB)
@@ -209,11 +195,10 @@ for (ttt in 1:length(Columnar_Types)){
   # Plot median neuron location for all FB layers
   CurrentLayer="FB"
   PlotData=subset(TempTypeSynsAll, Layer==CurrentLayer)
-  eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+  eval(parse(text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="")))
   PlotData=GetColorFactor(PlotData, TempColNum)
   Colors=GetColorPalette(PlotData, TempColNum)
-  PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
-  
+  PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigureDir)
   
   # Plot median neuron location for layer with most synapses (and layer 1 for vDelta types)
   LayersToPlot=TempTypeSynsAll %>% group_by(Layer) %>% summarise(Total_numsyns=sum(numsyns)) %>%
@@ -223,34 +208,20 @@ for (ttt in 1:length(Columnar_Types)){
   for (lll in 1:length(LayersToPlot)){
     CurrentLayer=LayersToPlot[lll]
     PlotData=subset(TempTypeSynsAll, Layer == CurrentLayer)
-    eval(parse( text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="") ))
+    eval(parse(text= paste("OUTLINE=Outline_", CurrentLayer,"_XZ",sep="")))
     PlotData=GetColorFactor(PlotData, TempColNum)
     Colors=GetColorPalette(PlotData, TempColNum)
-    PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigDirPDF, FigDirPNG)
+    PlotColLocs(PlotData, TempTypeSynsAll, Colors, OUTLINE, CurrentLayer, FigureDir)
   }
 }
 
-
 ```
-
 
 
 # Save column position information for later use
 ```{r}
 
-# Save synapse locations for later loading
 save(ColumnPositions_All, file = paste(SaveDir,"FB_ColumnPositions.RData",sep=""))
 
 ```
-
-
-
-
-
-
-
-
-
-
-
 
