@@ -1,7 +1,6 @@
 ##### A collection of functions analyzing FB synapse distributions, connectivity, etc.  ######################################
 
 
-
 ###############################################################################################################################
 ################# Function for loading raw synapse locations ##################################################################
 
@@ -49,9 +48,6 @@ Assign_FBcol_PBglom <- function(DF, name_field, side_field, PBglom_field, FBcol_
   
   return(DF)
 }
-
-
-
 
 
 ###############################################################################################################################
@@ -180,29 +176,26 @@ PlotColLocs <- function(TempSynapseData, TempTypeSynsAll,Colors, OUTLINE, Curren
 
 
 ###############################################################################################################################
-################# Functions for plotting mapping between PB glom and FB cols ##################################################
+################# Function for plotting mapping between PB glom and FB cols ###################################################
 
 
 Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
+  #' Function that makes a graph showing the mapping from PB glomeruli to FB columns for PB-FB-XX neuron types
   
-  
-  # Get rid of neurons with "irreg" in name (e.g. some PFNp_d), which have weird wiring patterns
+  # Get rid of neurons without assigned PB glomeruli (mostly neurons with "irreg" in their name and odd wiring patterns)
   PFX_Distribution=subset(PFX_Distribution, !is.na(PBglom))
   PFX_Distribution$PBglom=factor(PFX_Distribution$PBglom, levels=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                                                    "R1","R2","R3","R4","R5","R6","R7","R8","R9"))
   
-  # Get number of neurons going from each glom to each column
-  PFX_GlomToColumn=PFX_Distribution %>% group_by(bodyid, type, PBglom, FBcol) %>% summarise(Num_layers = n()) 
-  PFX_GlomToColumn=PFX_GlomToColumn %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n()) 
+  # Get number of neurons going from each PB glomerulus to each FB column
+  PFX_GlomToColumn=PFX_Distribution %>% group_by(type, PBglom, FBcol) %>% summarise(Num_Neurons = n()) 
   
-  
+  # Loop over all PB-FB-XX neuron types and plot their PB-FB mapping
   PB_FB_Types=unique(PFX_GlomToColumn$type)
   for (nnn in 1:length(PB_FB_Types)){
     
-    
-    # Data for mapping
+    # Data for this neuron type
     PB_FB_Mapping=subset(PFX_GlomToColumn, type==PB_FB_Types[nnn] )
-    
     
     # Set up node names and positions
     nodes = data.frame(name = c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
@@ -211,22 +204,18 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
     nodes$x <- c( seq(from= 9 ,to = 1), seq(from= -1 ,to = -9),  seq(from= -4 ,to = 4))
     nodes$y <- c( rep(1, 18), rep(0, 9))
     
-    
     # Assign node from/to pairs (numerical)
     PB_FB_Mapping$from = match(PB_FB_Mapping$PBglom, nodes$name)  
     PB_FB_Mapping$to   = match(PB_FB_Mapping$FBcol,  nodes$name)
     
-    
     # Build graph object
     graph = tbl_graph(nodes, PB_FB_Mapping)
     
-    
-    # Get column vector
+    # Get color palette 
     col_vector=color(rev(c("#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688",
                        "#FFF688", "#FFA010", "#FF3610", "#FBB5DE", "#7D24E7", "#5C89C7", "#C7FFEF", "#81FB35", "#FFF688")))
     
-    
-    # Plot graph
+    # Plot PB-FB mapping
     P1<-ggraph(graph,layout="manual",x=nodes$x,y=nodes$y) +
       geom_edge_diagonal(aes(width=Num_Neurons,color=PBglom),alpha=0.5,strength=0.5) +
       geom_node_point(size=5)  + scale_edge_color_manual(values=col_vector, drop=FALSE)  +
@@ -237,10 +226,7 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
             axis.text.y=element_blank(),axis.ticks=element_blank(),
             axis.title.x=element_blank(),axis.title.y=element_blank()) + 
       ggtitle(PB_FB_Mapping$type[1])
-    
     ggsave(paste(DIR, "Graph_", PB_FB_Mapping$type[1], ".png",sep=""), plot = P1, device='png', scale = 1, width = 10, height = 5, units ="in", dpi = 500, limitsize = TRUE) 
-    
-    
   }
 }
 
@@ -249,8 +235,9 @@ Plot_PBglom_FBcol_Mapping <- function(PFX_Distribution, DIR){
 ################# Functions for performing PCA on column-to-column connection matrix ##########################################
 
 
-# Define a function for doing PCA on Vectors
+
 motifPCA <- function(PCA_In, Norm, Pre_Post){
+  #' Function for doing PCA on Vectors
   
   # Binarize or normalize data
   if (Norm=="Binary"){
@@ -280,8 +267,8 @@ motifPCA <- function(PCA_In, Norm, Pre_Post){
 }
 
 
-# A function that converts a PC back into matrix form
 GetPC <- function(covEigen,PCNUM){
+  #' Function that converts a PC back into matrix form
   PC=covEigen$vectors[,PCNUM]
   PC=matrix(PC,nrow=10,ncol=10)
   rownames(PC)=colnames(PC)=paste("C",0:9,sep="")
