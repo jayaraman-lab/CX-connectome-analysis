@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-### Load libraries
+# Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
@@ -33,41 +33,37 @@ library(svglite)
 options(nat.plotengine = 'rgl')
 ```
 
-### Make directories where figures will be saved to
+# Make directories where figures will be saved to
 ```{r}
 
-# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+# Home directory
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
-# Directory to save plots to.
+# Directory to save plots to
 PlotDir=paste(SaveDir, "/Figure_Lateralization/",sep="")
-
-# Create save/plot directories if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
 source("FB_Analysis_Utils.r")
 
 ```
 
-
 # Get all FB bodies and columnar types
 ```{r message=FALSE, warning=FALSE}
 
 NamedBodies=getNeuronsInRoiTable("FB",0)
-Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
-                                                    startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) | 
-                                                    startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
+Columnar_Types=sort(unique( NamedBodies$type[startsWith(NamedBodies$type, "PF" )     | startsWith(NamedBodies$type, "FR" ) | 
+                                             startsWith(NamedBodies$type, "FS" )     | startsWith(NamedBodies$type, "FC" ) | 
+                                             startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
@@ -99,8 +95,8 @@ PFX_FB_Outputs_All=Assign_FBcol_PBglom(PFX_FB_Outputs_All, "name.to", "Side.to",
 # Get unique pre-post pairs
 Pre_Post=distinct(PFX_FB_Outputs_All[c("type.from","type.to")])
 
-# Compute relative weight from left and right PB-FB-XX populations on single downstream neurons
-Scatter = PFX_FB_Outputs_All %>% group_by(Side.from, type.from, type.to, to) %>% summarise(weightRelative= sum(weightRelative))
+# Compute relative weight from left and right PB-FB-XX populations onto single downstream neurons
+Scatter=PFX_FB_Outputs_All %>% group_by(Side.from, type.from, type.to, to) %>% summarise(weightRelative= sum(weightRelative))
 Scatter_L=subset(Scatter, Side.from=="L")
 colnames(Scatter_L)[colnames(Scatter_L) == "weightRelative"]="weightRelative_L"
 Scatter_R=subset(Scatter, Side.from=="R")
@@ -110,7 +106,7 @@ Scatter_All$weightRelative_L[is.na(Scatter_All$weightRelative_L)]=0
 Scatter_All$weightRelative_R[is.na(Scatter_All$weightRelative_R)]=0
 rm(list=c("Scatter","Scatter_L","Scatter_R"))
 Scatter_All=Scatter_All[c("type.from","type.to","to","weightRelative_R","weightRelative_L")]
-Scatter_All = left_join(Scatter_All, distinct(PFX_FB_Outputs_All[c("to","FBcol.to")]), by="to")
+Scatter_All=left_join(Scatter_All, distinct(PFX_FB_Outputs_All[c("to","FBcol.to")]), by="to")
 
 
 # Loop over every Pre/Post connection pair and compute:
@@ -133,11 +129,12 @@ for (ppp in 1:length(Pre_Post$type.from)){
   AverageWeight=mean((Temp_Scatter$weightRelative_L + Temp_Scatter$weightRelative_R)*PostNum/PostNum_All)
   Lateralization=1-sum(Temp_Scatter$weightRelative_R > 0 & Temp_Scatter$weightRelative_L > 0)/PostNum_All
   PostProportion=PostNum/PostNum_All
+  PreProportion=PreNum/PreNum_All
   
   # Add this data to ConnectivityCriteria
   ConnectivityCriteria=rbind(ConnectivityCriteria, 
   data.frame(type.from=Pre_Post$type.from[ppp],type.to=Pre_Post$type.to[ppp],ColFromNum=FBColfromNum,
-             PreProportion=PreNum/PreNum_All,PostProportion=PostProportion,Lateralization=Lateralization, AverageWeight=AverageWeight))
+             PreProportion=PreProportion,PostProportion=PostProportion,Lateralization=Lateralization, AverageWeight=AverageWeight))
   
 }
 
@@ -145,10 +142,9 @@ for (ppp in 1:length(Pre_Post$type.from)){
 ```
 
 
-
-# Plot the amount of left/right lateralized input as a function of the proportion of postsynaptic neurons
-# in each population and by the strength of the type-to-type connection. This shows that left/right lateralized
-# connectivity matrices are from inconsistent and have weak type-to-type connections.
+# Plot the amount of lateralization as a function of the proportion of postsynaptic neurons targeted and
+# by the strength of the type-to-type connection. This shows that left/right lateralized connectivity
+# matrices are from types with inconsistent and weak neuron-to-neuron connection matrices. 
 ```{r message=FALSE, warning=FALSE}
 
 # remove PFLs
@@ -221,12 +217,10 @@ ggsave(paste(PlotDir, "SingleNeuron_Left_Vs_Right.png",sep=""),
 ```{r message=FALSE, warning=FALSE}
 
 # Average Left/Right PB input by postsynaptic type. Need to multiple by PostProportion because not all
-# all postsynaptic neurons of a type receive input from the presynaptic type in question, and averaging
-# would miss these 0 weights. Multiplying the average weights by the proportion of downstream neurons targeted 
-# is the same as including the 0s. 
+# postsynaptic neurons of a type receive input from the presynaptic type in question, and averaging
+# would miss these 0 weights.
 Scatter_All_Consistent_bytype=Scatter_All_Consistent %>% group_by(type.from, type.to, PresynapticClass) %>%
   summarise(weightRelative_R=mean(weightRelative_R*PostProportion), weightRelative_L=mean(weightRelative_L*PostProportion))
-
 
 P1=ggplot() + geom_point(data=Scatter_All_Consistent_bytype, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
   scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1) + xlim(0,0.2) + ylim(0,0.2) +
@@ -236,6 +230,5 @@ ggsave(paste(PlotDir, "NeuronType_Left_Vs_Right.png",sep=""),
          plot = P1, device='png', scale = 1, width =5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
 ```
-
 
 
