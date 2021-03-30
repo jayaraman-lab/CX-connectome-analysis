@@ -1,24 +1,17 @@
 ---
-title: "Validation analysis"
+title: "Validation - figure 4"
 output: html_notebook
 ---
 
-This notebook generates the plots related to the "validation" figures, which are figures 3 and 4
+This notebook generates the plots related to the second "validation" figures (figure 4), which regards the PB glomeruli and FB column validation.
 
 
 ## Preparing the environment:
 - Loading necessary packages:
 ```{r,warning=FALSE,message=FALSE}
-#library(neuprintr)
 library(tidyverse)
-#library(cowplot)
-#library(patchwork)
-#library(ggiraph)
 library(neuprintrExtra)
 library(paletteer)
-#library(nat)
-#library(broom)
-#library(Cairo)
 ```
   
 - Path to the folder where the plots will be saved if need be (by default in a folder created for that in the validation folder)
@@ -119,7 +112,7 @@ PBreBagControl$inputs <- getTypeToTypeTable(PBreBagControl$inputs_raw,typesTable
 PBreBagControl$outputs <-  getTypeToTypeTable(PBreBagControl$outputs_raw,typesTable=PBreBagControl$outputsTableref,oldTable=PBreBagControl$outputs) 
 ```
 
-- We then reformats those tables so that we can compare the comparisons between the same type in different glomeruli. First for the inputs: 
+- We then reformats those tables so that we can perform the comparisons between the same type in different glomeruli. First for the inputs: 
 
 ```{r}
 PB3InputComp <- PBreBag$inputs %>% filter(!is.na(databaseType.from)) %>%  
@@ -218,6 +211,13 @@ PBSlopesAlt
 save_plot(file.path(validationFolder,"PBCounts.svg"),PBSynapseCountDiffAlt,base_width=4.25,base_height=2.25)
 save_plot(file.path(validationFolder,"PBSlopes.svg"),PBSlopesAlt,base_width=4.25,base_height=2.25)
 save_plot(file.path(validationFolder,"PBExampleFit.svg"),PBCompIn,base_width=3,base_height=3)
+```
+
+Instances for anatomical renderings of PFNa in glomeruli R3 and L3 are selected as follows:
+```{r}
+R3Example <- unique(filter(PBreBag$inputs_raw,type.to=="PFNa_R3")$to)
+L3Example <- unique(filter(PBreBag$inputs_raw,type.to=="PFNa_L3")$to)
+c(R3Example,L3Example)
 ```
 
 
@@ -327,11 +327,7 @@ PBCompSlopesComp <- ggplot(PBCompAllFits,aes(estimate,fill=type)) + geom_histogr
 PBCompSlopesComp
 ```
 
-Saving the panels:
-```{r}
-
-```
-
+#### Saving the PB SI panels
 ```{r}
 save_plot(file.path(validationFolder,"SI-PBCountsControl.svg"),PBSynapseCountDiffControl,base_width=4.25,base_height=2.25)
 save_plot(file.path(validationFolder,"SI-PBSlopesControl.svg"),PBSlopesControl,base_width=4.25,base_height=2.25)
@@ -339,8 +335,8 @@ save_plot(file.path(validationFolder,"SI-PBExampleFitPFN.svg"),PBCompControlIn,b
 save_plot(file.path(validationFolder,"SI-PBExampleFitEPG.svg"),PBCompControlOut,base_width=3,base_height=3)
 ```
 
-## FB Column 3 vs the rest of the FB
-
+## FB Column 3 vs the rest of the FB: panel B of the main figure
+### Preparing the data
 Similarly to what we did with the PB glomeruli, we collect information on neurons innervating column 3 of the FB (`FB-column3` is a "secret" ROI in the dataset that is usually not exposed) relative to their innervation in the whole FB.
 ```{r}
 FBC3Neurons <- subroiSet("FB-column3","FB")
@@ -376,19 +372,20 @@ FBCTypes_Out <- mutate(FBCTypes_Out,C3 = bodyid %in% FBC3RealOut$bodyid)
 ```
 
 
-Building the full bag in the FB and in the restricted column. Notice that at this stage the numbers for FC3 in the type to type DFs won't "make sense" as they are normalized on all instances.
+Building the full connection tables in the FB and in the restricted column. Notice that at this stage the numbers for FC3 in the type to type data frames won't "make sense" as they are normalized on all instances.
 ```{r}
 FBC3NeuronsBag <- neuronBag(unique(c(FBC3Real$type,FBC3RealOut$type)),fixed=TRUE,slctROI="FB",synThresh=0,computeKnownRatio=TRUE,verbose=TRUE)
+summary(FBC3NeuronsBag)
 ```
 
-Redefine types (different renaming for inputs and outputs)
+
+- We then redefine the types so as neurons innervating column 3 are assigned a different type (different renaming for inputs and outputs, as the sets of neurons we want to consider is different). Those are the types we'll compare to each other later on. We then have to redefine accordingly the type to type tables using `getTypeToTypeTable`
 ```{r}
 FBC3Set <- unique(FBC3Real$bodyid)
 FBC3OutSet <- unique(FBC3RealOut$bodyid)
 FBCXSet <- unique(FBCXReal$bodyid)
 FBCXOutSet <- unique(FBCXRealOut$bodyid)
 retypedBag <- FBC3NeuronsBag
-## Note selecting by bodyid is more rigorous but creates more weirdnesses in the results
 
 retypedBag$inputs_raw <- redefineTypeByBodyId(FBC3NeuronsBag$inputs_raw,postfix="to",sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"))
 retypedBag$names <- redefineTypeByBodyId(FBC3NeuronsBag$names,sets=list(FBC3Set,FBCXSet),nameModifiers=c("_C3","_CX"),postfix = "raw")
@@ -398,6 +395,7 @@ retypedBag$inputs <- getTypeToTypeTable(retypedBag$inputs_raw,typesTable=retyped
 retypedBag$outputs <-  getTypeToTypeTable(retypedBag$outputs_raw,typesTable=retypedBag$outputsTableRef,oldTable=retypedBag$outputs) 
 ```
 
+- We then reformats those tables so that we can perform the comparisons between the same type in column 3 vs other columns. First for the inputs: 
 ```{r}
 FBC3InputComp <- retypedBag$inputs %>% filter(grepl("_C[3|X]",type.to)) %>% 
   mutate(column=substring(str_extract(type.to,"_C[3|X]"),2)) %>%
@@ -417,7 +415,7 @@ FBC3InputComp <-  group_by(FBC3InputComp,databaseType.to) %>% mutate(known_synap
                                                                      known_synapses_CX=mean(known_synapses_CX,na.rm=TRUE),
                                                                      known_synapses_ratio = (known_synapses_C3 - known_synapses_CX)/known_synapses_CX) %>% ungroup()
 ```
-
+- then for the outputs:
 ```{r}
 FBC3OutputComp <- retypedBag$outputs %>% filter(grepl("_C[3|X]",type.from)) %>% 
   mutate(column=substring(str_extract(type.from,"_C[3|X]"),2)) %>%
@@ -437,7 +435,7 @@ FBC3OutputComp <-  group_by(FBC3OutputComp,databaseType.from) %>% mutate(known_s
                                                                      known_synapses_CX=mean(known_synapses_CX,na.rm=TRUE),
                                                                      known_synapses_ratio = (known_synapses_C3 - known_synapses_CX)/known_synapses_CX) %>% ungroup()
 ```
-
+- Then regrouping both comparison data frames:
 ```{r}
 FBC3Comp <- bind_rows(mutate(FBC3InputComp,side="inputs",
                                            supertype2=supertype2.to,
@@ -445,96 +443,41 @@ FBC3Comp <- bind_rows(mutate(FBC3InputComp,side="inputs",
                       mutate(FBC3OutputComp,side="outputs",
                                            supertype2=supertype2.from,
                                            databaseType=databaseType.from))
+head(FBC3Comp)
 ```
 
+One then makes the linear fits per type, trying to predict the connectivity of types in column 3 from the connectivity of the same types in other columns. `getFit` is defined in "validationFunctions.R". It returns fit results and associated statistics, per the groups defined by the `groups` argument.
 ```{r}
-synapseDiffC3 <- ggplot(distinct(FBC3Comp,databaseType,side,.keep_all = TRUE),aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=known_synapses_ratio*100,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="Supertype") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333))+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(yintercept=0,lty=2)
+FBCompFits <- getFit(FBC3Comp,groups=c("side","databaseType","supertype2"),
+                   predicted="C3",
+                   predictor="CX")
+head(FBCompFits)
+```
+
+### Figures
+#### Example outputs: hDeltaA, panel 3Bii
+```{r}
+FBComp <- ggplot(filter(FBC3Comp,databaseType=="hDeltaA" & side=="outputs"),aes(x=CX,y=C3)) + geom_point(aes(color=supertype2.to))  + geom_smooth(formula=y~x,method="lm",color="grey") + coord_fixed()+
+  geom_abline(linetype=2) + theme_paper()  + scale_color_CX_supertype(name="supertype") + ylab("relative weight in column 3") + xlab("relative weight in other columns") 
+FBComp
+```
+#### Differences in synapse counts: panel 3Bii
+```{r}
+synapseDiffC3 <- ggplot(distinct(FBC3Comp,databaseType,side,.keep_all = TRUE),aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=known_synapses_ratio*100,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="supertype") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6))+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(yintercept=0,lty=2)
 synapseDiffC3
 ```
 
-
-
-
-```{r}
-FBCompFits <- getFit(FBC3Comp)
-```
+#### Slopes of fits by type: panel 3Biv
 
 ```{r}
-FC3Slopes <- ggplot(FBCompFits,aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("") +ylab("slope estimate")+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(lty=2,yintercept = 1)
+FC3Slopes <- ggplot(FBCompFits,aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="supertype") + facet_grid(.~side,scales = "free_x") + theme_paper()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6)) +xlab("") +ylab("slope estimate")+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(lty=2,yintercept = 1)
 FC3Slopes
 ```
 
-```{r}
-FBComp <- ggplot(filter(FBC3Comp,databaseType=="hDeltaA" & side=="outputs"),aes(x=CX,y=C3)) + geom_point(aes(color=supertype2.to))  + geom_smooth(formula=y~x,method="lm",color="grey") + coord_fixed()+
-  geom_abline(linetype=2) + theme_paper()  + scale_color_CX_supertype(name="Supertype") + ylab("relative weight in column 3") + xlab("relative weight in other columns") 
-FBComp
-```
-
-### Anatomy illustration of FB column 3
-```{r}
-FC3Mesh <- neuprintr::neuprint_ROI_mesh("FB-column3") #readobj::read.obj("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/validation/FB-column3.obj",convert.rgl = TRUE)[[1]]
-FBMesh <- neuprintr::neuprint_ROI_mesh("FB")
-```
+#### Saving the FB panels
 
 ```{r}
-hDeltaA_C3Id <- distinct(filter(retypedBag$outputs_raw,type.from=="hDeltaA_C3"),from,type.from)$from
-hDeltaA_CXId <- distinct(filter(retypedBag$outputs_raw,type.from=="hDeltaA_CX"),from,type.from)$from
-```
-
-
-```{r}
-hDeltaA_C3 <- lapply(hDeltaA_C3Id,getNeuronMesh,cloud=TRUE)
-hDeltaA_CX <- lapply(hDeltaA_CXId,getNeuronMesh,cloud=TRUE)
-hDeltaA_C3Synapses <- neuprint_get_synapses(hDeltaA_C3Id,roi="FB") %>% filter(prepost==0)
-hDeltaA_CXSynapses <- neuprint_get_synapses(hDeltaA_CXId,roi="FB") %>% filter(prepost==0)
-```
-
-
-```{r}
-nopen3d()
-par3d(windowRect = c(20, 30, 1500, 1500))
-plot3d(FBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,smooth=FALSE)
-par3d(scale=c(1,1,1))
-plot3d(FC3Mesh,color="#908827",add=TRUE,alpha=0.2,smooth=FALSE,shininess=100)
-plot3d(hDeltaA_C3[[1]],color="SteelBlue",add=TRUE,smooth=FALSE,shininess=100)
-plot3d(hDeltaA_C3Synapses[c("x","y","z")],add=TRUE,col="orange",size=5)
-plot3d(hDeltaA_CX[[1]],color="grey80",add=TRUE,smooth=FALSE,shininess=100)
-plot3d(hDeltaA_CX[[2]],color="grey60",add=TRUE,smooth=FALSE,shininess=100)
-plot3d(hDeltaA_CX[[3]],color="grey40",add=TRUE,smooth=FALSE,shininess=100)
-plot3d(hDeltaA_CXSynapses[c("x","y","z")],add=TRUE,col="orange",size=5)
-nview3d("ventral")
-rgl.snapshot(paste0(validationFolder,"frontC3.png"))
-```
-
-```{r}
-FBC3Frame <- ggdraw() + draw_image(paste0(validationFolder,"frontC3.png"),scale=1.55,vjust=0,clip="on") + theme_paper_map()
-FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.35,y=0.62,label="Column 3",color="#908827")
-FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.4,y=0.84,label="hΔA outputing \n in other columns",color="grey20")
-FBC3Frame <- FBC3Frame + annotate(geom="text",x=0.76,y=0.92,label="hΔA outputing \n in column 3",color="SteelBlue")
-FBC3Frame <- FBC3Frame + annotate(geom="point",x=0.73,y=0.79,color="orange",size=1) + 
-  annotate(geom="text",x=0.84,y=0.79,label="Output synapses")
-FBC3Frame
-```
-
-```{r}
-#fcLayout <- "
-#AAC
-#BBD"
-save_plot(paste0(validationFolder,"FBCounts.svg"),synapseDiffC3,base_width=6,base_height=2.25)
-save_plot(paste0(validationFolder,"FBSlopes.svg"),FC3Slopes,base_width=6,base_height=2.25)
-save_plot(paste0(validationFolder,"FBExampleFit.svg"),FBComp,base_width=3,base_height=3)
-
-
-fcLayout <- c(
-  area(t = 1, l = 1, b = 5, r = 5),
-  area(t = 1, l = 6, b = 4, r = 10),
-  area(t = 6, l = 2, b = 8, r = 4),
-  area(t = 5, l = 6, b = 8, r = 10)
-)
-
-
-FC3Panel <- (FBC3Frame + 
-  (synapseDiffC3 + theme(legend.position = "none")) + (FBComp + theme(legend.position = "none")) + 
-  FC3Slopes) + plot_layout(design = fcLayout) + plot_annotation(tag_levels=c("i"))
-FC3Panel
+save_plot(file.path(validationFolder,"FBCounts.svg"),synapseDiffC3,base_width=6,base_height=2.25)
+save_plot(file.path(validationFolder,"FBSlopes.svg"),FC3Slopes,base_width=6,base_height=2.25)
+save_plot(file.path(validationFolder,"FBExampleFit.svg"),FBComp,base_width=3,base_height=3)
 ```
