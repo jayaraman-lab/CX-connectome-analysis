@@ -35,43 +35,37 @@ library(scales)
 options(nat.plotengine = 'rgl')
 ```
 
-### Make directories where figures will be saved to
+# Make directories where figures will be saved to
 ```{r}
 
-# Directory where synapse location data is stored (output of FB_GetAndSave_Synapses.Rmd)
+# Home directory
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
 
-# Directory to save plots to.
+# Create directory to save plots to
 PlotDir=paste(SaveDir, "/Figure_Motifs/",sep="")
-
-# Create save/plot directories if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
 source("FB_Analysis_Utils.r")
 
 ```
 
-
 # Get all FB bodies and columnar types
 ```{r message=FALSE, warning=FALSE}
 
 NamedBodies=getNeuronsInRoiTable("FB",0)
-Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
-                                                    startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) | 
-                                                    startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
-FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
-FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
+Columnar_Types=sort(unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" )      | startsWith(NamedBodies$type, "FR" ) | 
+                                             startsWith(NamedBodies$type, "FS" )     | startsWith(NamedBodies$type, "FC" ) | 
+                                             startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta")] ))
 
 ```
 
@@ -79,21 +73,17 @@ FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 # Plot intra-FB connectivity matrices and assign to motifs
 ```{r message=FALSE, warning=FALSE}
 
-
 # Get columnar output connectivity table
 FB_Bag=neuronBag(Columnar_Types, slctROI="FB")
 FB_Outputs_All=FB_Bag[["outputs_raw"]]
-
 
 # Assign PBglom, FBcol, and Side from neuron names
 FB_Outputs_All=Assign_FBcol_PBglom(FB_Outputs_All, "name.from", "Side.from", "PBglom.from", "FBcol.from")
 FB_Outputs_All=Assign_FBcol_PBglom(FB_Outputs_All, "name.to", "Side.to", "PBglom.to", "FBcol.to")
 
-
 # Set FB column factor level
 FB_Outputs_All$FBcol.from=factor(FB_Outputs_All$FBcol.from, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
 FB_Outputs_All$FBcol.to=factor(FB_Outputs_All$FBcol.to, levels = rev(c("C12","C11","C10","C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
-
 
 # Get the number of columns for each neuron type
 ColumnarBodies=subset(NamedBodies, type %in% Columnar_Types)
@@ -108,8 +98,7 @@ FB_Outputs_All=inner_join(FB_Outputs_All, ColumnCounts_to, by="type.to")
 FB_Outputs_All=inner_join(FB_Outputs_All, ColumnCounts_from, by="type.from")
 remove(ColumnCounts_from, ColumnCounts_to)
 
-
-# Map all neurons into 9 column space, including C0 column (C0 to C9)
+# Map all neurons into 9 column space, including C0 column
 FB_Outputs_All$FBcol.from9=FB_Outputs_All$FBcol.from
 FB_Outputs_All$FBcol.from9=as.numeric(sapply(FB_Outputs_All$FBcol.from9, substring, 2, 4))
 FB_Outputs_All$FBcol.from9=round(FB_Outputs_All$FBcol.from9/FB_Outputs_All$ColNum.from*9)
@@ -122,36 +111,32 @@ FB_Outputs_All$FBcol.to9=round(FB_Outputs_All$FBcol.to9/FB_Outputs_All$ColNum.to
 FB_Outputs_All$FBcol.to9=paste("C",FB_Outputs_All$FBcol.to9,sep="")
 FB_Outputs_All$FBcol.to9=factor(FB_Outputs_All$FBcol.to9, levels = rev(c("C9","C8","C7","C6","C5","C4","C3","C2","C1","C0")))
 
-
-# Loop over all Pre-Post connectivity tables, map each pair into a 9 column space, and convert that matrix to a vector
+# Loop over all Pre-Post connectivity tables, convert each connectivity matrix into a vector, and group all such vectors. 
 # In this way, each column-to-column connectivity table becomes a vector in "connectivity space", which we'll perform PCA on.
 Pre_Post=distinct(FB_Outputs_All[c("type.from","type.to")])
 Vectors=matrix(data=NA,nrow=length(Pre_Post$type.from),ncol=100)
 for (ppp in 1:length(Pre_Post$type.from)){
 
-  # Get connectivity table for this Pre-Post pair
+  # Get the connectivity table for this Pre-Post pair
   Temp_PFX_Out=subset(FB_Outputs_All, (type.from==Pre_Post$type.from[ppp]) & (type.to==Pre_Post$type.to[ppp]))
   
-  # Subset data and name neurons by column/glom and bodyid for a fully connected 9 column scheme
+  # Compute the average column-to-column connectivity strength
   Temp_ColumnTable9=Temp_PFX_Out %>% group_by(FBcol.from9,FBcol.to9) %>% summarize(weightRelative=mean(weightRelative))
   
-  # Turn dataframe into a matrix, where implicitly missing connections have 0 weight. Store as vector.
-  all <- Temp_ColumnTable9 %>% expand(FBcol.from9, FBcol.to9) %>% distinct()
-  Temp_ColumnTable9_Full = Temp_ColumnTable9 %>% dplyr::right_join(all, by = c("FBcol.from9", "FBcol.to9"))
+  # Turn dataframe into a matrix, where implicitly missing connections have 0 weight. Then convert to a vector and store.
+  all=Temp_ColumnTable9 %>% expand(FBcol.from9, FBcol.to9) %>% distinct()
+  Temp_ColumnTable9_Full=Temp_ColumnTable9 %>% dplyr::right_join(all, by = c("FBcol.from9", "FBcol.to9"))
   Temp_ColumnTable9_Full$weightRelative[is.na( Temp_ColumnTable9_Full$weightRelative)]=0
-  TempMatrix <- reshape2::acast(Temp_ColumnTable9_Full, FBcol.from9 ~ FBcol.to9, value.var="weightRelative")
-  TempVector = c(TempMatrix)
+  TempMatrix=acast(Temp_ColumnTable9_Full, FBcol.from9 ~ FBcol.to9, value.var="weightRelative")
+  TempVector=c(TempMatrix)
   Vectors[ppp,]=TempVector
 }
 
-
-## Perform PCA on binarized data
+# Perform PCA on binarized data
 OUT=motifPCA(Vectors, "Binary", Pre_Post)
 Columnar_PC_Motifs=OUT[[1]]
 covEigen=OUT[[2]]
 Var_Explained=sum(covEigen$values[c(1,2)])/sum(covEigen$values)
-sum(covEigen$values[c(3)])/sum(covEigen$values)
-
 
 # Plot PCs and their variance
 PC_Var=data.frame(PC=seq(from=1,to=length(covEigen$values),by=1), PropVar=covEigen$values/sum(covEigen$values))
@@ -163,7 +148,6 @@ P0
 ggsave(paste(PlotDir, "PC_Variance.png",sep=""),
        plot = P0, device='png', scale = 1, width =5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
 
-
 # Get the first 6 PCs as column-to-column connectivity matrices 
 PC1=GetPC(covEigen,1)
 PC2=GetPC(covEigen,2)
@@ -172,38 +156,17 @@ PC4=GetPC(covEigen,4)
 PC5=GetPC(covEigen,5)
 PC6=GetPC(covEigen,6)
 
-
-# Make plot of first 6 PCs
-P1=ggplot(PC1) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC1", round(PC_Var$PropVar[1]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-P2=ggplot(PC2) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC2", round(PC_Var$PropVar[2]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-P3=ggplot(PC3) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC3", round(PC_Var$PropVar[3]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-P4=ggplot(PC4) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC4", round(PC_Var$PropVar[4]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-P5=ggplot(PC5) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC5", round(PC_Var$PropVar[5]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-P6=ggplot(PC6) + theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="blue", high="red", limits=c(-0.5,0.5), oob=squish) + coord_fixed() +
-  geom_tile(aes(Var2,Var1,fill=value)) + ggtitle(paste("PC6", round(PC_Var$PropVar[6]*1000)/1000)) + theme(legend.position="none") +
-  xlab("post column") + ylab("pre column")
-
+# Make plots showing the first 6 PCs
+P1=Plot_PC_Matrix(PC1, PC_Var, 1)
+P2=Plot_PC_Matrix(PC2, PC_Var, 2)
+P3=Plot_PC_Matrix(PC3, PC_Var, 3)
+P4=Plot_PC_Matrix(PC4, PC_Var, 4)
+P5=Plot_PC_Matrix(PC5, PC_Var, 5)
+P6=Plot_PC_Matrix(PC6, PC_Var, 6)
 PAll=ggarrange(P1,P2,P3,P4,P5,P6,nrow=2,ncol=3)
 PAll
 ggsave(paste(PlotDir, "Top_PCs.png",sep=""),
        plot = PAll, device='png', scale = 1, width =7, height = 4, units ="in", dpi = 500, limitsize = TRUE)
-
 
 ```
 
@@ -212,36 +175,42 @@ ggsave(paste(PlotDir, "Top_PCs.png",sep=""),
 # Plot intra-FB connectivity matrices and assign to motifs
 ```{r message=FALSE, warning=FALSE}
 
-
 # Make connection supertypes
 Columnar_PC_Motifs$Motif=NA
 hDeltaTypes=Columnar_Types[startsWith(Columnar_Types,'hDelta')]
 VDeltaTypes=Columnar_Types[!startsWith(Columnar_Types,'hDelta') ]
-Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% hDeltaTypes) & (Columnar_PC_Motifs$type.to %in% hDeltaTypes)] = "H to H"
-Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% VDeltaTypes) & (Columnar_PC_Motifs$type.to %in% VDeltaTypes)] = "V to V"
-Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% VDeltaTypes) & (Columnar_PC_Motifs$type.to %in% hDeltaTypes)] = "V to H"
-Columnar_PC_Motifs$Motif[ (Columnar_PC_Motifs$type.from %in% hDeltaTypes) & (Columnar_PC_Motifs$type.to %in% VDeltaTypes)] = "H to V"
+Columnar_PC_Motifs$Motif[(Columnar_PC_Motifs$type.from %in% hDeltaTypes) & (Columnar_PC_Motifs$type.to %in% hDeltaTypes)] = "H to H"
+Columnar_PC_Motifs$Motif[(Columnar_PC_Motifs$type.from %in% VDeltaTypes) & (Columnar_PC_Motifs$type.to %in% VDeltaTypes)] = "V to V"
+Columnar_PC_Motifs$Motif[(Columnar_PC_Motifs$type.from %in% VDeltaTypes) & (Columnar_PC_Motifs$type.to %in% hDeltaTypes)] = "V to H"
+Columnar_PC_Motifs$Motif[(Columnar_PC_Motifs$type.from %in% hDeltaTypes) & (Columnar_PC_Motifs$type.to %in% VDeltaTypes)] = "H to V"
 Columnar_PC_Motifs$Motif=factor(Columnar_PC_Motifs$Motif, levels=unique(Columnar_PC_Motifs$Motif))
-
 
 # Get colors for the four connection types above
 pcCols <- paletteer_d("Polychrome::palette36")
 pcCols=pcCols[c(26,6,32,25)]
 
+# Chose example connections to plot
+Ex1=which(Columnar_PC_Motifs$type.from=="PFNd" & Columnar_PC_Motifs$type.to=="hDeltaB") 
+Ex2=which(Columnar_PC_Motifs$type.from=="PFNv" & Columnar_PC_Motifs$type.to=="hDeltaB")
+Ex3=which(Columnar_PC_Motifs$type.from=="PFNa" & Columnar_PC_Motifs$type.to=="FC1B")
+Ex4=which(Columnar_PC_Motifs$type.from=="hDeltaB" & Columnar_PC_Motifs$type.to=="hDeltaK") 
+Ex5=which(Columnar_PC_Motifs$type.from=="hDeltaB" & Columnar_PC_Motifs$type.to=="hDeltaI") 
+Ex6=which(Columnar_PC_Motifs$type.from=="hDeltaE" & Columnar_PC_Motifs$type.to=="vDeltaC")
+Ex7=which(Columnar_PC_Motifs$type.from=="hDeltaB" & Columnar_PC_Motifs$type.to=="hDeltaA")
+Ex8=which(Columnar_PC_Motifs$type.from=="PFGs" & Columnar_PC_Motifs$type.to=="hDeltaK")
+Example_Inds=c(Ex1, Ex2, Ex3, Ex4, Ex5, Ex6, Ex7, Ex8)
 
 # Make scatter plot of column to column connectivity location along first two PCs
-Example_Inds=c(11,23,232,14,10,45,24,3)
+CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))] 
+CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   
+CCC3=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[3]] == levels(Columnar_PC_Motifs$Motif))]   
+CCC4=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[4]] == levels(Columnar_PC_Motifs$Motif))]   
+CCC5=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[5]] == levels(Columnar_PC_Motifs$Motif))]
+CCC6=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[6]] == levels(Columnar_PC_Motifs$Motif))] 
+CCC7=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[7]] == levels(Columnar_PC_Motifs$Motif))] 
+CCC8=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[8]] == levels(Columnar_PC_Motifs$Motif))] 
 
-CCC1=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[1]] == levels(Columnar_PC_Motifs$Motif))]   # PFNd --> hDeltaB #
-CCC2=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[2]] == levels(Columnar_PC_Motifs$Motif))]   # PFNv --> hDebtaB # 
-CCC3=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[3]] == levels(Columnar_PC_Motifs$Motif))]   # PFNa --> FC1B #
-CCC4=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[4]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaK #
-CCC5=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[5]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaI # 
-CCC6=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[6]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaG --> vDeltaE #
-CCC7=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[7]] == levels(Columnar_PC_Motifs$Motif))]   # hDeltaB --> hDeltaA #
-CCC8=pcCols[which(Columnar_PC_Motifs$Motif[Example_Inds[8]] == levels(Columnar_PC_Motifs$Motif))]   # PFGs --> hDeltaK #
-
-P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2, shape = 16) + 
+P7=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2, shape = 16) + 
   geom_point(data=Columnar_PC_Motifs[Example_Inds[1],],aes(x=V1, y=V2),color="red", fill=CCC1, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[2],],aes(x=V1, y=V2),color="red", fill=CCC2, alpha=1,size=5,shape = 21) +
   geom_point(data=Columnar_PC_Motifs[Example_Inds[3],],aes(x=V1, y=V2),color="red", fill=CCC3, alpha=1,size=5,shape = 21) +
@@ -252,20 +221,19 @@ P3=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),a
   geom_point(data=Columnar_PC_Motifs[Example_Inds[8],],aes(x=V1, y=V2),color="red", fill=CCC8, alpha=1,size=5,shape = 21) +
   xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
   xlim(-4,4) + ylim(0,8) + scale_color_manual(values=pcCols)
-ggsave(paste(PlotDir, "PCA_Scatter_Examples.png",sep=""), plot = P3, device='png', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
-
+P7
+ggsave(paste(PlotDir, "PCA_Scatter_Examples.png",sep=""), plot = P7, device='png', scale = 1, width =6, height = 4, units ="in", dpi = 250, limitsize = TRUE)
 
 # Loop over examples and plot the column-to-column connectivity matrix next to its location in PCA space
 for (ppp in 1:length(Example_Inds)){
-  
-  Ind=Example_Inds[ppp]
-  
+
   # Get just this connection table
+  Ind=Example_Inds[ppp]
   Temp_PFX_Out=subset(FB_Outputs_All, (type.from==Pre_Post$type.from[Ind]) & (type.to==Pre_Post$type.to[Ind]))
   Temp_ColumnTable=Temp_PFX_Out %>% group_by(FBcol.from,FBcol.to) %>% summarize(weightRelative=mean(weightRelative))
   
   # Plot connectivity table
-  P1=ggplot(Temp_ColumnTable) + 
+  Pa=ggplot(Temp_ColumnTable) + 
     theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
     scale_fill_gradient2(low="gray30", high="black", 
                         limits=c(0,0.04), oob=squish) + coord_fixed() +
@@ -273,72 +241,18 @@ for (ppp in 1:length(Example_Inds)){
   
   # Plot location in PCA space
   CCC=pcCols[which(Columnar_PC_Motifs$Motif[Ind] == levels(Columnar_PC_Motifs$Motif))]
-  P2=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
+  Pb=ggplot()  + geom_point(data=Columnar_PC_Motifs,aes(x=V1, y=V2, color=Motif),alpha=0.5,size=2) + 
     geom_point(data=Columnar_PC_Motifs[Ind,],aes(x=V1, y=V2),color="red", fill=CCC, alpha=1,size=5,shape = 21) +
     xlab("PC 1") + ylab("PC 2") + coord_fixed() +  theme_classic() + theme(text = element_text(size=12)) +
     xlim(-4.25,4.25) + ylim(0,8) + scale_color_manual(values=pcCols)
   
   # Save figure
-  P4=ggarrange(P1,P2,nrow=1,ncol=2)
+  PX=ggarrange(Pa,Pb,nrow=1,ncol=2)
   ggsave(paste(PlotDir, Pre_Post$type.from[Ind],"_to_", Pre_Post$type.to[Ind], "_", as.character(Ind),"_inFB.png",sep=""), 
-    plot = P4, device='png', scale = 1, width =15, height = 3.5, units ="in", dpi = 250, limitsize = TRUE)
+    plot = PX, device='png', scale = 1, width =15, height = 3.5, units ="in", dpi = 250, limitsize = TRUE)
   
 }
 
 
-
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
