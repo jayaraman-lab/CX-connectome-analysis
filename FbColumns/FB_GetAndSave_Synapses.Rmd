@@ -1,5 +1,5 @@
 ---
-title: "Notebook getting FB synapses, performing PCA, and saving the data. C"
+title: "Notebook for getting FB synapses, performing PCA, and saving the data."
 output:
   html_document:
     df_print: paged
@@ -21,21 +21,11 @@ library(neuprintrExtra)
 options(nat.plotengine = 'rgl')
 ```
 
-### Configurable inputs: choose ROI and save/plot directories
+### Make a directory to save the data to.
 ```{r}
 
-# The region of interest.
-ROI="FB"  
-
-# Directory to save data to.
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
-
-# Directory to save plots to.
-PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/ColumnarSynapseLocs/"
-
-# Create save/plot directory if they dont exists yet
 if (!dir.exists(SaveDir)){dir.create(SaveDir)}
-if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
@@ -53,22 +43,19 @@ source("FB_Analysis_Utils.r")
 ```
 
 
-### Get neurons in the ROI and exclude neurons that aren't FB columnar types
+### Get information on all FB columnar neurons
 ```{r}
 
 # Get all FB bodies
 NamedBodies=getNeuronsInRoiTable("FB",0)
-
 
 # Exclude bodies that are not columnar
 FB_Columnar_Type=c("PF","vDelta","hDelta","FR","FS","FC")
 Logica=startsWith(NamedBodies$type, FB_Columnar_Type[1]) | startsWith(NamedBodies$type, FB_Columnar_Type[2]) |
        startsWith(NamedBodies$type, FB_Columnar_Type[3]) | startsWith(NamedBodies$type, FB_Columnar_Type[4]) |
        startsWith(NamedBodies$type, FB_Columnar_Type[5]) | startsWith(NamedBodies$type, FB_Columnar_Type[6]) 
-ExcludedTypes=unique(NamedBodies$type[!Logica])
 IncludedTypes=unique(NamedBodies$type[Logica])
 ColumnarBodies=subset(NamedBodies, NamedBodies$type %in% IncludedTypes)
-
 
 ```
 
@@ -87,12 +74,10 @@ SynLocs_L7=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl7","L7")
 SynLocs_L8=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl8","L8") 
 SynLocs_L9=Get_FBlayer_ColumnarSyns(ColumnarBodies$bodyid, "FBl9","L9") 
 
-
 # Bind layer data into single data frame
 FBC_SynsAll = do.call("rbind", list(SynLocs_L1, SynLocs_L2, SynLocs_L3, SynLocs_L4, SynLocs_L5, 
                                     SynLocs_L6, SynLocs_L7, SynLocs_L8, SynLocs_L9))
 FBC_SynsAll$Layer=as.factor(FBC_SynsAll$Layer)
-
 
 # Get meshes
 Mesh_FB= neuprint_ROI_mesh("FB")
@@ -106,11 +91,9 @@ Mesh_FB_L7= neuprint_ROI_mesh("FBl7")
 Mesh_FB_L8= neuprint_ROI_mesh("FBl8")
 Mesh_FB_L9= neuprint_ROI_mesh("FBl9")
 
-
 # Save synapse locations for later loading
 save(FBC_SynsAll, Mesh_FB, Mesh_FB_L1, Mesh_FB_L2, Mesh_FB_L3, Mesh_FB_L4, Mesh_FB_L5,
      Mesh_FB_L6, Mesh_FB_L7, Mesh_FB_L8, Mesh_FB_L9, file = paste(SaveDir,"FBColumnarSynapses_Raw.RData",sep=""))
-
 
 # Remove layer-specific variables
 rm(list = c('SynLocs_L1','SynLocs_L2','SynLocs_L3','SynLocs_L4','SynLocs_L5','SynLocs_L6','SynLocs_L7','SynLocs_L8','SynLocs_L9'))
@@ -118,7 +101,7 @@ rm(list = c('SynLocs_L1','SynLocs_L2','SynLocs_L3','SynLocs_L4','SynLocs_L5','Sy
 ```
 
 
-# Get mesh points
+# Get each FB layer's ROI mesh
 ```{r}
 
 Mesh_FB_Points=MeshPoints(Mesh_FB)
@@ -138,7 +121,7 @@ Mesh_FB_L9_Points=MeshPoints(Mesh_FB_L9)
 # Center synapses and mesh points at new origin
 ```{r}
 
-# Define new origin from roi center of mass
+# Get new origin
 origin = getCOM(Mesh_FB_Points)
 
 # Reset orgin of all layers
@@ -152,7 +135,6 @@ Mesh_FB_L6_Points = resetOrigin(Mesh_FB_L6_Points, origin)
 Mesh_FB_L7_Points = resetOrigin(Mesh_FB_L7_Points, origin)
 Mesh_FB_L8_Points = resetOrigin(Mesh_FB_L8_Points, origin)
 Mesh_FB_L9_Points = resetOrigin(Mesh_FB_L9_Points, origin)
-
 
 # Reset origin of all synapses 
 FBC_SynsAll = resetOrigin(FBC_SynsAll, origin)
@@ -168,9 +150,9 @@ FBC_SynsAll = resetOrigin(FBC_SynsAll, origin)
 roiEigen = covPCA(Mesh_FB_Points)
 
 # Rotate PCs
-RotMat=makeRotMatYZ(-33) # 33
+RotMat=makeRotMatYZ(-33) # 33 for paper
 roiEigen$vectors= roiEigen$vectors %*% RotMat
-RotMat=makeRotMatXY(-3) # -3
+RotMat=makeRotMatXY(-3) # -3 for paper
 roiEigen$vectors= roiEigen$vectors %*% RotMat
 
 # Project meshes into PCA space
@@ -191,10 +173,9 @@ FBC_SynsAll=changeBasis_df(FBC_SynsAll, roiEigen)
 ```
 
 
-# Get pre and post neuron names based on bodyids
+# Add the instance name of the pre and post neurons to FBC_SynsAll
 ```{r}
 
-# Add pre and post body names to FBC_SynsAll (to get PB columns later)
 BodyId_And_Names=NamedBodies[c("bodyid","name")]
 BodyId_And_PartnerNames=NamedBodies[c("bodyid","name")]
 colnames(BodyId_And_PartnerNames)<-c("partner","partnername")
@@ -204,49 +185,36 @@ FBC_SynsAll=merge(FBC_SynsAll, BodyId_And_PartnerNames, by="partner")
 ```
 
 
-
 # Plot data in new and old reference frame
 ```{r message=FALSE}
 
 # Make scatter plot new projection
 ggplot(Mesh_FB_Points, aes(x=X, y=-Y)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
-
-
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=X, y=-Y), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=X, y=-Y), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=X, y=-Y), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=X, y=-Y), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=X, y=-Y), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=X, y=-Y), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=X, y=-Y), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=X, y=-Y), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=-Y), colour= "steelblue2",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
 
 # Make scatter plot of original space
 ggplot(Mesh_FB_Points, aes(x=x, y=-z)) + geom_point(size=1, alpha = 0.05) +  xlab("x=PC1") + ylab("y=PC2") + coord_fixed(ratio = 1) 
-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "azure2",  size=1, alpha = 0.01) + 
-           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "azure4",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
-
-
-# Scatter subset of synapses, colored by layer
-data2=FBC_SynsAll[seq(from = 1, to = length(FBC_SynsAll$x), by = 500), ]
-ggplot() + geom_point(data=Mesh_FB_Points, aes(x=X, y=-Y), colour= "darkgray",  size=1, alpha = 0.01) +
-           geom_point(data=data2, aes(x=X, y=-Y, colour= Layer),  size=1, alpha = 0.7) + coord_fixed(ratio = 1) 
-remove(data2)
-
+ggplot() + geom_point(data=Mesh_FB_Points, aes(x=x, y=-z), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L1_Points, aes(x=x, y=-z), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L2_Points, aes(x=x, y=-z), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L3_Points, aes(x=x, y=-z), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L4_Points, aes(x=x, y=-z), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L5_Points, aes(x=x, y=-z), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L6_Points, aes(x=x, y=-z), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L7_Points, aes(x=x, y=-z), colour= "steelblue2",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L8_Points, aes(x=x, y=-z), colour= "slateblue4",  size=1, alpha = 0.01) + 
+           geom_point(data=Mesh_FB_L9_Points, aes(x=x, y=-z), colour= "steelblue2",  size=1, alpha = 0.01) + coord_fixed(ratio = 1) 
 
 ```
-
-
 
 
 # Get rid of original reference frame (the lowercase x,y,z data)
@@ -264,12 +232,10 @@ Mesh_FB_L7_Points=Mesh_FB_L7_Points[ , !(names(Mesh_FB_L7_Points) %in% c("x","y"
 Mesh_FB_L8_Points=Mesh_FB_L8_Points[ , !(names(Mesh_FB_L8_Points) %in% c("x","y","z"))]
 Mesh_FB_L9_Points=Mesh_FB_L9_Points[ , !(names(Mesh_FB_L9_Points) %in% c("x","y","z"))]
 
-#Synapses
+# Synapses
 FBC_SynsAll=FBC_SynsAll[ , !(names(FBC_SynsAll) %in% c("x","y","z"))]
 
 ```
-
-
 
 
 # Get outlines of each layer
@@ -288,7 +254,6 @@ Outline_L7_XY=MeshOutline(Mesh_FB_L7_Points, "XY", alpha_rad=alpha)
 Outline_L8_XY=MeshOutline(Mesh_FB_L8_Points, "XY", alpha_rad=alpha)
 Outline_L9_XY=MeshOutline(Mesh_FB_L9_Points, "XY", alpha_rad=alpha)
 
-
 # Get XZ outlines of each layer, with Y direction reversed so dorsal is up
 Outline_FB_XZ=MeshOutline(Mesh_FB_Points, "XZ", alpha_rad=alpha)
 Outline_L1_XZ=MeshOutline(Mesh_FB_L1_Points, "XZ", alpha_rad=alpha)
@@ -300,7 +265,6 @@ Outline_L6_XZ=MeshOutline(Mesh_FB_L6_Points, "XZ", alpha_rad=alpha)
 Outline_L7_XZ=MeshOutline(Mesh_FB_L7_Points, "XZ", alpha_rad=alpha)
 Outline_L8_XZ=MeshOutline(Mesh_FB_L8_Points, "XZ", alpha_rad=alpha)
 Outline_L9_XZ=MeshOutline(Mesh_FB_L9_Points, "XZ", alpha_rad=alpha)
-
 
 # Check that each layer's outline has been computed correctly. 
 # Mesh shapes may be updated in the future and new values for alpha_rad may need to chosen above. 
@@ -340,15 +304,12 @@ ggplot() + geom_point(data=Mesh_FB_L9_Points, aes(x=X, y=Z), colour= 'blueviolet
   coord_fixed(ratio = 1) +  theme_void() + guides(color=FALSE) +
   geom_path(data=Outline_L9_XZ, aes(x=c1, y=c2), size = 1) 
 
-
 ```
-
 
 
 # Save data for later loading in other notebooks
 ```{r}
 
-# Save synapse locations for later loading
 save(NamedBodies, FB_Columnar_Type, ColumnarBodies, FBC_SynsAll, Mesh_FB_Points, Mesh_FB_L1_Points, Mesh_FB_L2_Points, Mesh_FB_L3_Points, Mesh_FB_L4_Points,
      Mesh_FB_L5_Points, Mesh_FB_L6_Points, Mesh_FB_L7_Points, Mesh_FB_L8_Points, Mesh_FB_L9_Points,
      roiEigen, origin, Outline_FB_XY,  Outline_L1_XY,  Outline_L2_XY,  Outline_L3_XY,  Outline_L4_XY,  Outline_L5_XY,  
@@ -356,18 +317,5 @@ save(NamedBodies, FB_Columnar_Type, ColumnarBodies, FBC_SynsAll, Mesh_FB_Points,
      Outline_L3_XZ,    Outline_L4_XZ,  Outline_L5_XZ,  Outline_L6_XZ,  Outline_L7_XZ,  Outline_L8_XZ,  Outline_L9_XZ,
      file = paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
 
-# Double check all neurons have synapses
-if (sum(ColumnarBodies$bodyid %in% FBC_SynsAll$bodyid)/length(ColumnarBodies$bodyid) !=1){print("NEURONS ARE MISSING SYNAPSES")}
-     
 ```
-
-
-
-
-
-
-
-
-
-
 
