@@ -1,24 +1,40 @@
 ---
 title: "validation-Figure3"
-author: "Romain Franconville"
-date: "3/29/2021"
-output: html_document
+output: html_notebook
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+This notebook generates the plots related to the first "validation" figure (figure 3), which compares connectivity in the EB in two different versions of the dataset.
+
+## Preparing the environment:
+- Loading necessary packages:
+```{r,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(neuprintrExtra)
+library(paletteer)
 ```
-
-
-### EB before/after comparison
+  
+- Path to the folder where the plots will be saved if need be (by default in a folder created for that in the validation folder)
 ```{r}
-EBMesh <- neuprint_ROI_mesh("EB")
+validationFolder <- file.path("validationFigures")
+if (!dir.exists(validationFolder)) dir.create(validationFolder)
 ```
 
+- Loading some local functions for the validation (+ the ggplot theme)
+```{r}
+source("validationFunctions.R")
+source(file.path("..","R","paperTheme.R"))
+```
+
+## Preparing the data
+One starts by creating two different logins for the database explicitely, one for the "current" version (v1.1), one for an old version. Be careful once you connect to different versions, it is important to explicitly specify the one you want to use in all neuprint commands. I recommend restarting your R session once you're done with this notebook if you want to avoid running your analysis on the old version of the database.
+NOTE: FOR NOW IT ONLY WORKS IF CONNECTED ON THE JANELIA VPN (the old version of the database isn't public facing)
+
+First the recent version:
 ```{r}
 newConnection <- neuprint_login(server="https://neuprint.janelia.org",token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FDSGkzcmRaaThLWElURkNhTWpzQldIZUFqcTZ6SkdtX2cvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzYzMzY1MTMyfQ.yCthFpsDrQJLl41WjLf3U-iN-21x_opCXDcnhbizC_g",Force = T)
 ```
 
+Then the old version:
 ```{r}
 oldConnection <- neuprint_login(server="https://emdata1.int.janelia.org:11000/",token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FBS1dKSk14RURObVNiekk5TjNULWw2RkRySWhHdG5LNncvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzY2NDY0NjI2fQ.HsBHKOqeLUUcBcOY-GwzbCHrBMdCBesaICM4UUQSH_k",config=httr::config(ssl_verifypeer=0L),dataset="hemibrain:v0.9pre_dense",Force=T)
 ```
@@ -34,65 +50,6 @@ ebInfo[is.na(ebInfo)] <- 0
 ebIns <- filter(ebInfo,upstream>200)
 ebOuts <- filter(ebInfo,downstream>200)
 ```
-
-#### Comparing neuron to neuron connections
-```{r}
-exampleEPG <- 789126240
-exampleEPGNew <- getNeuronMesh(exampleEPG,cloud=TRUE)
-exampleEPGOld <- getNeuronMesh(exampleEPG,cloud=TRUE,node="34d7a")
-epgInputSynapsesNew <- filter(neuprint_get_synapses(exampleEPG,roi="EB",conn=newConnection),prepost==1)# %>% select(x,y,z)
-epgInputSynapsesOld <- filter(neuprint_get_synapses(exampleEPG,roi="EB",conn=oldConnection),prepost==1)# %>% select(x,y,z)
-partnerListNew <- filter(neuprint_get_meta(unique(c(epgInputSynapsesNew$partner)),all_segments = FALSE,conn=newConnection),status=="Traced")
-partnerListOld <- filter(neuprint_get_meta(unique(c(epgInputSynapsesOld$partner)),all_segments = FALSE,conn=oldConnection),status=="Traced")
-epgInputSynapsesNew <-  filter(epgInputSynapsesNew,partner %in% partnerListNew$bodyid) %>% select(x,y,z)
-epgInputSynapsesOld <- filter(epgInputSynapsesOld,partner %in% partnerListOld$bodyid) %>% select(x,y,z)
-```
-
-
-```{r}
-nopen3d()
-par3d(windowRect = c(30, 30, 1530, 1530))
-plot3d(EBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
-par3d(scale=c(1,1,1))
-shade3d(exampleEPGOld,color="grey80")
-shade3d(exampleEPGNew,color="red")
-plot3d(epgInputSynapsesOld,add=T,col="#B32DB5")
-plot3d(epgInputSynapsesNew,add=T,col="#053CFF")
-nview3d("ventral")
-zoom0View <- par3d("userProjection")
-rgl.snapshot(paste0(validationFolder,"frontEBZoom1.png"))
-```
-
-```{r}
-nopen3d()
-par3d(windowRect = c(30, 30, 1530, 1530))
-par3d(userProjection=translationMatrix(-1.2,1.6,0) %*% zoom0View)
-plot3d(EBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
-par3d(scale=c(1,1,1))
-nview3d("ventral",zoom=0.1)
-shade3d(addNormals(exampleEPGOld),color="grey80")
-shade3d(addNormals(exampleEPGNew),color="red")
-
-
-plot3d(epgInputSynapsesOld,add=T,col="#B32DB5",size=15)
-plot3d(epgInputSynapsesNew,add=T,col="#053CFF",size=15)
-```
-
-```{r}
-rgl.snapshot(paste0(validationFolder,"frontEBZoom2.png"))
-```
-
-```{r}
-EPGViews <- ggdraw() + draw_image(paste0(validationFolder,"frontEBZoom1.png"),scale=1.6,clip="on") + draw_image(paste0(validationFolder,"frontEBZoom2.png"),scale=0.5,vjust=-0.23,hjust=0.05,clip="on") + theme_paper_map() + 
-   annotate(geom="text",x=0.25,y=0.22,label="Synapses",hjust=0) +
-  annotate(geom="point",x=0.25,y=0.18,color="#B32DB5",size=1) + 
-  annotate(geom="point",x=0.25,y=0.14,color="#053CFF",size=1) +
-  annotate(geom="text",x=0.26,y=0.18,label="Initially traced",hjust=0) +
-  annotate(geom="text",x=0.26,y=0.14,label="New additions",hjust=0) +
-  annotate(geom="text",x=0.33,y=0.68,label="*",hjust=0,size=8,color="red")
-EPGViews
-```
-
 
 ```{r}
 EBAges <- getCompConnectionTable(ebIns$bodyid,ebOuts$bodyid,"EB",newConnection,oldConnection)
@@ -136,36 +93,10 @@ save_plot(paste0(validationFolder,"EBCounts.svg"),synChangeEB,base_width=6.5,bas
 save_plot(paste0(validationFolder,"EBSlopes.svg"),EBSlopes,base_width=6.5,base_height=2.25)
 save_plot(paste0(validationFolder,"EBExampleFit.svg"),EBCompExample,base_width=3,base_height=3)
 
-
-ebLayout <- c(
-  area(t = 1, l = 1, b = 5, r = 5),
-  area(t = 1, l = 6, b = 4, r = 10),
-  area(t = 6, l = 2, b = 8, r = 4),
-  area(t = 5, l = 6, b = 8, r = 10)
-)
-
-EBFig <- (EPGViews + 
-  synChangeEB  + (EBCompExample + theme(legend.position="none")) +
-  (EBSlopes+ theme(legend.position="none"))) +plot_layout(design = ebLayout) #+ plot_annotation(tag_levels=c("A","i"))
-
-EBFig
 ```
 
-```{r}
-mainFig <- (EBFig + plot_layout(tag_level = "new")) / (PBFigAlt + plot_layout(tag_level = "new"))/(FC3Panel + plot_layout(tag_level="new")) + plot_annotation(tag_levels=c("A","i"),tag_sep = "",title="Validation - Figure 1: tracing effect on connection weights",theme=theme(title=element_text(size=12,face="bold"))) 
-mainFig
+#### EB validation: SI figure
 
-save_plot(paste0(validationFolder,"Validation-Figure1.pdf"),mainFig,nrow = 4,ncol=2,base_width = 8.5/2,base_height=11/3,device=cairo_pdf)
-```
-
-#### EB SI
-```{r}
-EBCompFull <- ggplot(filter(EBAges_filtered),aes(x=old,y=new,fill=supertype2)) + geom_smooth(formula=y~x,aes(group=bodyid),method="lm",alpha=0.3,color="grey30",size=0.1) + 
-  geom_abline(linetype=2,lwd=0.2) + scale_fill_CX_supertype(name="Supertype") + xlab("relative weight in the old dataset") + coord_fixed() +
-  ylab("relative weight in the new dataset") + facet_wrap(supertype2~side)+ theme_paper() + ggtitle("Validation figure 1 - figure supplement 1: individual neuron to neuron fits")#+theme(panel.border = element_rect(color = "gray 50", fill = NA))
-#EBCompFull
-save_plot(paste0(validationFolder,"Validation-Figure1-SI1.pdf"),EBCompFull,nrow = 2,ncol=3,base_width = 8.5/3,device=cairo_pdf)
-```
 
 ```{r}
 incSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(size=0.2/3) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("known synapse increase") +ylab("slope estimate") + geom_hline(yintercept=1,lty=2)
@@ -184,4 +115,14 @@ nSlope
 ```{r}
 nRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=adj.r.squared,color=supertype2)) + geom_point(size=1) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("# synapses") +ylab("adjusted r\u00b2") +geom_hline(yintercept=1,lty=2)
 nRS
+```
+
+```{r}
+EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=50,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=50))+ggtitle("Adjusted r\u00b2"))/
+  (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect") + plot_annotation(title="Validation Figure 1 - figure supplement 1",theme=theme(title=element_text(size=12,face="bold")))
+EBSI2
+```
+
+```{r}
+save_plot(paste0(validationFolder,"Validation-Figure1-SI1_new.svg"),EBSI2,base_width = 8.5*1.333333,base_height=6)
 ```
