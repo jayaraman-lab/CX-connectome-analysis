@@ -1,5 +1,15 @@
-##### GET A TABLE WITH RATIOS OF INNERVATION OF A SUBROI OF A ROI
+library(neuprintr)
+library(broom)
+
+#' Gets a table of all neurons in a sub-ROI, with information about the innervation relative to an englobing ROI. 
+#' Used for in the validation pipeline to select neurons of interest.
+#' @param subroi The ROI we want the neurons to innervate
+#' @param Roi The ROI we want to compute innervation ratios relative to
+#' @details For example, we use this function to compute how much of the innervation of a given neuron is confined to one glomerulus (the subroi) relative to 
+#' the all PB (Roi)
+#' @return a table of neurons, with added `downstreamRatio` and `upstreamRatio columns`
 subroiSet <- function(subroi,Roi){
+  
   subroiNeurons <- neuprint_bodies_in_ROI(subroi,all_segments = FALSE)
   subroiInfo <- neuprint_get_roiInfo(subroiNeurons$bodyid,all_segments = FALSE)
   subroiMeta <- neuprint_get_meta(subroiNeurons$bodyid,all_segments = FALSE) %>% filter(status=="Traced")
@@ -14,6 +24,28 @@ subroiSet <- function(subroi,Roi){
                    databaseType=type)
   subroiNeurons[is.na(subroiNeurons)] <- 0
   subroiNeurons <- supertype(subroiNeurons) %>% mutate(subregion = subroi)
+}
+
+#' Fits a linear model between columns `predictor` and `predicted` in a table of 
+#' innervation comparisons `compTable` as those returned in the validation notebooks, grouped by
+#' columns `groups`
+getFit <- function(compTable,
+                   groups=c("side","databaseType","supertype2"),
+                   predicted="C3",
+                   predictor="CX"){
+  compFits <- compTable %>%
+    nest(data = !(any_of(groups))) %>% 
+    mutate(
+      fitRes = map(data, ~ lm(as.formula(paste0(predicted,"~",predictor)), data = .x)),
+      tidied = map(fitRes, tidy),
+      fitStats = map(fitRes,glance)
+    ) 
+  compFitsCoeff <- compFits %>% 
+    unnest(tidied) %>% filter(term==predictor) %>% select(-data,-fitStats,-fitRes)
+  
+  compFitsStats <-  compFits %>% 
+    unnest(fitStats) %>% select(-data,-fitRes,-tidied)
+  left_join(compFitsCoeff,compFitsStats,by=groups)
 }
 
 #### GET ROI INFO FOR INPUT/OUTPUT SETS ACCROSS 2 VERSIONS OF THE DATABASE
@@ -140,21 +172,7 @@ getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
   
 }
 
-getFit <- function(compTable,groups=c("side","databaseType","supertype2"),predicted="C3",predictor="CX"){
-  compFits <- compTable %>%
-    nest(data = !(any_of(groups))) %>% 
-    mutate(
-      fitRes = map(data, ~ lm(as.formula(paste0(predicted,"~",predictor)), data = .x)),
-      tidied = map(fitRes, tidy),
-      fitStats = map(fitRes,glance)
-    ) 
-  compFitsCoeff <- compFits %>% 
-    unnest(tidied) %>% filter(term==predictor) %>% select(-data,-fitStats,-fitRes)
-  
-  compFitsStats <-  compFits %>% 
-    unnest(fitStats) %>% select(-data,-fitRes,-tidied)
-  left_join(compFitsCoeff,compFitsStats,by=groups)
-}
+
 
 processConnectionTableOld <- function(myConnections,synThresh,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,chunk_connections,computeKnownRatio,...){
   

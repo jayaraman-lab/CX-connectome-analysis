@@ -1,0 +1,128 @@
+---
+title: "validationOldPanels"
+author: "Romain Franconville"
+date: "3/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##### Example outputs: EPG outputs in glom 4
+```{r}
+fitValsEPG4 <- filter(PBCompFits,databaseType=="EPG" & side=="outputs" & glomerulus ==4)
+PBCompOut <- ggplot(filter(PB3Comp,databaseType=="EPG" & side=="outputs"),aes(x=R4,y=L4)) + geom_point(aes(color=supertype2.to)) + geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
+  geom_abline(linetype=2,lwd=0.2) + theme_paper()  + scale_color_CX_supertype(name="Supertype") + xlab("relative output weight in R4") + coord_fixed() +
+  ylab("relative output weight in L4") + annotate(geom="text",x=0.25,y=0.05,label=paste0("s= ",format(fitValsEPG4$estimate,digits = 3),"\n r\u00b2= ",format(fitValsEPG4$adj.r.squared,digits=3)))
+
+
+PBCompOut
+```
+
+### PB anatomies
+
+```{r}
+PBMesh <- neuprint_ROI_mesh("PB")
+R3Mesh <- neuprint_ROI_mesh("PB(R3)")
+L3Mesh <- neuprint_ROI_mesh("PB(L3)")
+R4Mesh <- neuprint_ROI_mesh("PB(R4)")
+L4Mesh <- neuprint_ROI_mesh("PB(L4)")
+```
+
+```{r}
+R3Example <- unique(filter(PBreBag$inputs_raw,type.to=="PFNa_R3")$to)
+L3Example <- unique(filter(PBreBag$inputs_raw,type.to=="PFNa_L3")$to)
+R3ExampleAnat <- lapply(R3Example,getNeuronMesh,cloud=TRUE)
+L3ExampleAnat <- lapply(L3Example,getNeuronMesh,cloud=TRUE)
+R4Example <- unique(filter(PBreBag$outputs_raw,type.from=="EPG_R4")$from)
+L4Example <- unique(filter(PBreBag$outputs_raw,type.from=="EPG_L4")$from)
+R4ExampleAnat <- lapply(R4Example,getNeuronMesh,cloud=TRUE)
+L4ExampleAnat <- lapply(L4Example,getNeuronMesh,cloud=TRUE)
+```
+
+
+```{r}
+nopen3d()
+par3d(windowRect = c(20, 30, 1500, 1500))
+plot3d(PBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+par3d(scale=c(1,1,1))
+plot3d(R3Mesh,color="#908827",add=TRUE,alpha=0.2)
+plot3d(L3Mesh,color="grey30",add=TRUE,alpha=0.2)
+shade3d(R3ExampleAnat[[1]],col="SteelBlue")
+shade3d(R3ExampleAnat[[2]],col="SkyBlue")
+shade3d(L3ExampleAnat[[1]],col="grey80")
+shade3d(L3ExampleAnat[[2]],col="grey40")
+nview3d("ventral")
+rgl.snapshot(paste0(validationFolder,"frontPB3.png"))
+```
+
+```{r}
+nopen3d()
+par3d(windowRect = c(20, 30, 1500, 1500))
+plot3d(PBMesh,color="white",alpha=0.2,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+par3d(scale=c(1,1,1))
+plot3d(L4Mesh,color="#908827",add=TRUE,alpha=0.2)
+plot3d(R4Mesh,color="grey30",add=TRUE,alpha=0.2)
+shade3d(L4ExampleAnat[[1]],col="SteelBlue")
+shade3d(L4ExampleAnat[[2]],col="SkyBlue")
+shade3d(L4ExampleAnat[[3]],col="royalblue")
+shade3d(R4ExampleAnat[[1]],col="grey80")
+shade3d(R4ExampleAnat[[2]],col="grey40")
+shade3d(R4ExampleAnat[[3]],col="grey60")
+nview3d("ventral")
+rgl.snapshot(paste0(validationFolder,"frontPB4.png"))
+```
+
+```{r}
+PBFrame3 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB3.png"),scale=1.4,vjust=0.05,clip="on") + theme_paper_map()  
+PBFrame3 <- PBFrame3 + annotate(geom="text",x=0.4,y=0.4,label="R3") + annotate(geom="text",x=0.61,y=0.42,label="L3")
+PBFrame3 <- PBFrame3 + annotate(geom="text",x=0.5,y=0.95,label="PFNa inputs in glomeruli 3")
+PBFrame3
+```
+
+```{r}
+PBFrame4 <- ggdraw() + draw_image(paste0(validationFolder,"frontPB4.png"),scale=1.8,clip="on") + theme_paper_map()
+PBFrame4 <- PBFrame4 + annotate(geom="text",x=0.48,y=0.54,label="R4") + annotate(geom="text",x=0.65,y=0.55,label="L4")
+PBFrame4 <- PBFrame4 + annotate(geom="text",x=0.5,y=0.95,label="EPG outputs in glomeruli 4")
+PBFrame4
+```
+
+PB panel
+```{r}
+pbLayout <- c(
+  area(t = 1, l = 1, b = 5, r = 5),
+  area(t = 1, l = 6, b = 4, r = 10),
+  area(t = 6, l = 2, b = 8, r = 4),
+  area(t = 5, l = 6, b = 8, r = 10)
+)
+
+
+PBFigAlt <- (PBFrame3 + 
+                         (PBSynapseCountDiffAlt + theme(legend.position="none")) + (PBCompIn+guides(color=FALSE)) + 
+         (PBSlopesAlt + guides(color=FALSE)))  + plot_layout(design=pbLayout,guides="keep") + plot_annotation(tag_levels="i") 
+PBFigAlt
+
+
+```
+
+PB SI fig
+```{r}
+layout <- "ACC
+           BDD
+           EEE
+           FFF
+           FFF
+          "
+
+PBControlFig <- 
+            ((PBCompControlIn+guides(color=FALSE))
+              +  PBCompControlOut  +
+         (PBSynapseCountDiffControl + theme(legend.position="none")) + 
+         (PBSlopesControl + guides(color=FALSE)) +
+         PBCompSlopesComp + plot_spacer()) + plot_layout(design=layout,guides="keep") + plot_annotation(tag_levels="A",title= "Validation Figure 2 - Figure supplement 1: comparing PB glomeruli at equivalent tracing levels",theme=theme(title=element_text(size=12*1.111111,face="bold")))
+PBControlFig 
+
+save_plot(paste0(validationFolder,"validation-Figure2-SI1.svg"),PBControlFig,base_width = 8.5*1.333333,base_height=11*1.333333)
+```
+

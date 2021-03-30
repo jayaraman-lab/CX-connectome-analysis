@@ -42,7 +42,7 @@ overallFlowRef <- data.frame(layer=rep(0:4,c(2:5,6)),hop=c(unlist(sapply(c(2:6),
 overallGraphNodes <- data.frame(layer=0:5)
 
 pathways <- CXinAllSteps %>% filter(n_steps %in% 1:5) #%>% mutate(n_steps=as.numeric(n_steps),
-                                                                  n_type=(CX_inGraph %E>% as_tibble())$n_type[match(type.from,(CX_inGraph %E>% as_tibble())$type.from)]) %>% group_by(type.from) %>% mutate(hop.from=max(n_steps)) %>% ungroup()
+                                                                  n_type=(CX_inGraph %E>% as_tibble())$n_type[match(type.from,(CX_inGraph %E>% as_tibble())$type.from)] %>% group_by(type.from) %>% mutate(hop.from=max(n_steps)) %>% ungroup()
 pathways$hop.from[pathways$type.from %in% CXInputNeurons$type] <- 0
 
 overallFlowRef <-  overallFlowRef %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,]$type.to)),
