@@ -3,7 +3,7 @@ title: "PB Figure 3"
 output: html_notebook
 ---
 
-
+Load functions
 ```{r}
 library(neuprintr)
 library(tidyverse)
@@ -14,9 +14,9 @@ library(patchwork)
 library(ggnewscale)
 library(gridExtra)
 
-source("PBAnalysisUtils.R")
-source("..\\R\\visualizeConnectivityTables.R")
-source("..\\R\\paperTheme.R")
+source(file.path("..","PBFigures","PBAnalysisUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
 
@@ -67,7 +67,6 @@ conmatPlot_PFNv <- plotConnectivityMatrix(typeToType_PFNv_PRE %>% filter(type.fr
   guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5))
 
 conmatPlot_PFNv
-#save_plot('C:\\Users\\turnerevansd\\Dropbox (HHMI)\\FIBSEM CX Paper Jan 2020\\Figures\\PB\\ForPaper\\PFNvInputs.pdf',conmatPlot_PFNv)
 ```
 
 Create a Hanesch plot showing where the IbSpsP neurons get their input

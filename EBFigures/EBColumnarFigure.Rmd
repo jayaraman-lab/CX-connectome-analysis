@@ -3,7 +3,7 @@ title: "EB Columnar Figure"
 output: html_notebook
 ---
 
-
+Load the functions
 ```{r}
 library(neuprintr)
 library(tidyverse)
@@ -14,8 +14,8 @@ library(patchwork)
 library(ggnewscale)
 library(gridExtra)
 source("EBUtils.R")
-source("..\\R\\visualizeConnectivityTables.R")
-source("..\\R\\paperTheme.R")
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
 
@@ -24,8 +24,7 @@ Get the connection matrix between the EPGs, PEN_as, PEN_bs, and PEGs in the EB
 neurons <- c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
 
 EBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
-"POST",
-"EB")
+                                  "POST","EB")
 EBColConTab <- EBColConTab %>% filter(type.to %in% neurons)
 ```
 
@@ -33,11 +32,15 @@ Plot the connectivity table, sorting the neurons by either their EB position or 
 ```{r}
 neuropil <- c("EB","PB")
 
+# Create a list to hold the plots
 plts <- list()
+
+# Sort by the EB or PB and plot
 for (n in 1:length(neuropil)){
   EBColConTab$nameOrder.from <- EBGlomOrder(EBColConTab$name.from,EBColConTab$from, neuropil[n])
   EBColConTab$nameOrder.to <- EBGlomOrder(EBColConTab$name.to,EBColConTab$to, neuropil[n])
   
+  # Specify the order of the neuron types on the axes
   plotOrder <- c("EPG","PEN1","PEN2","PEG")
   fromLevelsOld <- levels(EBColConTab$nameOrder.from)
   fromLevelsNew <-  c()
@@ -52,11 +55,13 @@ for (n in 1:length(neuropil)){
   EBColConTab$nameOrder.from <- factor(EBColConTab$nameOrder.from,fromLevelsNew)
   EBColConTab$nameOrder.to <- factor(EBColConTab$nameOrder.to,toLevelsNew)
   
+  # Plot the connectivity matrix
   conmatPlot <- plotConnectivityMatrix(EBColConTab, byGroup = "id_sort") + 
     coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
     guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
     ggtitle(neuropil[n])
   
+  # Add lines to divide the cell types
   offset <- 0.5
   types <- c("EPG","PEN_a(PEN1)","PEN_b(PEN2)","PEG")
   for (t in 1:length(types)){
@@ -80,17 +85,20 @@ print(plts[[1]] / plts[[2]] + plot_layout(guides = 'collect'))
 ```
 
 
-Look at the PB connections
+Get the connection matrix between the EPGs, PEN_as, PEN_bs, and PEGs in the PB
 ```{r}
 neurons = c("EPG","PEG","PEN_a(PEN1)","PEN_b(PEN2)")
 
 PBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "POST",
-  "PB")
+                                  "POST","PB")
 PBColConTab <- PBColConTab %>% filter(type.to %in% neurons)
 PBColConTab$nameOrder.from <- EBGlomOrder(PBColConTab$name.from,PBColConTab$from,"PB")
 PBColConTab$nameOrder.to <- EBGlomOrder(PBColConTab$name.to,PBColConTab$to,"PB")
+```
 
+Plot the connectivity matrix
+```{r}
+# Specify the order of the neuron types on the axes
 plotOrder <- c("EPG","PEN1","PEN2","PEG")
 fromLevelsOld <- levels(PBColConTab$nameOrder.from)
 fromLevelsNew <-  c()
@@ -105,8 +113,10 @@ for (p in 1:length(plotOrder)){
 PBColConTab$nameOrder.from <- factor(PBColConTab$nameOrder.from,fromLevelsNew)
 PBColConTab$nameOrder.to <- factor(PBColConTab$nameOrder.to,toLevelsNew)
 
+#Remove singular EPG to EPG connections
 PBColConTab <- PBColConTab %>% filter(type.to != 'EPG' & type.from == 'EPG')
 
+#Plot
 conmatPlot <- plotConnectivityMatrix(PBColConTab, byGroup = "id_sort") + 
     coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic neuron") + theme_paper() + theme(axis.text.x = element_text(angle=90)) +
     guides(fill = guide_colourbar(title = 'relative weight', direction = 'horizontal', title.position = 'top', barheight = 0.5)) +
@@ -148,15 +158,18 @@ Now, convert it into an igraph function
 library(igraph)
 library(ggraph)
 
+# Set up the graph nodes
 EBColNodes <- c(as.character(EBCol_CT$nameOrder.to),as.character(EBCol_CT$nameOrder.from)) %>% unique() %>% as.data.frame()
 colnames(EBColNodes) <- "nodes"
 EBColNodes$supertype <- EBColNodes$nodes %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
 EBColNodes$label <- EBColNodes$nodes %>% sapply(function(n) substring(n,gregexpr("_L|_R",n)[[1]][1]+1,gregexpr("_L|_R",n)[[1]][1]+2))
 
+# Set up the graph edges
 EBColEdges <- EBCol_CT %>% mutate(from = nameOrder.from, to = nameOrder.to, weight = ROIweight) %>%
   select(from,to,weight)
 EBColEdges$supertype.from <- EBColEdges$from %>% as.character() %>% sapply(function(n) substring(n,1,gregexpr("_L|_R",n)[[1]][1]+1))
 
+# Make the graph
 g <- graph_from_data_frame(EBColEdges, directed = TRUE, vertices = EBColNodes)
 
 # Assign colors to the supertypes
@@ -165,7 +178,7 @@ colPal = c("purple","purple4","red","skyblue","mediumpurple","mediumpurple4")
 sTScale <- scale_colour_manual(values=colPal,breaks = colBreaks)
 sTScale_edge <- scale_edge_colour_manual(values=colPal,breaks = colBreaks, guide = FALSE)
 
-
+# Plot it
 EBColForceGraph <- ggraph(g) +
   geom_edge_fan(aes(width=weight,color=supertype.from),alpha=0.5,
                       strength=1,
@@ -192,8 +205,7 @@ Look at the differing connectivity between PEN1s and PEN2s - PB
 neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
 
 PBColConTab <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "PRE",
-  "PB")
+                                  "PRE","PB")
 PBColConTab <- PBColConTab %>% filter(!is.na(type.from))
 
 T2T_PENs_PB <- getTypeToTypeTable(PBColConTab)
@@ -208,8 +220,7 @@ Look at the differing connectivity between PEN1s and PEN2s - EB, PRE
 neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
 
 EBColConTab_PRE <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "PRE",
-  "EB")
+                                      "PRE","EB")
 EBColConTab_PRE <- EBColConTab_PRE %>% filter(!is.na(type.from))
 
 T2T_PENs_EB_PRE <- getTypeToTypeTable(EBColConTab_PRE)
@@ -224,8 +235,7 @@ Look at the differing connectivity between PEN1s and PEN2s - EB, POST
 neurons = c("PEN_a(PEN1)","PEN_b(PEN2)")
 
 EBColConTab_POST <- getConnectionTable(getTypesTable(neurons)$bodyid,
-  "POST",
-  "EB")
+                                       "POST","EB")
 EBColConTab_POST <- EBColConTab_POST %>% filter(!is.na(type.to))
 
 T2T_PENs_EB_POST <- getTypeToTypeTable(EBColConTab_POST)

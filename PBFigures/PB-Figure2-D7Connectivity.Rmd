@@ -3,6 +3,7 @@ title: "D7 connectivity analysis"
 output: html_notebook
 ---
 
+Load the functions
 ```{r}
 library(neuprintr)
 library(tidyverse)
@@ -10,9 +11,9 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source("\PBAnalysisUtils.R")
-source("..\\R\\visualizeConnectivityTables.R")
-source("..\\R\\paperTheme.R")
+source(file.path("..","PBFigures","PBAnalysisUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
 Get the EPG and D7 connections
@@ -311,6 +312,8 @@ for (tp in 1:length(PBTps)){
   allimpDev <- append(allimpDev,deviance(fit))
 }
 ```
+
+Plot the RSS
 ```{r}
 plt_order = c("EPG","PEN1","PEN2","PEG","PFG",
               "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",

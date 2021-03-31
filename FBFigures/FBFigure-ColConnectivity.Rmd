@@ -17,19 +17,23 @@ library(cowplot)
 library(reshape2)
 library(patchwork)
 library(visNetwork)
-source("FBNetworkVisUtils.R")
-source("..\\R\\paperTheme.R")
-source("..\\R\\visualizeConnectivityTables.R")
+source(file.path("..","FBFigures","FBNetworkVisUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
 Define a function to filter a type to type connection table by the percentage of pre and post neurons that are connected
 ```{r}
 perConnectFilter <- function(T2T_FBCol, prePercent, postPercent){
+  
+  # Copy the raw type to type table
   T2T_FBCol_filtered <- T2T_FBCol
 
+  # Step through the presynaptic types
   preTypes <-  T2T_FBCol$type.from %>% unique() 
   for (pre in 1:length(preTypes)){
     
+    # Get info about the presynaptic connectivity - bodyid, name, and connectivity
     preBIDs <- neuprint_get_meta(getTypesTable(preTypes[pre]))$bodyid
     preCols <- neuprint_get_meta(getTypesTable(preTypes[pre]))$name %>% 
       lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
@@ -37,20 +41,25 @@ perConnectFilter <- function(T2T_FBCol, prePercent, postPercent){
     
     conTab_Now <- getConnectionTable(preBIDs,"POST","FB")
     
+    # Select only the partners in the original type-to-type matrix
     postTypes <- conTab_Now$type.to %>% unique()
     postTypes <- postTypes[which(postTypes %in% (T2T_FBCol$type.to %>% unique()))]
     
+    # Step through the postsynaptic types
     for (post in 1:length(postTypes)){
       
+      # Get info about the postsynaptic connectivity - bodyid, name
       postBIDs <- neuprint_get_meta(getTypesTable(postTypes[post]))$bodyid
       postCols <- neuprint_get_meta(getTypesTable(postTypes[post]))$name %>% 
         lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
         unlist() %>% unique()
       
+      # Select only the neuron-to-neuron connections between the given pre and postsynaptic types
       conTab_Specific <- conTab_Now %>% filter(type.to == postTypes[post])
       conTab_Specific$id.from <- FBRename(conTab_Specific$name.from, conTab_Specific$from)
       conTab_Specific$id.to <- FBRename(conTab_Specific$name.to, conTab_Specific$to)
   
+      # Determine which FB columns are covered in the connectivity matrix
       fromCols <- conTab_Specific$name.from %>% 
         lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
         unlist() %>% unique()
@@ -59,6 +68,7 @@ perConnectFilter <- function(T2T_FBCol, prePercent, postPercent){
         lapply(function(x) substr(x,start = gregexpr(pattern ='_C',x)[[1]][1]+1, stop = gregexpr(pattern ='_C',x)[[1]][1] + 2)) %>% 
         unlist() %>% unique()
       
+      # If not enough columns are collected (according to input thresholds), remove these types from the overall type-to-type matrix
       if ((length(fromCols) < (prePercent * length(preCols))) ||
           (length(toCols) < (postPercent * length(postCols)))) {
           T2T_FBCol_filtered <- T2T_FBCol_filtered %>% filter(type.from != preTypes[pre] | type.to != postTypes[post])
@@ -482,7 +492,6 @@ allClustPlts <- outClustPlt / inClustPlt
 allClustPlts
 
 clustPlt
-
 ```
 
 
