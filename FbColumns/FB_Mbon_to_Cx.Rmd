@@ -5,10 +5,7 @@ output:
     df_print: paged
 ---
 
-
-### Command to clear environment is: rm(list = ls(all.names = TRUE))
-### Command to update is remotes::update_packages('neuprintr')
-### Load libraries
+# Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
@@ -35,172 +32,92 @@ library(cowplot)
 options(nat.plotengine = 'rgl')
 ```
 
-### Configurable inputs: choose save/plot directories
+# Make directory to save plots to
 ```{r}
 
-# Directory to save data to.
-SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/MB_Analysis/"
-
-# Create save/plot directory if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/MB_Analysis/"
+if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
-#source("../inputOutputRegionsVis.r")
-#source("../R/connectivityMatricesTools.R")
+source("FB_Mbon_to_Cx_Utils")
 
 ```
 
+# Get all MBONs and table of CX neuron types
+```{r message=FALSE, warning=FALSE}
 
-# Get all MBONs from right MB
-```{r}
-
-# Get list of MBONS
+# Get MBONs
 MB_NamedBodies=getNeuronsInRoiTable("MB(R)",0)
 MB_NamedBodies=subset(MB_NamedBodies, startsWith(name,"MBON"))
 MBONs_Types_Table=getTypesTable(unique(MB_NamedBodies$type))
 
-```
-
-
-
-
-# ####################################################################################################################
-# ######### Figure 0: Replicate MB Paper's MBON-->CX results #########################################################
-# ####################################################################################################################
-
-
-# A list of direct CX targets from the MB paper
-```{r}
-
+# Load table of known CX types
 CXTypes <- supertype(read_csv("C:\\Users\\labadmin\\Dropbox\\FIBSEM CX Paper Jan 2020\\CX-cell-types060920"))$n.type
 
-MB_Paper_Direct_Types=c("FB1C", "FB1H", "FB2A","FB2C","FB2L","FB4A","FB4C","FB4D","FB4F_b",
-                        "FB4G","FB4H","FB4I","FB4J","FB4L","FB4M","FB4N","FB4O",
-                        "FB4P_a","FB4P_b","FB4R","FB4X","FB4Y","FB5A","FB5AB","FB5C","FB5D",
-                        "FB5E","FB5H","FB5I","FB5J","FB5K","FB5L","FB5M","FB5V","FB5X",
-                        "FB6A","FB6P","FB6Q","FB6R","FB6T","FB6V","FB8F_a",
-                        "LCNOp","LCNOpm","LNO2")
-
 ```
-
-
-# Target list from the MB paper, using their criteria, to make sure we can mostly replicate their analysis.
-# We get the exact same list as Li et al, with the exceptions of ER1_a(ring)_R which receives 10 synapses from MBON26(B'2d)_R.
-# Perhaps their threshold was >10 instead of >=10 (as they report)?
-```{r}
-
-# MB paper's criteria
-Li_DownBag=neuronBag(MBONs_Types_Table, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
-Li_Direct=Li_DownBag$outputs_raw
-Li_Direct=subset(Li_Direct, databaseType.to %in% CXTypes)
-Li_Direct=subset(Li_Direct, weight>10) 
-
-sort(unique(Li_Direct$type.to)) %in% MB_Paper_Direct_Types
-
-sort(unique(Li_Direct$type.to))
-MB_Paper_Direct_Types
-
-
-```
-
 
 
 # ####################################################################################################################
 # ######### Figure 1: MBON to CX direct connections ##################################################################
 # ####################################################################################################################
-CD's Notes: 
-1) MBON05 has no branches ipsilateral to the cell body, only contralateral. 
-   FB4R only has dendrites ipsilateral to cell body. 
-   Therefore, only MBON05_L (not MBON05_R) makes synapses onto FB4R_R.
-2) MBON09 has bilateral branches, but only makes contact with ipsilateral FB4R, i.e., MBON09_R onto FB4R_R.
-3) MBON21 has bilateral branches, and synapses onto FB4R bilaterally.
-4) MBON04 has bilateral branches, but more contralaterally relative to the name 
-   (although the *_L cell body is just off to the midline on the right side).
-5) MBON12R and MBON13R only have branches ipsilateral to the cell body.
-6) MBON03 has bilateral branches, but more contralaterally relative to the name.
-7) MBON22 has ipsilateral branches in the calyx and bilateral branches in SIP/SMP.
-8) MBON30 has bilateral branches, but more ipsilateral to the cell body.
 
 
 # Get MBON to CX direct connections
 ```{r}
 
-# Questions and to-do:
-# SHOULD I average by databaseType.from and .to? 
-# If not, I need to cluster by type, no lateralized type, orthewise L/R pairs end up apart in graphs
-# CD has MBON12 and MBON13 going to FB5J. I don't. Why? 
-# Look at antomy of every MBON, can we just take those from the right hemi?
-# Understand CD's criteria and replicate
-# How to average across just those ROIs where a neuron receives input (ROI level matters)
-# Should I only include ROI outside the CX in computing weight relative, as CD does?
-
-
-
-# Get first layer lateralized outputs
+# Get MBON downstream connections, segregated by hemisphere (i.e. lateralized)
 # Lateralization is important because it keeps the postsynaptic L and R groups separate.
 # That way, when computing type-to-type weights, we aren't biased by postsyanptic neurons whose
 # inputs may be cut, which could contribute a 0 just because of cut fibers. 
 DownBag_L1=neuronBag(MBONs_Types_Table, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
 DownBag_L1=lateralize_types(DownBag_L1) 
 
-
-# Compute weight relative by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
+# Compute relative weight by summing ROIs not in the CX and not on the left side of the brain, which deals with polarity and lateralization issues.
 # Polarity, since most FBt types receive a lot of input in the CX, the roi-independent relative weight can be very low.
 # Lateralization, since some CX targets could have  dendrites on the left or dendrites on the right or both. So it makes sense to use all MBONs (L and R)
 #   and just look at their targets in right ROIs (which should be more complete).
 roiH <- getRoiTree()
 outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),
                   function(i) return(1),USE.NAMES = TRUE,simplify=FALSE), exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
-DownBag_L1 <- combineRois(DownBag_L1, outsideRegions, newRoi="NonCX") # Sum synapses across all non-CX ROIs on the right side
+DownBag_L1 <- combineRois(DownBag_L1, outsideRegions, newRoi="NonCX") # Sum synapses across all non-CX ROIs on the right side 
                                   
-
-# Recompute type-to-type table
-DownTypes_L1=getTypesTable(unique(c(DownBag_L1$outputs_raw$databaseType.from,
-                                    DownBag_L1$outputs_raw$databaseType.to))) %>% lateralize_types()
+# Recompute the lateralized type-to-type table but without using the t-test significance criteria. Because many FB tangential types 
+# are composed of two neurons, the t-test can occasionally filter out strong connetions involving two neurons with variable weights. 
+DownTypes_L1=getTypesTable(unique(c(DownBag_L1$outputs_raw$databaseType.from, DownBag_L1$outputs_raw$databaseType.to))) %>% lateralize_types()
 Downstream_T2T_L1=getTypeToTypeTable(DownBag_L1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0,
-                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = DownTypes_L1, oldTable = NULL) # No t-test type-to-type tables 
+                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = DownTypes_L1, oldTable = NULL) 
 
-
-# Restrict to just 'strong' CX targets.
+# Restrict to just strong CX targets (i.e. relative weight > 0.01 and at least 10 synapses).
 MB2CX_Direct=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes  & weightRelative>0.01 & weight>10)
 MB2CX_Direct_Exclude=subset(Downstream_T2T_L1, databaseType.to %in% CXTypes & !(weightRelative>0.01 & weight>10) )
-
-
 
 ```
 
 
-
-
-# Make MB paper style graph of MBON to CX direct connections
+# Make network graph showing MBON to CX direct connections
 ```{r}
 
-
-# Get just the L/R pair with max weight.Can't jut average L/R pairs because relative weight needs to 
-# first be summed over all postsynaptic neurons, but without looking at the anatomy in detail (especially for
-# the indirect analsysis later, which involves many more neurons), its hard to know which fibers may be cut, 
-# which neurons have fibers that cross hemispheres, etc. 
+# Get just the MBON-->CX pairs with max weight, regardless of hemisphere. We can't jut average L/R pairs because relative
+# weights needs to first be summed over all postsynaptic neurons, but this is hard to do for the hemibrain, since we don't
+# know for certain which fibers have been cut (would have to look at all CX and MBON neurons in detail). 
 Graph_Data=MB2CX_Direct %>% group_by(databaseType.from, databaseType.to) %>% filter(weight == max(weight))
 Graph_Data$type.from=Graph_Data$databaseType.from
 Graph_Data$type.to=Graph_Data$databaseType.to
-
 
 # Cluster the FB neurons by their input vectors
 Graph_Data_Clust=connectivityCluster(inputsTable = Graph_Data, outputsTable = NULL) %>% setClusters(h = 0.8, k = NULL)
 Graph_Data_Clust=Graph_Data_Clust$inputsTable %>% arrange(cluster.to)
 
-
-
-# Now sort inputs (MBONs) by which cluster they project most strongly to
+# Now sort MBONs by which cluster they project most strongly to
 PreOrder=Graph_Data_Clust %>% group_by(type.from) %>% filter(weightRelative == max(weightRelative))
 PreOrder=PreOrder[c("type.from","cluster.to")]
 colnames(PreOrder)=c("type.from","cluster.from")
@@ -208,118 +125,10 @@ Graph_Data_Clust=merge(Graph_Data_Clust,PreOrder, by="type.from")
 
   
 
-P0=plotConnectivity(Graph_Data_Clust, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
-  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, orderIn = NULL, orderOut = NULL,
-  legendName = NULL, showTable = "inputs") + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        #axis.ticks = element_blank(),
-        aspect.ratio = 1)  
-ggsave(paste(SaveDir, "MB_Direct_Clust.pdf",sep=""),
-        plot = P0, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
-P0=plotConnectivity(MB2CX_Direct, slctROI = NULL, grouping = "type", connectionMeasure = "weightRelative",
-  xaxis = c("outputs"), facetInputs = NULL, facetOutputs = NULL, theme = theme_minimal(),
-  cmax = NULL, replacementLabels = NULL, 
-  orderIn = NULL, 
-  orderOut = NULL,
-  legendName = NULL, showTable = "inputs") + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        #axis.ticks = element_blank(),
-        aspect.ratio = 1)  
-ggsave(paste(SaveDir, "MB_Direct.pdf",sep=""),
-        plot = P0, device='pdf', scale = 1, width =8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
-
-
-# Get node sizes
-PostSize=Graph_Data_Clust %>% group_by(type.to) %>% summarize(Syns=sum(weight))
-colnames(PostSize)=c("name","Size")
-PreSize=Graph_Data_Clust %>% group_by(type.from) %>% summarize(Syns=sum(weight))
-colnames(PreSize)=c("name","Size")
-AllSize=rbind(PostSize, PreSize)
-AllSize$name[startsWith(AllSize$name,"MBON")]=substr(AllSize$name[startsWith(AllSize$name,"MBON")], 5, 6)
-
-
-
-Lout=2
-if (Lout==1){
-  
-  # Pre Nodes
-  MBON_Nodes=data.frame(name=sort(unique(Graph_Data_Clust$type.from) %>% as.character()))
-  MBON_Nodes$name=substr(MBON_Nodes$name,5, 6)
-  MBON_Nodes$x=0
-  MBON_Nodes$y=(seq(from = 1, to = length(MBON_Nodes$name), by = 1)*1.8)
-  
-  # Post Nodes
-  CX_Nodes=data.frame(name=rev(sort(unique(Graph_Data_Clust$type.to) %>% as.character()))) 
-  L1to4=grepl("1",CX_Nodes$name) | grepl("2",CX_Nodes$name) | grepl("3",CX_Nodes$name) | grepl("4",CX_Nodes$name)
-  CX_Nodes$x=NA
-  CX_Nodes$x[L1to4]=-1
-  CX_Nodes$x[!L1to4]=1
-  CX_Nodes$y=NA
-  CX_Nodes$y[L1to4]=rev(seq(from = 1, to = sum(L1to4), by = 1))
-  CX_Nodes$y[!L1to4]=rev(seq(from = 1, to = sum(!L1to4), by = 1))
-  
-} else if (Lout==2){
-  
-  # Pre Nodes
-  MBON_Nodes=data.frame(name=(unique(Graph_Data_Clust$type.from) %>% as.character()))
-  MBON_Nodes$name=substr(MBON_Nodes$name,5, 6)
-  MBON_Nodes$x=0
-  MBON_Nodes$y=(seq(from = 1, to = length(MBON_Nodes$name), by = 1))
-  MBON_Nodes$y=(MBON_Nodes$y-mean(MBON_Nodes$y))*1.2
-  
-  # Post Nodes
-  CX_Nodes=data.frame(name=rev((unique(Graph_Data_Clust$type.to) %>% as.character()))) 
-  CX_Nodes$x=1
-  CX_Nodes$y=rev(seq(from = 1, to = length(CX_Nodes$name), by = 1))
-  CX_Nodes$y=CX_Nodes$y-mean(CX_Nodes$y)
-}
-
-
-# edges
-EDGES=Graph_Data_Clust[c("type.from","type.to","weightRelative")]
-colnames(EDGES)=c("from","to","weight")
-EDGES$from[startsWith(EDGES$from,"MBON")]=substr(EDGES$from[startsWith(EDGES$from,"MBON")], 5, 6)
-
-
-# nodes
-NODES=rbind(MBON_Nodes, CX_Nodes)
-NODES=merge(NODES, AllSize, by="name")
-
-
-# Node Colors
-TransmitterColor=c("#F26629","#20B685","#3668AC") #ACH, GLU
-NODES$COLORZ="Black"
-NODES$COLORZ[NODES$name %in% c("12","13","15","21","22","23","24","26","27","29","33","35")]=TransmitterColor[1]
-NODES$COLORZ[NODES$name %in% c("01 ","03","04","05","06","30","34")]=TransmitterColor[2]
-NODES$COLORZ[NODES$name %in% c("09","11")]=TransmitterColor[3]
-
-
-# Node fills
-NODES$FILLZ=NODES$COLORZ
-NODES$FILLZ[NODES$name %in% c("21","22","23","24","26","27","29","33","35")]="white"
-
-
-#Edge colors
-EDGES$COLORZ="black"
-EDGES$COLORZ[EDGES$from %in% c("12","13","15","21","22","23","24","26","27","29","33","35")]=TransmitterColor[1]
-EDGES$COLORZ[EDGES$from %in% c("01 ","03","04","05","06","30","34")]=TransmitterColor[2]
-EDGES$COLORZ[EDGES$from %in% c("09","11")]=TransmitterColor[3]
-EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
-col_vector=levels(EDGES$COLORZ)
-
-
-
-# Make graph
-graph = tbl_graph(NODES, EDGES)
 
 
 
