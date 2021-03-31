@@ -3,36 +3,48 @@ title: "Output figures - core computations"
 output: html_notebook
 ---
 
-This notebook does the computing legwork and save objects to be used by the figure notebooks
+This notebook does most of the computing legwork and save objects to be used by the output figure notebooks.
 
+# Preparing the environment
+Loading necessary packages
 ```{r message=FALSE, warning=FALSE}
-library(neuprintr)
-library(tidyverse)
+#library(neuprintr)
+library(dplyr)
+library(readr)
 library(neuprintrExtra)
-library(nat)
+#library(nat)
 library(tidygraph)
 library(Matrix)
 library(igraph)
 ```
-# Prelims
+
+Loading some local functions.
 ```{r message=FALSE}
 source("outputFunctions-core.R")
-source("../R/table2ggraphUtils.R")
+source(file.path("..","R","table2ggraphUtils.R"))
 ```
 
 # Building the outputs neuron pathways
 
 ## Find neurons innervating outside the CX
+We first load the central complex types from our hand curated table, extending it with some neuprint metadata, and retyped with `cxRetyping`, a function from `neuprintrExtra`, that splits types by side in the brain while taking care of the few exceptions for FB columnar neurons. 
 ```{r}
 roiH <- getRoiTree()
-CXtypes <- supertype(read_csv("~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/CX-cell-types060920") %>% rename(databaseType=n.type))
+CXtypes <- supertype(read_csv(file.path("..","CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
 CXNeurons <- getTypesTable(CXtypes$databaseType)
 CXNeurons <- cxRetyping(CXNeurons,postfix="raw")
 CXNeurons <- supertype(CXNeurons)%>% mutate(supertype="CX")
+head(CXNeurons)
+```
 
+We define the "outside" regions as any neuropile that is not in the CX and not on the left side of the brain (we want to work with the right side, which is more complete).
+```{r}
 outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
                                      exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
+```
 
+We then select all CX types with at least 20 synapses either upstream or downstream in the outside regions, and compute different metrics of their relative polarity in those reigons.
+```{r}
 CXOutsideTypes <- getROISummary(CXNeurons,threshold=0)
 
 CXOutsideTypes <- filter(CXOutsideTypes,roi %in% outsideRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
@@ -44,9 +56,12 @@ CXOutsideTypes <- filter(CXOutsideTypes,roi %in% outsideRegions) %>% group_by(ty
    ungroup() %>% distinct()
 CXOutsideTypes <- filter(CXOutsideTypes,upstream>20 | downstream>20)
 CXOutsideNeurons <- filter(CXNeurons,type %in% CXOutsideTypes$type)
+head(CXOutsideTypes)
+```
 
-
-# A rough ordering of types for subsequent figures
+A rough ordering of types that will be used in figures for consistency:
+```{r}
+# 
 typesCX <- unique(CXNeurons$type)
 typesCXOrder <- c(typesCX[startsWith(typesCX,"EL")],
                   typesCX[startsWith(typesCX,"PE")],
@@ -66,8 +81,11 @@ typesCXOrder <- c(typesCX[startsWith(typesCX,"EL")],
                   typesCX[startsWith(typesCX,"PFL")]
                   )
 ```
+
 ## Get type to type connection tables up to 5 hops out
-Calculate a massive pathway table of everything postsynaptic to those neurons outside of the CX, in 5(!!) steps or less (doing it "raw" for more flexibility afterwards):
+Calculate a massive pathway table of everything postsynaptic to those neurons outside of the CX, in 5(!!) steps or less (doing it "raw" for more flexibility afterwards). 
+The `overruleThreshold` set here to 50, means that any neuron that a connection with more than 50 synapses will be kept even if other criterions are not met. This is to deal with very large neurons innervating with large swaths of the outside regions (since we collate all the neuropiles in there together as a super ROI).
+CAUTION: Running this cell will take more than 30 minutes.
 ```{r}
 CX_outGraphBi <- get_type2typePath_raw(type.from=CXOutsideNeurons,ROI=list("Outside_regions(R)"=outsideRegions),n_steps=1:5,addContraPaths = T,thresholdPerROI = 20,verbose=TRUE,renaming=customRetyping,overruleThreshold=50,largeOnly=TRUE)
 ```
