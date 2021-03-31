@@ -9,14 +9,12 @@ library(neuprintr)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source("FBNetworkVisUtils.R")
-source("..\\R\\paperTheme.R")
-source("..\\R\\visualizeConnectivityTables.R")
-
-options(nat.plotengine = 'rgl')
+source(file.path("..","FBFigures","FBNetworkVisUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
-Specify plotting text sizes
+Specify colors for each supertype
 ```{r}
 stCols <- supertype2Palette()
 stCols$breaks <- append(stCols$breaks,'OA-VPM3')

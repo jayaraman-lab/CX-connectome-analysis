@@ -1,5 +1,6 @@
 library(neuprintr)
 library(broom)
+library(purrr)
 
 #' Gets a table of all neurons in a sub-ROI, with information about the innervation relative to an englobing ROI. 
 #' Used for in the validation pipeline to select neurons of interest.

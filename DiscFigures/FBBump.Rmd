@@ -11,8 +11,8 @@ library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
 library(gridExtra)
-source("..\\PBFigures\\PBAnalysisUtils.R")
-source("..\\FBFigures\\FBNetworkVisUtils.R")
+source(file.path("..","PBFigures","PBAnalysisUtils.R"))
+source(file.path("..","FBFigures","FBNetworkVisUtils.R"))
 ```
 
 Function to convert a connection table into a weight matrix
@@ -59,6 +59,8 @@ g_PB <- ggplot(actProfvM) + geom_line(aes(x=glom,y=act,group=1,color=LR)) + them
 
 Look at how it moves to the D7s
 ```{r}
+
+# Get the EPG to D7 connections and convert to a weight matrix
 conTab <- getConnectionTable(getTypesTable("EPG")$bodyid,"POST","PB") %>% 
   filter(type.to == "Delta7")
 conTab$id.from <- PBRename(conTab$name.from,conTab$from)
@@ -66,10 +68,12 @@ conTab$id.to <- PBRename(conTab$name.to,conTab$to)
 
 WM <- conTabToWM(conTab,unique(conTab$id.from),unique(conTab$id.to))
 
+# Get the EPG glomeruli
 EPGDat <- data.frame(name = rownames(WM))
 EPGDat$glom <- lapply(EPGDat$name, function(n) strsplit(strsplit(n,'_')[[1]][2],'-')[[1]][1]) %>% unlist() %>% as.character()
 EPGDat$act <- lapply(EPGDat$glom, function(g) actProfvM$act[which(actProfvM$glom == g)]) %>% unlist() %>% as.numeric()
 
+# Get the D7 activity per glomerulus
 D7Dat <- data.frame(name = colnames(WM), act =  as.vector(EPGDat$act %*% WM))
 D7Dat$glom1 <- lapply(D7Dat$name, function(n) substring(strsplit(n,'_')[[1]][2],1,2)) %>% unlist() %>% as.character()
 D7Dat$glom2 <- lapply(D7Dat$name, function(n) substring(strsplit(n,'_')[[1]][2],3,4)) %>% unlist() %>% as.character()
@@ -82,6 +86,7 @@ D7aveAct <- D7Dat %>% group_by(glom) %>% summarize(meanAct = mean(act))
 D7aveAct$LR <- lapply(D7aveAct$glom, function(g) substring(g,1,1)) %>% unlist() %>% as.factor()
 D7aveAct$glom <- factor(D7aveAct$glom, levels = as.factor(c("R9","R8","R7","R6","R5","R4","R3","R2","R1",
                                                           "L1","L2","L3","L4","L5","L6","L7","L8","L9")))
+# Normalize
 D7aveAct$meanAct <- D7aveAct$meanAct / max(D7aveAct$meanAct)
 
 g_PB_D7 <- ggplot(D7aveAct) + geom_line(aes(x=glom,y=meanAct,group=1,color=LR)) + theme_cowplot() + scale_x_discrete(expand = c(0,0))  + ggtitle('D7 \"activity\"') + guides(color=FALSE)

@@ -2,6 +2,7 @@
 title: "numerosity and total synapse counts"
 output: html_notebook
 ---
+
 Load the libraries
 ```{r}
 library(nat)
@@ -17,8 +18,8 @@ library(reshape2)
 library(patchwork)
 library(visNetwork)
 library(ggnewscale)
-source("..\\R\\paperTheme.R")
-source("..\\EBFigures\\EBUtils.R")
+source(file.path("..","EBFigures","EBUtils.R"))
+source(file.path("..","R","paperTheme.R"))
 options(nat.plotengine = 'rgl')
 ```
 
@@ -38,6 +39,7 @@ nronsPerGlom$glom <- factor(nronsPerGlom$glom,levels = c("L9","L8","L7","L6","L5
                                                          "irreg"))
 
 ```
+Plot
 ```{r}
 numerosityPlt1 <- ggplot(nronsPerGlom %>% filter(type %in% c('EPG','PEN_a(PEN1)','PEN_b(PEN2)','PEG'))) + geom_bar(aes(x=glom,y=numPerGlom),stat="identity",color='white') + facet_grid(rows = vars(type)) + theme_paper() + 
   xlab('glomerulus') + ylab('number of neurons per glomerulus') + theme(axis.text.x = element_text(angle = 90))

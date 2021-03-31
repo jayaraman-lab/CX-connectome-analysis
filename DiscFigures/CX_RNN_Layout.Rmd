@@ -13,12 +13,12 @@ library(reshape2)
 library(igraph)
 library(ggraph)
 library(patchwork)
-source("..\\R\\paperTheme.R")
-source("..\\R\\visualizeConnectivityTables.R")
-source("..\\EBFigures\\EBUtils.R")
+source(file.path("..","EBFigures","EBUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 ```
 
-Specify the types of interest and get the neuronBag for them
+Specify types of interest and get the neuronBag for them
 ```{r}
 nrons <- c("TuBu01", "TuBu02", "TuBu08", "TuBu09", "LAL138", "WED016",
           "ER4m", "ER3a_a", "ER3a_d", "ER3m", "ER4d", "ER2_a", "ER2_b", "ER2_d", "ER1_b", "ER1_a",
@@ -42,7 +42,7 @@ nrons2lat <- c("TuBu01", "TuBu02", "TuBu08", "TuBu09", "LAL138", "WED016",
 CXBag_lat <- lateralize_types(CXBag,typeList=nrons2lat)
 ```
 
-Get the connectivity tables
+Get the connectivity tables and specify the network graph layout
 ```{r}
 types4plt <- c("TuBu01_R", "TuBu02_R", "TuBu08_R", "TuBu09_R", "LAL138_L", "WED016_R",
           "ER4m_R", "ER3a_a_R", "ER3a_d_R", "ER3m_R", "ER4d_R", "ER2_a_R", "ER2_b_R", "ER2_d_R", "ER1_b_R", "ER1_a_R",
@@ -119,7 +119,7 @@ ggsave('CXRNN_V5_noLabel.pdf',CXRNN,
 ```
 
 
-Specify the types of interest and get the neuronBag for them
+Specify types of interest, get the neuronBag for them, and set the layout
 ```{r}
 #nrons <- c("ER3a_a", "ER3a_b", "ER3a_c", "ER3a_d",
 #           "ER3d_a", "ER3d_b", "ER3d_c", "ER3d_d",
