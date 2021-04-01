@@ -8,7 +8,7 @@ This notebook does most of the computing legwork and save objects to be used by 
 # Preparing the environment
 Loading necessary packages
 ```{r message=FALSE, warning=FALSE}
-#library(neuprintr)
+library(neuprintr)
 library(dplyr)
 library(readr)
 library(neuprintrExtra)
@@ -43,7 +43,7 @@ outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH
                                      exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
 ```
 
-We then select all CX types with at least 20 synapses either upstream or downstream in the outside regions, and compute different metrics of their relative polarity in those reigons.
+We then select all CX types with at least 20 synapses either upstream or downstream in the outside regions, and compute different metrics of their relative polarity in those regions. We create a separate object for neurons that are mostly axonal in those regions.
 ```{r}
 CXOutsideTypes <- getROISummary(CXNeurons,threshold=0)
 
@@ -56,6 +56,9 @@ CXOutsideTypes <- filter(CXOutsideTypes,roi %in% outsideRegions) %>% group_by(ty
    ungroup() %>% distinct()
 CXOutsideTypes <- filter(CXOutsideTypes,upstream>20 | downstream>20)
 CXOutsideNeurons <- filter(CXNeurons,type %in% CXOutsideTypes$type)
+
+CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+
 head(CXOutsideTypes)
 ```
 
@@ -82,15 +85,7 @@ typesCXOrder <- c(typesCX[startsWith(typesCX,"EL")],
                   )
 ```
 
-## Get type to type connection tables up to 5 hops out
-Calculate a massive pathway table of everything postsynaptic to those neurons outside of the CX, in 5(!!) steps or less (doing it "raw" for more flexibility afterwards). 
-The `overruleThreshold` set here to 50, means that any neuron that a connection with more than 50 synapses will be kept even if other criterions are not met. This is to deal with very large neurons innervating with large swaths of the outside regions (since we collate all the neuropiles in there together as a super ROI).
-CAUTION: Running this cell will take more than 30 minutes.
-```{r}
-CX_outGraphBi <- get_type2typePath_raw(type.from=CXOutsideNeurons,ROI=list("Outside_regions(R)"=outsideRegions),n_steps=1:5,addContraPaths = T,thresholdPerROI = 20,verbose=TRUE,renaming=customRetyping,overruleThreshold=50,largeOnly=TRUE)
-```
-
-List all the neurons we know about -- following Ito's classification
+List all the neurons we know something about in a table -- following the classification defined in Scheffer et al. The `customRetyping` function, defined in "outputFunctions-core.R" is the same as `cxRetyping` (from the `neuprintrExtra` package) with the added retyping of what appears as DNb01 in the database but is likely two different types.
 ```{r}
 knownTypesTable <- list("CX"=CXNeurons,
                                   "DA"= neuprint_search("^PPL.*|^PAM.*|^PPM.*") %>% mutate(databaseType=type) %>% customRetyping() %>% supertype()%>% mutate(supertype="DAN"),
@@ -113,11 +108,25 @@ knownTypesTable <- retype.na_meta(knownTypesTable)
 knownTypesTable <- distinct(rbind(select(knownTypesTable,type,supertype),
                                    data.frame(type=lrInvert(knownTypesTable$type),supertype=knownTypesTable$supertype)))
 allKnownTypes <- unique(knownTypesTable$type) 
+head(knownTypesTable)
+```
 
+Save it so that it can be reused in the figure making notebooks:
+```{r}
 saveRDS(knownTypesTable,"known-table.rds")
 ```
 
-Filtering out types contributing close to nothing to downstream partners
+## Get type to type connection tables up to 5 hops out
+Calculate a massive pathway table of everything postsynaptic to those neurons outside of the CX, in 5(!!) steps or less (doing it "raw" for more flexibility afterwards). 
+The `overruleThreshold` set here to 50, means that any neuron that a connection with more than 50 synapses will be kept even if other criterions are not met. This is to deal with very large neurons innervating with large swaths of the outside regions (since we collate all the neuropiles in there together as a super ROI).
+This generates a list of 5 type to type connection tables (one for each step).
+CAUTION: Running this cell will take more than 30 minutes.
+```{r}
+CX_outGraphBi <- get_type2typePath_raw(type.from=CXOutsideNeurons,ROI=list("Outside_regions(R)"=outsideRegions),n_steps=1:5,addContraPaths = T,thresholdPerROI = 20,verbose=TRUE,renaming=customRetyping,overruleThreshold=50,largeOnly=TRUE)
+head(CX_outGraphBi[[1]])
+```
+
+We then filter out types contributing close to nothing to downstream partners (types that in total contributes less than 20 synapses to targets outside of the central complex), and propagates through the 5 layers.
 ```{r}
 CX_outGraphBi[[1]] <- CX_outGraphBi[[1]] %>% group_by(type.from,supertype3.from) %>% 
    mutate(totalWeightRaw=sum(absoluteWeight)) %>% 
@@ -129,7 +138,7 @@ for (n in 2:5){
 ```
 
 
-Reduced version of the pathways: starting in the right side of the brain exclusively (and remove any connection from the origin neurons on the left side of the brain).
+Reduced version of the pathways: we have simulated the left side of the brain, but since we want to analyze only pathways that start on the right side of the brain, we need to remove connections from CX neurons that have been simulated (those will have ROI "Outside_regions(R)_contra" instead of "Outside_regions(R)")
 ```{r}
 CX_outPaths <- CX_outGraphBi
 CX_outPaths[[1]] <- filter(CX_outPaths[[1]],roi == "Outside_regions(R)") 
@@ -145,51 +154,85 @@ for (n in 2:5){
 }
 ```
 
+We then save the pathways for later reuse
 ```{r}
 saveRDS(CX_outPaths,"output_paths.rds")
 ```
 
-Get a good supertyping for coloring to come
+Supertype at a very broad level for some of the figure coloring to come. `customOutputSupertype` is defined in "outputFunctions-core.R" and divides the types as they are throughout the output section (for example, see figure 54B)
 ```{r}
 CXOutputNeurons <- selectSupertypeSet(CXOutputNeurons,default_level = 1) %>%
    customOutputSupertype(postfix = "raw")
-   #mutate(customSupertype = case_when(supertype=="PFL" ~ databaseType,
-   #                         grepl("ExR[2-7]",supertype) ~ "ExR2-7",
-   #                         supertype3=="EB Columnar" ~ "EB Columnar",
-   #                         TRUE ~ as.character(supertype)))
 ```
 
-Then make tables of synapses
+Save simple variables
+```{r}
+save(CXOutputNeurons,CXOutsideTypes,CXOutputTypes,outsideRegions,CXOutsideNeurons,typesCXOrder,CXNeurons,file="outputsBasics.RData")
+```
+
+Then make tables of all pre-synapses from CX neurons in the outside regions. This uses the `collectSynapses` function defined in "outputFunctions-core.R". This is will be used in the synapse location plots.
+CAUTION: Executing this cell will take around 25 minutes
 ```{r,warning=FALSE}
-CXOutSyn <- collectSynapses(CXOutputNeurons,outsideRegions,polarity="post")
+CXOutSyn <- collectSynapses(CXOutputNeurons,outsideRegions,polarity="pre")
+```
+Add some metadata
+```{r}
 CXOutSyn <-  mutate(CXOutSyn,customSupertype=CXOutputNeurons$customSupertype[match(type,CXOutputNeurons$type)])
+head(CXOutSyn)
+```
+
+And save it:
+```{r}
 saveRDS(CXOutSyn,"CX-outsideSynapses.rds")
 ```
 
 ## The CX output graph
-### Pathway weights
+We now want to treat this "5 steps" pathways collection as a large graph.
+### Create the graph
+We first collate all connections present:
 ```{r}
 CX_outGraph <- distinct(do.call(rbind,CX_outPaths))
+```
+
+For cases where a neuron pair has connections on both sides of the brain, we use the average relative weight, weighted on the importance of the innervation on each side: 
+```{r}
 ## For contra ROI + ipsi ROI case, we need an approximation of the relative weight and output contribution
 CX_outGraph <- group_by(CX_outGraph,type.to) %>% mutate(combineROIweight=sum(totalROIweight[match(unique(roi),roi)])) %>% ungroup() 
 
 CX_outGraph <- group_by(CX_outGraph,type.from,type.to,supertype1.from,supertype2.from,supertype3.from,supertype1.to,supertype2.to,supertype3.to,databaseType.from,databaseType.to,n_type) %>%
    summarize(weightRelative=mean(weightRelative*totalROIweight/combineROIweight),outputContribution=sum(weight)/sum(totalPreROIweight*n_from)) %>% ungroup()
 CX_outGraph <- group_by(CX_outGraph,type.from) %>% mutate(wr_contribution=weightRelative/sum(weightRelative)) %>% ungroup() 
-## Check that the averaging didn't create anything weird
+```
+
+This next bit is a sanity check to make sure this averaging didn't create any "impossible" weights (weight relative summing to more than 1):
+```{r}
 CX_outGraphTo <- group_by(CX_outGraph,type.to) %>% summarize(wr=sum(weightRelative)) %>% ungroup()
 CX_outGraphFrom <- group_by(CX_outGraph,type.from) %>% summarize(oc=sum(outputContribution),wroc=sum(wr_contribution)) %>% ungroup()
 all(CX_outGraphTo$wr<=1) & all(CX_outGraphFrom$oc<=1) 
 ```
-Create a graph, then calculate weightRelative contribution to all the possible targets from the CX output types, multiplying the adjacency matrix of the whole graph to convergence.
+
+We then create a graph from the connection table as a `tidygraph` object, using `makeGraph` which is defined in "R/table2ggraphUtils.R".
+`allNodes` is a data frame of all the neurons (nodes) in the graph, stored for convenience.
 ```{r}
 CX_outGraph <- makeGraph(CX_outGraph)
 allNodes <- CX_outGraph %>% activate(nodes) %>% as_tibble()
-CXout_AdjWR <- igraph::as_adjacency_matrix(CX_outGraph,attr="weightRelative")
-CXout_AdjOCWR <- igraph::as_adjacency_matrix(CX_outGraph,attr="wr_contribution") ## Here we use the relative contribution - use this for "downstream" computations of influence
+```
 
+
+### Calculate pathway weights
+We then calculate pathway weights to all the possible targets from the CX output types, multiplying the adjacency matrix of the whole graph to convergence, as described in the Methods figure.
+
+- First we gather the graph as an adjacency matrix using an `igraph` function. We build two adjacency matrices here, one with relative weights (to be used to characterize how strongly targets are influenced by the central complex), one with relative weights normalized per the sum of relative weights contributed by a presynaptic neuron. This will be used for the reverse, i.e. characterize how much different targets represent for a given CX output neuron. 
+```{r}
+CXout_AdjWR <- igraph::as_adjacency_matrix(CX_outGraph,attr="weightRelative")
+CXout_AdjOCWR <- igraph::as_adjacency_matrix(CX_outGraph,attr="wr_contribution") 
+```
+
+#### Pathway weights for all the targets
+We then use functions `endpointConnections_raw` and `endpointConnections` defined in "outputFunctions-core.R". Those do the legwork of recursively multiplying/adding the connectivity matrices and checking for convergence. `endpointConnections_raw` returns the results of the multiplications for different path lenghts in a list, whereas `endpointConnections` returns the summed result (i.e. the matrix of pathway weights). We compute the "raw" matrices only up to 8 steps as those objects get big, to be used for illustration (the SI figure about clustering at different depths). We also reformat the results as data frames for subsequent manipulation.
+```{r}
 ## For display, just first 8 steps
-CXoutAllSteps <- endpointConnections_raw(CXout_AdjWR,endpoint=CXOutputTypes,polarity="upstream",maxIt=8,eps=10^-8)
+CXoutAllSteps <- endpointConnections_raw(CXout_AdjWR,endpoint=CXOutputTypes,polarity="from_sources",maxIt=8,eps=10^-8)
 CXoutAllSteps <- lapply(1:length(CXoutAllSteps),function(i){reshape2::melt(as.matrix(CXoutAllSteps[[i]]),na.rm=TRUE,value.name="Path_weight") %>% 
       filter(Path_weight>0) %>%
       rename(type.from=Var1,type.to=Var2) %>%
@@ -197,7 +240,7 @@ CXoutAllSteps <- lapply(1:length(CXoutAllSteps),function(i){reshape2::melt(as.ma
 CXoutAllSteps <- do.call(rbind,CXoutAllSteps)
 
 ## The result at convergence
-CXoutFull <- endpointConnections(CXout_AdjWR,endpoint=CXOutputTypes,polarity="upstream",maxIt=100,eps=10^-8)
+CXoutFull <- endpointConnections(CXout_AdjWR,endpoint=CXOutputTypes,polarity="from_sources",maxIt=100,eps=10^-8)
 CXoutFull <- reshape2::melt(as.matrix(CXoutFull),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2) %>% mutate(n_steps="All")
 CXoutAllSteps <- rbind(CXoutAllSteps,CXoutFull) %>% mutate(type.from=as.character(type.from),type.to=as.character(type.to),
                      databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
@@ -208,13 +251,17 @@ CXoutFull <- mutate(CXoutFull,type.from=as.character(type.from),type.to=as.chara
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]
                     )
 CXoutFull <- supertype(CXoutFull) %>% group_by(type.to) %>% mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
+head(CXoutFull)
+```
 
+We then run the same algorithm in the reverse direction (starting from the targets), with the normalized relative weights, to calculate what different CX neurons represent in the output of given CX output neurons. This will be used for the "feedback" figures. We also classify them into different categories (connections back to the same neuron, connections to the same type on the other side, connections to neurons that are mostly axonal in the outside regions, and the "true" dendritic input neurons).
+```{r}
 ## Fraction of output pathways going to CX neurons
 CXNeuronsReached <- allNodes$type[allNodes$type %in% CXNeurons$type]
-CXInfluence <- endpointConnections(CXout_AdjOCWR,endpoint=CXNeuronsReached,polarity = "downstream",maxIt=100,eps=10^-8)
+CXInfluence <- endpointConnections(CXout_AdjOCWR,endpoint=CXNeuronsReached,polarity = "to_targets",maxIt=100,eps=10^-8)
 #CXInfluence <- CXInfluence[CXOutputTypes,]
 CXInfluence <- reshape2::melt(as.matrix(CXInfluence),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
-CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+
 CXInfluence <- mutate(CXInfluence,type.from=as.character(type.from),type.to=as.character(type.to),
                       databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
@@ -223,14 +270,16 @@ CXInfluence <- mutate(CXInfluence,type.from=as.character(type.from),type.to=as.c
                                      databaseType.to %in% CXOutAxonals$databaseType ~ "To axonal",
                                      TRUE ~ "To dendritic")
                       ) %>% supertype()
-CX2CXExclusivePathways <- group_by(CXInfluence,type.from) %>% summarize(totalWeight=sum(Path_weight)) %>% filter(totalWeight>0.95)
+head(CXInfluence)
 ```
 
-Save simple variables
+We separate in another data frame neurons that give all of their outputs to other CX neurons.
 ```{r}
-save(CXOutputNeurons,CXOutsideTypes,CXOutputTypes,outsideRegions,CXOutsideNeurons,typesCXOrder,CXNeurons,file="outputsBasics.RData")
+CX2CXExclusivePathways <- group_by(CXInfluence,type.from) %>% summarize(totalWeight=sum(Path_weight)) %>% filter(totalWeight>0.95)
+
 ```
 
+We save those all those graph and pathway weight related objects:
 ```{r}
 saveRDS(CXoutFull,"pathwayWeightsTable.rds")
 saveRDS(CXInfluence,"cx-influence.rds")
@@ -241,7 +290,7 @@ saveRDS(CX2CXExclusivePathways,"cx2cx-pathways.rds")
 
 
 ### The full (bilateral) graph
-For illustration purposes
+For illustration purposes, we keep another version of the graph that is not reduced to just pathways starting on the right side of the brain (this is used in some network graph illustrations):
 ```{r}
 CX_outGraphBi <- distinct(do.call(rbind,CX_outGraphBi))
 ## For contra ROI + ipsi ROI case, we need an approximation of the relative weight and output contribution
@@ -265,11 +314,12 @@ saveRDS(CX_outGraphBi,"output_graph_FullBilateral.rds")
 ```
 
 ## Cluster the output neurons at different depths
+For the figure supplement about modularity, we cluster the target neurons, first from their overall pathway weights, then from their pathway weights for paths for length 1 to 8.
 ```{r}
 outClustersFull <- connectivityCluster(outputsTable=CXoutFull %>% mutate(roi="Outside",outputContribution=Path_weight))
 outClustersFull$outputsTable <- 1 ## Memory saving
 outClusters <- lapply(1:8,function(i) {ret <- connectivityCluster(outputsTable=CXoutAllSteps %>% filter(n_steps==i) %>% mutate(roi="Outside",outputContribution=Path_weight))
-                                       ret$outputsTable <- 1 ## Save memory as we're not using this here
+                                       ret$outputsTable <- 1 ## Saves memory as we're not using this here
                                        ret})
 saveRDS(outClustersFull,"clusters-paths.rds")
 saveRDS(outClusters,"cluster-alldephts.rds")
@@ -277,77 +327,101 @@ saveRDS(outClusters,"cluster-alldephts.rds")
 
 
 ## Strongest partners connectivity matrix
+For the rest of the analysis, we focus on targets getting at least 0.5% (as defined by pathway weights) of their relative inputs from pathways originating in the central complex. `targetsSummary` contains the sum of the pathway weights in provenance of the CX for all the targets. `mainTargets` is the set of neurons passing our criterion.
 ```{r}
 targetsSummary <- group_by(CXoutFull,type.to) %>% summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
 mainTargets <- filter(targetsSummary,fullCXwr>0.005) %>% mutate(databaseType.to = allNodes$databaseType[match(type.to,allNodes$type)])
+head(mainTargets)
+```
 
+Among those strong targets, we separate the ones that are CX neurons themselves (`mainCXTargets`) from the other, "feedforward" targets (`mainFFTargets`):
+```{r}
 mainCXTargets <- filter(mainTargets,databaseType.to %in% CXOutsideNeurons$databaseType)
 mainFFTargets <- filter(mainTargets,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from)
+```
 
+We then create a version of the pathway weights table containing only the strong targets (`allMainConns`). `mainFFConns` is the same but restricted to feed forward (meaning non CX) targets. Those tables contain a "mainContributor" column that keeps track of which CX neurons makes the biggest contribution to the given target (used to illustrate modularity):
+```{r}
 mainFFConns <- filter(CXoutFull,type.to %in% mainFFTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
                                                                                                                                                mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
 allMainConns <- filter(CXoutFull,type.to %in% mainTargets$type.to) %>% mutate(roi="All") %>% group_by(type.to) %>% mutate(mainContributor=factor(type.from[which.max(Path_weight)],levels = outClustersFull$hc$labels[outClustersFull$hc$order]),
                                                                                                                                                mainContributor_data=databaseType.from[which.max(Path_weight)]) %>% ungroup() 
 
-allMainConnsFilt <- filter(allMainConns,Path_weight>0.005)
-mainFFConnsFilt <- filter(mainFFConns, Path_weight>0.005)
-
 ```
 
 
-## Graph reduced to the strong targets
-```{r}
-CX_outGraphRed <- as_tbl_graph(induced_subgraph(CX_outGraph,c(mainFFConnsFilt$type.to,mainFFConnsFilt$type.from))) %N>% mutate(mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
-                                                                                                                             customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)],
-                                                                                                                             customContributor = ifelse(type %in% mainFFConnsFilt$type.from,"Source",as.character(customContributor)),
-                                                                                                                             label=ifelse(customContributor=="Source",type,NA)) 
 
-CX_outCommunitiesRed <- cluster_infomap(CX_outGraphRed,e.weights=E(CX_outGraphRed)$weightRelative)
+### Graph reduced to the strong targets
+For illustration purposes, we also create a version of the full graph object limited to the strong targets, using the main contributor as a label. 
+```{r}
+#allMainConnsFilt <- filter(allMainConns,Path_weight>0.005)
+#mainFFConnsFilt <- filter(mainFFConns, Path_weight>0.005)
+CX_outGraphRed <- as_tbl_graph(induced_subgraph(CX_outGraph,c(mainFFConns$type.to,mainFFConns$type.from))) %N>% mutate(mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
+                                                                                                                             customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)],
+                                                                                                                             customContributor = ifelse(type %in% mainFFConns$type.from,"Source",as.character(customContributor)),
+                                                                                                                             label=ifelse(customContributor=="Source",type,NA)) 
+```
+
+We then run the label propagation clustering algorithm on the graph and label the nodes accordingly. This will be used for the supplementary figure about modularity.
+```{r}
+#CX_outCommunitiesRed <- cluster_infomap(CX_outGraphRed,e.weights=E(CX_outGraphRed)$weightRelative)
 CX_outCommunitiesRedLP <- cluster_label_prop(CX_outGraphRed,weights=E(CX_outGraphRed)$weightRelative)
 
-CX_outGraphRed <- CX_outGraphRed %N>% mutate(imCommunity=membership(CX_outCommunitiesRed)[type],
-                                           lpCommunity=membership(CX_outCommunitiesRedLP)[type])
+CX_outGraphRed <- CX_outGraphRed %N>% mutate(lpCommunity=membership(CX_outCommunitiesRedLP)[type])
+#imCommunity=membership(CX_outCommunitiesRed)[type],
 saveRDS(CX_outGraphRed,"output_graph_reduced.rds")
 ```
 
 
-## Synapses of the main targets
+### Synapses of the main targets
+For the synapse distribution plots of targets, we also collect all presynapses of the strong targets.
+CAUTION: running this cell will take ~15mins.
 ```{r,warning=FALSE}
 mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to) %>% customRetyping() %>% filter(type %in% mainFFTargets$type.to)
 
-CXTargetsSyn <- collectSynapses(mainFFTargetsNeurons,NULL,polarity="post")
+CXTargetsSyn <- collectSynapses(mainFFTargetsNeurons,NULL,polarity="pre")
 
 
 saveRDS(CXTargetsSyn,"CX-targets-synapses.rds")
 ```
 
+Finally we save the objects associated with the strong targets as one Rdata file:
 ```{r}
-#saveRDS(mainTargets,"main-targets.rds")
-save(mainTargets,mainCXTargets,mainFFTargets,mainFFConns,allMainConns,allMainConnsFilt,mainFFConnsFilt,mainFFTargetsNeurons,file="mainTargetsAndConns.Rdata")
+#allMainConnsFilt,mainFFConnsFilt,
+save(mainTargets,mainCXTargets,mainFFTargets,mainFFConns,allMainConns,mainFFTargetsNeurons,file="mainTargetsAndConns.Rdata")
 ```
+
 ## Pathways to endpoints
+To analyze what different "known" targets represent in the output of the different CX outputs types, we run the pathway function in the opposite direction with the normalized relative weights adjacency matrix, rooting it in the known types present in the graph. 
+First we list neurons in the graph that are also of a known type:
 ```{r}
 knownNeuronsReached <- allNodes$type[allNodes$type %in% allKnownTypes]
+head(knownNeuronsReached)
+```
 
-endpointsInfluenceM <- endpointConnections(CXout_AdjOCWR,endpoint=knownNeuronsReached,polarity = "downstream",maxIt=100,eps=10^-8)
+We then run the matrix multiplication to those types. Note that at this stage contains weights from all neurons in the graph (not only the CX ones) to those known targets.
+```{r}
+endpointsInfluenceM <- endpointConnections(CXout_AdjOCWR,endpoint=knownNeuronsReached,polarity = "to_targets",maxIt=100,eps=10^-8)
+```
+
+We tease apart neurons whose output connections are almost entirely accounted for in this pathways to known types. Those are pure "relay" neurons.
+```{r}
 endpointInfluencers <- rowSums(endpointsInfluenceM)
-mainEndpointInfluencers <- names(endpointInfluencers[endpointInfluencers>0.95]) ## Those neurons can be considered serving as relays
-#CXInfluence <- CXInfluence[CXOutputTypes,]
+mainEndpointInfluencers <- names(endpointInfluencers[endpointInfluencers>0.95]) 
+```
+
+We reformat the matrix in a data frame, keeping the pathways from CX output neurons to known targets. 
+```{r}
 endpointsInfluence <- reshape2::melt(as.matrix(endpointsInfluenceM[CXOutputTypes,]),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
 endpointsInfluence <- mutate(endpointsInfluence,type.from=as.character(type.from),type.to=as.character(type.to),
                       databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
                       supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)]
                       ) %>% supertype()
-endpointsInfluenceFull <- reshape2::melt(as.matrix(endpointsInfluenceM),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
-endpointsInfluenceFull <- mutate(endpointsInfluenceFull,type.from=as.character(type.from),type.to=as.character(type.to),
-                      databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
-                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
-                      supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)]
-                      ) %>% supertype()
+```
 
-endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,type.from,databaseType.from,supertype1.from,supertype2.from,supertype3.from,supertype.to) %>% summarize(Path_weight=sum(Path_weight))
-saveRDS(endpointsInfluenceFullSummary,"endpoints-influenceFullSummary.rds")
+Finally we save those objects for reuse:
+```{r}
 saveRDS(endpointsInfluence,"endpoints-influence.rds")
 saveRDS(mainEndpointInfluencers,"main-endpoints.rds")
 ```
