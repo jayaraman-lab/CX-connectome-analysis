@@ -1,0 +1,273 @@
+---
+title: "Convergence/Divergence plots in Figure 6 - Supplemental information 1 A,B, Figure 7 - Supplemental information 1 A,B"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of mechanosensory information pathway coming into CX via R1 neurons
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+library(paletteer)
+library(gridExtra)
+```
+
+```{r}
+options(nat.plotengine = 'rgl')
+source("../R/visualizeConnectivityTables.R")
+source("../R/SynapsePCAUtils.R")
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+```{r}
+neuprint_login()
+```
+
+### Colormaps
+```{r}
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+
+myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colormaps/colorMap_",cmapNames[1],".csv"))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(paste0("~/Documents/code/neuprintR-notebooks/colormaps/colorMap_",cmapName,".csv"))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+```
+
+### Quantification of convergence/divergence for a type-2-type connection
+
+(a) From how many type A cells does a single type B cell get input?
+(b) To how many type A cells does a single type B cell give input?
+
+#### Convergence/Divergence between MC and TuBu neurons
+Choose ROI and list of neurons to consider
+```{r}
+myROI = "AOTU(R)"
+my_posttypes = paste0("TuBu", ".*")
+postPartnerList = c(paste0("TuBu0",seq(1,9)),"TuBu10")
+postGroup = "TuBu"
+prePartnerList = c("MC61","MC64")
+preGroup = "MC"
+```
+
+...use this list to get synapse info
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_posttypes)$bodyid),myROI)
+# From the doc: A data frame, where each entry is a connection between the specified bodyid and its partner, either presynaptic to the bodyid (prepost=0) or postsynaptic (prepost=1). Each connection is associated with a synapse that has its own unique connector_id, XYZ coordinates and a confidence in its existence.
+
+my_synapses = my_synapses %>% mutate(
+  name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+  type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+  partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+  partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
+
+my_synapses = data.frame(type = as.factor(my_synapses$type), 
+                    partnerType = as.factor(my_synapses$partnertype),
+                    name = as.factor(my_synapses$name), 
+                    partnerName = as.factor(my_synapses$partnerName),
+                    id = as.factor(my_synapses$bodyid),
+                    partnerid = as.factor(my_synapses$partner),
+                    prepost = as.factor(my_synapses$prepost))
+
+#Add simple type name
+my_synapses = my_synapses %>% filter(partnerType %in% prePartnerList) %>% mutate(simpleType = gsub("_.*", "",type))
+```
+
+Count synapses made from individual neurons of one type to individual neurons of an other type ("focus type")
+```{r, warning=FALSE}
+conPattern = data.frame("focustype"=character(0), "partnertype"=character(0), "focustypeid"=character(0), "n_partners"=integer(0))
+for (post in seq(0,1)){
+  partnertypelist = prePartnerList
+
+  for (partnertype in partnertypelist){ #
+    dataTypefilt = my_synapses %>% filter(partnerType == partnertype)
+    focustypelist = c(postPartnerList, prePartnerList)
+   
+    for (focustype in focustypelist){
+      if(post == 1){ direction = paste0(preGroup,"2",postGroup) }else{ direction = paste0(postGroup,"2",preGroup)}
+      
+      data = dataTypefilt %>% filter((type %in% c(focustype)) & (prepost == post)) %>%
+          mutate(groupingvar = id)
+      neuron2neuron = data %>% select(type, partnerType, id, partnerid, prepost) %>% group_by(id, partnerid) %>% mutate(nsyn =  length(prepost))
+    
+      neuron2neuron = unique(neuron2neuron)
+      
+      if(is_empty(unique(data$groupingvar))){next}
+      postFocus = neuron2neuron  %>% group_by(id) %>% summarize(n = length(prepost), s = sum(nsyn))
+      tmpDF = data.frame("focustypeSyn"="post", "focustypeid"=postFocus$id, "n_partners"= postFocus$n,
+                         "focustype" = focustype, "partnertype" = partnertype, syndir = direction, "syn"=postFocus$s)
+      conPattern =  bind_rows(conPattern, tmpDF)
+      
+      preFocus = neuron2neuron  %>% group_by(partnerid) %>% summarize(n = length(prepost), s = sum(nsyn))
+      tmpDF = data.frame("focustypeSyn"="pre", "focustypeid"=preFocus$partnerid, "n_partners"= preFocus$n,
+                         "focustype" = partnertype, "partnertype" = focustype, syndir = direction, "syn"=preFocus$s)
+      conPattern =  bind_rows(conPattern, tmpDF)
+    }
+  }
+}
+
+```
+
+```{r}
+# For MC -> TB
+selectDir = "MC2TuBu"
+
+filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir) %>% unique()
+postPlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
+  geom_boxplot(outlier.shape = NA,lwd=.3) + geom_jitter(width = 0.2, height = 0, aes(color=partnertype)) +
+  facet_grid(cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic() + 
+  scale_size(range=c(0,2)) +
+  theme(axis.text.x = element_text(angle = 90),text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
+  guides(color=FALSE) + labs(title = paste(postGroup, "gets input from..."))
+
+filtdat = conPattern %>% filter(focustypeSyn == "pre" & syndir == selectDir) %>% unique()
+myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
+myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
+
+prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
+  geom_boxplot(outlier.shape = NA,lwd=.3) + geom_jitter(width = 0.2,height = 0, aes(color=partnertype)) + 
+  facet_grid(cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic()   +
+  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2)) +
+  theme(axis.text.x = element_text(angle = 90), text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
+  guides(color=FALSE) + labs(title=paste(preGroup, "gives output to..."))
+
+conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2) #nrow-1
+
+ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
+                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
+                scale = 1, width = 20, height = 16, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
+
+```
+
+
+### Convergence/Divergence between TuBu and Ring neurons
+
+Choose ROI and list of neurons to consider
+```{r}
+myROI = "BU(R)"
+my_posttypes = paste0("ER",seq(1,6))
+prePartnerList = c(paste0("TuBu0",seq(1,9)),"TuBu10")#
+preGroup = "TuBu"
+postPartnerList = getBodyIdsForList(my_posttypes)$type
+postGroup = "ER"
+```
+
+...use this list to get synapse info
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_posttypes)$bodyid),myROI)
+# From the doc: A data frame, where each entry is a connection between the specified bodyid and its partner, either presynaptic to the bodyid (prepost=0) or postsynaptic (prepost=1). Each connection is associated with a synapse that has its own unique connector_id, XYZ coordinates and a confidence in its existence.
+
+my_synapses = my_synapses %>% mutate(
+  name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+  type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+  partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+  partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
+
+my_synapses = data.frame(type = as.factor(my_synapses$type), 
+                    partnerType = as.factor(my_synapses$partnertype),
+                    name = as.factor(my_synapses$name), 
+                    partnerName = as.factor(my_synapses$partnerName),
+                    id = as.factor(my_synapses$bodyid),
+                    partnerid = as.factor(my_synapses$partner),
+                    prepost = as.factor(my_synapses$prepost),
+                    synID = as.factor(my_synapses$connector_id))
+
+#Add simple type name
+my_synapses = my_synapses %>% filter(partnerType %in% prePartnerList) %>% mutate(simpleType = gsub("_.*", "",type))
+```
+
+```{r, warning=FALSE}
+conPattern = data.frame("focustype"=character(0), "partnertype"=character(0), "focustypeid"=character(0), "n_partners"=integer(0))
+for (post in seq(0,1)){
+  partnertypelist = prePartnerList
+
+  for (partnertype in partnertypelist){ #
+    dataTypefilt = my_synapses %>% filter(partnerType == partnertype)
+    focustypelist = c(postPartnerList, prePartnerList)
+   
+    for (focustype in focustypelist){
+      if(post == 1){ direction = paste0(preGroup,"2",postGroup) }else{ direction = paste0(postGroup,"2",preGroup)}
+      
+      data = dataTypefilt %>% filter((type %in% c(focustype)) & (prepost == post)) %>%
+          mutate(groupingvar = id)
+      neuron2neuron = data %>% select(type, partnerType, id, partnerid, prepost) %>% group_by(id, partnerid) %>% mutate(nsyn =  length(prepost))
+    
+      neuron2neuron = unique(neuron2neuron)
+      
+      if(is_empty(unique(data$groupingvar))){next}
+      postFocus = neuron2neuron  %>% group_by(id) %>% summarize(n = length(prepost), s = sum(nsyn))
+      tmpDF = data.frame("focustypeSyn"="post", "focustypeid"=postFocus$id, "n_partners"= postFocus$n,
+                         "focustype" = focustype, "partnertype" = partnertype, syndir = direction, "syn"=postFocus$s)
+      conPattern =  bind_rows(conPattern, tmpDF)
+      
+      preFocus = neuron2neuron  %>% group_by(partnerid) %>% summarize(n = length(prepost), s = sum(nsyn))
+      tmpDF = data.frame("focustypeSyn"="pre", "focustypeid"=preFocus$partnerid, "n_partners"= preFocus$n,
+                         "focustype" = partnertype, "partnertype" = focustype, syndir = direction, "syn"=preFocus$s)
+      conPattern =  bind_rows(conPattern, tmpDF)
+    }
+  }
+}
+
+```
+
+```{r}
+filtdat = conPattern %>% filter(focustypeSyn == "pre" & syndir == selectDir & partnertype == "ER5")
+```
+
+```{r}
+selectDir = "TuBu2ER"
+filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir) %>% unique()
+myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
+myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
+
+postPlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
+  geom_jitter(width = 0.2, height = 0.15, aes(color=partnertype)) +
+  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
+  facet_grid(cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90),text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
+  guides(color=FALSE) + labs(title = paste(postGroup, "gets input from..."))
+
+filtdat = conPattern %>% filter(focustypeSyn == "pre" & syndir == selectDir) %>% unique()
+myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
+myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
+
+prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
+  geom_jitter( width = 0.2,height = 0.15, aes(color=partnertype)) + 
+  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
+  facet_grid(cols = vars(focustype), scales = "free_x", space='free_x') + theme_classic()   +
+  theme(axis.text.x = element_text(angle = 90), text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
+  guides(color=FALSE) + labs(title=paste(preGroup, "gives output to..."))
+
+conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2)
+
+ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
+                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
+                scale = 1, width = 35, height = 18, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
+
+```
