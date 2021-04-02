@@ -39,14 +39,14 @@ Plot_FbLayers_Targeted <- function(LayersTargeted){
 }
 
 
-Get_Max_T2T <- function(Downstream_T2T_L2, relativeWeighThresh, WeightThresh){
+Get_Max_T2T <- function(MB2NonCX_Inp, Downstream_T2T_L2_Inp, relativeWeighThresh, WeightThresh){
   #' Function for getting  MBON-to-intermediate and intermediate-to-CX connection tables
   
   # Subset connection tables by weight thresholds and remove connections not belonging to MBON-->CX pathways
-  L2_to_Cx=subset(Downstream_T2T_L2, databaseType.to %in% CXTypes  & weightRelative>relativeWeighThresh & weight>WeightThresh)
-  L1_to_L2=subset(MB2NonCX, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>relativeWeighThresh & weight>WeightThresh
+  L2_to_Cx=subset(Downstream_T2T_L2_Inp, databaseType.to %in% CXTypes  & weightRelative>relativeWeighThresh & weight>WeightThresh)
+  L1_to_L2=subset(MB2NonCX_Inp, databaseType.to %in% L2_to_Cx$databaseType.from & weightRelative>relativeWeighThresh & weight>WeightThresh
                   & !startsWith(type.to,"MBON") & !databaseType.from=="MBON15-like")
-  L2_to_Cx=subset(L2_to_Cx, type.from %in% L1_to_L2$type.to)
+  L2_to_Cx=subset(L2_to_Cx, databaseType.from %in% L1_to_L2$databaseType.to) 
   
   # Get type-to-type connections with max weights (as explained in main notebook)
   L1_to_L2_Max=L1_to_L2 %>% group_by(databaseType.from, databaseType.to) %>%  filter(weight == max(weight))
@@ -138,6 +138,7 @@ Get_Direct_Graph <- function(Direct_Data, FigDir){
 
 
 Get_VisHygThermo_Graph <- function(Graph_Pathway, Int){
+  #' Function containing low level code to build a network graph showing indirect MBON to CX connections
   
   # Convert pathway dataframe to connecitiy table (from-to pairs)
   Graph_Data_L1=Graph_Pathway[c("type.from","type_N1","weightRelative_N1","supertype1_N1")]
