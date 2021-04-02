@@ -1,4 +1,5 @@
 library(tidygraph)
+# Utilities to transform a table of connections into a tidygraph object with metadata
 #############################################################
 
 nodesFromTypeTable <- function(type2typeTable){
@@ -26,7 +27,6 @@ makeGraph.data.frame <- function(type2type){
   edges <- edgesFromTypeTable(type2type,nodes)
   graph <- tbl_graph(nodes,edges)
   graph
-  #return(list(graph = graph,nodes = nodes,edges= edges))
 }
 
 makeGraph.neuronBag <- function(type2type,polarity="inputs"){
