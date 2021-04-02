@@ -20,8 +20,8 @@ library(gridExtra)
 
 ```{r}
 options(nat.plotengine = 'rgl')
-source("../R/visualizeConnectivityTables.R")
-source("../R/SynapsePCAUtils.R")
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","SynapsePCAUtils.R"))
 
 getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
@@ -47,7 +47,8 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 neuprint_login()
 ```
 
-### Colormaps
+### Setup
+#### Colormaps
 ```{r}
 cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
 
@@ -57,6 +58,15 @@ if(length(cmapNames) > 1){
     tmp = read.csv(paste0("~/Documents/code/neuprintR-notebooks/colormaps/colorMap_",cmapName,".csv"))
     myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
     }
+}
+```
+
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
 }
 ```
 
@@ -159,10 +169,11 @@ prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) +
 
 conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2) #nrow-1
 
-ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
-                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
-                scale = 1, width = 20, height = 16, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
-
+if(savePlot){
+  ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
+                plot = conPatternPlot, device='pdf', path = file.path("plots"), 
+                scale = 1, width = 20, height = 16, units ="cm", dpi = 600, useDingbats=FALSE) 
+}
 ```
 
 
@@ -237,10 +248,6 @@ for (post in seq(0,1)){
 ```
 
 ```{r}
-filtdat = conPattern %>% filter(focustypeSyn == "pre" & syndir == selectDir & partnertype == "ER5")
-```
-
-```{r}
 selectDir = "TuBu2ER"
 filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir) %>% unique()
 myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
@@ -266,8 +273,9 @@ prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) +
 
 conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2)
 
-ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
-                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
-                scale = 1, width = 35, height = 18, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
-
+if(savePlot){
+  ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
+                plot = conPatternPlot, device='pdf', path =file.path("plots"),
+                scale = 1, width = 35, height = 18, units ="cm", dpi = 600, useDingbats=FALSE) 
+}
 ```
