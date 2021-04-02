@@ -115,17 +115,16 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
 
 ## MESHES AND SYNAPSES
 
-displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName=NULL,neuronPalette=NULL,synapsePalette=NULL,synapseCluster="customContributor",
-                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),alphaRois=0.05,
-                             roiPal=customROIPalette(),size=c(1500,1500),...){
+displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName="rendering",saveFolder=".",neuronPalette=NULL,synapsePalette=NULL,synapseCluster="customContributor",
+                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),alphaRois=0.2,
+                             roiPal=customROIPalette(),roiShininess=1,size=c(1500,1500),...){
   
   nopen3d()
   par3d(windowRect = c(30, 30, size[1]+30, size[2]+30))
   for (r in ROIs){
     locMesh <- neuprint_ROI_mesh(r)
     superROI <- roiRef$level0[match(r,roiRef$level2)]
-    #plot3d(locMesh,color=roiPal[superROI],alpha=ifelse(superROI=="CX",0.05,0.1),xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
-    plot3d(locMesh,color=roiPal[superROI],alpha=alphaRois,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
+    plot3d(locMesh,color=roiPal[superROI],alpha=alphaRois,shininess=roiShininess,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
   }
   par3d(scale=c(1,1,1))
   if (!is.null(neurons)){
@@ -148,10 +147,9 @@ displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName=NULL,neuro
   
   nview3d("ventral")
   if (!is.null(saveName)){
-    rgl.snapshot(paste0(outputsFolder,saveName,"-front.png"))
-    #rgl.postscript(paste0(outputsFolder,saveName,"-front.svg"),fmt="svg")
+    rgl.snapshot(file.path(saveFolder,paste0(saveName,"-front.png")))
     nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
-    rgl.snapshot(paste0(outputsFolder,saveName,"-side.png"))
+    rgl.snapshot(file.path(saveFolder,paste0(saveName,"-side.png")))
     rgl.close()
   }
 }

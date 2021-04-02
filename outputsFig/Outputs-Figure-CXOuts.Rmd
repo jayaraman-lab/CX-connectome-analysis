@@ -3,72 +3,77 @@ title: "Outputs figure 1: CX neurons innervation outside the CX"
 output: html_notebook
 ---
 
+This notebook generates the panels for the first outputs figure (figure 54).
+## Preparing the environment
 ```{r}
 library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
+library(ggplot2)
+library(dplyr)
+#library(tidyverse)
+#library(cowplot)
+#library(patchwork)
 library(neuprintrExtra)
 library(nat)
-library(Cairo)
+#library(Cairo)
 library(paletteer)
 ```
-
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("../R/paperTheme_linux.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure1-CXOutputs/"
+source(file.path("..","R","paperTheme.R"))
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure54-CXOutputs"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Loading some objects necessary to generate the figures (created in "Outputs-Core.Rmd")"
+```{r}
 load("outputsBasics.RData")
 ```
 
-
 ## What do their respective innervation patterns look like ?
-### As a Hanesch plot
+### As a neuropil innervation plot (panel A)
+Generate a ROI set and palette restricted to the output neuropils:
 ```{r}
 roiH <- getRoiTree()
 roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
 roisOut <- roisOut %>% filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX")) 
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 rPal <- roisPalette(rois = roiOutLabels)
-#rPalNoPal <- rPal
-#rPalNoPal[1:length(rPalNoPal)] <- "white"
 ```
 
+Generate the summary per ROI, limiting to neuropils with at least 20 downstream synapses:
 ```{r}
 CXOutputSummary <- getROISummary(CXOutputNeurons,threshold=20) %>% filter(downstream>20)
+head(CXOutputSummary)
 ```
 
+Generate the plot and save it:
 ```{r}
 outputsInnervation_R <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype3",roiLabel = roiOutLabels,flip=T,interactive=TRUE,theme = theme_paper_grid(),showCount = T)
 outputsInnervation_R
-save_plot(paste0(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,ncol=1.3,nrow=7,base_width = 8.5,base_height = 11/15)
+save_plot(file.path(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,ncol=1.3,nrow=7,base_width = 8.5,base_height = 11/15)
 ```
+
+### As synapses in an anatomical frame (panel B)
+First load the synapses (the data frame was generated in "Outputs-Core.Rmd"):
 ```{r}
 CXOutSyn <- readRDS("CX-outsideSynapses.rds")
+```
+
+Then generate and save the 2 views of the rendering as pngs. The `displayAnatomies` function is defined in "outputFunctions-display.R"
+```{r}
 displayAnatomies(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allOuts-pale2",
+                 saveName = "allOuts-pale4",
+                 saveFolder=outputsFolder,
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
                  size = c(3000,3000))
-
-displayAnatomies(synapses=CXOutSyn,
-                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allOutsNoCols",
-                 synapsePalette = customSupertypePalette,
-                 synapseCluster = "customSupertype",
-                 size = c(3000,3000),
-                 roiPal = rPalNoPal)
 ```
-
-```{r}
-allOutViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"allOuts-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"allOuts-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-allOutViews
-```
-
 
 ### Total weight relative contributed by individual types
 
@@ -88,17 +93,22 @@ firstStageSummary$supertype.from <- CXOutputNeurons$customSupertype[match(firstS
 
 ```{r}
 countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
+   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
+   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper() + 
+   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+
 totalCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalDown,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
+   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 meanCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=meanDown,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="Synapses from",values=customSupertypePalette) + theme_paper_grid() + 
+   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("mean # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
 meanCountsSummary + totalCountsSummary + countsSummary
-
-save_plot(paste0(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
+save_plot("~/Desktop/outputs-Counts2.svg",countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
+#save_plot("~/Desktop/outputs-Counts2.svg",countsSummary)
+#save_plot(paste0(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
 ```
 
 

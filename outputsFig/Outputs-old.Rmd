@@ -3,6 +3,12 @@ title: "Old analysis"
 output: html_notebook
 ---
 
+```{r}
+allOutViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"allOuts-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"allOuts-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+allOutViews
+```
 
 ```{r}
 pathwaysSummaryMain <- group_by(filter(pathways,type.to %in% mainTargets$type.to),supertype3.to,hop.to) %>% summarize(pathWeight=sum(Path_weight),nTypes=length(unique(type.to))) %>% ungroup() %>%
