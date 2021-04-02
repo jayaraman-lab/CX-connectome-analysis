@@ -209,7 +209,7 @@ Downstream_T2T_L2=getTypeToTypeTable(DownBag_L2$outputs_raw, majorOutputThreshol
 ```{r message=FALSE, warning=FALSE}
 
 # Get MBON-to-intermediate and intermediate-to-CX connection tables (relative weights > 0.02 and # of synapses > 20) 
-OUT=Get_Max_T2T(Downstream_T2T_L2, 0.02, 20)
+OUT=Get_Max_T2T(MB2NonCX, Downstream_T2T_L2, 0.02, 20)
 L1_to_L2_Max=OUT[[1]]
 L2_to_Cx_Max=OUT[[2]]
 
@@ -242,7 +242,7 @@ rm(L1_to_L2_Max, L2_to_Cx_Max, OUT, OrderIn, OrderOut, TempOrder, TempOrder2)
 ```{r message=FALSE, warning=FALSE}
 
 # Get MBON-to-intermediate and intermediate-to-CX connection tables (relative weights > 0.01 and # of synapses > 10) 
-OUT=Get_Max_T2T(Downstream_T2T_L2, 0.01, 10)
+OUT=Get_Max_T2T(MB2NonCX, Downstream_T2T_L2, 0.01, 10) # 0.01 and 10
 L1_to_L2_Max=OUT[[1]]
 L2_to_Cx_Max=OUT[[2]]
 
@@ -306,7 +306,6 @@ G3=Get_VisHygThermo_Graph(NonFBtPathways, Int_all)
 G3
 G3=ggsave(paste(PlotDir, "NonFBt_Graph.png",sep=""),
         plot = G3, device='png', scale = 1, width =8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-
 
 ```
 
