@@ -5,8 +5,14 @@ output:
     df_print: paged
   pdf_document: default
 ---
-#Analysis of mechanosensory information pathway coming into CX via R1 neurons
 
+# Quantification of convergence/divergence for a type-2-type connection
+
+(a) From how many type A cells does a single type B cell get input?
+(b) To how many type A cells does a single type B cell give input?
+
+
+#### Load packages and custom functions
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
@@ -47,8 +53,7 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 neuprint_login()
 ```
 
-### Setup
-#### Colormaps
+#### Load colormaps
 ```{r}
 cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
 
@@ -61,7 +66,7 @@ if(length(cmapNames) > 1){
 }
 ```
 
-### Saving plots
+#### Saving plots
 Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
 ```{r}
 savePlot = TRUE
@@ -70,12 +75,7 @@ if (savePlot){
 }
 ```
 
-### Quantification of convergence/divergence for a type-2-type connection
-
-(a) From how many type A cells does a single type B cell get input?
-(b) To how many type A cells does a single type B cell give input?
-
-#### Convergence/Divergence between MC and TuBu neurons
+### Convergence/Divergence between MC and TuBu neurons
 Choose ROI and list of neurons to consider
 ```{r}
 myROI = "AOTU(R)"
@@ -178,7 +178,6 @@ if(savePlot){
 
 
 ### Convergence/Divergence between TuBu and Ring neurons
-
 Choose ROI and list of neurons to consider
 ```{r}
 myROI = "BU(R)"
