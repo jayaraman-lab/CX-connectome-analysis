@@ -652,3 +652,30 @@ FR1toMB30Plot <- baseGraph(FRtoMB30)
 FR1toMB30Plot
 ```
 
+### Figure 1: synapses of CX neurons outside the CX
+```{r}
+#layout <- c(
+#   area(t=2,b=4,l=2,r=9),
+#   area(t=6,b=12,l=2,r=9),
+#   area(t=14,b=15,l=2,r=9)
+#)
+
+#outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
+#   allOutViews + 
+#   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1.1))
+#save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+```{r}
+divergenceTableTotLong <- pivot_longer(divergenceTableTot,cols=contains("neurons"),names_to = "Measure") %>% mutate(Measure=case_when(Measure == "divergence_neurons" ~ "divergence projection",
+                                                                                                                                    Measure == "n_neurons" ~ "# new targets",
+                                                                                                                                    Measure == "total_neurons" ~ "# targets"))
+```
+
+## Figure 2
+```{r}
+figure2 <- overallGraphPlot /(totalDivergencePlot + (outputComposition + outputCompositionZoom + plot_layout(guides="collect")) + plot_layout(widths=c(1,1.5))) / nReachedPlot + plot_annotation(tag_levels = "A",title= "Outputs Fig 2: Divergence of output networks",theme = theme(title=element_text(face="bold",size=12*1.111111,family="arial"))) & theme(plot.margin=margin(l=10,r=10,b=10,t=10))
+figure2
+```
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure2.svg"),figure2,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
