@@ -55,9 +55,15 @@ if (savePlot){
 
 
 ### Make selection of neurons to be used in connecitivy analysis
+***Selection of ROI and criteria for neuron selection***
+Adjust settings for Figure 6 (AOTU) or 8 (BU)
+* ROI:      "AOTU"    vs. "BU"
+* slectROI: "AOTU(R)" vs  "BU(R)
+* useCustomPreSelection: FALSE vs. TRUE
+* useCustomPostSelection TRUE  vs. TRUE
 ```{r}
-ROI = "AOTU" #name for reference
-slctROI ="AOTU(R)" #name as in neuprint
+ROI = "BU" #AOTU #name for reference
+slctROI ="BU(R)" #AOTU(R) #name as in neuprint
 
 splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
 makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
@@ -66,7 +72,7 @@ saveName = paste0("Inputs_in_", ROI)
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
 #only relevant if one of the above is false:
-useCustomPreSelection = FALSE
+useCustomPreSelection = TRUE #FALSE
 useCustomPostSelection = TRUE
 usenbag = FALSE
 inCX = FALSE
@@ -84,12 +90,15 @@ CXneuronList = read.csv(file.path("..","CX-cell-types060920.csv"))
 
 
 ***Selection of neurons***
+Adjust settings for Figure 6 (AOTU) or 8 (BU)
+* postNeuron: c("TuBu","TuTuB","AOTU046")  vs. c("ExR","AOTU046","TuBu",paste0("ER",seq(6)))
+* postName:   "TuBu, TuTu and  AOTU46"     vs  "TuBu, ER and contralateral neurons"
 ```{r}
 # POST
 if(useCustomPostSelection){
-  postNeuron = c("TuBu","TuTuB","AOTU046")
+  postNeuron = c("ExR","AOTU046","TuBu",paste0("ER",seq(6))) 
   postNeuron = paste0(postNeuron,".*")
-  postName = "TuBu, TuTu and  AOTU46"
+  postName = "TuBu, ER and contralateral neurons"
   postIDs = getBodyIdsForList(postNeuron)
   if(inCX){
     postIDs = postIDs %>% filter(type %in% CXneuronList$n.type)
@@ -102,10 +111,12 @@ if(useCustomPostSelection){
 
 # PRE
 if(useCustomPreSelection){
-  preNeuron = c('FB.*')
-  preName = "FBt"
+  preNeuron = postNeuron
+  preName = postName
   preIDs = getBodyIdsForList(preNeuron)
-  preIDs = preIDs %>% filter(type %in% CXneuronList$n.type)
+  if(inCX){
+    preIDs = preIDs %>% filter(type %in% CXneuronList$n.type)
+  }
 }else{
   if(usenbag){
     nbag = create_neuronBag(postIDs)
@@ -172,20 +183,22 @@ if (savePlot){
 ```
 
 ###  Draw graph
-
+cutoff:  0.01 for AOTU and 0.05 for BU
 ```{r, warning=FALSE} 
 require(igraph)
 
 connectionMeasure = "weightRelative"
-cutoff = 0.01 # for weight 0.05, 0.01, 0
+cutoff = 0.05 # for weight 0.05, 0.01, 0
 
-largeGraph = FALSE
-selfFeedbackScale = 10
-edcurve = 0.1#0.15
-edgeNorm = 0.07#0.07#0.05#0.07#0.03#
+largeGraph = TRUE
+edcurve = 0.1 #0.15
+edgeNorm = 0.07 #0.07#0.05#0.07#0.03#
+arrowSize = 0#0.5 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
 
 showself = FALSE 
+selfFeedbackScale = 10
 removeIso = TRUE
+selfFBscale = vertexSize
 
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
@@ -204,16 +217,12 @@ if (showself){
 
 # Graph parameter
 if(largeGraph){
-  vertexSize = 3
+  vertexSize = 7
   plotSize = 15
 }else{
   vertexSize = 12
   plotSize = 10
 }
-
-selfFBscale = vertexSize
-arrowSize = 0.5 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
-
 ```
 
 Plot graph with defined colormap from file
@@ -261,7 +270,7 @@ if (savePlot){
 }
 ```
 
-Layered layout
+Layered layout for the AOTU connectivity graph
 ```{r}
 patternLayers = c("MC","TuTu","AOTU","TuBu")
 layerPos = c(0,3,4,5)
