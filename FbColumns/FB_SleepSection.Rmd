@@ -1,14 +1,13 @@
 ---
-title: "Notebook analyzing FB sleep circuit"
+title: "Notebook analyzing the dFB sleep-wake circuit, including how it connects to sleep neurons in the EB"
 output:
   html_document:
     df_print: paged
 ---
 
 
-### Command to clear environment is: rm(list = ls(all.names = TRUE))
-### Command to update is remotes::update_packages('neuprintr')
-### Load libraries
+# Command to clear environment is: rm(list = ls(all.names = TRUE))
+# Load libraries
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
@@ -32,182 +31,112 @@ library(tidyselect)
 library(reshape2)
 library(scales)
 library(cowplot)
+library(paletteer)
 options(nat.plotengine = 'rgl')
 ```
 
-### Configurable inputs: choose save/plot directories
+# Configurable inputs: choose save/plot directories
 ```{r}
 
-# Directory to save data to.
-SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
-
 # Directory to save plots to.
-PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/Plots/"
-OutDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/Plots/OutputPaths/"
-InDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/Plots/InputPaths/"
-
-# Create save/plot directory if they dont exists yet
-if (!dir.exists(SaveDir)){dir.create(SaveDir)}
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/Sleep/"
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
-if (!dir.exists(OutDir)){dir.create(OutDir)}
-if (!dir.exists(InDir)){dir.create(InDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
-source("FB_SynapseDistribution_Utils.r")
-source("FB_LayerOutline_Utils.r")
-source("FB_ConnectivityOffsetPlotting_Utils.r")
-source("../inputOutputRegionsVis.r")
-source("../R/connectivityMatricesTools.R")
+#source("FB_SynapseDistribution_Utils.r")
+#source("FB_LayerOutline_Utils.r")
+#source("FB_ConnectivityOffsetPlotting_Utils.r")
+#source("../inputOutputRegionsVis.r")
+#source("../R/connectivityMatricesTools.R")
+source("FB_SleepSection_Utils.r")
 
 ```
 
-
-# Get all FB bodies and columnar types
-```{r}
+# Get all FB bodies and columnar/tangential types
+```{r message=FALSE, warning=FALSE}
 
 NamedBodies=getNeuronsInRoiTable("FB",0)
 NamedBodies_Meta=neuprint_get_meta(NamedBodies$bodyid)
-Columnar_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
-               startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
-               startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
-Tangential_Types=sort(unique( NamedBodies$type[ startsWith(NamedBodies$type, "FB" ) |
-                                                startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
+Columnar_Types=sort(unique(NamedBodies$type[startsWith(NamedBodies$type, "PF" ) | startsWith(NamedBodies$type, "FR" ) | 
+                                            startsWith(NamedBodies$type, "FS" ) | startsWith(NamedBodies$type, "FC" ) |
+                                            startsWith(NamedBodies$type, "vDelta" ) | startsWith(NamedBodies$type, "hDelta" )] ))
+Tangential_Types=sort(unique(NamedBodies$type[startsWith(NamedBodies$type, "FB" ) |
+                                              startsWith(NamedBodies$type, "ExR") | startsWith(NamedBodies$type, "OA")]))
 FBBodyCount=NamedBodies %>% group_by(type) %>% summarize(NumofNeurons=n())
 FBColumnarBodyCount=subset(FBBodyCount, type %in% Columnar_Types)
 
 ```
 
+# Get neurons in the dFB sleep-wake circuit
+```{r message=FALSE, warning=FALSE}
 
-# Get neurons of interest: the cell types in 23E10 and the two dFB PPL1 DANs
-```{r}
-
-# Bodyids of neurons with 23E10-like morphologies (including FB7B and FB6H, the putative dopamine neurons). Important to keep
-# bodyid information in case names change in the future.
+# Get meta information on all neurons likely to be contained in 23E10 (based on EM-LM matches)
 dFB23E10_Types=c("FB7A","FB7K", "FB6A", "FB6C_a", "FB6C_b", "FB6E", "FB6G", "FB6I", "FB6Z")
 dFB23E10_MetaAll=getTypesTable(dFB23E10_Types)
 
-
-# FB7B (1 neuron per hemisphere) and FB6H (1 neurons per hemisphere)
-# are the two PPL1 DANs in the dFB that have direct connections with 23E10 neurons.
-# FB5H (1 neuron per hemisphere) is also a PPL1 DAN but does not talk directly with the sleep-wake neurons
+# Get meta information dFB dopamine neurons (FB7B and FB6H) with connections to 23E10 neurons
+# FB5H is also a PPL1 DAN but does not talk directly with the sleep-wake neurons
 dFBdan_Types=c("FB6H","FB7B")
 dFBdan_Meta=getTypesTable(dFBdan_Types)
 
-
-# Cell types in sleep/wake circuit
+# Neuron types in sleep/wake circuit
 SleepWakeTypes=c(dFB23E10_Types,dFBdan_Types)
-
-
-# Circadian neurons
-DN1=neuprint_search(".*DN1.*")
-
+SleepWakeTypes_Meta=getTypesTable(SleepWakeTypes)
 
 ```
 
 
 # ####################################################################################################################
-# ######### Figure 1: Plot of 23E10 and PPL1 circuit #################################################################
+# ######### Section 1: Connectivity of 23E10 and PPL1 circuit ########################################################
 # ####################################################################################################################
-
-
-# Function for computing distance and returning data frame for plotting
-```{r}
-
-# Compute distance or correlation matrices on a connetivity table matrix
-Connectivity_VectorsDistance <- function(connectTable_Vectors, Method, MetaNames){
-  
-  # Compute similarity matrix
-  if (Method=='binary'){
-     Sim=1-bin_dist(connectTable_Vectors,0)
-  } else if (Method=='cosine') {
-     Sim = 1-cos_dist(connectTable_Vectors)
-  } 
-
-  # Convert to data frame
-  Sim <- as.matrix(Sim)
-  Sim=melt(Sim)
-  colnames(Sim) <- c("bodyid", "bodyid2", "Similarity")
-  
-  # Assign names
-  Names=distinct(MetaNames[c("bodyid","name","type")])
-  Sim=inner_join(Sim,Names, by="bodyid")
-  colnames(Names)=c("bodyid2","name2","type2")
-  Sim=inner_join(Sim,Names, by="bodyid2")
-  return(Sim)
-}
-
-
-```
-
 
 
 # Plot similarity between 23E10 types, to show that there a multiple distinct types
-```{r}
+```{r message=FALSE, warning=FALSE}
 
-
-# Get upstream and downstream partners of 23E10 neurons
+# Get all upstream and downstream partners of 23E10 neurons in the FB
 dFB23E10_Bag=neuronBag(dFB23E10_MetaAll, slctROI="FB")
 dFB23E10_Outputs=dFB23E10_Bag[["outputs_raw"]]
 dFB23E10_Inputs=dFB23E10_Bag[["inputs_raw"]]
 
-
-# Compute input and output vectors, then concatenate
-dFB23E10_Thresh=0.008 #0.008 is a good threshold
+# Compute input and output connectivity vectors, then concatenate
+dFB23E10_Thresh=0.008 # relative weight threshold to binarize connectivity (0.008 is a good)
 dFB23E10_Outputs_Vectors= connectivityMatrix(subset(dFB23E10_Outputs, weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to")
 dFB23E10_Inputs_Vectors=t(connectivityMatrix(subset(dFB23E10_Inputs,  weightRelative>dFB23E10_Thresh),"FB", allToAll=FALSE, from="from",to="to"))
 dFB23E10_Outputs_Vectors=dFB23E10_Outputs_Vectors[order(rownames(dFB23E10_Outputs_Vectors)),]
 dFB23E10_Inputs_Vectors=dFB23E10_Inputs_Vectors[order(rownames(dFB23E10_Inputs_Vectors)),]
 dFB23E10_InputsOutputs_Vectors=cbind(dFB23E10_Outputs_Vectors, dFB23E10_Inputs_Vectors)
 
+# Compute cosine similarity between the input/output connectivity vectors
+dFB23E10_Similarity=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "cosine", dFB23E10_MetaAll)
 
-# Compute cosine distance
-MetaNames=dFB23E10_MetaAll[c("bodyid","name","type")]
-dFB23E10_Distance=Connectivity_VectorsDistance(dFB23E10_InputsOutputs_Vectors, "cosine", MetaNames)
+# Plot cosine similarity 
+dFB23E10_Similarity$plotname=paste(dFB23E10_Similarity$type,  as.character(dFB23E10_Similarity$bodyid),sep="__")
+dFB23E10_Similarity$plotname2=paste(dFB23E10_Similarity$type2, as.character(dFB23E10_Similarity$bodyid2),sep="__")
+dFB23E10_Similarity$type=factor(dFB23E10_Similarity$type, levels=sort(unique(dFB23E10_Similarity$type)))
+dFB23E10_Similarity$type2=factor(dFB23E10_Similarity$type2, levels=sort(unique(dFB23E10_Similarity$type2),decreasing = TRUE))
 
-
-# Plot similarity
-dFB23E10_Distance$plotname=paste(dFB23E10_Distance$type,  as.character(dFB23E10_Distance$bodyid),sep="__")
-dFB23E10_Distance$plotname2=paste(dFB23E10_Distance$type2, as.character(dFB23E10_Distance$bodyid2),sep="__")
-dFB23E10_Distance$bodyid=as.character(dFB23E10_Distance$bodyid)
-dFB23E10_Distance$bodyid2=as.character(dFB23E10_Distance$bodyid2)
-dFB23E10_Distance$type=factor(dFB23E10_Distance$type, levels=sort(unique(dFB23E10_Distance$type)))
-dFB23E10_Distance$type2=factor(dFB23E10_Distance$type2, levels=sort(unique(dFB23E10_Distance$type2),decreasing = TRUE))
-
-
-P1=ggplot(dFB23E10_Distance) + 
+P1=ggplot(dFB23E10_Similarity) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="white", mid="gray50", high="black", 
                         midpoint=0.5,limits=c(0,1),oob=squish,breaks = c(0,0.5,1)) +
   geom_tile(aes(plotname,plotname2,fill=Similarity))  + 
   facet_grid(rows=vars(type2),cols=vars(type), scales = "free", space = "free") + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "black", fill = NA, size = 0.5), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        axis.ticks = element_blank(),
-        aspect.ratio = 1) 
- ggsave(paste(PlotDir, "FIGURE_", "23e10_SimilarityCosine.pdf",sep=""),
-         plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
-
-```
-
-
-# Get connectivity bag of entire FB
-```{r}
-
-# Get upstream and downstream partners of all FB neurons
-FB_Bag=neuronBag(NamedBodies_Meta, slctROI="FB")
-FB_T2T_Output=FB_Bag$outputs
-FB_N2N_Output=FB_Bag$outputs_raw
+  theme(strip.background = element_blank(), 
+        panel.border = element_rect(colour = "black", fill = NA, size = 0.5), 
+        panel.spacing = unit(0, "lines"), axis.ticks = element_blank(), aspect.ratio = 1) 
+P1
+ggsave(paste(PlotDir, "23e10_SimilarityCosine.png",sep=""),
+       plot = P1, device='png', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 ```
 
@@ -215,52 +144,45 @@ FB_N2N_Output=FB_Bag$outputs_raw
 # look at neuron-to-neuron connectivity of dFB 23E10 and PPL1 dopamine neurons
 ```{r}
 
+# Get upstream and downstream partners of sleep-wake types in FB
+SW_Bag=neuronBag(SleepWakeTypes_Meta, slctROI="FB")
+SW_N2N_Output=SW_Bag$outputs_raw
 
-# Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
-SleepWake_N2N_InputOutput=subset(FB_N2N_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes)
+# Get neuron-to-neuron connectivity table involving just sleep-wake types
+SleepWake_N2N_InputOutput=subset(SW_N2N_Output, type.to %in% SleepWakeTypes)
 SleepWake_N2N_InputOutput=subset(SleepWake_N2N_InputOutput, weightRelative > 0.0005) #0.0005
 
-# Plot matrix
+# Plot neuron-to-neuron connectivity matrix
 SleepWake_N2N_InputOutput$fromname=paste(SleepWake_N2N_InputOutput$type.from,  as.character(SleepWake_N2N_InputOutput$from),sep="__")
 SleepWake_N2N_InputOutput$toname=paste(SleepWake_N2N_InputOutput$type.to, as.character(SleepWake_N2N_InputOutput$to),sep="__")
 SleepWake_N2N_InputOutput$type.from=factor(SleepWake_N2N_InputOutput$type.from, levels=sort(unique(SleepWake_N2N_InputOutput$type.from), decreasing=TRUE))
 SleepWake_N2N_InputOutput$type.to=factor(SleepWake_N2N_InputOutput$type.to, levels=sort(unique(SleepWake_N2N_InputOutput$type.to)))
 
-
-P1=ggplot(SleepWake_N2N_InputOutput) + 
+P2=ggplot(SleepWake_N2N_InputOutput) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
                         midpoint=0.05,limits=c(0,0.1),oob=squish,breaks = c(0,0.05,0.1)) +
   geom_tile(aes(toname,fromname,fill=weightRelative))  + 
   facet_grid(rows=vars(type.from),cols=vars(type.to), scales = "free", space = "free") + 
-  theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        axis.ticks = element_blank(),
-        aspect.ratio = 1) 
- ggsave(paste(PlotDir, "FIGURE_", "SleepWake_N2N.pdf",sep=""),
-         plot = P1, device='pdf', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
-
+  theme(strip.background = element_blank(), 
+        panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
+        panel.spacing = unit(0, "lines"), axis.ticks = element_blank(), aspect.ratio = 1) 
+P2
+ggsave(paste(PlotDir, "SleepWake_N2N.png",sep=""),
+       plot = P2, device='png', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 ```
 
 
-# Now look at type-to-type connectivity of dFB 23E10 and PPL1 dopamine neurons
+# Now look at type-to-type connectivity of dFB sleep-wake types
 ```{r}
 
-# Get type-to-type connections. Better to use N2N method, because type-to-type criteria behaves odd for small neuron
-# numbers. For example the FB6H to FB6Z connection gets dropped, even though the connection is strong. 
-T2T_Method="N2N"
-if (T2T_Method=="T2T"){
-  # Get type-to-type table and subset on 23E10-like neurons and their upstream/downstream connections
-  SleepWake_T2T_Output=subset(FB_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
-} else if (T2T_Method=="N2N"){
-  SleepWake_T2T_Output=getTypeToTypeTable(FB_N2N_Output, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.0, 
-                                          singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
-  SleepWake_T2T_Output=subset(SleepWake_T2T_Output, type.from %in% SleepWakeTypes & type.to %in% SleepWakeTypes & !type.to=="FB07?")
-}
-
+# Compute type-to-type connections without using t-test significance criteria.
+# Because many FB tangential types are composed of two neurons, the t-test can occasionally
+# filter out strong connetions involving two neurons with variable weights.
+SleepWake_T2T_Output=getTypeToTypeTable(SW_N2N_Output, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.0, 
+                                        singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
+SleepWake_T2T_Output=subset(SleepWake_T2T_Output, type.to %in% SleepWakeTypes & !type.to=="FB07?")
 
 # Group presynaptic 23E10 types by FB layer
 SleepWake_T2T_Output$InputGrouping=NA
@@ -268,8 +190,7 @@ SleepWake_T2T_Output$InputGrouping[startsWith(SleepWake_T2T_Output$type.from,"FB
 SleepWake_T2T_Output$InputGrouping[startsWith(SleepWake_T2T_Output$type.from,"FB7")]=7
 SleepWake_T2T_Output$InputGrouping=factor(SleepWake_T2T_Output$InputGrouping, levels=c(7,6))
 
-
-# Divide postsynaptic neurons into groups targetted by layer 6 or layer 7 neurons
+# Divide postsynaptic neurons into groups according to which layer provides their strongest input
 OutputGrouping = SleepWake_T2T_Output %>% group_by(type.to) %>% filter(weightRelative == max(weightRelative)) 
 OutputGrouping = OutputGrouping[c("type.from","type.to")]                                                                            
 OutputGrouping$OutputGrouping=NA
@@ -279,140 +200,37 @@ OutputGrouping = OutputGrouping[c("type.to","OutputGrouping")]
 SleepWake_T2T_Output=merge(SleepWake_T2T_Output,OutputGrouping, by = "type.to")
 SleepWake_T2T_Output$OutputGrouping=factor(SleepWake_T2T_Output$OutputGrouping,levels=c(6,7))
 
-
-# Make plot of sorted 23E10 output matrix
-P2b=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
+# Plot type-to-type connectivity matrix
+P3=ggplot(subset(SleepWake_T2T_Output,weightRelative>0.01)) + 
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
-                       midpoint =0.1, limits=c(0,0.2),oob=squish) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.1, limits=c(0,0.2),oob=squish) +
   geom_tile(aes(type.to,type.from,fill=weightRelative)) + ggtitle("23E10 Outputs") + 
   facet_grid(rows=vars(InputGrouping), cols=vars(OutputGrouping),scales = "free", space = "free") +
-   theme(strip.background = element_blank(), #remove background for facet labels
-        panel.border = element_rect(colour = "grey50", fill = NA), #add black border
-        panel.spacing = unit(0, "lines"),#remove space between facets
-        #axis.ticks = element_blank(),
-        aspect.ratio = 1)  
-ggsave(paste(PlotDir, "FIGURE_23e10_TypeToType_Outputs_Sorted.pdf",sep=""),
-         plot = P2b, device='pdf', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA), 
+        panel.spacing = unit(0, "lines"), aspect.ratio = 1)  
+P3
+ggsave(paste(PlotDir, "SleepWake_T2T_Sorted.png",sep=""),
+         plot = P3, device='png', scale = 1, width =12, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
+# Plot the same type-to-type connectivity matrix as a network graph
+GraphTable=subset(SleepWake_T2T_Output, weightRelative >0.01 & !(type.from == type.to))
+P4=Plot_SleepWake_Graph(GraphTable)
+P4
 
 
 ```
 
 
-# Make graph of type-to-type sleep-wake network
-```{r}
-
-# Load libraries
-library(paletteer)
-
-
-# Get input data
-GraphTable=SleepWake_T2T_Output
-
-
-# remove self connections
-GraphTable=subset(GraphTable, !(type.from == type.to) )
-
-
-# Set node node
-IDs_Type=sort(unique(c(unique(GraphTable$type.from),unique(GraphTable$type.to))))
-NODES=data.frame(name=IDs_Type)
-
-
-# Set node positions
-NODES$name=NODES$name[c(7,3,1,4,8,2,5,9,11,6,10)]
-NODES$angle=NA
-NODES$x=NA
-NODES$y=NA
-
-Diff=pi/(4)
-NODES$angle[c(1,2,3,4,5)]=seq(from = 0, to = pi , by = Diff)
-NODES$x=cos(NODES$angle)*200
-NODES$y=sin(NODES$angle)*100
-
-NODES$x[6]=-125
-NODES$y[6]=0
-
-NODES$x[7]=125
-NODES$y[7]=0
-
-NODES$x[8]=0
-NODES$y[8]=-220/1.2
-
-NODES$x[9]=100
-NODES$y[9]=-300/1.3
-
-NODES$x[10]=0
-NODES$y[10]=-100/1.2
-
-NODES$x[11]=-100
-NODES$y[11]=-300/1.3
-
-
-# NODES
-NODES$y=-NODES$y
-NODES$COLORZ="dodgerblue3"
-NODES$COLORZ[NODES$name == "FB6H" | NODES$name == "FB7B"]="magenta3"
-
-# edges
-EDGES=GraphTable[c("type.from","type.to","weightRelative")]
-
-# Threshold
-EDGES=subset(EDGES,weightRelative >0.01)
-
-# edges
-colnames(EDGES)=c("from","to","weight")
-EDGES$from=as.character(EDGES$from)
-EDGES$to=as.character(EDGES$to)
-EDGES$COLORZ="Sleep to Sleep"
-EDGES$COLORZ[EDGES$from == "FB6H" | EDGES$from == "FB7B"]="Wake to sleep"
-EDGES$COLORZ[EDGES$to   == "FB6H" | EDGES$to   == "FB7B"]="Sleep to Wake"
-EDGES$COLORZ=factor(EDGES$COLORZ,levels=(rev(c("Sleep to Wake", "Wake to sleep", "Sleep to Sleep"))))
-
-
-# Make ggraph object
-graph = tbl_graph(NODES, EDGES)
-
-
-# colors
-pcCols <- paletteer_d("Polychrome::palette36")
-col_vector=rev(c("dodgerblue3","magenta3","gray50"))
-
-
-# Make plot and save
-P1=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
-  geom_edge_fan( aes(width=weight, color=COLORZ), 
-                 arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(1, 'cm'), alpha=1,strength=1) +
-  geom_node_point(color=NODES$COLORZ, size=18) +
-  geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
-  theme_classic() + 
-  theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
-        axis.line=element_blank(),axis.text.x=element_blank(),
-        axis.text.y=element_blank(),axis.ticks=element_blank(),
-        axis.title.x=element_blank(),axis.title.y=element_blank()) +
-  scale_edge_width(range = c(1.25,3)) + scale_edge_color_manual(values=col_vector)
-ggsave(paste(PlotDir, "FIGURE_SleepWake_N2N_Graph.pdf",sep=""), plot = P1, device='pdf', scale = 1, width = 8.2, height = 8, units ="in", dpi = 500, limitsize = TRUE)
-
-
-remove(EDGES,NODES,graph,P1)
-
-```
-
-
-
 # ####################################################################################################################
-# ######### Figure 2: Plot of upstream/downstream of 23E10 and PPL1 circuit ##########################################
+# ######### Section 2: Analysis of upstream/downstream of 23E10 and PPL1 circuit #####################################
 # ####################################################################################################################
-
-
 
 # Get everything downstream and upstream of sleep-wake types
 ```{r}
 
 
 # Get meta data on sleep-wake types
-SW_Types_Table=getTypesTable(SleepWakeTypes)
+
 
 
 # Get downstream connections
@@ -420,7 +238,7 @@ Method="no thresh"
 if (Method=="no thresh"){
   
   # Get first layer outputs
-  DownBag1=neuronBag(SW_Types_Table, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
+  DownBag1=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
   SW_Downstream_Raw1=getTypeToTypeTable(DownBag1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
            pThresh = 1, typesTable = NULL, oldTable = NULL)
   
@@ -438,7 +256,7 @@ if (Method=="no thresh"){
   remove(DownBag1, SW_Downstream_Raw1, DownType1, DownBag2, SW_Downstream_Raw2)
 } else if (Method=="type thresh"){
   
-  SW_Downstream_Raw <- get_type2typePath_raw(type.from=SW_Types_Table, type.to = NULL, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
+  SW_Downstream_Raw <- get_type2typePath_raw(type.from=SleepWakeTypes_Meta, type.to = NULL, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
   SW_Downstream=tableChain2path(SW_Downstream_Raw)
   SW_Downstream_Graph=distinct(rbind(SW_Downstream_Raw[[1]], SW_Downstream_Raw[[2]]))
 
@@ -449,7 +267,7 @@ if (Method=="no thresh"){
 if (Method=="no thresh"){
   
   # Get first layer inputs
-  UpBag1=neuronBag(SW_Types_Table, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
+  UpBag1=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
   SW_Upstream_Raw1=getTypeToTypeTable(UpBag1$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
                                       pThresh = 1, typesTable = NULL, oldTable = NULL)
   
@@ -462,7 +280,7 @@ if (Method=="no thresh"){
   # Get pathways using normal methods
   SW_Upstream_Raw=list(SW_Upstream_Raw1, SW_Upstream_Raw2)
   SW_Upstream=tableChain2path(SW_Upstream_Raw)
-  SW_Upstream=subset(SW_Upstream, databaseType.to %in% SW_Types_Table$type)
+  SW_Upstream=subset(SW_Upstream, databaseType.to %in% SleepWakeTypes_Meta$type)
   SW_Upstream_Graph=distinct(rbind(SW_Upstream_Raw[[1]], SW_Upstream_Raw[[2]]))
   
   remove(UpBag1, SW_Upstream_Raw1, UpType1, UpBag2, SW_Upstream_Raw2)
@@ -470,16 +288,16 @@ if (Method=="no thresh"){
   
 } else if (Method=="type thresh"){
   
-  SW_Upstream_Raw <- get_type2typePath_raw(type.from=NULL, type.to = SW_Types_Table, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
+  SW_Upstream_Raw <- get_type2typePath_raw(type.from=NULL, type.to = SleepWakeTypes_Meta, n_steps=1:2, by.roi=FALSE, renaming=lateralize_types )
   SW_Upstream=tableChain2path(SW_Upstream_Raw)
-  SW_Upstream=subset(SW_Upstream, databaseType.to %in% SW_Types_Table$type)
+  SW_Upstream=subset(SW_Upstream, databaseType.to %in% SleepWakeTypes_Meta$type)
   SW_Upstream_Graph=distinct(rbind(SW_Upstream_Raw[[1]], SW_Upstream_Raw[[2]]))
   
 }
 
 
 # Save data since query takes a while
-save(SW_Types_Table, SW_Downstream_Raw, SW_Downstream, SW_Downstream_Graph,
+save(SleepWakeTypes_Meta, SW_Downstream_Raw, SW_Downstream, SW_Downstream_Graph,
                      SW_Upstream_Raw, SW_Upstream, SW_Upstream_Graph, file = paste(PlotDir,"SW_DownstreamUpstream.RData",sep=""))
 
 
