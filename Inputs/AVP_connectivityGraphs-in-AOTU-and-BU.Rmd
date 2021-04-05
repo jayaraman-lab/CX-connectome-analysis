@@ -212,7 +212,7 @@ if(largeGraph){
 }
 
 selfFBscale = vertexSize
-arrowSize= 0
+arrowSize = 0.5 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
 
 ```
 
@@ -247,13 +247,13 @@ if(removeIso){
 myGraph$main = paste0("Connectivity within   the ",slctROI)
 l = layout_with_fr(myGraph)
 
-plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), legend=TRUE)
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), legend=TRUE,
+     family="Arial", vertex.label.family  = "sans",edge.arrow.size=arrowSize)
 
 maxEdge = max(E(myGraph)$width)
 minEdge = min(E(myGraph)$width)
-legend(x=0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)), 
-       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)),  bty = "n", seg.len=0.5)
-#legend("topleft", legend = levels(as.factor(vertex_attr(myGraph, "comp"))), pch = 16, col = pal, bty = "n")
+legend(x=-0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
 
 if (savePlot){
   dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
@@ -265,7 +265,7 @@ Layered layout
 ```{r}
 patternLayers = c("MC","TuTu","AOTU","TuBu")
 layerPos = c(0,3,4,5)
-defaultY = 2
+defaultX = 1
 edcurve = 0 #0.15
 
 vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
@@ -273,20 +273,21 @@ vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexPr
 
 for(layer in seq(length(patternLayers))){
   vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
-    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc)))
+    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc))/length(loc) )
 }
-vertexProps$yloc[vertexProps$loc == "default"] = 1*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
+vertexProps$yloc[vertexProps$loc == "default"] = (1/length(vertexProps$loc))*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
 
-
-plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])), edge.color = customizeGraphEdges(myGraph), 
-     family="Arial",family="Arial", vertex.label.family  = "sans")
+plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])),
+     edge.color = customizeGraphEdges(myGraph), family="Arial", vertex.label.family = "sans",edge.arrow.size=arrowSize)
 
 maxEdge = max(E(myGraph)$width)
 minEdge = min(E(myGraph)$width)
-legend(x=-0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+legend(x=-1,y=-0.1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
        lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
 
-dev.print(pdf, paste0("../neuprintR_analysis_plots/connectivityGraph_",graphName,'_in_',slctROI,
-                      "_",connectionMeasure, round(100*cutoff),"perc_layered.pdf"), width=8, height=8, useDingbats=FALSE)
+if (savePlot){
+  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
+                "_",connectionMeasure, round(100*cutoff),"perc_layered.pdf")), width=plotSize, height=plotSize)
+}
 ```
 
