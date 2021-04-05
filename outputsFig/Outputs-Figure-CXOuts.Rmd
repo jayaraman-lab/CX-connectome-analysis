@@ -1,5 +1,5 @@
 ---
-title: "Outputs figure 1: CX neurons innervation outside the CX"
+title: "Outputs figure : CX neurons innervation outside the CX (figure 54)"
 output: html_notebook
 ---
 
@@ -9,12 +9,8 @@ This notebook generates the panels for the first outputs figure (figure 54).
 library(neuprintr)
 library(ggplot2)
 library(dplyr)
-#library(tidyverse)
-#library(cowplot)
-#library(patchwork)
 library(neuprintrExtra)
 library(nat)
-#library(Cairo)
 library(paletteer)
 ```
 Loading local functions:
@@ -64,7 +60,7 @@ First load the synapses (the data frame was generated in "Outputs-Core.Rmd"):
 CXOutSyn <- readRDS("CX-outsideSynapses.rds")
 ```
 
-Then generate and save the 2 views of the rendering as pngs. The `displayAnatomies` function is defined in "outputFunctions-display.R"
+Then generate and save the 2 views of the rendering as pngs. The `displayAnatomies` function is defined in "outputFunctions-display.R":
 ```{r}
 displayAnatomies(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
@@ -75,53 +71,33 @@ displayAnatomies(synapses=CXOutSyn,
                  size = c(3000,3000))
 ```
 
-### Total weight relative contributed by individual types
+## Total relative weight contributed by individual types to output network (panel C)
 
-Get the bag for just the first stage
+Get the connections for just the first step of the output networks from the object generated in the "Ouptuts-Core.Rmd" notebook:
 ```{r}
 firstStep <- readRDS("output_paths.rds")[[1]]
 ```
 
-Taking a look at the first stage.
+We then summarize this table per CX type of origin:
 ```{r}
 firstStageSummary <- firstStep %>% supertype() %>% 
    group_by(type.from,supertype3.from) %>% 
    summarize(totalWeight=sum(weightRelative),totalWeightRaw=sum(absoluteWeight),totalDown=sum(totalPreROIweight*n_from),meanDown=sum(totalPreROIweight)) %>% 
    filter(totalWeightRaw>20)
+
 firstStageSummary$supertype.from <- CXOutputNeurons$customSupertype[match(firstStageSummary$type.from,CXOutputNeurons$type)]
 ```
-
+Then generate the plot of synapse counts:
 ```{r}
-countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+
 countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
    scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper() + 
    facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
-
-totalCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalDown,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
-meanCountsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=meanDown,color=supertype.from)) + geom_point() + 
-   scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper_grid() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("mean # downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
-meanCountsSummary + totalCountsSummary + countsSummary
-save_plot("~/Desktop/outputs-Counts2.svg",countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
-#save_plot("~/Desktop/outputs-Counts2.svg",countsSummary)
-#save_plot(paste0(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
+countsSummary
 ```
-
-
-### Figure 1: synapses of CX neurons outside the CX
+And save it:
 ```{r}
-#layout <- c(
-#   area(t=2,b=4,l=2,r=9),
-#   area(t=6,b=12,l=2,r=9),
-#   area(t=14,b=15,l=2,r=9)
-#)
-
-#outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
-#   allOutViews + 
-#   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1.1))
-#save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(file.path(outputsFolder,"outputs-Counts.svg"),countsSummary,ncol=1.3,nrow=3,base_width = 8.5,base_height = 11/15)
 ```
+
+
