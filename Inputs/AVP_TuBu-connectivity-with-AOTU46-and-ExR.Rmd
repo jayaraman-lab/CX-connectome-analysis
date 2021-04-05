@@ -1,0 +1,164 @@
+---
+title: "Connectivity matrices for Figure 8 - Supplemental information 1"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+##Create connectivity matrices for connections between TuBu and AOTU46 or ExR3
+
+
+#### Load packages and custom functions
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+```{r}
+neuprint_login()
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+### AOTU046 to TB connectivity
+```{r}
+myNeurons = getBodyIdsForList(c("AOTU046","TuBu"))
+
+conTab = getConnectionTable(myNeurons, "POST", by.roi = TRUE) 
+
+conTab_AOTU2TB = conTab %>% 
+  filter(type.from == "AOTU046" & supertype2.to == "TuBu" & roi %in% c("AOTU(R)","BU(R)"))
+conTab_TB2AOTU = conTab %>% 
+  filter(type.to == "AOTU046" & supertype2.from == "TuBu" & roi %in% c("AOTU(R)","BU(R)"))
+```
+
+```{r}
+typesTable <- getTypesTable(unique(conTab_AOTU2TB$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="to")
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_AOTU2TB = getTypeToTypeTable(conTab_AOTU2TB, typesTable = typesTable)
+
+typesTable <- getTypesTable(unique(conTab_TB2AOTU$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="to")
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_TB2AOTU = getTypeToTypeTable(conTab_TB2AOTU, typesTable = typesTable)
+```
+
+```{r}
+conMatPlot = plotConnectivityMatrix(conTabT2T_AOTU2TB, byGroup = "type","weightRelative", cmax=NULL)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .) + theme_paper() + theme(strip.background=element_rect(fill = NA, colour = "black"))
+print(conMatPlot)
+
+if (savePlot){
+  plotW = 8
+  plotH = 4
+  ggsave("AOTU46_2_TuBu_connectivity.pdf", plot = conMatPlot, device='pdf', path = file.path("plots"), scale = 2, width = plotW+1, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+conMatPlot = plotConnectivityMatrix(conTabT2T_TB2AOTU, byGroup = "type","weightRelative", cmax=NULL)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .) + theme_paper() + theme(strip.background=element_rect(fill = NA, colour = "black"))
+print(conMatPlot)
+  
+if (savePlot){
+  plotW = 3
+  plotH = 4
+  ggsave("TuBu_2_AOTU46_connectivity.pdf", plot = conMatPlot, device='pdf', path = file.path("plots"),scale = 2, width = plotW+1, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+myNeurons = getBodyIdsForList(c("ExR3","TuBu"))
+
+conTab = getConnectionTable(myNeurons, "POST", by.roi = TRUE) 
+
+conTab_AOTU2TB = conTab %>% 
+  filter(type.from == "ExR3" & supertype2.to == "TuBu" & roi %in% c("BU(R)"))
+conTab_TB2AOTU = conTab %>% 
+  filter(type.to == "ExR3" & supertype2.from == "TuBu" & roi %in% c("BU(R)"))
+```
+
+```{r}
+typesTable <- getTypesTable(unique(conTab_AOTU2TB$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="to")
+conTab_AOTU2TB = lateralize_types(conTab_AOTU2TB, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_AOTU2TB = getTypeToTypeTable(conTab_AOTU2TB, typesTable = typesTable)
+
+
+typesTable <- getTypesTable(unique(conTab_TB2AOTU$databaseType.to))
+
+# Subdivide types and build a custom types table
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="to")
+conTab_TB2AOTU = lateralize_types(conTab_TB2AOTU, postfix="from")
+typesTable = lateralize_types(typesTable, postfix="raw")
+conTabT2T_TB2AOTU = getTypeToTypeTable(conTab_TB2AOTU, typesTable = typesTable)
+
+```
+
+```{r}
+cmax = 0.35 #NULL
+conMatPlot = plotConnectivityMatrix(conTabT2T_AOTU2TB, byGroup = "type","weightRelative", cmax=cmax)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)  + theme_paper() + theme(strip.background=element_rect(fill = NA, colour = "black"))
+print(conMatPlot)
+
+if (savePlot){
+  plotW = 4
+  plotH = 2.7
+  ggsave("ExR3_2_TuBu_connectivity.pdf", plot = conMatPlot, device='pdf', path = file.path("plots"), scale = 2, width = plotW+1, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+conMatPlot = plotConnectivityMatrix(conTabT2T_TB2AOTU, byGroup = "type","weightRelative", cmax=cmax)
+conMatPlot = conMatPlot + xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") +
+  labs(fill="relative weight") + facet_grid(roi ~ .)  + theme_paper() + theme(strip.background=element_rect(fill = NA, colour = "black"))
+print(conMatPlot)
+  
+if (savePlot){
+  plotW = 3
+  plotH = 3.7
+  ggsave("TuBu_2_ExR3_connectivity.pdf", plot = conMatPlot, device='pdf', path = file.path("plots"), scale = 2, width = plotW+1, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
