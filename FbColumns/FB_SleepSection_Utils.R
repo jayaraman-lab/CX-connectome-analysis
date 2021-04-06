@@ -192,14 +192,14 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path > PathwayThresh) 
   
   # Get rid of pathways longer than "Step" length, but keep them as NANs so they show up in plots
-  SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=NA 
+  SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=0
   SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% 
-    summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
+                         summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
   SW_Downstream_Filt_Sum$weightRelative_path[SW_Downstream_Filt_Sum$weightRelative_path==0]=NA 
   
   # Group downstream neurons into custom supertypes, and see which custom types are included in the unknown category to make sure none were missed.
   SW_Downstream_Filt_Sum=OutputTyping(SW_Downstream_Filt_Sum)
-  ExcludiedDownTypes=unique(SW_Downstream_Filt_Sum$type.to[SW_Downstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
+  UnknownDownTypes=unique(SW_Downstream_Filt_Sum$type.to[SW_Downstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
   
   # Group downstream types by supertype and compute average pathway weight and the number of target types
   SW_Downstream_Filt_Sum_Bar=subset(SW_Downstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
@@ -263,7 +263,7 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
          plot = Pd, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   print(Pd)
   
-  return(ExcludiedDownTypes)
+  return(UnknownDownTypes)
 }
 
 
@@ -274,14 +274,14 @@ Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
   SW_Upstream_Filt=subset(SW_Upstream, weightRelative_path>PathwayThresh) 
   
   # Get rid of pathways longer than "Step" length, but keep them as NANs so they show up in plots.
-  SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=NA 
+  SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=0
   SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>%
-    summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
+                       summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
   SW_Upstream_Filt_Sum$weightRelative_path[SW_Upstream_Filt_Sum$weightRelative_path==0]=NA
   
   # Group Upstream neurons into custom supertypes 
   SW_Upstream_Filt_Sum=InputTyping(SW_Upstream_Filt_Sum)
-  ExcludedTypes=unique(SW_Upstream_Filt_Sum$type.from[SW_Upstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
+  UnknownUpTypes=unique(SW_Upstream_Filt_Sum$type.from[SW_Upstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
   
   # Group Upstream types by supertype and compute average pathway weight and the number of target types
   SW_Upstream_Filt_Sum_Bar=subset(SW_Upstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
@@ -298,16 +298,16 @@ Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
   Pa=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
     ylab("Mean pathway relative weight ") + ylim(0,0.2)
-  ggsave(paste(PlotDir, "SleepWake_Upstream_PathwayWeight","_Step",as.character(Step),".pdf",sep=""),
-         plot = Pa, device='pdf', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(PlotDir, "SleepWake_Upstream_PathwayWeight","_Step",as.character(Step),".png",sep=""),
+         plot = Pa, device='png', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pa)
   
   # Plot number of upstream types targeted (by supertype)
   Pb=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
     ylab("# Upstream types") + ylim(0,50)
-  ggsave(paste(PlotDir, "SleepWake_Upstream_NumberOfTypes","_Step",as.character(Step),".pdf",sep=""),
-         plot = Pb, device='pdf', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(PlotDir, "SleepWake_Upstream_NumberOfTypes","_Step",as.character(Step),".png",sep=""),
+         plot = Pb, device='png', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pb)
   
   
@@ -324,8 +324,8 @@ Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
     facet_grid(rows=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5),
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_noFBt","_Step",as.character(Step),".pdf",sep=""),
-         plot = Pc, device='pdf', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_noFBt","_Step",as.character(Step),".png",sep=""),
+         plot = Pc, device='png', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   print(Pc)
   
   # Get the FB layer that targets each sleep-wake type most strongly (for faceting)
@@ -342,15 +342,233 @@ Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
     facet_grid(rows=vars(Layer),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_FBt","_Step",as.character(Step),".pdf",sep=""),
-         plot = Pd, device='pdf', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_FBt","_Step",as.character(Step),".png",sep=""),
+         plot = Pd, device='png', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   print(Pd)
   
-  return(ExcludedTypes)
+  return(UnknownUpTypes)
 }
 
 
-
-
-
+Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
+  
+  
+  ########################################################################################################
+  #################### Plot network graph of EB sleep-wake network #######################################
+  
+  # Get EB connectivity data (self connections removed)
+  EB_GraphTable=subset(SW_EbFb_T2T_Sub, roi=="EB" & weightRelative >0.01 & !(type.from == type.to) )
+  
+  # Set node IDs
+  IDs_Type=sort(unique(c(unique(EB_GraphTable$type.from),unique(EB_GraphTable$type.to))))
+  EB_NODES=data.frame(name=IDs_Type)
+  
+  # Set node positions
+  EB_NODES$name=EB_NODES$name
+  EB_NODES$x=NA
+  EB_NODES$y=NA
+  EB_NODES[EB_NODES$name == "ExR1",c(2,3)]=c(-140,0)
+  EB_NODES[EB_NODES$name == "ExR3",c(2,3)]=c(-90,0)
+  EB_NODES[EB_NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
+  EB_NODES[EB_NODES$name == "ER3d_a",c(2,3)]=c(-150,-10)
+  EB_NODES[EB_NODES$name == "ER3d_b",c(2,3)]=c(-130,-15)
+  EB_NODES[EB_NODES$name == "ER3d_c",c(2,3)]=c(-95,-15)
+  EB_NODES[EB_NODES$name == "ER3d_d",c(2,3)]=c(-75,-10)
+  EB_NODES[EB_NODES$name == "ER5",c(2,3)]=c(-175,-5)
+  EB_NODES[EB_NODES$name == "PEN_b(PEN2)",c(2,3)]=c(-40,-10)
+  EB_NODES$y=EB_NODES$y*5+50
+  
+  # Set node colors
+  EB_NODES$COLORZ="gray50"
+  EB_NODES$COLORZ[EB_NODES$name == "ExR1" | EB_NODES$name == "ExR3" | EB_NODES$name == "hDeltaK"]="cyan3"
+  EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"ER3")]="seagreen3"
+  EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"ER5")]="plum3"
+  EB_NODES$COLORZ[startsWith(as.character(EB_NODES$name),"PEN")]="lightseagreen"
+  
+  # Get edges and set colors
+  EB_EDGES=EB_GraphTable[c("type.from","type.to","weightRelative")]
+  colnames(EB_EDGES)=c("from","to","weight")
+  EB_EDGES$from=as.character(EB_EDGES$from)
+  EB_EDGES$to=as.character(EB_EDGES$to)
+  EB_EDGES$COLORZ=NA
+  EB_EDGES$COLORZ[EB_EDGES$from == "ExR1" | EB_EDGES$from == "ExR3" | EB_EDGES$from == "hDeltaK"]="cyan3"
+  EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"ER3")]="seagreen3"
+  EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"ER5")]="plum3"
+  EB_EDGES$COLORZ[startsWith(as.character(EB_EDGES$from),"PEN")]="lightseagreen"
+  EB_EDGES$COLORZ=factor(EB_EDGES$COLORZ, levels=unique(EB_EDGES$COLORZ))
+  
+  # Make ggraph object
+  graph = tbl_graph(EB_NODES, EB_EDGES)
+  
+  # colors
+  col_vector=levels(EB_EDGES$COLORZ)
+  
+  # Make plot 
+  P5=ggraph(graph,layout="manual",x=EB_NODES$x,y=EB_NODES$y) + 
+    geom_edge_fan( aes(width=weight, color=COLORZ), 
+                   arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
+    geom_node_point(color=EB_NODES$COLORZ, size=15) +
+    geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+    theme_classic() + 
+    theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+          axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),axis.title.y=element_blank()) +
+    scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
+    xlim(-220,20) + ylim(-50,100)
+  print(P5)
+  
+  
+  ########################################################################################################
+  #################### Plot network graph of FB sleep-wake network #######################################
+  
+  # Get FB connectivity data (self connections removed)
+  FB_GraphTable=subset(SW_EbFb_T2T_Sub, roi=="FB" & weightRelative >0.01 & !(type.from == type.to) )
+  
+  # Set node IDs
+  IDs_Type=sort(unique(c(unique(FB_GraphTable$type.from),unique(FB_GraphTable$type.to))))
+  FB_NODES=data.frame(name=IDs_Type)
+  
+  # Set node positions
+  FB_NODES$name=FB_NODES$name
+  FB_NODES$x=NA
+  FB_NODES$y=NA
+  FB_NODES[FB_NODES$name == "ExR1",c(2,3)]=c(-140,0)
+  FB_NODES[FB_NODES$name == "ExR3",c(2,3)]=c(-90,0)
+  FB_NODES[FB_NODES$name == "hDeltaK",c(2,3)]=c(-40,0)
+  FB_NODES[FB_NODES$name == "PFGs",c(2,3)]=c(-90-20,10)
+  FB_NODES[FB_NODES$name == "FB6A",c(2,3)]=c(-20,10)
+  FB_NODES[FB_NODES$name == "hDeltaF",c(2,3)]=c(-110,15.25)
+  FB_NODES[FB_NODES$name == "FB7K",c(2,3)]=c(-150-38-10,12)
+  FB_NODES[FB_NODES$name == "FB7B",c(2,3)]=c(-137.5-35-5,17)
+  FB_NODES[FB_NODES$name == "FB7A",c(2,3)]=c(-125-35,14)
+  FB_NODES[FB_NODES$name == "FB8B",c(2,3)]=c(-175,5)
+  FB_NODES[FB_NODES$name == "hDeltaD",c(2,3)]=c(-200,5)
+  FB_NODES[FB_NODES$name == "FB6H",c(2,3)]=c(-15,17.5)
+  FB_NODES[FB_NODES$name == "OA-VPM3",c(2,3)]=c(-35,14)
+  FB_NODES$y=FB_NODES$y*5
+  
+  # Get sleep wake colors
+  pcCols <- paletteer_d("Polychrome::palette36")
+  col_vector=c(pcCols[15],pcCols[13])
+  
+  # Set node colors
+  FB_NODES$COLORZ=NA
+  FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"hDelta")]="salmon1"
+  FB_NODES$COLORZ[FB_NODES$name == "ExR1" | FB_NODES$name == "ExR3" | FB_NODES$name == "hDeltaK"]="cyan3"
+  FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"FB")]="seagreen3"
+  FB_NODES$COLORZ[startsWith(as.character(FB_NODES$name),"PFG")]="slateblue1"
+  FB_NODES$COLORZ[FB_NODES$name == "FB6A" | FB_NODES$name=="FB7A" | FB_NODES$name=="FB7K"]=col_vector[1]
+  FB_NODES$COLORZ[FB_NODES$name == "FB7B" | FB_NODES$name == "FB6H"]=col_vector[2]
+  FB_NODES$COLORZ[FB_NODES$name == "OA-VPM3"]="red"
+  
+  # Get edges and set colors
+  FB_EDGES=FB_GraphTable[c("type.from","type.to","weightRelative")]
+  colnames(FB_EDGES)=c("from","to","weight")
+  FB_EDGES$from=as.character(FB_EDGES$from)
+  FB_EDGES$to=as.character(FB_EDGES$to)
+  FB_EDGES$COLORZ=NA
+  FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"hDelta")]="salmon1"
+  FB_EDGES$COLORZ[FB_EDGES$from == "ExR1" | FB_EDGES$from == "ExR3" | FB_EDGES$from == "hDeltaK"]="cyan3"
+  FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"FB")]="seagreen3"
+  FB_EDGES$COLORZ[startsWith(as.character(FB_EDGES$from),"PFG")]="slateblue1"
+  FB_EDGES$COLORZ[FB_EDGES$from == "FB6A" | FB_EDGES$from=="FB7A" | FB_EDGES$from=="FB7K"]=col_vector[1]
+  FB_EDGES$COLORZ[FB_EDGES$from == "FB7B" | FB_EDGES$from == "FB6H"]=col_vector[2]
+  FB_EDGES$COLORZ[FB_EDGES$from == "OA-VPM3"]="red"
+  FB_EDGES$COLORZ=factor(FB_EDGES$COLORZ, levels=unique(FB_EDGES$COLORZ))
+  
+  # Make ggraph object
+  graph = tbl_graph(FB_NODES, FB_EDGES)
+  
+  # colors
+  col_vector=levels(FB_EDGES$COLORZ)
+  
+  # Make plot and save
+  P6=ggraph(graph,layout="manual",x=FB_NODES$x,y=FB_NODES$y) + 
+    geom_edge_fan( aes(width=weight, color=COLORZ), 
+                   arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
+    geom_node_point(color=FB_NODES$COLORZ, size=15) +
+    geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+    theme_classic() + 
+    theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+          axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),axis.title.y=element_blank()) +
+    scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector) +
+    xlim(-220,20) + ylim(-50,100)
+  print(P6)
+  
+  
+  ########################################################################################################
+  #################### Plot network graph of combined EB-FB sleep-wake network ###########################
+  
+  # Rename nodes according to which ROI they are in
+  EB_NODES_New=EB_NODES
+  EB_NODES_New$name=as.character(EB_NODES_New$name)
+  EB_NODES_New$name[EB_NODES_New$name=="ExR1"]="EB_ExR1"
+  EB_NODES_New$name[EB_NODES_New$name=="ExR3"]="EB_ExR3"
+  EB_NODES_New$name[EB_NODES_New$name=="hDeltaK"]="EB_hDeltaK"
+  
+  EB_EDGES_New=EB_EDGES
+  EB_EDGES_New$from=as.character(EB_EDGES_New$from)
+  EB_EDGES_New$from[EB_EDGES_New$from=="ExR1"]="EB_ExR1"
+  EB_EDGES_New$from[EB_EDGES_New$from=="ExR3"]="EB_ExR3"
+  EB_EDGES_New$from[EB_EDGES_New$from=="hDeltaK"]="EB_hDeltaK"
+  
+  EB_EDGES_New$to=as.character(EB_EDGES_New$to)
+  EB_EDGES_New$to[EB_EDGES_New$to=="ExR1"]="EB_ExR1"
+  EB_EDGES_New$to[EB_EDGES_New$to=="ExR3"]="EB_ExR3"
+  EB_EDGES_New$to[EB_EDGES_New$to=="hDeltaK"]="EB_hDeltaK"
+  
+  FB_NODES_New=FB_NODES
+  FB_NODES_New$name=as.character(FB_NODES_New$name)
+  FB_NODES_New$name[FB_NODES_New$name=="ExR1"]="FB_ExR1"
+  FB_NODES_New$name[FB_NODES_New$name=="ExR3"]="FB_ExR3"
+  FB_NODES_New$name[FB_NODES_New$name=="hDeltaK"]="FB_hDeltaK"
+  
+  FB_EDGES_New=FB_EDGES
+  FB_EDGES_New$from=as.character(FB_EDGES_New$from)
+  FB_EDGES_New$from[FB_EDGES_New$from=="ExR1"]="FB_ExR1"
+  FB_EDGES_New$from[FB_EDGES_New$from=="ExR3"]="FB_ExR3"
+  FB_EDGES_New$from[FB_EDGES_New$from=="hDeltaK"]="FB_hDeltaK"
+  
+  FB_EDGES_New$to=as.character(FB_EDGES_New$to)
+  FB_EDGES_New$to[FB_EDGES_New$to=="ExR1"]="FB_ExR1"
+  FB_EDGES_New$to[FB_EDGES_New$to=="ExR3"]="FB_ExR3"
+  FB_EDGES_New$to[FB_EDGES_New$to=="hDeltaK"]="FB_hDeltaK"
+  
+  
+  # Adjust EB node positions
+  EB_NODES_New$y=EB_NODES_New$y-100
+  
+  # Bind EB and FB graphs together
+  NODES=rbind(EB_NODES_New,FB_NODES_New)
+  EDGES=rbind(EB_EDGES_New,FB_EDGES_New)
+  
+  # make factor
+  EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
+  
+  # Make ggraph object
+  graph = tbl_graph(NODES, EDGES)
+  
+  # colors
+  col_vector=levels(EDGES$COLORZ)
+  
+  # Make plot and save
+  P7=ggraph(graph,layout="manual",x=NODES$x,y=NODES$y) + 
+    geom_edge_fan( aes(width=weight, color=COLORZ), 
+                   arrow = arrow(length = unit(2, 'mm'),ends = "last", type = "closed"), end_cap = circle(0.75, 'cm'), alpha=1,strength=1) +
+    geom_node_point(color=NODES$COLORZ, size=15) +
+    geom_node_text(aes(label=name),angle=0,size=2, nudge_y = c(rep(0.06,18),rep(-0.06,9)), color='black' ) +
+    theme_classic() + 
+    theme(legend.text=element_text(size=6),legend.title=element_text(size=6),
+          axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),axis.title.y=element_blank()) +
+    scale_edge_width(range = c(0.5,2)) + scale_edge_color_manual(values=col_vector)
+  print(P7)
+  ggsave(paste(PlotDir, "SleepWake_EB_FB_Graph.png",sep=""),
+         plot = P7, device='png', scale = 1, width =7, height = 8, units ="in", dpi = 500, limitsize = TRUE)
+  
+}
 
