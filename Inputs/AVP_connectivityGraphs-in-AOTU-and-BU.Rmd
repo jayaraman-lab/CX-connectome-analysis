@@ -5,7 +5,8 @@ output:
     df_print: paged
   pdf_document: default
 ---
-#Analysis of mechanosensory information pathway coming into CX via R1 neurons
+#Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)
+This notebook shows how neuron groups were selected for generating the connectivity graphs. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -59,11 +60,13 @@ if (savePlot){
 Adjust settings for Figure 6 (AOTU) or 8 (BU)
 * ROI:      "AOTU"    vs. "BU"
 * slectROI: "AOTU(R)" vs  "BU(R)
-* useCustomPreSelection: FALSE vs. TRUE
-* useCustomPostSelection TRUE  vs. TRUE
+* useCustomPreSelection: FALSE vs. FALSE
+* useCustomPostSelection TRUE  vs. FALSE
+
+For the AOTU connectivity graph we use a cusom selection for the postsynaptic types, because the full AOTU ROI encompasses a large region that is not considered part of the anterior visual pathway (AVP), which we focused on here.
 ```{r}
-ROI = "BU" #AOTU #name for reference
-slctROI ="BU(R)" #AOTU(R) #name as in neuprint
+ROI = "AOTU" # name for reference: "AOTU" vs. "BU"
+slctROI ="AOTU(R)" #name as in neuprint: "AOTU(R)" vs "BU(R)
 
 splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
 makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
@@ -71,42 +74,33 @@ makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup co
 saveName = paste0("Inputs_in_", ROI)
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
-#only relevant if one of the above is false:
-useCustomPreSelection = TRUE #FALSE
-useCustomPostSelection = TRUE
-usenbag = FALSE
-inCX = FALSE
+useCustomPreSelection = FALSE
+useCustomPostSelection = TRUE # TRUE (constrain neurons in large AOTU roi to those that arborize in the small subunit) vs. FALSE 
 
 if(!useCustomPostSelection | !useCustomPreSelection){
   if(splitLR){
-    roiTable = getTypesInRoiTable(slctROI)
+    roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
   }else{
-    roiTable = getTypesInRoiTable(slctROI,renaming = cxRetyping,minTypePercentage = 0.5)
+    roiTable = getTypesInRoiTable(slctROI,lateralize = FALSE, minTypePercentage = 0.5)
   }
 }
-# filter based on what is in Shin-ya's CX neuron list
-CXneuronList = read.csv(file.path("..","CX-cell-types060920.csv"))
 ```
 
 
 ***Selection of neurons***
-Adjust settings for Figure 6 (AOTU) or 8 (BU)
-* postNeuron: c("TuBu","TuTuB","AOTU046")  vs. c("ExR","AOTU046","TuBu",paste0("ER",seq(6)))
-* postName:   "TuBu, TuTu and  AOTU46"     vs  "TuBu, ER and contralateral neurons"
+Adjust settings for Figure 6 (AOTU) or 8 (BU):  [no need to adjust anything]
+* postNeuron: c("TuBu","TuTuB","AOTU046")  vs. <not relevant>
+* postName:   "TuBu, TuTu and  AOTU46"     vs  <not relevant>
 ```{r}
 # POST
 if(useCustomPostSelection){
-  postNeuron = c("ExR","AOTU046","TuBu",paste0("ER",seq(6))) 
+  postNeuron = c("TuBu","TuTuB","AOTU046","AOTU058")
   postNeuron = paste0(postNeuron,".*")
-  postName = "TuBu, ER and contralateral neurons"
+  postName = "TuBu, TuTu, AOTU46 and AOTU58"  #gets used in the connectivity matrix plot
   postIDs = getBodyIdsForList(postNeuron)
-  if(inCX){
-    postIDs = postIDs %>% filter(type %in% CXneuronList$n.type)
-  }
 }else{
   postName = paste0("all in ", ROI)
   postIDs = roiTable$names
-  postIDs = postIDs %>% filter(databaseType %in% CXneuronList$n.type)
 }
 
 # PRE
@@ -114,22 +108,9 @@ if(useCustomPreSelection){
   preNeuron = postNeuron
   preName = postName
   preIDs = getBodyIdsForList(preNeuron)
-  if(inCX){
-    preIDs = preIDs %>% filter(type %in% CXneuronList$n.type)
-  }
 }else{
-  if(usenbag){
-    nbag = create_neuronBag(postIDs)
-    preIDs = nbag$inputs %>% filter(roi == slctROI) %>% select(type.from) %>% unique()
-    preIDs = getBodyIdsForList(preIDs$type.from , field="type")
-    preName = paste0("all ", ROI)
-  }else{
     preName = paste0("all ", ROI)
     preIDs = roiTable$names
-    if(inCX){
-      preIDs = preIDs %>% filter(databaseType %in% CXneuronList$n.type)
-    }
-  }
 }
 
 ```
@@ -183,7 +164,7 @@ if (savePlot){
 ```
 
 ###  Draw graph
-cutoff:  0.01 for AOTU and 0.05 for BU
+cutoff:  0.05 for AOTU and 0.05 for BU
 ```{r, warning=FALSE} 
 require(igraph)
 
@@ -193,12 +174,11 @@ cutoff = 0.05 # for weight 0.05, 0.01, 0
 largeGraph = TRUE
 edcurve = 0.1 #0.15
 edgeNorm = 0.07 #0.07#0.05#0.07#0.03#
-arrowSize = 0#0.5 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
 
 showself = FALSE 
 selfFeedbackScale = 10
 removeIso = TRUE
-selfFBscale = vertexSize
 
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
@@ -219,9 +199,11 @@ if (showself){
 if(largeGraph){
   vertexSize = 7
   plotSize = 15
+  selfFBscale = vertexSize
 }else{
   vertexSize = 12
   plotSize = 10
+  selfFBscale = vertexSize
 }
 ```
 
@@ -241,6 +223,10 @@ if(splitLR){
   myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
   myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
   myColorMap= bind_rows(myColorMap_L, myColorMap_R)
+  
+  #rename MC neuron types
+  myColorMap$Type[myColorMap$Type == "MC64_R"] = "MC64"
+  myColorMap$Type[myColorMap$Type == "MC61_R"] = "MC61"
 }
 
 myColorMap = myColorMap %>% filter(Simpletype == "no")
@@ -275,10 +261,10 @@ Layered layout for the AOTU connectivity graph
 patternLayers = c("MC","TuTu","AOTU","TuBu")
 layerPos = c(0,3,4,5)
 defaultX = 1
-edcurve = 0 #0.15
+edcurve = 0
 
 vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
-vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultY)
+vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultX)
 
 for(layer in seq(length(patternLayers))){
   vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
