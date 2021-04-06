@@ -5,7 +5,7 @@
 * Figure 6C
 * Figure 8B
 
-**AVP_Synapse-densities-in-AOTU-and-BU.Rmd**: Generate normalized synapse densitites (and related plots) for various types in a given Connectivity graphs in the AOTU (Figure 6) and BU (Figure 8)
+**AVP_Synapse-densities-in-AOTU-and-BU.Rmd**: Generate normalized synapse densitites (and related plots) for various types in a given region
 * Figure 6D
 * Figure 6E (TBD what the final visualization will be)
 * Figure 7C
