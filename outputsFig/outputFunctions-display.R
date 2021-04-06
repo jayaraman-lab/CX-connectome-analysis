@@ -1,6 +1,7 @@
 library(graphlayouts)
 library(neuprintrExtra)
-
+library(neuprintr)
+library(nat)
 
 ## Palettes
 customROIPalette <-  function(){
