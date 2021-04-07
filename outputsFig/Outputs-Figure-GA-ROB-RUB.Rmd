@@ -43,6 +43,12 @@ load(file.path(dataFolder,"outputsBasics.RData"))
 CXInfluence <- readRDS(file.path(dataFolder,"cx-influence.rds"))
 CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
 CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
+
+# The network graph reduced to the most important targets
+CX_outGraphRed <- readRDS(file.path(dataFolder,"output_graph_reduced.rds"))
+
+# Metadata about the main targets
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
 ```
 
 We're mainly going to use the `CXInfluence` object, which quantifies how much of the pathways coming out of the central complex are actually ending on other CX types (see the "Outputs-Core" notebook, line 257).
@@ -97,8 +103,16 @@ displayAnatomies(synapses=CXOutSyn,
 
 ```
 
+We then create the legend for this panel:
 ```{r}
-legendSource <- cowplot::get_legend(ggplot(data.frame(x=1,y=1,c=0.5),aes(x=1,y=1)) + geom_point(aes(color=c)) + theme_paper_map() + scale_color_paletteer_c("viridis::plasma",limits=c(0,1),name="CX to CX fraction"))
+legendSource <- cowplot::get_legend(ggplot(data.frame(x=1,y=1,c=0.5),aes(x=1,y=1)) +
+                                      geom_point(aes(color=c)) + theme_paper_map() +
+                                      scale_color_paletteer_c("viridis::plasma",limits=c(0,1),
+                                                              name="CX to CX fraction"))
+```
+Saving the legend:
+```{r}
+save_plot(file.path(outputsFolder,"legend_CX2CX.svg"),legendSource,ncol = 0.2,nrow=0.5)
 ```
 
 ## Composition and importance of the CX to CX connections in those neuropils (panel B)
@@ -137,16 +151,20 @@ save_plot(file.path(outputsFolder,"outputs-CXInfluenceCompositionLocal.svg"),bac
 #### Intra PFR connectivity (panel A)
 We want to plot the connections of PFR neurons between themselves. We first collect their connectivity out of the central complex:
 ```{r}
-PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),selfRef=T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% 
+PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),
+                    selfRef=T,
+                    slctROI=outsideRegion,omitInputs = T
+                    ,renaming = cxRetyping) %>% 
   combineRois(outsideRegions,"Outside")
 ```
 
 We then reformat the connection table, restricting it to PFR to PFR interactions, and ordering it by glomerulus of origin:
 ```{r}
 PFRTab <- filter(PFRBag$outputs_raw,supertype2.to=="PFR") %>% 
-    mutate(glomerulus.from=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
-           glomerulus.to=factor(gsub("_","",str_extract(name.to,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
-           column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",8:1))) %>%
+  mutate(glomerulus.from=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),
+                                levels=c(paste0("L",9:1),paste0("R",1:9))),
+         glomerulus.to=factor(gsub("_","",str_extract(name.to,"_[L|R][1-9]_")),
+                              levels=c(paste0("L",9:1),paste0("R",1:9)))) %>%
   arrange(glomerulus.from)
 
 orderIn <- unique(PFRTab$from)
@@ -158,7 +176,13 @@ orderOut <- unique(PFRTab$to)
 
 Finally we can plot the matrix:
 ```{r}
-PFRConnPlot <- plotConnectivity(PFRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid_rects(),replacementLabels = "glomerulus",legendName = "relative weight") + xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
+PFRConnPlot <- plotConnectivity(PFRTab,slctROI = "Outside",
+                                grouping = "neuron",
+                                orderIn=orderIn,orderOut=orderOut,
+                                facetInputs = "type.from",facetOutputs = "type.to",
+                                xaxis = "outputs",theme = theme_paper_grid_rects(),
+                                replacementLabels = "glomerulus",legendName = "relative weight") +
+  xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
 
 PFRConnPlot
 ```
@@ -167,13 +191,54 @@ And save the plot:
 save_plot(file.path(outputsFolder,"PFRMat.svg"),PFRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
 ```
 
+#### PFR outputs network (panel B)
+We first add supertypes to the data frame about all the main targets and define a color palette (based off the one used above but adding "terra incognita" types present in the actual graph) to be used in network graphs:
+```{r}
+mainFFTargetsS <- mainFFTargets %>% 
+  rename(type=type.to,databaseType=databaseType.to) %>% 
+  supertype() %>% 
+  selectSupertypeSet(default_level = 3,
+                     exceptions=list("Terra incognita"=2))
+
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, 
+                                                                             Path_weight>0.005)$supertype3.to]
+
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+
+customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
+head(mainFFTargetsS)
+```
+
+We then use the `plotSubgraph` function (defined in "outputFunctions-display.R") to display the network constituted by all the main targets of PFR_L neurons:
+```{r}
+PFRGraph <- plotSubgraph(c("PFR_b_L*","PFR_a_L*"),
+                         pal=customGraphPalette,
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         graph=CX_outGraphRed,
+                         layout="stress") +
+  coord_cartesian(clip="off")
+PFRGraph
+```
+And save it: 
+```{r}
+save_plot(file.path(outputsFolder,"PFRGraphOut.svg"),PFRGraph,base_height = 5,base_width=7)
+```
+
 ### FR connectivity: figure supplement 3
 #### Intra FR connectivity (panel A)
 We want to plot the connections of FR neurons between themselves. We first collect their connectivity out of the central complex:
 ```{r}
-FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),
+                   selfRef = T,
+                   slctROI=outsideRegions,
+                   omitInputs = T,renaming = cxRetyping) %>% 
+  combineRois(outsideRegions,"Outside")
 ```
-We then reformat the connection table, restricting it to FR to FR interactions, and ordering it by glomerulus of origin:
+We then reformat the connection table, restricting it to FR to FR interactions, and ordering it by column of origin:
 ```{r}
 FRTab <- filter(FRBag$outputs_raw,supertype2.to=="FR") %>% 
     mutate(column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1)),
@@ -189,7 +254,16 @@ orderOut <- unique(FRTab$to)
 
 Finally we can plot the matrix:
 ```{r}
-FRConnPlot <-  plotConnectivity(FRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid_rects(),replacementLabels = "column",legendName = "relative weight") + xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
+FRConnPlot <-  plotConnectivity(FRTab,
+                                slctROI = "Outside",
+                                grouping = "neuron",
+                                orderIn=orderIn,orderOut=orderOut,
+                                facetInputs = "type.from",facetOutputs = "type.to",
+                                xaxis = "outputs",
+                                theme = theme_paper_grid_rects(),
+                                replacementLabels = "column",
+                                legendName = "relative weight") + 
+  xlab("postsynaptic neuron, FB column") + ylab("presynaptic neuron, FB column")
 FRConnPlot
 ```
 And we save the plot:
@@ -197,4 +271,48 @@ And we save the plot:
 save_plot(file.path(outputsFolder,"FRMat.svg"),FRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
 ```
 
+#### Direct targets of FR neurons connectivity matrix (panel B)
+We reformat the neuron to neuron connectivity table for FR neurons, excluding connections between FR neurons and labeling it by column:
+```{r}
+restrictedConnectivity <- filter(FRBag$outputs_raw,
+                                 supertype2.to != "FR" & type.to %in% FRBag$outputs$type.to) %>% 
+  mutate(column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>%
+  arrange(column) %>%
+  mutate(label.from=column,
+         label.to=name.to)
+```
+
+We then generate the plot:
+```{r}
+FROutputs <- plotConnectivity(restrictedConnectivity,
+                              slctROI="Outside",
+                              grouping="neuron",
+                              xaxis="outputs",
+                              facetInputs="databaseType.from",facetOutputs="supertype2.to",
+                              theme=theme_paper_grid_rects(),
+                              replacementLabels = "label",legendName = "relative weight")+
+  theme(strip.text.x=element_blank())+xlab("postsynaptic neuron")+ylab("presynaptic neuron, FB column")
+FROutputs
+```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"FRMatOut.svg"),
+          FROutputs,nrow = 1,ncol=1,base_height = 11/3,base_width=8.5)
+```
+
+#### FR outputs network (panel C)
+We generate the graph in the same way we generated the graph for the PFR neurons:
+```{r}
+FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),
+                        pal=customGraphPalette,
+                        conns=mainFFConns,
+                        targets=mainFFTargetsS,
+                        graph=CX_outGraphRed,layout="stress") + 
+  coord_cartesian(clip="off")
+FRGraph
+```
+And save it:
+```{r}
+save_plot(file.path(outputsFolder,"FRGraphOut.svg"),FRGraph,base_height = 4,base_width=6)
+```
 

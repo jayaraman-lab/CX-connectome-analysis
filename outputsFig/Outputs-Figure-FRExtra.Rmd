@@ -58,10 +58,8 @@ customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
 
 ```{r}
 FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = customRetyping,largeOnly=T) %>% combineRois(outsideRegions,"Outside")
-restrictedConnectivity <- filter(FRBag$outputs_raw,supertype2.to != "FR" & type.to %in% FRBag$outputs$type.to) %>% 
-  mutate(column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>% arrange(column) %>%
-  mutate(label.from=column,
-         label.to=name.to)
+
+
 
 FROutputs <- plotConnectivity(restrictedConnectivity,slctROI="Outside",grouping="neuron",xaxis="outputs",facetInputs="databaseType.from",facetOutputs="supertype2.to",theme=theme_paper_grid(),replacementLabels = "label",legendName = "Relative weight") + theme(panel.border = element_rect(color="black",size = 1*mm2pt))+theme(strip.text.x=element_blank())
 FROutputs
