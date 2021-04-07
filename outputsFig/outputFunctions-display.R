@@ -1,4 +1,6 @@
 library(graphlayouts)
+library(tidygraph)
+library(ggraph)
 library(neuprintrExtra)
 library(neuprintr)
 library(nat)
@@ -157,7 +159,13 @@ displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName="rendering
 
 ## GRAPHS and SUBGRAPHS
 
-plotSubgraph <- function(contributors,influenceThreshold=0.005,pal=customGraphPalette,colP="supertype",conns=mainFFConns,targets=mainFFTargetsS,graph=CX_outTblG,...){
+plotSubgraph <- function(contributors,
+                         influenceThreshold=0.005,
+                         pal=customGraphPalette,
+                         colP="supertype",
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         graph=CX_outTblG,...){
   mainT <- filter(conns, Path_weight>influenceThreshold & type.from %in% contributors & type.to %in% (graph %N>% as_tibble())$type) 
   sourceSG <- as_tbl_graph(induced_subgraph(graph,c(contributors,mainT$type.to))) %>% 
     activate(nodes) %>% mutate(databaseType=type) %>% 
