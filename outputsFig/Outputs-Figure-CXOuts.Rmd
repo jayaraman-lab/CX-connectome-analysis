@@ -37,7 +37,8 @@ Generate a ROI set and palette restricted to the output neuropils:
 ```{r}
 roiH <- getRoiTree()
 roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
-roisOut <- roisOut %>% filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX")) 
+roisOut <- roisOut %>% 
+   filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX")) 
 roiOutLabels <- selectRoiSet(roiH,default_level = 0)
 rPal <- roisPalette(rois = roiOutLabels)
 ```
@@ -50,7 +51,11 @@ head(CXOutputSummary)
 
 Generate the plot and save it:
 ```{r}
-outputsInnervation_R <- haneschPlot(CXOutputSummary,roiSelect = roisOut,grouping = "supertype3",roiLabel = roiOutLabels,flip=T,theme = theme_paper_grid(),showCount = T)
+outputsInnervation_R <- haneschPlot(CXOutputSummary,
+                                    roiSelect = roisOut,
+                                    grouping = "supertype3",
+                                    roiLabel = roiOutLabels,
+                                    flip=T,theme = theme_paper_grid(),showCount = T)
 outputsInnervation_R
 save_plot(file.path(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,ncol=1.3,nrow=7,base_width = 8.5,base_height = 11/15)
 ```
@@ -83,7 +88,10 @@ We then summarize this table per CX type of origin:
 ```{r}
 firstStageSummary <- firstStep %>% supertype() %>% 
    group_by(type.from,supertype3.from) %>% 
-   summarize(totalWeight=sum(weightRelative),totalWeightRaw=sum(absoluteWeight),totalDown=sum(totalPreROIweight*n_from),meanDown=sum(totalPreROIweight)) %>% 
+   summarize(totalWeight=sum(weightRelative),
+             totalWeightRaw=sum(absoluteWeight),
+             totalDown=sum(totalPreROIweight*n_from),
+             meanDown=sum(totalPreROIweight)) %>% 
    filter(totalWeightRaw>20)
 
 firstStageSummary$supertype.from <- CXOutputNeurons$customSupertype[match(firstStageSummary$type.from,CXOutputNeurons$type)]
@@ -93,7 +101,9 @@ Then generate the plot of synapse counts:
 
 countsSummary <- ggplot(firstStageSummary,aes(x=type.from,y=totalWeightRaw,color=supertype.from)) + geom_point() + 
    scale_color_manual(name="synapses from",values=customSupertypePalette) + theme_paper() + 
-   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + scale_y_log10()
+   facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("# downstream synapses") + 
+   xlab("CX type") + theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) +
+   scale_y_log10()
 countsSummary
 ```
 And save it:
