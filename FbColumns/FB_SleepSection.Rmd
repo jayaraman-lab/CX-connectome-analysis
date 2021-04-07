@@ -113,7 +113,7 @@ P1=ggplot(dFB23E10_Similarity) +
         panel.border = element_rect(colour = "black", fill = NA, size = 0.5), 
         panel.spacing = unit(0, "lines"), axis.ticks = element_blank(), aspect.ratio = 1) 
 P1
-ggsave(paste(PlotDir, "23e10_SimilarityCosine.png",sep=""),
+ggsave(paste(PlotDir, "SleepWake_23e10_SimilarityCosine.png",sep=""),
        plot = P1, device='png', scale = 1, width =12, height = 8, units ="in", dpi = 500, limitsize = TRUE)
 
 ```
@@ -203,8 +203,9 @@ P4
 # ####################################################################################################################
 
 
-# Get 2-hop pathways to and from sleep-wake types. As mentioend above, this is done without using the t-test
-# significant criteria, which filters out some strong but variable FBt connections involving 2-3 neurons.  
+# Get pathways to and from sleep-wake types that involve at most one intermediate neuron (i.e. 1-hop and 2-hop pathways).
+# As mentioend above, this is done without using the t-test significant criteria, which filters out some strong but
+# variable FBt connections involving 2-3 neurons.  
 ```{r message=FALSE, warning=FALSE}
 
 ################## Get downstream pathways ################## 
@@ -220,7 +221,7 @@ DownBag2=neuronBag(DownType1, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
 SW_Downstream_Raw2=getTypeToTypeTable(DownBag2$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
                                       pThresh = 1, typesTable = NULL, oldTable = NULL)  
 
-# Create pathway obects
+# Create pathway objects
 SW_Downstream_Raw=list(SW_Downstream_Raw1, SW_Downstream_Raw2)
 SW_Downstream=tableChain2path(SW_Downstream_Raw)
 remove(DownBag1, SW_Downstream_Raw1, DownType1, DownBag2, SW_Downstream_Raw2, SW_Downstream_Raw)
@@ -238,7 +239,7 @@ UpBag2=neuronBag(UpType1, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
 SW_Upstream_Raw2=getTypeToTypeTable(UpBag2$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
                                     pThresh = 1, typesTable = NULL, oldTable = NULL)  
 
-# Get pathways using normal methods
+# Get pathway objects
 SW_Upstream_Raw=list(SW_Upstream_Raw1, SW_Upstream_Raw2)
 SW_Upstream=tableChain2path(SW_Upstream_Raw)
 SW_Upstream=subset(SW_Upstream, databaseType.to %in% SleepWakeTypes_Meta$type)
@@ -253,8 +254,8 @@ PathwayThresh=0.005
 ```
 
 
-# Plot pathways downstream of sleep-wake types
-# Note that some downstream types belong to Unknown Types (i.e. neurons not assigned types yet)
+# Plot pathways downstream of sleep-wake types.
+# Note that some downstream types belong to Unknown Types (i.e. neurons not assigned types yet).
 # Future databse versions may assign names to these bodies, in which case, they can be grouped into new SuperTypes.
 ```{r message=FALSE, warning=FALSE}
 
@@ -267,8 +268,8 @@ UnknownDownTypes=Plot_DownStream_Pathways(SW_Downstream, PathwayThresh, 2, PlotD
 ```
 
 
-# Plot pathways upstream of sleep-wake types
-# Note that some upstream types belong to Unknown Types (i.e. neurons not assigned types yet)
+# Plot pathways upstream of sleep-wake types.
+# Note that some upstream types belong to Unknown Types (i.e. neurons not assigned types yet).
 # Future databse versions may assign names to these bodies, in which case, they can be grouped into new SuperTypes.
 ```{r message=FALSE, warning=FALSE}
 
@@ -286,7 +287,10 @@ UnknownUpTypes=Plot_UpStream_Pathways(SW_Upstream, PathwayThresh, 2, PlotDir)
 # ####################################################################################################################
 
 
-# Get connections among a group of hand-picked neuron types known to be involved in sleep-wake control
+# Get connections among a group of hand-picked neuron types known to be involved in sleep-wake control along with
+# some neuron types that are strongly connected to known sleep-wake types (e.g. PFGs) or those that participate in
+# in direct connetions from EB to FB (e.g. hDeltaK). This plot is meant to illustrator possible EB-FB sleep-wake
+# pathways but does not include all connetions of each sleep-wake type or those that may also be involved (e.g ER5->EL).
 ```{r}
 
 # Define core sleep pathway types connecting EB to FB
