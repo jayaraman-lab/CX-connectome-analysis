@@ -1,0 +1,200 @@
+---
+title: "Connectivity of the GA/GAs/ROB/RUB (figure 56)"
+output: html_notebook
+---
+
+## Preparing the environment
+```{r}
+#library(neuprintr)
+#library(tidyverse)
+#library(cowplot)
+#library(patchwork)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(neuprintrExtra)
+library(nat)
+#library(Cairo)
+library(paletteer)
+```
+Loading local functions:
+```{r message=FALSE}
+source("outputFunctions-display.R")
+source("outputFunctions-core.R")
+source(file.path("..","R","paperTheme.R"))
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure56-GAROBRUB"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+# Basic metadata:
+load(file.path(dataFolder,"outputsBasics.RData"))
+# Pathway weights tables
+CXInfluence <- readRDS(file.path(dataFolder,"cx-influence.rds"))
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
+```
+
+We're mainly going to use the `CXInfluence` object, which quantifies how much of the pathways coming out of the central complex are actually ending on other CX types (see the "Outputs-Core" notebook, line 257).
+
+## The synapses labeled by their target influence (panel A)
+For all CX output neurons, we're going to label their synapses by the fraction the postsynaptic neuron contributes to pathways ending in the central complex.
+For all neurons in the graph, we calculate their total path weight contributions to CX neurons (`totalOC` for total output contribution). 
+```{r}
+CXInfluenceFullSummary <- group_by(CXInfluence,type.from) %>% 
+  summarize(totalOC=sum(Path_weight)) %>% 
+  ungroup() 
+## If the target is itself a central complex neuron, then this means 100% of the circuit post-synaptic to this synapse ends in the central complex
+CXInfluenceFullSummary$totalOC[CXInfluenceFullSummary$type.from %in% CXNeurons$type] <- 1
+```
+
+We then read the synapses (generated in "Outputs-Core.Rmd"), and create a data frame of the neurons directly post-synaptic to those:
+```{r}
+CXOutSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses.rds"))
+
+allTargets <- neuprint_get_meta(CXOutSyn$partner) %>% 
+  mutate(databaseType=type) %>% 
+  customRetyping() %>% 
+  supertype() %>% 
+  selectSupertypeSet(default_level = 1) %>%  
+  customOutputSupertype(postfix="raw")
+head(allTargets)
+```
+
+We then add the output contribution to the synapses data frame, discretize it and create a palette for plotting: 
+```{r}
+CXOutSyn <- mutate(CXOutSyn,
+                   partnerType=allTargets$type[match(partner,allTargets$bodyid)],
+                   totalOC=CXInfluenceFullSummary$totalOC[match(partnerType,CXInfluenceFullSummary$type.from)]) %>%
+  na.omit() %>%
+  mutate(colLevs = cut(totalOC,breaks=seq(0,1,length.out=100),labels=1:99))
+            
+
+cPal <- paletteer_c("viridis::plasma",n=100)
+names(cPal) <- 1:99
+
+head(CXOutSyn)
+```
+
+```{r}
+displayAnatomies(synapses=CXOutSyn,
+                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "allOuts-CX2CXLab",
+                 synapsePalette = cPal,
+                 synapseCluster = "colLevs",
+                 saveFolder = outputsFolder
+                 )
+
+```
+
+```{r}
+legendSource <- cowplot::get_legend(ggplot(data.frame(x=1,y=1,c=0.5),aes(x=1,y=1)) + geom_point(aes(color=c)) + theme_paper_map() + scale_color_paletteer_c("viridis::plasma",limits=c(0,1),name="CX to CX fraction"))
+```
+
+## Composition and importance of the CX to CX connections in those neuropils (panel B)
+In this figure we restrict our analysis to a few CX types innervating those regions:
+```{r}
+localNeuropileNeurons <- c("EL","EPG","PEG","ER6","ExR1","ExR2","ExR3","ExR5","ExR6","PFR_a","PFR_b","FR1","FR2")
+```
+
+We summarize the influence of those types exert by supertype:
+```{r}
+CXInfluenceLocal <- filter(CXInfluence,databaseType.from %in% localNeuropileNeurons) %>% 
+  group_by(supertype3.to,type.from,supertype3.from) %>%
+  summarize(Path_weight=sum(Path_weight)) %>% 
+  ungroup()
+head(CXInfluenceLocal)
+```
+Generate panel B from this table. `supertype3Palette` is a custom palette defined in "outputFunctions-display.R" to be used throughout the section: 
+```{r}
+backCXCompositionLocal <- ggplot(CXInfluenceLocal,aes(x=type.from,y=Path_weight)) + 
+  geom_col(aes(fill=supertype3.to)) + 
+  scale_fill_manual(name="target supertype",values=supertype3Palette)+ 
+  theme_paper() + 
+  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust =1,vjust=0.5))+
+  facet_grid(.~supertype3.from,scales = "free",space="free") + 
+  ylab("normalized pathway weight") + 
+  xlab("CX output type")
+
+backCXCompositionLocal
+```
+Save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-CXInfluenceCompositionLocal.svg"),backCXCompositionLocal,ncol=0.5,nrow=6,base_width = 8.5,base_height = 11/35)
+```
+
+### PFR connectivity (figure supplement 2)
+#### Intra PFR connectivity (panel A)
+We want to plot the connections of PFR neurons between themselves. We first collect their connectivity out of the central complex:
+```{r}
+PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),selfRef=T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% 
+  combineRois(outsideRegions,"Outside")
+```
+
+We then reformat the connection table, restricting it to PFR to PFR interactions, and ordering it by glomerulus of origin:
+```{r}
+PFRTab <- filter(PFRBag$outputs_raw,supertype2.to=="PFR") %>% 
+    mutate(glomerulus.from=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
+           glomerulus.to=factor(gsub("_","",str_extract(name.to,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
+           column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",8:1))) %>%
+  arrange(glomerulus.from)
+
+orderIn <- unique(PFRTab$from)
+
+PFRTab <- arrange(PFRTab,glomerulus.to)
+
+orderOut <- unique(PFRTab$to)
+```
+
+Finally we can plot the matrix:
+```{r}
+PFRConnPlot <- plotConnectivity(PFRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid_rects(),replacementLabels = "glomerulus",legendName = "relative weight") + xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
+
+PFRConnPlot
+```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"PFRMat.svg"),PFRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
+```
+
+### FR connectivity: figure supplement 3
+#### Intra FR connectivity (panel A)
+We want to plot the connections of FR neurons between themselves. We first collect their connectivity out of the central complex:
+```{r}
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+```
+We then reformat the connection table, restricting it to FR to FR interactions, and ordering it by glomerulus of origin:
+```{r}
+FRTab <- filter(FRBag$outputs_raw,supertype2.to=="FR") %>% 
+    mutate(column.from=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1)),
+           column.to=factor(gsub("_","",str_extract(name.to,"_C[1-9]")),levels=paste0("C",9:1))) %>%
+  arrange(column.from)
+
+orderIn <- unique(FRTab$from)
+
+FRTab <- arrange(FRTab,column.to)
+
+orderOut <- unique(FRTab$to)
+```
+
+Finally we can plot the matrix:
+```{r}
+FRConnPlot <-  plotConnectivity(FRTab,slctROI = "Outside",grouping = "neuron",orderIn=orderIn,orderOut=orderOut,facetInputs = "type.from",facetOutputs = "type.to",xaxis = "outputs",theme = theme_paper_grid_rects(),replacementLabels = "column",legendName = "relative weight") + xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
+FRConnPlot
+```
+And we save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"FRMat.svg"),FRConnPlot,nrow = 1,ncol=1,base_height = 11/4,base_width=8.5/2)
+```
+
+
