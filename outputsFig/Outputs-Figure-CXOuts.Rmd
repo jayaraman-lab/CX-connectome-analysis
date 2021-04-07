@@ -21,10 +21,14 @@ This is a folder where the figures will be saved if needed:
 outputsFolder <- "figure54-CXOutputs"
 if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
 
 Loading some objects necessary to generate the figures (created in "Outputs-Core.Rmd")"
 ```{r}
-load("outputsBasics.RData")
+load(file.path(dataFolder,"outputsBasics.RData"))
 ```
 
 ## What do their respective innervation patterns look like ?
@@ -54,7 +58,7 @@ save_plot(file.path(outputsFolder,"outputs-Hanesch.svg"),outputsInnervation_R,nc
 ### As synapses in an anatomical frame (panel B)
 First load the synapses (the data frame was generated in "Outputs-Core.Rmd"):
 ```{r}
-CXOutSyn <- readRDS("CX-outsideSynapses.rds")
+CXOutSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses.rds"))
 ```
 
 Then generate and save the 2 views of the rendering as pngs. The `displayAnatomies` function is defined in "outputFunctions-display.R":
@@ -72,7 +76,7 @@ displayAnatomies(synapses=CXOutSyn,
 
 Get the connections for just the first step of the output networks from the object generated in the "Ouptuts-Core.Rmd" notebook:
 ```{r}
-firstStep <- readRDS("output_paths.rds")[[1]]
+firstStep <- readRDS(file.path(dataFolder,"output_paths.rds"))[[1]]
 ```
 
 We then summarize this table per CX type of origin:
