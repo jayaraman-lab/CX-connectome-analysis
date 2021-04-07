@@ -132,7 +132,7 @@ Get_Direct_Graph <- function(Direct_Data, FigDir){
     scale_edge_width(range = c(1,6)) + scale_edge_color_manual(values=col_vector)
   ggsave(paste(FigDir, "Direct_Graph.png",sep=""),
          plot = P1, device='png', scale = 1, width =8, height = 13, units ="in", dpi = 500, limitsize = TRUE)
-
+  return(P1)
 }
 
 
