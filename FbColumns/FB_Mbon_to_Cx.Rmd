@@ -7,31 +7,14 @@ output:
 
 # Load libraries
 ```{r message=FALSE, warning=FALSE}
-library(nat)
-library(neuprintr)
-library(tidyverse)
-library(dplyr)
-library(matlib)
-library(RColorBrewer)
-library(ggraph)
-library(robustbase)
-require(alphahull)
-library(zoo)
-library(ggpubr)
-library(ggraph)
-library(igraph)
-library(tidygraph)
-library(xlsx)
-library(dtplyr)
 library(neuprintrExtra)
-library("xlsx")
-library(tidyselect)
-library(reshape2)
-library(scales)
-library(cowplot)
-library(prismatic)
+library(neuprintr)
+library(ggraph)
+library(tidyverse)
+library(tidygraph)
 library(paletteer)
-options(nat.plotengine = 'rgl')
+library(scales)
+library(prismatic)
 ```
 
 # Make directory to save plots to
@@ -42,7 +25,7 @@ if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
 
-# Connect to neuprint server.
+# Connect to neuprint server
 ```{r}
 neuprint_login()
 ```
@@ -123,7 +106,8 @@ colnames(PreOrder)=c("type.from","cluster.from")
 Graph_Data_Clust=merge(Graph_Data_Clust,PreOrder, by="type.from")
 
 # Plot network graph of direct connections 
-GraphData=Get_Direct_Graph(Graph_Data_Clust, PlotDir)
+P0=GraphData=Get_Direct_Graph(Graph_Data_Clust, PlotDir)
+P0
 
 ```
 
@@ -152,13 +136,15 @@ MBON_Direct_byThresh_Plot=All_MB2CX_Direct %>% group_by(databaseType.from) %>% s
 P1=ggplot(data=MBON_Direct_byThresh_Plot, aes(x=databaseType.from, y=weightRelative)) + 
   geom_bar(stat="identity", color="black", fill='black', width=0.850) + theme_classic()  + 
   theme(axis.text.x = element_text(angle = 90)) + scale_y_continuous(breaks = seq(from=0, to=0.14, by=0.01), lim=c(0,0.14) )
+P1
 ggsave(paste(PlotDir, "MBON_by_Thrsh.png",sep=""),
          plot = P1, device='png', scale = 1, width =6, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
 
 # Plot the number of CX types targeted as a function of the relative weight threshold
 P2=ggplot(data=Num_of_Cx_Types, aes(x=thresh, y=NumofCxTypes)) + geom_line() + theme_classic() + 
   theme(axis.text.x = element_text(angle = 90)) + scale_x_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) )
-  ggsave(paste(PlotDir, "NumOfCxTypes_by_Thrsh.png",sep=""),
+P2
+ggsave(paste(PlotDir, "NumOfCxTypes_by_Thrsh.png",sep=""),
          plot = P2, device='png', scale = 1, width =4, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
   
 # Make a scatter plot of weight vs relative weight for each connection
@@ -166,6 +152,7 @@ P3=ggplot(data=All_MB2CX_Direct, aes(x=weight, y=weightRelative)) + geom_point(s
   theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
   scale_y_continuous(breaks = seq(from=0, to=0.12, by=0.01), lim=c(0,0.12) ) + 
   scale_x_continuous(breaks = seq(from=0, to=150, by=10), lim=c(0,150) )
+P3
 ggsave(paste(PlotDir, "Thresh_Scatter.png",sep=""),
          plot = P3, device='png', scale = 1, width =4, height = 3.5, units ="in", dpi = 500, limitsize = TRUE)
 
