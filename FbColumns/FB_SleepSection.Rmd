@@ -8,31 +8,15 @@ output:
 # Command to clear environment is: rm(list = ls(all.names = TRUE))
 # Load libraries
 ```{r message=FALSE, warning=FALSE}
-library(nat)
-library(neuprintr)
-library(tidyverse)
-library(dplyr)
-library(matlib)
-library(RColorBrewer)
-library(ggraph)
-library(robustbase)
-require(alphahull)
-library(zoo)
-library(ggpubr)
-library(ggraph)
-library(igraph)
-library(tidygraph)
-library(xlsx)
-library(dtplyr)
 library(neuprintrExtra)
-library("xlsx")
-library(tidyselect)
+library(neuprintr)
 library(reshape2)
+library(dplyr)
+library(ggraph)
 library(scales)
-library(cowplot)
+library(tidygraph)
 library(paletteer)
 library(prismatic)
-options(nat.plotengine = 'rgl')
 ```
 
 # Configurable inputs: choose save/plot directories
@@ -310,7 +294,6 @@ SW_EbFb_T2T=getTypeToTypeTable(SW_EbFb_Bag$inputs_raw, majorOutputThreshold = 0.
                                       pThresh = 1, typesTable = NULL, oldTable = NULL)
 SW_EbFb_T2T_Sub=subset(SW_EbFb_T2T, type.to %in% SleepWakeTypes_EbFb & type.from %in% SleepWakeTypes_EbFb)
 SW_EbFb_T2T_Sub=subset(SW_EbFb_T2T_Sub, weightRelative>0.01)
-
 
 ```
 
