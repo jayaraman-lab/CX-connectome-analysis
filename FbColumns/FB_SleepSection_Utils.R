@@ -189,8 +189,8 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   #' Function for plotting pathways downstream of sleep-wake types
 
   # Filter out weak pathways
-  SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path > PathwayThresh) 
-  
+  SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path > PathwayThresh)
+
   # Get rid of pathways longer than "Step" length, but keep them as NANs so they show up in plots
   SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=0
   SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% 
@@ -201,7 +201,7 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   SW_Downstream_Filt_Sum=OutputTyping(SW_Downstream_Filt_Sum)
   UnknownDownTypes=unique(SW_Downstream_Filt_Sum$type.to[SW_Downstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
   
-  # Group downstream types by supertype and compute average pathway weight and the number of target types
+  # Group downstream types by supertype and compute average pathway weight and the number of targeted types
   SW_Downstream_Filt_Sum_Bar=subset(SW_Downstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
     group_by(type.from, SuperType_Custom) %>% summarize(weightRelative_path=mean(weightRelative_path), n=n())
   
@@ -232,6 +232,7 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   ########################################################################################################
   #### Plot pathway weight matrix, showing pathway strength from sleep-wake types to downstream types ####
   
+  # Plot pathway weights to non FB tanengtial types 
   PlotData=subset(SW_Downstream_Filt_Sum, !(startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
   PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
   
@@ -248,7 +249,7 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   # Get the FB layer targeted most strongly be each sleep-wake type (for plotting)
   MaxOutputLayer=DownstreamLayer(SW_Downstream_Filt)
   
-  # remake matrix plots but with faceting by region 
+  # Plot pathway weights to FB tanengtial types 
   PlotData=subset(SW_Downstream_Filt_Sum, (startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
   PlotData=merge(PlotData, MaxOutputLayer, by="type.to")
   PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
@@ -351,7 +352,8 @@ Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
 
 
 Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
-  
+  #' Function for plotting a network graph showing the connections between known sleep-wake types
+  #' (and some of their strongest connections) within the EB and FB.
   
   ########################################################################################################
   #################### Plot network graph of EB sleep-wake network #######################################
@@ -400,7 +402,7 @@ Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
   # Make ggraph object
   graph = tbl_graph(EB_NODES, EB_EDGES)
   
-  # colors
+  # Colors
   col_vector=levels(EB_EDGES$COLORZ)
   
   # Make plot 
@@ -480,7 +482,7 @@ Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
   # Make ggraph object
   graph = tbl_graph(FB_NODES, FB_EDGES)
   
-  # colors
+  # Colors
   col_vector=levels(FB_EDGES$COLORZ)
   
   # Make plot and save
@@ -537,7 +539,6 @@ Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
   FB_EDGES_New$to[FB_EDGES_New$to=="ExR3"]="FB_ExR3"
   FB_EDGES_New$to[FB_EDGES_New$to=="hDeltaK"]="FB_hDeltaK"
   
-  
   # Adjust EB node positions
   EB_NODES_New$y=EB_NODES_New$y-100
   
@@ -545,13 +546,13 @@ Plot_EbFb_SleepWake_Graph <- function(SW_EbFb_T2T_Sub, PlotDir){
   NODES=rbind(EB_NODES_New,FB_NODES_New)
   EDGES=rbind(EB_EDGES_New,FB_EDGES_New)
   
-  # make factor
+  # Make factor
   EDGES$COLORZ=factor(EDGES$COLORZ, levels=unique(EDGES$COLORZ))
   
   # Make ggraph object
   graph = tbl_graph(NODES, EDGES)
   
-  # colors
+  # Colors
   col_vector=levels(EDGES$COLORZ)
   
   # Make plot and save
