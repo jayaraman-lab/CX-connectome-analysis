@@ -23,6 +23,13 @@ source("outputFunctions-core.R")
 source(file.path("..","R","table2ggraphUtils.R"))
 ```
 
+A folder where we'll save the data locally to be used by other notebooks:
+```{r}
+dataFolder <- "data"
+if (!dir.exists(dataFolder)) dir.create(dataFolder)
+```
+
+
 # Building the outputs neuron pathways
 
 ## Find neurons innervating outside the CX
@@ -112,7 +119,7 @@ head(knownTypesTable)
 
 Save it so that it can be reused in the figure making notebooks:
 ```{r}
-saveRDS(knownTypesTable,"known-table.rds")
+saveRDS(knownTypesTable,file.path(dataFolder,"known-table.rds"))
 ```
 
 ## Get type to type connection tables up to 5 hops out
@@ -155,7 +162,7 @@ for (n in 2:5){
 
 We then save the pathways for later reuse
 ```{r}
-saveRDS(CX_outPaths,"output_paths.rds")
+saveRDS(CX_outPaths,file.path(dataFolder,"output_paths.rds"))
 ```
 
 Supertype at a very broad level for some of the figure coloring to come. `customOutputSupertype` is defined in "outputFunctions-core.R" and divides the types as they are throughout the output section (for example, see figure 54B)
@@ -166,7 +173,7 @@ CXOutputNeurons <- selectSupertypeSet(CXOutputNeurons,default_level = 1) %>%
 
 Save simple variables
 ```{r}
-save(CXOutputNeurons,CXOutsideTypes,CXOutputTypes,outsideRegions,CXOutsideNeurons,typesCXOrder,CXNeurons,file="outputsBasics.RData")
+save(CXOutputNeurons,CXOutsideTypes,CXOutputTypes,outsideRegions,CXOutsideNeurons,typesCXOrder,CXNeurons,file=file.path(dataFolder,"outputsBasics.RData"))
 ```
 
 Then make tables of all pre-synapses from CX neurons in the outside regions. This uses the `collectSynapses` function defined in "outputFunctions-core.R". This is will be used in the synapse location plots.
@@ -182,7 +189,7 @@ head(CXOutSyn)
 
 And save it:
 ```{r}
-saveRDS(CXOutSyn,"CX-outsideSynapses.rds")
+saveRDS(CXOutSyn,file.path(dataFolder,"CX-outsideSynapses.rds"))
 ```
 
 ## The CX output graph
@@ -275,16 +282,15 @@ head(CXInfluence)
 We separate in another data frame neurons that give all of their outputs to other CX neurons.
 ```{r}
 CX2CXExclusivePathways <- group_by(CXInfluence,type.from) %>% summarize(totalWeight=sum(Path_weight)) %>% filter(totalWeight>0.95)
-
 ```
 
 We save those all those graph and pathway weight related objects:
 ```{r}
-saveRDS(CXoutFull,"pathwayWeightsTable.rds")
-saveRDS(CXInfluence,"cx-influence.rds")
-saveRDS(CXoutAllSteps,"pathways-allsteps.rds")
-saveRDS(allNodes,"all-nodes.rds")
-saveRDS(CX2CXExclusivePathways,"cx2cx-pathways.rds")
+saveRDS(CXoutFull,file.path(dataFolder,"pathwayWeightsTable.rds"))
+saveRDS(CXInfluence,file.path(dataFolder,"cx-influence.rds"))
+saveRDS(CXoutAllSteps,file.path(dataFolder,"pathways-allsteps.rds"))
+saveRDS(allNodes,file.path(dataFolder,"all-nodes.rds"))
+saveRDS(CX2CXExclusivePathways,file.path(dataFolder,"cx2cx-pathways.rds"))
 ```
 
 
@@ -308,8 +314,8 @@ CX_outGraphBi <- makeGraph(CX_outGraphBi)
 ```
 
 ```{r}
-saveRDS(CX_outGraph,"output_graph.rds")
-saveRDS(CX_outGraphBi,"output_graph_FullBilateral.rds")
+saveRDS(CX_outGraph,file.path(dataFolder,"output_graph.rds"))
+saveRDS(CX_outGraphBi,file.path(dataFolder,"output_graph_FullBilateral.rds"))
 ```
 
 ## Cluster the output neurons at different depths
@@ -320,8 +326,8 @@ outClustersFull$outputsTable <- 1 ## Memory saving
 outClusters <- lapply(1:8,function(i) {ret <- connectivityCluster(outputsTable=CXoutAllSteps %>% filter(n_steps==i) %>% mutate(roi="Outside",outputContribution=Path_weight))
                                        ret$outputsTable <- 1 ## Saves memory as we're not using this here
                                        ret})
-saveRDS(outClustersFull,"clusters-paths.rds")
-saveRDS(outClusters,"cluster-alldephts.rds")
+saveRDS(outClustersFull,file.path(dataFolder,"clusters-paths.rds"))
+saveRDS(outClusters,file.path(dataFolder,"cluster-alldephts.rds"))
 ```
 
 
@@ -368,7 +374,7 @@ CX_outCommunitiesRedLP <- cluster_label_prop(CX_outGraphRed,weights=E(CX_outGrap
 
 CX_outGraphRed <- CX_outGraphRed %N>% mutate(lpCommunity=membership(CX_outCommunitiesRedLP)[type])
 #imCommunity=membership(CX_outCommunitiesRed)[type],
-saveRDS(CX_outGraphRed,"output_graph_reduced.rds")
+saveRDS(CX_outGraphRed,file.path(dataFolder,"output_graph_reduced.rds"))
 ```
 
 
@@ -381,13 +387,13 @@ mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to) %>% customR
 CXTargetsSyn <- collectSynapses(mainFFTargetsNeurons,NULL,polarity="pre")
 
 
-saveRDS(CXTargetsSyn,"CX-targets-synapses.rds")
+saveRDS(CXTargetsSyn,file.path(dataFolder,"CX-targets-synapses.rds"))
 ```
 
 Finally we save the objects associated with the strong targets as one Rdata file:
 ```{r}
 #allMainConnsFilt,mainFFConnsFilt,
-save(mainTargets,mainCXTargets,mainFFTargets,mainFFConns,allMainConns,mainFFTargetsNeurons,file="mainTargetsAndConns.Rdata")
+save(mainTargets,mainCXTargets,mainFFTargets,mainFFConns,allMainConns,mainFFTargetsNeurons,file=file.path(dataFolder,"mainTargetsAndConns.Rdata"))
 ```
 
 ## Pathways to endpoints
@@ -419,8 +425,23 @@ endpointsInfluence <- mutate(endpointsInfluence,type.from=as.character(type.from
                       ) %>% supertype()
 ```
 
-Finally we save those objects for reuse:
+We save those objects for reuse:
 ```{r}
-saveRDS(endpointsInfluence,"endpoints-influence.rds")
-saveRDS(mainEndpointInfluencers,"main-endpoints.rds")
+saveRDS(endpointsInfluence,file.path(dataFolder,"endpoints-influence.rds"))
+saveRDS(mainEndpointInfluencers,file.path(dataFolder,"main-endpoints.rds"))
 ```
+
+Finally we also make a summary per target supertype:
+```{r}
+endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,
+                                       type.from,
+                                       databaseType.from,supertype1.from,supertype2.from,supertype3.from,
+                                          supertype.to) %>% 
+   summarize(Path_weight=sum(Path_weight))
+
+```
+
+```{r}
+saveRDS(endpointsInfluenceFullSummary,file.path(dataFolder,"endpoints-influenceFullSummary.rds"))
+```
+

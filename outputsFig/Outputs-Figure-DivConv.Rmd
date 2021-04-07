@@ -22,6 +22,12 @@ source("outputFunctions-display.R")
 source(file.path("..","R","paperTheme.R"))
 ```
 
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+
 This is a folder where the figures will be saved if needed:
 ```{r}
 outputsFolder <- "figure55-OutputsDivergence"
@@ -31,13 +37,13 @@ if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 Loading some data generated in "Outputs-Core.Rmd":
 ```{r}
 # Basic metadata
-load("outputsBasics.RData")
+load(file.path(dataFolder,"outputsBasics.RData"))
 # The pathway weights connectivity
-CXoutAllSteps <- readRDS("pathways-allsteps.rds")
+CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
 # The full graph in different formats (and the metadata about all the neurons in there)
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outPaths <- readRDS("output_paths.rds")
-allNodes <- readRDS("all-nodes.rds")
+CX_outGraph <- readRDS(file.path(dataFolder,"output_graph.rds"))
+CX_outPaths <- readRDS(file.path(dataFolder,"output_paths.rds"))
+allNodes <- readRDS(file.path(dataFolder,"all-nodes.rds"))
 ```
 
 ## Divergence summary (panel A)
