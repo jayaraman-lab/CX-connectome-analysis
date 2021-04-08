@@ -1,45 +1,140 @@
 ---
-title: "CX to CX motifs figure"
+title: "CX to CX motifs, figure 58"
 output: html_notebook
 ---
 
+## Preparing the environment
 ```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
+#library(neuprintr)
+#library(tidyverse)
+#library(cowplot)
+#library(patchwork)
+library(dplyr)
 library(neuprintrExtra)
-library(nat)
-library(Cairo)
+#library(nat)
+#library(Cairo)
 library(paletteer)
-library(ggraph)
-library(tidygraph)
+#library(ggraph)
+#library(tidygraph)
 ```
 
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("../R/paperTheme_linux.R")
-source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure4-CX2CXMotifs/"
-source("../R/table2ggraphUtils.R")
+source(file.path("..","R","paperTheme.R"))
+#source("../R/neuronMeshes.R")
+source(file.path("..","R","table2ggraphUtils.R"))
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
-load("outputsBasics.RData")
+outputsFolder <- "figure58-CX2CX-Motifs"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
 
-Looking at the strong axo dendritic connections only:
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+# The pathway weights for all targets
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+# Base metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+```
+
+## Create the data frame of motifs
+We first select all CX to CX connections to look for motifs in. 
+We exclude projections to CX neurons that are mostly axonal, and consider only connections with pathway weights over 0.5%.
 ```{r}
 CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
 
-CX2CXaxDendMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxDendMat <- filter(CXoutFull,
+                         databaseType.to %in% CXOutsideTypes$databaseType &
+                            !databaseType.to %in% CXOutAxonals$databaseType &
+                            databaseType.from != databaseType.to) %>%
+   mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+head(CX2CXaxDendMat)
+```
+We then build the connection tables for the recipient types in the CX neuropils (we also make a graph object of it):
+```{r}
+recurrentInCXBag <- neuronBag(filter(CXNeurons,type %in% unique(c(CX2CXaxDendMat$type.from,CX2CXaxDendMat$type.to))),
+                              renaming = cxRetyping,
+                              omitInputs = T,
+                              slctROI=c("EB","FB","NO(R)","NO(L)","PB"))
 
-recurrentInCXBag <- neuronBag(filter(CXNeurons,type %in% unique(c(CX2CXaxDendMat$type.from,CX2CXaxDendMat$type.to))),renaming = cxRetyping,omitInputs = T,slctROI=c("EB","FB","NO(R)","NO(L)","PB"))
 allRecurrentCX <- recurrentInCXBag$outputs
 allRecurrentGraph <- makeGraph(allRecurrentCX)
+allRecurrentGraph
 ```
+
+## Example motifs (panels B,C,D)
+
+### Canonical feedback (panel B)
+#### Bodyids for renderings:
+PFL1 to FB2B_b. Bodyids to be used in renderings:
+```{r}
+PFL1bodies <- getTypesTable("PFL1") %>% cxRetyping() %>% filter(type=="PFL1_L*")
+PFL1bodies$bodyid
+```
+
+```{r}
+FB2BBodies <- getTypesTable("FB2B_b") %>% cxRetyping() %>% filter(type=="FB2B_b_R")
+FB2BBodies$bodyid
+```
+
+#### PFL1 network motifs
+We use the `plotMotifs` function, defined in "outputFunctions-display", that takes as input the connections tables in the two neuropils (or sets of neuropils) we're considering, the neuron of interest (at the center of the motif graph) and the stat considered:
+```{r}
+canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
+                                      allRecurrentCX,
+                                      "PFL1_L*","Path_weight"))
+canMot
+```
+
+### Parallel connections (panel C)
+#### Bodyids for renderings:
+FB6T to FB6E. 
+```{r}
+FB6Tbodies <- getTypesTable("FB6T") %>% cxRetyping() %>% filter(type=="FB6T_R")
+FB6Tbodies$bodyid
+```
+
+```{r}
+FB6Ebodies <- getTypesTable("FB6E") %>% cxRetyping() %>% filter(type=="FB6E_R")
+FB6Ebodies$bodyid
+```
+
+#### FB6T network motifs:
+```{r}
+parMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
+                                      allRecurrentCX,"FB6T_R","Path_weight"))
+parMot
+```
+
+### Linked targets (panel D)
+#### Bodyids for renderings
+FB8F_a to FB6C_a/FB6C_b/FB6G/FB6I. 
+```{r}
+FB8Fabodies <- getTypesTable("FB8F_a") %>% cxRetyping() %>% filter(type=="FB8F_a_R")
+FB8Fabodies$bodyid
+```
+
+```{r}
+FB8FTargetsbodies <- getTypesTable(c("FB6C_a","FB6C_b","FB6G","FB6I")) %>% cxRetyping() %>% filter(grepl("_R",type))
+FB8FTargetsbodies$bodyid
+```
+
+#### FB8F_a network motifs:
+```{r}
+linkMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"FB8F_a_R","Path_weight"))
+linkMot
+```
+
+
+## Motifs prevalence summary (panel E):
+
 
 ```{r}
 recurrentMotifsSummary <- group_by(CX2CXaxDendMat,type.from,supertype1.from,supertype3.from) %>% summarize("CX Parallel connection"=sum(paste0(type.from,type.to) %in% paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
@@ -62,13 +157,21 @@ names(motifPal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical
 recurrentMotifsPrevalence
 ```
 
-### Examples
+## Example motifs
 
 #### Canonical feedback
-PFL1 to FB2B_b
+PFL1 to FB2B_b. Bodyids to be used in renderings:
 ```{r}
 PFL1bodies <- getTypesTable("PFL1") %>% cxRetyping() %>% filter(type=="PFL1_L*")
+PFL1bodies$bodyid
+```
+
+```{r}
 FB2BBodies <- getTypesTable("FB2B_b") %>% cxRetyping() %>% filter(type=="FB2B_b_R")
+FB2BBodies$bodyid
+```
+
+```{r}
 PFL1Synapses <- neuprint_get_synapses(PFL1bodies$bodyid,roi=c("LAL(R)","CRE(R)")) %>% filter(prepost==0, partner %in% FB2BBodies$bodyid) %>% mutate(synapseType="Out of CX pathways")
 FB2BSynapses <- neuprint_get_synapses(FB2BBodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% PFL1bodies$bodyid) %>% mutate(synapseType="CX Canonical feedback")
 ```
@@ -118,10 +221,7 @@ parFBViews <- ggdraw(xlim = c(0,2)) +
 ```
 
 
-```{r}
-parMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"FB6T_R","Path_weight"))
-parMot
-```
+
 
 #### Linked targets
 FB8F_a to FB6C_a/FB6C_b/FB6G/FB6I
@@ -148,10 +248,6 @@ linkFBViews <- ggdraw(xlim = c(0,2)) +
 #linkFBViews
 ```
 
-```{r}
-linkMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"FB8F_a_R","Path_weight"))
-linkMot
-```
 
 #### Figure 4
 ```{r}
