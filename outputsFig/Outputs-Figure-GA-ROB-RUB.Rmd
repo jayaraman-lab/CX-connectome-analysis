@@ -34,10 +34,8 @@ Loading some data generated in "Outputs-Core.Rmd":
 ```{r}
 # Basic metadata:
 load(file.path(dataFolder,"outputsBasics.RData"))
-# Pathway weights tables
+# Pathway of normalized weights to the CX table
 CXInfluence <- readRDS(file.path(dataFolder,"cx-influence.rds"))
-CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
-CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
 
 # The network graph reduced to the most important targets
 CX_outGraphRed <- readRDS(file.path(dataFolder,"output_graph_reduced.rds"))
@@ -148,8 +146,8 @@ We want to plot the connections of PFR neurons between themselves. We first coll
 ```{r}
 PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),
                     selfRef=T,
-                    slctROI=outsideRegion,omitInputs = T
-                    ,renaming = cxRetyping) %>% 
+                    slctROI=outsideRegions,omitInputs = T,
+                    renaming = cxRetyping) %>% 
   combineRois(outsideRegions,"Outside")
 ```
 
@@ -175,9 +173,14 @@ PFRConnPlot <- plotConnectivity(PFRTab,slctROI = "Outside",
                                 grouping = "neuron",
                                 orderIn=orderIn,orderOut=orderOut,
                                 facetInputs = "type.from",facetOutputs = "type.to",
-                                xaxis = "outputs",theme = theme_paper_grid_rects(),
-                                replacementLabels = "glomerulus",legendName = "relative weight") +
-  xlab("postsynaptic neuron, PB glomerulus") + ylab("presynaptic neuron, PB glomerulus")
+                                xaxis = "outputs",
+                                theme = theme_paper_grid_rects(strip.placement = "outside"),
+                                replacementLabels = "glomerulus",
+                                legendName = "relative weight",
+                                switch="both") +
+  xlab("postsynaptic neuron, PB glomerulus") + 
+  ylab("presynaptic neuron, PB glomerulus") 
+ 
 
 PFRConnPlot
 ```
@@ -255,9 +258,10 @@ FRConnPlot <-  plotConnectivity(FRTab,
                                 orderIn=orderIn,orderOut=orderOut,
                                 facetInputs = "type.from",facetOutputs = "type.to",
                                 xaxis = "outputs",
-                                theme = theme_paper_grid_rects(),
+                                theme = theme_paper_grid_rects(strip.placement="outside"),
                                 replacementLabels = "column",
-                                legendName = "relative weight") + 
+                                legendName = "relative weight",
+                                switch="both") + 
   xlab("postsynaptic neuron, FB column") + ylab("presynaptic neuron, FB column")
 FRConnPlot
 ```
@@ -283,9 +287,12 @@ FROutputs <- plotConnectivity(restrictedConnectivity,
                               slctROI="Outside",
                               grouping="neuron",
                               xaxis="outputs",
-                              facetInputs="databaseType.from",facetOutputs="supertype2.to",
-                              theme=theme_paper_grid_rects(),
-                              replacementLabels = "label",legendName = "relative weight")+
+                              facetInputs="databaseType.from",
+                              facetOutputs="supertype2.to",
+                              theme=theme_paper_grid_rects(strip.placement="outside"),
+                              replacementLabels = "label",
+                              legendName = "relative weight",
+                              switch="both")+
   theme(strip.text.x=element_blank())+xlab("postsynaptic neuron")+ylab("presynaptic neuron, FB column")
 FROutputs
 ```
