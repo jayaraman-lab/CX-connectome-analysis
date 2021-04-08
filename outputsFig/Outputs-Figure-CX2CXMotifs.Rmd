@@ -10,6 +10,7 @@ output: html_notebook
 #library(cowplot)
 #library(patchwork)
 library(dplyr)
+library(tidyr)
 library(neuprintrExtra)
 #library(nat)
 #library(Cairo)
@@ -44,7 +45,7 @@ CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
 load(file.path(dataFolder,"outputsBasics.RData"))
 ```
 
-## Create the data frame of motifs
+## Create the data frame of connections in the CX of neurons connected outside the CX
 We first select all CX to CX connections to look for motifs in. 
 We exclude projections to CX neurons that are mostly axonal, and consider only connections with pathway weights over 0.5%.
 ```{r}
@@ -92,6 +93,10 @@ canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
                                       "PFL1_L*","Path_weight"))
 canMot
 ```
+And save the graph:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-canMot.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
+```
 
 ### Parallel connections (panel C)
 #### Bodyids for renderings:
@@ -112,6 +117,11 @@ parMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
                                       allRecurrentCX,"FB6T_R","Path_weight"))
 parMot
 ```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-parMot.svg"),
+          parMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
+```
 
 ### Linked targets (panel D)
 #### Bodyids for renderings
@@ -131,177 +141,63 @@ FB8FTargetsbodies$bodyid
 linkMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"FB8F_a_R","Path_weight"))
 linkMot
 ```
+And save the graph:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-linkMot.svg"),linkMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
+```
 
 
 ## Motifs prevalence summary (panel E):
-
-
+We then count the prevalence of every motif for every CX output type present in the CX to CX connections table:
+- the prevalence canonical feedbacks is the number of reciprocal connections in the CX (divided by the number of connections outside the CX)
+- the prevalence of parallel connections is the number of matching connections in the CX (divided by the number of connections outside the CX)
+- the prevalence of linked targets is the number of connections between any 2 of the targets in the CX, divided by the number of possible connections (n choose 2, where n is the number of targets)
 ```{r}
-recurrentMotifsSummary <- group_by(CX2CXaxDendMat,type.from,supertype1.from,supertype3.from) %>% summarize("CX Parallel connection"=sum(paste0(type.from,type.to) %in% paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
-                                                "CX Canonical feedback"=sum(paste0(type.to,type.from) %in% paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
-                                                "Linked targets in CX"=if (n()==1) 0 else sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
-                                                                          c(paste0(allRecurrentCX$type.from,allRecurrentCX$type.to),paste0(allRecurrentCX$type.to,allRecurrentCX$type.from)))/(choose(n(),2))
-                                                ) %>% pivot_longer(c("CX Parallel connection","CX Canonical feedback","Linked targets in CX"),names_to="stat",values_to="Proportion") %>% mutate(type.fromF = factor(type.from,levels=typesCXOrder),
-                                                                                                                                                             stat=factor(stat,levels=c("CX Parallel connection","CX Canonical feedback","Linked targets in CX")))
-
-recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
-   summarize(Proportion=mean(Proportion))
+recurrentMotifsSummary <- group_by(CX2CXaxDendMat,
+                                   type.from,supertype1.from,supertype3.from) %>%
+   summarize("CX parallel connection"=sum(paste0(type.from,type.to) %in%
+                                       paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
+             "CX canonical feedback"=sum(paste0(type.to,type.from) %in%
+                                       paste0(allRecurrentCX$type.from,allRecurrentCX$type.to))/n(),
+             "linked targets in CX"=if (n()==1) 0 else
+                sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
+                                          c(paste0(allRecurrentCX$type.from,allRecurrentCX$type.to),
+                           paste0(allRecurrentCX$type.to,allRecurrentCX$type.from)))/(choose(n(),2))
+                                                ) %>%
+   ungroup()
+head(recurrentMotifsSummary)
 ```
+We then pivot the table to a longer format for easier plotting:
 ```{r}
-recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary ,aes(x=type.fromF,y=stat)) + geom_point(size=3,color="grey90")+ geom_point(aes(size=Proportion,color=stat))  + facet_grid(.~supertype3.from,scale="free",space="free")+ theme_paper() + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) + xlab("CX output type") + scale_size_area(name="Prevalence",max_size = 3) + ylab("motif") + scale_color_paletteer_d(name="Motif","ggthemes::Traffic")
+recurrentMotifsSummary <-  pivot_longer(recurrentMotifsSummary,c("CX parallel connection",
+                                                                 "CX canonical feedback",
+                                                                 "linked targets in CX"),
+                                        names_to="stat",values_to="Proportion") %>% 
+   mutate(type.fromF = factor(type.from,levels=typesCXOrder),
+          stat=factor(stat,levels=c("CX parallel connection",
+                                    "CX canonical feedback","linked targets in CX")))
+head(recurrentMotifsSummary)
+```
 
-motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-names(motifPal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")
+We then plot the prevalence of each motif per type:
+```{r}
+recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary ,aes(x=type.fromF,y=stat)) +
+   geom_point(size=3,color="grey90")+ 
+   geom_point(aes(size=Proportion,color=stat))  +
+   facet_grid(.~supertype3.from,scale="free",space="free")+ 
+   theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),
+               strip.text.x = element_text(angle=90)) + 
+   xlab("CX output type") + 
+   scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + scale_color_paletteer_d(name="motif","ggthemes::Traffic")
 
+#motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
+#names(motifPal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked #targets in CX")
 
 recurrentMotifsPrevalence
 ```
 
-## Example motifs
-
-#### Canonical feedback
-PFL1 to FB2B_b. Bodyids to be used in renderings:
+And save the panel:
 ```{r}
-PFL1bodies <- getTypesTable("PFL1") %>% cxRetyping() %>% filter(type=="PFL1_L*")
-PFL1bodies$bodyid
-```
-
-```{r}
-FB2BBodies <- getTypesTable("FB2B_b") %>% cxRetyping() %>% filter(type=="FB2B_b_R")
-FB2BBodies$bodyid
-```
-
-```{r}
-PFL1Synapses <- neuprint_get_synapses(PFL1bodies$bodyid,roi=c("LAL(R)","CRE(R)")) %>% filter(prepost==0, partner %in% FB2BBodies$bodyid) %>% mutate(synapseType="Out of CX pathways")
-FB2BSynapses <- neuprint_get_synapses(FB2BBodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% PFL1bodies$bodyid) %>% mutate(synapseType="CX Canonical feedback")
-```
-
-```{r}
-displayAnatomies(neurons=list("Terra incognita"=PFL1bodies$bodyid,"FB Tangential"=FB2BBodies$bodyid),
-                 synapses=rbind(PFL1Synapses,FB2BSynapses),
-                 ROIs = c("FB","PB","LAL(R)"),saveName ="PFL1-FB2B",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
-```
-```{r}
-canFBViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFL1-FB2B-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFL1-FB2B-side.png"),scale=1.6,hjust=-0.9,clip="on") + 
-   theme_paper_map()
-#canFBViews
-```
-
-```{r}
-canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"PFL1_L*","Path_weight"))
-canMot
-```
-
-#### Parallel
-FB6T to FB6E
-
-```{r}
-FB6Tbodies <- getTypesTable("FB6T") %>% cxRetyping() %>% filter(type=="FB6T_R")
-FB6Ebodies <- getTypesTable("FB6E") %>% cxRetyping() %>% filter(type=="FB6E_R")
-
-FB6ESynapses <- neuprint_get_synapses(FB6Ebodies$bodyid,roi=c("SIP(R)","SMP(R)")) %>% filter(prepost==1, partner %in% FB6Tbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
-FB6TSynapses <- neuprint_get_synapses(FB6Tbodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% FB6Ebodies$bodyid)%>% mutate(synapseType="CX Parallel connection")
-```
-
-```{r}
-displayAnatomies(neurons=list("Terra incognita"=FB6Tbodies$bodyid,"FB Tangential"=FB6Ebodies$bodyid),
-                 synapses=rbind(FB6ESynapses,FB6TSynapses),
-                 ROIs = c("FB","SIP(R)"),saveName ="FB6T-FB6E",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
-
-```
-
-```{r}
-parFBViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FB6T-FB6E-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FB6T-FB6E-side.png"),scale=1.6,hjust=-1,clip="on") + 
-   theme_paper_map() 
-#parFBViews
-```
-
-
-
-
-#### Linked targets
-FB8F_a to FB6C_a/FB6C_b/FB6G/FB6I
-
-```{r}
-FB8Fabodies <- getTypesTable("FB8F_a") %>% cxRetyping() %>% filter(type=="FB8F_a_R")
-FB8FTargetsbodies <- getTypesTable(c("FB6C_a","FB6C_b","FB6G","FB6I")) %>% cxRetyping() %>% filter(grepl("_R",type))
-
-FB8FSynapses <- neuprint_get_synapses(FB8Fabodies$bodyid,roi=c("SIP(R)","SLP(R)","SMP(R)")) %>% filter(prepost==0, partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
-FB6NetSynapses <- neuprint_get_synapses(FB8FTargetsbodies$bodyid,roi="FB") %>% filter(partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Linked targets in CX")
-```
-
-```{r}
-displayAnatomies(neurons=list("Terra incognita"=FB8Fabodies$bodyid,"FB Tangential"=FB8FTargetsbodies$bodyid),
-                 synapses=rbind(FB8FSynapses,FB6NetSynapses),
-                 ROIs = c("FB","SIP(R)"),saveName ="FB8F-FB6",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
-```
-
-```{r}
-linkFBViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FB8F-FB6-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FB8F-FB6-side.png"),scale=1.6,hjust=-1,clip="on") + 
-   theme_paper_map() 
-#linkFBViews
-```
-
-
-#### Figure 4
-```{r}
-layout <- c(
-   area(t=2,b=4,l=1,r=10),
-   area(t=5,b=11,l=1,r=7),
-   area(t=6,b=10,l=8,r=10),
-   area(t=12,b=18,l=1,r=7),
-   area(t=13,b=17,l=8,r=10),
-   area(t=19,b=25,l=1,r=7),
-   area(t=20,b=24,l=8,r=10),
-   area(t=26,b=28,l=1,r=10)
-)
-
-save_plot(paste0(outputsFolder,"outputs-canMot.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
-save_plot(paste0(outputsFolder,"outputs-parMot.svg"),parMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
-save_plot(paste0(outputsFolder,"outputs-linkMot.svg"),linkMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
-save_plot(paste0(outputsFolder,"outputs-prevalences.svg"),recurrentMotifsPrevalence,ncol=1.3,nrow=6,base_width = 8.5,base_height=11/28)
-
-figure4 <- guide_area() + canFBViews + canMot + parFBViews + parMot + linkFBViews + linkMot + (recurrentMotifsPrevalence + plot_layout(guides="keep")) + plot_layout(design=layout,guides="collect") + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
-
-#figure4 <- canFBViews / parFBViews / linkFBViews/ (canMot+parMot+linkMot+plot_layout(guides = "collect",widths=1)) / recurrentMotifsPrevalence + plot_layout(heights=c(3,3,3,2,1)) + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs")
-#figure3_2
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure4.pdf"),figure4,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-
-#### SI Motifs
-Plot Motifs for individual original neurons, at different depths
-```{r}
-#for (sty in unique(CX2CXaxDendMat$supertype3.from)){
-#   localDf <- filter(CX2CXaxDendMat,supertype3.from==sty)
-#   allMotifPlots <- lapply(unique(localDf$type.from),function(ty){
-#      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
-#      if(!is.null(motifDf)){
-#      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
-#   })
-#   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
-#   motPlot <- patchwork::wrap_plots(allMotifPlots,ncol=3,widths=1,guides = "collect")
-#   save_plot(paste0(outputsFolder,"outputs-Figure4-SI2-",sty,".pdf"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/3),base_width = 8.5/3,base_height = 11/6,device=cairo_pdf)
-#}
-
-
-allMotifPlots <- lapply(sort(factor(unique(CX2CXaxDendMat$type.from),levels= typesCXOrder)),
-                        function(ty){
-      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
-      if(!is.null(motifDf)){
-      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
-   })
-   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
-   motPlot <- patchwork::wrap_plots(append(list(legend=guide_area()),allMotifPlots),ncol=4,widths=1,guides = "collect") + plot_annotation(title="Outputs figure 4 - SI1: All CX to CX Motifs",theme=theme(plot.title=element_text(size=12,face="bold")))
-   save_plot(paste0(outputsFolder,"outputs-Figure4-SI1.svg"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/4),base_width = 8.5/3,base_height = 11/6)
-
-
+save_plot(file.path(outputsFolder,"outputs-prevalences.svg"),
+          recurrentMotifsPrevalence,ncol=1.3,nrow=6,base_width = 8.5,base_height=11/28)
 ```
