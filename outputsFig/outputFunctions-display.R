@@ -1,6 +1,7 @@
 library(graphlayouts)
 library(tidygraph)
 library(ggraph)
+library(igraph)
 library(neuprintrExtra)
 library(neuprintr)
 library(nat)
