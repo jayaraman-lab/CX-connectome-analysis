@@ -335,10 +335,10 @@ CXInfluence <- reshape2::melt(as.matrix(CXInfluence),na.rm=TRUE,value.name="Path
 CXInfluence <- mutate(CXInfluence,type.from=as.character(type.from),type.to=as.character(type.to),
                       databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
-                      kind=case_when(type.from==type.to ~ "Self",
-                                     databaseType.from==databaseType.to ~ "Self-contralateral",
-                                     databaseType.to %in% CXOutAxonals$databaseType ~ "To axonal",
-                                     TRUE ~ "To dendritic")
+                      kind=case_when(type.from==type.to ~ "self",
+                                     databaseType.from==databaseType.to ~ "self-contralateral",
+                                     databaseType.to %in% CXOutAxonals$databaseType ~ "to axonal",
+                                     TRUE ~ "to dendritic")
                       ) %>% supertype()
 head(CXInfluence)
 ```
