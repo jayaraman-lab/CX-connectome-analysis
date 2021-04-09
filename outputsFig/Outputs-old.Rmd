@@ -982,4 +982,107 @@ figure5
 save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
 ```
 
+```{r}
+PFLSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFLs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFLs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+PFLTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFLTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFLTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+FSSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FSs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FSs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FSTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FSTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FSTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+FCSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FCs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FCs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FCTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FCTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FCTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+PFRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+PFRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+```{r}
+ExRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+ExRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+FRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+## Figure 5 SI3. Neurons and their targets split up
+
+```{r}
+layout <- c(
+   area(t=1,b=5,l=2,r=10),
+   area(t=6,b=10,l=2,r=10),
+   area(t=5,b=6,l=6,r=7),
+   area(t=11,b=15,l=2,r=10),
+   area(t=16,b=20,l=2,r=10),
+   area(t=15,b=16,l=6,r=7)
+)
+
+fig5SI31 <- (PFLSynapses + ggtitle("PFL")) + PFLTargetsSynapses + legendSourcePF + (FSSynapses + ggtitle("FS")) + FSTargetsSynapses + legendSourceFS + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3",theme=theme(title=element_text(size=12,face="bold")))
+
+fig5SI32 <- (FCSynapses + ggtitle("FC")) + FCTargetsSynapses + legendSourceFC + (FRSynapses + ggtitle("FR")) + FRTargetsSynapses + legendSourceFR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued",theme=theme(title=element_text(size=12,face="bold")))
+
+fig5SI33 <- (PFRSynapses + ggtitle("PFR")) + PFRTargetsSynapses + legendSourcePFR + (ExRSynapses + ggtitle("ExR")) + ExRTargetsSynapses + legendSourceExR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued 2",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-1.pdf"),fig5SI31,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-2.pdf"),fig5SI32,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-3.pdf"),fig5SI33,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
 

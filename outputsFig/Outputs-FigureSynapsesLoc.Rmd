@@ -1,133 +1,127 @@
 ---
-title: "Figure 5 SI3 Breakdown of synapse locations"
+title: "Breakdown of synapse locations (figure 59 supplement 3 to 5)"
 output: html_notebook
 ---
 
-```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
-library(paletteer)
-library(tidygraph)
-library(ggraph)
-library(igraph)
-```
-
+## Prepare the environment
+Loading output display functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("../R/paperTheme.R")
-source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure5-Modularity/"
+source(file.path("..","R","paperTheme.R"))
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-CXOutSyn <- readRDS("CX-outsideSynapses.rds")
-CXTargetsSyn <- readRDS("CX-targets-synapses.rds")
-load("outputsBasics.RData")
-load("mainTargetsAndConns.Rdata")
-CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
-CX_outGraphRed <- readRDS("output_graph_reduced.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
-endpoints <- readRDS("endpoints-influenceFullSummary.rds")
-
-endpointsStrong <- filter(endpoints,Path_weight>=0.5)
-
-CX_outGraphRed <- CX_outGraphRed %N>% 
-   mutate(influencing=endpointsStrong$supertype.to[match(type,endpointsStrong$type.from)]) %E>% 
-    mutate(influencing.from = .N()$influencing[match(type.from,.N()$type)])
+outputsFolder <- file.path("figure59-OutputsModularity","synapseLocSupplement")
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder <- "data"
 ```
 
+Loading some data generated in "Outputs-Core.Rmd":
 ```{r}
-
-mainFFTargetsS <- mainFFTargets %>% rename(type=type.to,databaseType=databaseType.to) %>% supertype() %>% selectSupertypeSet(default_level = 3,exceptions=list("Terra incognita"=2))
-
-
-
-customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
-extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
-extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
-extraPal <- extraPal[1:length(extraLevs)]
-names(extraPal) <- extraLevs
-customGraphPalette <- c(customGraphPalette,extraPal)
-names(customGraphPalette)[2] <- "Source"
+## The CX outputs synapses
+CXOutSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses.rds"))
+## The synapses of the main output targets
+CXTargetsSyn <- readRDS(file.path(dataFolder,"CX-targets-synapses.rds"))
+## General outputs metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+## Metadata about the targets
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
 ```
 
-The synapses from their targets
+## Preparing the data
+We enrich the data frame of the synapses of the main targets by some metadata, mostly to know which CX output neuron contributes the most to each target:
 ```{r}
-CXTargetsSyn <- mutate(CXTargetsSyn,type=mainFFTargetsNeurons$type[match(bodyid,mainFFTargetsNeurons$bodyid)],
+CXTargetsSyn <- mutate(CXTargetsSyn,
+                       type=mainFFTargetsNeurons$type[match(bodyid,mainFFTargetsNeurons$bodyid)],
                        mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
                        mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)])
 
 
-CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)])
+CXTargetsSyn <- mutate(CXTargetsSyn,
+                       customContributor=CXOutputNeurons$customSupertype[match(mainContributor,
+                                                                               CXOutputNeurons$type)])
 ```
 
+Throughout this notebook, we'll use the `displayAnatomies` function, defined in "outputFunctions-display" repeatedly. It takes as inputs a synapses data frame, a choice of ROIs to render a variable (of the synapses data frame) to cluster the synapses upon (here the supertype or the main contributor), and information about the palette to use and the file where to save the results. The function saves two views of the rendering. We also generate a legend panel for each type.
 ## PFLs
-
 ### Their synapses
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("PFL1","PFL2","PFL3")),
-                 ROIs = c("LAL(R)","CRE(R)"),saveName = "PFLs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("LAL(R)","CRE(R)"),
+                 saveName = "PFLs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder = outputsFolder)
+```
+
+### Synapses of their main targets
+
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","PFL2","PFL3")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "PFLTargets",
+                 synapsePalette = customSupertypePalette,
+                 saveFolder = outputsFolder,
+                 synapseCluster = "customContributor")
+
+```
+
+### Legend
+```{r}
+legendSourcePF <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                    customSupertype %in% c("PFL1","PFL2","PFL3")),
+                                             aes(x=1,y=customSupertype)) +
+                                         geom_point(aes(color=customSupertype)) + 
+                                         theme_paper_map() +
+                                         scale_color_manual(name="type",values=customSupertypePalette))
 ```
 
 ```{r}
-PFLSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
+save_plot(file.path(outputsFolder,"legendPFLSyns.svg"),legendSourcePF,nrow=0.3,ncol=0.1)
 ```
 
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","PFL2","PFL3")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "PFLTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-PFLTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFLTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFLTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourcePF <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in% c("PFL1","PFL2","PFL3")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
-```
 
 ## FSs
 ### Their synapses
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FS1","FS2","FS3","FS4")),
-                 ROIs = c("CRE(R)","SMP(R)"),saveName = "FSs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("CRE(R)","SMP(R)"),
+                 saveName = "FSs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder = outputsFolder)
+```
+### Synapses of their main targets
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,
+                                 customContributor %in% c("FS1","FS2","FS3","FS4")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "FSTargets",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customContributor",
+                 saveFolder = outputsFolder)
+
+```
+
+### Legend
+```{r}
+legendSourceFS <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                    customSupertype %in% c("FS1","FS2","FS3","FS4")),
+                                             aes(x=1,y=customSupertype)) +
+                                         geom_point(aes(color=customSupertype)) + 
+                                         theme_paper_map() +
+                                         scale_color_manual(name="type",
+                                                            values=customSupertypePalette))
 ```
 
 ```{r}
-FSSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FSs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FSs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
-```
-
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("FS1","FS2","FS3","FS4")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "FSTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-FSTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FSTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FSTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourceFS <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in% c("FS1","FS2","FS3","FS4")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
+save_plot(file.path(outputsFolder,"legendFSSyns.svg"),legendSourceFS,nrow=0.3,ncol=0.1)
 ```
 
 ## FCs
@@ -135,61 +129,73 @@ legendSourceFS <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupert
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FC1","FC2")),
-                 ROIs = c("CRE(R)","SMP(R)"),saveName = "FCs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("CRE(R)","SMP(R)"),
+                 saveName = "FCs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder=outputsFolder)
+```
+### Synapses of their main targets
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,
+                                 customContributor %in% c("FC1","FC2")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "FCTargets",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customContributor",
+                 saveFolder = outputsFolder)
+```
+### Legend
+```{r}
+legendSourceFC <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                    customSupertype %in% c("FC1","FC2")),
+                                             aes(x=1,y=customSupertype)) +
+                                         geom_point(aes(color=customSupertype)) + 
+                                         theme_paper_map() +
+                                         scale_color_manual(name="type",
+                                                            values=customSupertypePalette))
 ```
 
 ```{r}
-FCSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FCs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FCs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
+save_plot(file.path(outputsFolder,"legendFCSyns.svg"),legendSourceFC,nrow=0.3,ncol=0.1)
 ```
 
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("FC1","FC2")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "FCTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-FCTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FCTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FCTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourceFC <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in% c("FC1","FC2")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
-```
-
-
-## PFRs
-
+## PFR neurons
 ### Their synapses
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("PFR_b","PFR_a")),
-                 ROIs = c("CRE(R)"),saveName = "PFRs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("CRE(R)"),
+                 saveName = "PFRs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder = outputsFolder)
+```
+
+### Synapses of their main targets
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,
+                                 customContributor %in% c("PFR_b","PFR_a")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "PFRTargets",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customContributor",
+                 saveFolder=outputsFolder)
+```
+
+### Legend
+```{r}
+legendSourcePFR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                     customSupertype %in% c("PFR_a","PFR_b")),
+                                              aes(x=1,y=customSupertype)) +
+                                          geom_point(aes(color=customSupertype)) + 
+                                          theme_paper_map() +
+                                          scale_color_manual(name="type",
+                                                             values=customSupertypePalette))
 ```
 
 ```{r}
-PFRSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFRs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
-```
-
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("PFR_b","PFR_a")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "PFRTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-PFRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFRTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourcePFR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
+save_plot(file.path(outputsFolder,"legendPFRSyns.svg"),legendSourcePFR,nrow=0.3,ncol=0.1)
 ```
 
 ## ExRs
@@ -197,29 +203,37 @@ legendSourcePFR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSuper
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("ExR1","ExR2-6","ExR7","ExR8")),
-                 ROIs = c("BU(R)","LAL(R)","SPS(R)","WED(R)","CRE(R)"),saveName = "ExRs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("BU(R)","LAL(R)","SPS(R)","WED(R)","CRE(R)"),
+                 saveName = "ExRs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder = outputsFolder)
+```
+
+### Synapses of their main targets
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,
+                                 customContributor %in% c("ExR1","ExR2-6","ExR7","ExR8")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "ExRTargets",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customContributor",
+                 saveFolder = outputsFolder)
+```
+
+### Legend
+```{r}
+legendSourceExR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                     customSupertype %in% c("ExR1","ExR2-6","ExR7","ExR8")),
+                                              aes(x=1,y=customSupertype)) +
+                                          geom_point(aes(color=customSupertype)) +
+                                          theme_paper_map() +
+                                          scale_color_manual(name="type",
+                                                             values=customSupertypePalette))
 ```
 
 ```{r}
-ExRSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"ExRs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"ExRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
-```
-
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("ExR1","ExR2-6","ExR7","ExR8")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "ExRTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-ExRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"ExRTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"ExRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourceExR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in%c("ExR1","ExR2-6","ExR7","ExR8")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
+save_plot(file.path(outputsFolder,"legendExRSyns.svg"),legendSourceExR,nrow=0.3,ncol=0.1)
 ```
 
 ## FRs
@@ -227,56 +241,34 @@ legendSourceExR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSuper
 ```{r}
 displayAnatomies(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FR1","FR2")),
-                 ROIs = c("CRE(R)"),saveName = "FRs",synapsePalette = customSupertypePalette,synapseCluster = "customSupertype")
+                 ROIs = c("CRE(R)"),
+                 saveName = "FRs",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customSupertype",
+                 saveFolder = outputsFolder)
+```
+### Synapses of their main targets
+
+```{r}
+displayAnatomies(synapses=filter(CXTargetsSyn,
+                                 customContributor %in% c("FR1","FR2")),
+                 ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 saveName = "FRTargets",
+                 synapsePalette = customSupertypePalette,
+                 synapseCluster = "customContributor",
+                 saveFolder = outputsFolder)
+```
+### Legend
+```{r}
+legendSourceFR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                    customSupertype %in% c("FR1","FR2")),
+                                             aes(x=1,y=customSupertype)) + 
+                                         geom_point(aes(color=customSupertype)) + 
+                                         theme_paper_map() +
+                                         scale_color_manual(name="type",
+                                                            values=customSupertypePalette))
 ```
 
 ```{r}
-FRSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FRs-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-#PFLSynapses
+save_plot(file.path(outputsFolder,"legendFRSyns.svg"),legendSourceFR,nrow=0.3,ncol=0.1)
 ```
-
-```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("FR1","FR2")),ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),saveName = "FRTargets",synapsePalette = customSupertypePalette,synapseCluster = "customContributor")
-
-```
-
-```{r}
-FRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"FRTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"FRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-```
-
-```{r}
-legendSourceFR <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),aes(x=1,y=customSupertype)) + geom_point(aes(color=customSupertype)) + theme_paper_map() + scale_color_manual(name="Type",values=customSupertypePalette))
-```
-
-## Figure 5 SI3. Neurons and their targets split up
-
-```{r}
-layout <- c(
-   area(t=1,b=5,l=2,r=10),
-   area(t=6,b=10,l=2,r=10),
-   area(t=5,b=6,l=6,r=7),
-   area(t=11,b=15,l=2,r=10),
-   area(t=16,b=20,l=2,r=10),
-   area(t=15,b=16,l=6,r=7)
-)
-
-fig5SI31 <- (PFLSynapses + ggtitle("PFL")) + PFLTargetsSynapses + legendSourcePF + (FSSynapses + ggtitle("FS")) + FSTargetsSynapses + legendSourceFS + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3",theme=theme(title=element_text(size=12,face="bold")))
-
-fig5SI32 <- (FCSynapses + ggtitle("FC")) + FCTargetsSynapses + legendSourceFC + (FRSynapses + ggtitle("FR")) + FRTargetsSynapses + legendSourceFR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued",theme=theme(title=element_text(size=12,face="bold")))
-
-fig5SI33 <- (PFRSynapses + ggtitle("PFR")) + PFRTargetsSynapses + legendSourcePFR + (ExRSynapses + ggtitle("ExR")) + ExRTargetsSynapses + legendSourceExR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued 2",theme=theme(title=element_text(size=12,face="bold")))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-1.pdf"),fig5SI31,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-2.pdf"),fig5SI32,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-3.pdf"),fig5SI33,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
-```
-
-
-
-
