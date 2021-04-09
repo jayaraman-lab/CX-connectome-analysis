@@ -930,3 +930,56 @@ allMotifPlots <- lapply(sort(factor(unique(CX2CXaxDendMat$type.from),levels= typ
 
 
 ```
+
+```{r}
+allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 6 -- figure supplement 1: Clustering at different dephts",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(axis.text.x = element_blank(),axis.text=element_blank())
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+```{r}
+fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("main feedforward target types")
+
+plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
+```
+
+```{r}
+targetFFSourceTable <- data.frame(databaseType=as.character(unique(mainFFConns$databaseType.from))) %>% mutate(type=databaseType) %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%
+   customOutputSupertype(postfix="raw")
+customContributorsPalette <- customSupertypePalette
+```
+
+```{r}
+graphMainTargetsPlot_ST <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.5,aes(color=.N()$supertype3[from],width=weightRelative)) + geom_node_point(aes(color=supertype3),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(values=supertype3Palette) + scale_edge_color_manual(values=supertype3Palette) + theme_paper_map() + coord_fixed()
+```
+
+```{r}
+allTargetViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"allTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"allTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+allTargetViews
+```
+
+## Assemble the figure
+
+```{r}
+layout <- c(
+   area(t=2,b=3,l=2,r=7),
+   area(t=2,b=3,l=8,r=10),
+   area(t=5,b=13,l=2,r=4),
+   area(t=5,b=13,l=5,r=10),
+   area(t=14,b=20,l=3,r=8),
+   area(t=14,b=20,l=9,r=10)
+)
+
+figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1))
+figure5
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+
