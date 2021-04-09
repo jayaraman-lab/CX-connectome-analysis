@@ -775,3 +775,211 @@ displayAnatomies(list("EB Columnar" = filter(CXNeurons,type=="EPG_L")$bodyid,
                       "FR2"= filter(CXNeurons,type=="FR2_L")$bodyid
                  ),ROIs=NULL,neuronPalette = customSupertypePalette)
 ```
+
+
+```{r}
+recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
+   summarize(Proportion=mean(Proportion))
+```
+
+## Example motifs
+
+#### Canonical feedback
+PFL1 to FB2B_b. Bodyids to be used in renderings:
+```{r}
+PFL1bodies <- getTypesTable("PFL1") %>% cxRetyping() %>% filter(type=="PFL1_L*")
+PFL1bodies$bodyid
+```
+
+```{r}
+FB2BBodies <- getTypesTable("FB2B_b") %>% cxRetyping() %>% filter(type=="FB2B_b_R")
+FB2BBodies$bodyid
+```
+
+```{r}
+PFL1Synapses <- neuprint_get_synapses(PFL1bodies$bodyid,roi=c("LAL(R)","CRE(R)")) %>% filter(prepost==0, partner %in% FB2BBodies$bodyid) %>% mutate(synapseType="Out of CX pathways")
+FB2BSynapses <- neuprint_get_synapses(FB2BBodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% PFL1bodies$bodyid) %>% mutate(synapseType="CX Canonical feedback")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=PFL1bodies$bodyid,"FB Tangential"=FB2BBodies$bodyid),
+                 synapses=rbind(PFL1Synapses,FB2BSynapses),
+                 ROIs = c("FB","PB","LAL(R)"),saveName ="PFL1-FB2B",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+```
+```{r}
+canFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL1-FB2B-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFL1-FB2B-side.png"),scale=1.6,hjust=-0.9,clip="on") + 
+   theme_paper_map()
+#canFBViews
+```
+
+```{r}
+canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"PFL1_L*","Path_weight"))
+canMot
+```
+
+#### Parallel
+FB6T to FB6E
+
+```{r}
+FB6Tbodies <- getTypesTable("FB6T") %>% cxRetyping() %>% filter(type=="FB6T_R")
+FB6Ebodies <- getTypesTable("FB6E") %>% cxRetyping() %>% filter(type=="FB6E_R")
+
+FB6ESynapses <- neuprint_get_synapses(FB6Ebodies$bodyid,roi=c("SIP(R)","SMP(R)")) %>% filter(prepost==1, partner %in% FB6Tbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
+FB6TSynapses <- neuprint_get_synapses(FB6Tbodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% FB6Ebodies$bodyid)%>% mutate(synapseType="CX Parallel connection")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=FB6Tbodies$bodyid,"FB Tangential"=FB6Ebodies$bodyid),
+                 synapses=rbind(FB6ESynapses,FB6TSynapses),
+                 ROIs = c("FB","SIP(R)"),saveName ="FB6T-FB6E",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+
+```
+
+```{r}
+parFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FB6T-FB6E-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FB6T-FB6E-side.png"),scale=1.6,hjust=-1,clip="on") + 
+   theme_paper_map() 
+#parFBViews
+```
+
+
+
+
+#### Linked targets
+FB8F_a to FB6C_a/FB6C_b/FB6G/FB6I
+
+```{r}
+FB8Fabodies <- getTypesTable("FB8F_a") %>% cxRetyping() %>% filter(type=="FB8F_a_R")
+FB8FTargetsbodies <- getTypesTable(c("FB6C_a","FB6C_b","FB6G","FB6I")) %>% cxRetyping() %>% filter(grepl("_R",type))
+
+FB8FSynapses <- neuprint_get_synapses(FB8Fabodies$bodyid,roi=c("SIP(R)","SLP(R)","SMP(R)")) %>% filter(prepost==0, partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
+FB6NetSynapses <- neuprint_get_synapses(FB8FTargetsbodies$bodyid,roi="FB") %>% filter(partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Linked targets in CX")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=FB8Fabodies$bodyid,"FB Tangential"=FB8FTargetsbodies$bodyid),
+                 synapses=rbind(FB8FSynapses,FB6NetSynapses),
+                 ROIs = c("FB","SIP(R)"),saveName ="FB8F-FB6",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+```
+
+```{r}
+linkFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FB8F-FB6-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FB8F-FB6-side.png"),scale=1.6,hjust=-1,clip="on") + 
+   theme_paper_map() 
+#linkFBViews
+```
+
+
+#### Figure 4
+```{r}
+layout <- c(
+   area(t=2,b=4,l=1,r=10),
+   area(t=5,b=11,l=1,r=7),
+   area(t=6,b=10,l=8,r=10),
+   area(t=12,b=18,l=1,r=7),
+   area(t=13,b=17,l=8,r=10),
+   area(t=19,b=25,l=1,r=7),
+   area(t=20,b=24,l=8,r=10),
+   area(t=26,b=28,l=1,r=10)
+)
+
+
+
+
+
+
+figure4 <- guide_area() + canFBViews + canMot + parFBViews + parMot + linkFBViews + linkMot + (recurrentMotifsPrevalence + plot_layout(guides="keep")) + plot_layout(design=layout,guides="collect") + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
+
+#figure4 <- canFBViews / parFBViews / linkFBViews/ (canMot+parMot+linkMot+plot_layout(guides = "collect",widths=1)) / recurrentMotifsPrevalence + plot_layout(heights=c(3,3,3,2,1)) + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs")
+#figure3_2
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure4.pdf"),figure4,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+#### SI Motifs
+Plot Motifs for individual original neurons, at different depths
+```{r}
+#for (sty in unique(CX2CXaxDendMat$supertype3.from)){
+#   localDf <- filter(CX2CXaxDendMat,supertype3.from==sty)
+#   allMotifPlots <- lapply(unique(localDf$type.from),function(ty){
+#      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
+#      if(!is.null(motifDf)){
+#      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
+#   })
+#   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
+#   motPlot <- patchwork::wrap_plots(allMotifPlots,ncol=3,widths=1,guides = "collect")
+#   save_plot(paste0(outputsFolder,"outputs-Figure4-SI2-",sty,".pdf"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/3),base_width = 8.5/3,base_height = 11/6,device=cairo_pdf)
+#}
+
+
+allMotifPlots <- lapply(sort(factor(unique(CX2CXaxDendMat$type.from),levels= typesCXOrder)),
+                        function(ty){
+      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
+      if(!is.null(motifDf)){
+      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
+   })
+   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
+   motPlot <- patchwork::wrap_plots(append(list(legend=guide_area()),allMotifPlots),ncol=4,widths=1,guides = "collect") + plot_annotation(title="Outputs figure 4 - SI1: All CX to CX Motifs",theme=theme(plot.title=element_text(size=12,face="bold")))
+   save_plot(paste0(outputsFolder,"outputs-Figure4-SI1.svg"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/4),base_width = 8.5/3,base_height = 11/6)
+
+
+```
+
+```{r}
+allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 6 -- figure supplement 1: Clustering at different dephts",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(axis.text.x = element_blank(),axis.text=element_blank())
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+```{r}
+fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("main feedforward target types")
+
+plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
+```
+
+```{r}
+targetFFSourceTable <- data.frame(databaseType=as.character(unique(mainFFConns$databaseType.from))) %>% mutate(type=databaseType) %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%
+   customOutputSupertype(postfix="raw")
+customContributorsPalette <- customSupertypePalette
+```
+
+```{r}
+graphMainTargetsPlot_ST <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.5,aes(color=.N()$supertype3[from],width=weightRelative)) + geom_node_point(aes(color=supertype3),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(values=supertype3Palette) + scale_edge_color_manual(values=supertype3Palette) + theme_paper_map() + coord_fixed()
+```
+
+```{r}
+allTargetViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"allTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"allTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+allTargetViews
+```
+
+## Assemble the figure
+
+```{r}
+layout <- c(
+   area(t=2,b=3,l=2,r=7),
+   area(t=2,b=3,l=8,r=10),
+   area(t=5,b=13,l=2,r=4),
+   area(t=5,b=13,l=5,r=10),
+   area(t=14,b=20,l=3,r=8),
+   area(t=14,b=20,l=9,r=10)
+)
+
+figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1))
+figure5
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+

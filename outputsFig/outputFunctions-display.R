@@ -194,20 +194,20 @@ getLocalSubgraph <- function(type.from,type.to,graph,order=2){
 
 getMotifsGraphDf <- function(outDf,CXDf,ty,wr="relativeWeight4"){
   CXOuts <- unique(outDf$type.from)
-  outDf <- filter(outDf,type.from %in% ty & !is.na(!!sym(wr))) %>% rename(weightRelative=!!sym(wr)) %>% mutate(motif="Out of CX pathways")
+  outDf <- filter(outDf,type.from %in% ty & !is.na(!!sym(wr))) %>% rename(weightRelative=!!sym(wr)) %>% mutate(motif="out of CX pathways")
   if(nrow(outDf)>0){
     CXDf <- filter(CXDf, (type.from %in% unique(c(outDf$type.from,outDf$type.to))) & 
                      (type.to %in% unique(c(outDf$type.from,outDf$type.to)))) 
     if(nrow(CXDf)==0){CXDf <- mutate(CXDf,motif=character())}else{
       CXDf <- CXDf%>%
         mutate(motif=case_when(
-          paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX Parallel connection",
+          paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX parallel connection",
           paste0(type.from,type.to) %in% paste0(outDf$type.to,outDf$type.from) & 
-            !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX Canonical feedback",
+            !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX canonical feedback",
           (sapply(1:length(type.to),function(i){
             any(outDf[outDf$type.to == type.from[i],]$type.from %in% outDf[outDf$type.to == type.to[i],]$type.from)}) &
              !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) &
-             !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to)) ~"Linked targets in CX"
+             !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to)) ~"linked targets in CX"
         )
         )}
     
@@ -219,12 +219,12 @@ getMotifsGraphDf <- function(outDf,CXDf,ty,wr="relativeWeight4"){
                                                                                                     category.from=factor(category.from,levels=c("Other CX","CX output")),
                                                                                                     layer.from=type.from %in% ty,
                                                                                                     layer.to=type.to %in% ty,
-                                                                                                    motif=factor(motif,levels=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")),
+                                                                                                    motif=factor(motif,levels=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")),
                                                                                                     linkCat = targetCat
     )
-    fullDf$linkCat[fullDf$motif=="Reciprocal"] = fullDf$sourceCat[fullDf$motif=="Reciprocal"]
+    #fullDf$linkCat[fullDf$motif=="Reciprocal"] = fullDf$sourceCat[fullDf$motif=="Reciprocal"]
     
-    return(fullDf %>% mutate(linkCat = factor(linkCat,levels=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")),
+    return(fullDf %>% mutate(linkCat = factor(linkCat,levels=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")),
                              roi=factor(roi,levels=c("Outside","EB","FB","PB","NO(R)","NO(L)")),
                              roiCat=ifelse(roi=="Outside","Outside","CX")))}
 }
@@ -233,7 +233,7 @@ plotMotifs <- function(graphDf){
   focusContrib <- filter(graphDf,roi=="Outside") %>% group_by(type.to) %>% summarize(weightRelative=sum(weightRelative)) %>% ungroup()
   motifGG <- makeGraph(graphDf) 
   edgePal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-  names(edgePal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")
+  names(edgePal) <- c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")
   
   #if(length(E(motifGG))>1){
   motifGG <- motifGG %N>% 
@@ -251,8 +251,8 @@ plotMotifs <- function(graphDf){
            geom_node_point(aes(color=customSuper),size=4)+
            scale_color_manual(values=customPal) +
            guides(color="none") +
-           theme_paper_map() + scale_edge_color_manual(name="Motif",values=edgePal,breaks=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX"),drop=FALSE)+
-           scale_edge_width(name="Relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
+           theme_paper_map() + scale_edge_color_manual(name="motif",values=edgePal,breaks=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX"),drop=FALSE)+
+           scale_edge_width(name="relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
            geom_node_text(aes(label=name),nudge_y = 0.15) + 
            coord_fixed(clip="off"))
   #}

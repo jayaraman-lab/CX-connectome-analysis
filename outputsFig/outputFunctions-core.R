@@ -123,7 +123,9 @@ customOutputSupertype <- function(typesTable,postfix = c("raw", "to", "from"),ex
 simulate_roi_contra <- function(roiSummary,roiSet){
   simulated <- mutate(roiSummary,type=lrInvert(type),
                       roi=gsub("(R)","(L)",roi,fixed=T),
-                      side=ifelse(side=="Right","Left","Central")) %>% filter(grepl("_L$|_L[1-9]$|_L[1-9]/[1-9]$|_L[1-9]_C[1-9]$|_L[1-9]_C[1-9]_irreg$|_L_C[1-9]_irreg$|_L_small$|_R$|_R[1-9]$|_R[1-9]/[1-9]$|_R[1-9]_C[1-9]$|_R[1-9]_C[1-9]_irreg$|_R_C[1-9]_irreg$|_R_small$",type))
+                      side=ifelse(side=="Right","Left","Central")) %>% 
+    filter(grepl("_L$|_L[1-9]$|_L[1-9]/[1-9]$|_L[1-9]_C[1-9]$|_L[1-9]_C[1-9]_irreg$|_L_C[1-9]_irreg$|_L_small$|_R$|_R[1-9]$|_R[1-9]/[1-9]$|_R[1-9]_C[1-9]$|_R[1-9]_C[1-9]_irreg$|_R_C[1-9]_irreg$|_R_small$",
+                 type))
   rbind(roiSummary,simulated)
 }
 

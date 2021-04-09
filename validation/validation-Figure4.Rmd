@@ -216,6 +216,7 @@ save_plot(file.path(validationFolder,"PBSlopes.svg"),PBSlopesAlt,base_width=4.25
 save_plot(file.path(validationFolder,"PBExampleFit.svg"),PBCompIn,base_width=3,base_height=3)
 ```
 
+#### Instances for rendering (panel Ai)
 Instances for anatomical renderings of PFNa in glomeruli R3 and L3 are selected as follows:
 ```{r}
 R3Example <- unique(filter(PBreBag$inputs_raw,type.to=="PFNa_R3")$to)
@@ -365,7 +366,7 @@ head(FBCTypes_In)
 We then separate the instances that are not part of the column 3 sample:
 ```{r}
 FBCXReal <- FBCTypes_In %>% filter(!(bodyid %in% FBC3Neurons$bodyid))
-FBCXRealOut <- FBCTypes_Out %>% filter(!(bodyid %in% FBC3Neurons$bodyid))# & FB.downstream>500)
+FBCXRealOut <- FBCTypes_Out %>% filter(!(bodyid %in% FBC3Neurons$bodyid))
 ```
 
 
@@ -484,3 +485,17 @@ save_plot(file.path(validationFolder,"FBCounts.svg"),synapseDiffC3,base_width=6,
 save_plot(file.path(validationFolder,"FBSlopes.svg"),FC3Slopes,base_width=6,base_height=2.25)
 save_plot(file.path(validationFolder,"FBExampleFit.svg"),FBComp,base_width=3,base_height=3)
 ```
+
+#### Instances for renderings
+hDeltaA neuron in column C3
+```{r}
+hDeltaA_C3Id <- distinct(filter(retypedBag$outputs_raw,type.from=="hDeltaA_C3"),from,type.from)$from
+hDeltaA_C3Id
+```
+hDeltaA neurons strictly out of C3:
+```{r}
+hDeltaA_CXId <- distinct(filter(retypedBag$outputs_raw,type.from=="hDeltaA_CX"),from,type.from)$from
+hDeltaA_CXId
+```
+
+
