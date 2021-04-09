@@ -5,6 +5,7 @@ library(igraph)
 library(neuprintrExtra)
 library(neuprintr)
 library(nat)
+library(paletteer)
 
 ## Palettes
 customROIPalette <-  function(){
@@ -119,9 +120,18 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
 
 ## MESHES AND SYNAPSES
 
-displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName="rendering",saveFolder=".",neuronPalette=NULL,synapsePalette=NULL,synapseCluster="customContributor",
-                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),alphaRois=0.2,
-                             roiPal=customROIPalette(),roiShininess=1,size=c(1500,1500),...){
+displayAnatomies <- function(neurons=NULL,
+                             synapses=NULL,
+                             ROIs,s
+                             aveName="rendering",
+                             saveFolder=".",
+                             neuronPalette=NULL,synapsePalette=NULL,
+                             synapseCluster="customContributor",
+                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),
+                             alphaRois=0.2,
+                             roiPal=customROIPalette(),
+                             roiShininess=1,
+                             size=c(1500,1500),...){
   
   nopen3d()
   par3d(windowRect = c(30, 30, size[1]+30, size[2]+30))
