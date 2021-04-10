@@ -122,8 +122,8 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
 
 displayAnatomies <- function(neurons=NULL,
                              synapses=NULL,
-                             ROIs,s
-                             aveName="rendering",
+                             ROIs,
+                             saveName="rendering",
                              saveFolder=".",
                              neuronPalette=NULL,synapsePalette=NULL,
                              synapseCluster="customContributor",
