@@ -6,7 +6,10 @@ library(neuprintrExtra)
 library(neuprintr)
 library(nat)
 library(paletteer)
-
+library(dplyr)
+library(stringr)
+library(patchwork)
+source(file.path("..","R","paperTheme.R"))
 ## Palettes
 customROIPalette <-  function(){
   roiH <- getRoiTree()
@@ -79,22 +82,27 @@ standardGraph <- function(gr,pal,colP="customSupertype",...){ggraph(gr,...) +
   guides(edge_color="none")}
 
 ## Columns/glomeruli matrices + summaries for columnar neurons
-plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus","column")){
+plotGlomMat <- function(bag,type,targetFilt=NULL,
+                        grouping=c("glomerulus","column"),facetInputs=NULL){
   grouping <- match.arg(grouping)
+  if (is.null(targetFilt)) outRaw <- outRaw %>% filter(type.to %in% targetFilt$type.to)
   outRaw <- bag$outputs_raw %>% 
-    filter(type.to %in% targetFilt$type.to & !type.to %in%  type.from) %>%
-    filter(type.from %in% type) %>%
+    filter(!type.to %in%  type.from & type.from %in% type) %>%
     arrange(type.to) %>% 
-    mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
-           column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>% 
+    mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),
+                             levels=c(paste0("L",9:1),paste0("R",1:9))),
+           column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),
+                         levels=paste0("C",9:1))) %>% 
     group_by(glomerulus,type.from) %>% mutate(n_glom_from=length(unique(from))) %>%
     group_by(column,type.from) %>% mutate(n_col_from=length(unique(from))) %>% ungroup()
   
   
   groupingName <- ifelse(grouping=="glomerulus","glom","col")
-  outPerGroup <- group_by(outRaw,!!(sym(grouping)),type.from,type.to,supertype3.to,supertype2.to,to,name.to,roi) %>% 
+  outPerGroup <- group_by(outRaw,!!(sym(grouping)),
+                          type.from,type.to,supertype3.to,supertype2.to,to,name.to,roi) %>% 
     summarize(weightRelative=sum(weightRelative),
-              name.from=paste0((!!(sym(grouping)))[1]," (n=",(!!sym(paste0("n_",groupingName,"_from")))[1],")"),
+              name.from=paste0((!!(sym(grouping)))[1],
+                               " (n=",(!!sym(paste0("n_",groupingName,"_from")))[1],")"),
               from=(!!(sym(grouping)))[1]) %>% ungroup() %>% 
     arrange(type.to,!!(sym(grouping)))
   
@@ -104,16 +112,27 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
     orderIn <- paste0("C",9:1)
   }
   
-  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = orderIn,legendName="Relative weight",theme=theme_paper_grid(),facetOutputs="supertype2.to",facetInputs=facetInputs) + 
+  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],
+                              grouping="neuron",xaxis="outputs",
+                              replacementLabels = "name",orderIn = orderIn,
+                              legendName="relative weight",
+                              theme=theme_paper_rects(),
+                              facetOutputs="supertype2.to",facetInputs=facetInputs) + 
     xlab("post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_blank())
   
   
-  groupCounts <- outPerGroup %>% group_by(name.from,type.from,!!sym(grouping)) %>% summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
+  groupCounts <- outPerGroup %>% 
+    group_by(name.from,type.from,!!sym(grouping)) %>% 
+    summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
     mutate(!!grouping := factor(!!(sym(grouping)),levels=orderIn)) %>% arrange(!!(sym(grouping))) %>%
     mutate(name.from = factor(name.from,levels=unique(name.from)))
   
-  countPlot <- ggplot(groupCounts,aes(x=name.from,y=totalW,group=type.from)) + geom_line() +theme_paper_hgrid() + coord_flip() + 
-    theme(axis.text.x=element_text(angle=90),axis.text.y=element_blank(),axis.line.y=element_blank(),axis.title.y=element_blank(),axis.ticks.y = element_blank()) + ylim(c(0,NA)) + ylab("total relative weight")
+  countPlot <- ggplot(groupCounts,aes(x=name.from,y=totalW,group=type.from)) + 
+    geom_line() +theme_paper_hgrid() + coord_flip() + 
+    theme_paper(axis.text.x=element_text(angle=90),
+          axis.text.y=element_blank(),axis.line.y=element_blank(),
+          axis.title.y=element_blank(),axis.ticks.y = element_blank()) + 
+    ylim(c(0,NA)) + ylab("total relative weight")
     
   connMat + countPlot + plot_layout(guides="collect",widths=c(1,0.1))
 }
