@@ -45,14 +45,14 @@ CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
 ## Preparing some data
 A palette to be used in network graphs:
 ```{r}
-customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns,Path_weight>0.005)$supertype3.to]
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns,
+                                                                             Path_weight>0.005)$supertype3.to]
 
 extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
 extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
 extraPal <- extraPal[1:length(extraLevs)]
 names(extraPal) <- extraLevs
 customGraphPalette <- c(customGraphPalette,extraPal)
-#names(customGraphPalette)[2] <- "Source"
 ```
 
 ## MBONs and PPLs in the strong target network (panel A)
@@ -92,7 +92,7 @@ save_plot(file.path(outputsFolder,"MBONsPPLTargets.svg"),moreMBONPPLPlot,nrow=0.
 ```
 
 ## Network graph (panel B)
-We manually select origin and target plots (they have been chosen by looking at the graphs converging on the strong targets as seen in panel A) and generate the local subgraph. `getLocalSubgraph` takes as input origin and target neurons and a graph object, and for each neurons group generates a neighborhood of side `order` and returns the intersection of the two neighborhoods (defined in "outputFunctions-display").
+We manually select origin and target plots (they have been chosen by looking at the graphs converging on the strong targets as seen in panel A) and generate the local subgraph. `getLocalSubgraph` takes as input origin and target neurons and a graph object, and for each neurons group generates a neighborhood of side `order` and returns the intersection of the two neighborhoods (defined in "outputFunctions-display"). We also do some retyping to ease the mapping of existing palettes in the plot:
 ```{r}
 graphToMBONs<- getLocalSubgraph(c("PFR_b_L*",
                                   "FS1A_L","FS1B_L",
