@@ -1,41 +1,44 @@
 ---
-title: "FS4A figure"
+title: "FS4A weight distribution per column, figure 65"
 output: html_notebook
 ---
-
-```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
-library(paletteer)
-library(tidygraph)
-library(ggraph)
-library(igraph)
-```
-
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("outputFunctions-core.R")
-source("../R/paperTheme.R")
-source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure11-FS4A/"
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure65-FS4A"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+## General outputs metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
+```
+
+## FS4A outputs connectivity matrix at glomerulus resolution (panel A)
+We first get the connection information about FS4A direct partners:
+```{r}
+FSBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FS4")),
+                   selfRef = T,slctROI=outsideRegions,
+                   omitInputs = T,renaming = cxRetyping) %>%
+  combineRois(outsideRegions,"Outside")
+```
+We then use the `plotGlomMat` function (defined in "outputFunctions-display.R"). It takes as input a `neuronBag` object, a neuron of interest, a feature to group on (glomerulus or column), and a table of targets to restrict the plot to, and plot the connectivity per glomerulus (or column):
+```{r}
+FS4ACol <- plotGlomMat(FSBag,"FS4A_L",
+                       grouping="col",targetFilt=mainFFTargets)
+FS4ACol
 ```
 
 ```{r}
-load("outputsBasics.RData")
-load("mainTargetsAndConns.Rdata")
-```
-
-```{r}
-FSBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FS4")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
-FS4ACol <- plotGlomMat(FSBag,"FS4A_L",grouping="col")
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure11-FS4A.svg"),FS4ACol,base_height = 11/5,base_width = 8.5)
+save_plot(file.path(outputsFolder,"outputs-Figure11-FS4A.svg"),FS4ACol,base_height = 11/5,base_width = 8.5)
 ```

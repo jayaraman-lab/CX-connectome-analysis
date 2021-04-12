@@ -1581,3 +1581,7 @@ save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.svg"),figure9SI1,base_height
 ```
 
 
+```{r}
+PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+```
+
