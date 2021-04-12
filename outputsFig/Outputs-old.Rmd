@@ -1270,3 +1270,30 @@ FCFSKnownOutputsFig <- (FCFStoOviPlot ) / plot_spacer() + plot_annotation(title=
 save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.svg"),FCFSKnownOutputsFig,base_height = 11*1.333333,base_width = 8.5*1.333333)
 ```
 
+```{r}
+displayAnatomies(list("FB Columnar"=filter(CXNeurons,type=="PFL3_L*")$bodyid,
+                   "Visual PNs"=specialLC33,
+                   "Source"=filter(mainFFTargetsNeurons,type=="LC33_R" & !bodyid %in% specialLC33)$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","LO(R)"),saveName = "PFL3toLC33",neuronPalette = supertype3Palette)
+```
+
+```{r}
+PFL3LC33Anat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+```{r}
+layout <-  c(
+  area(t=1,b=5,l=2,r=4),
+  area(t=1,b=15,l=5,r=10),
+  area(t=7,b=15,l=2,r=4)
+  )
+
+fig8SI2 <-PFL32LC33Mat + PFLLCOutMat + guide_area()+ plot_layout(design=layout,guides = "collect") + plot_annotation(title="Ouputs figure 9 SI2: PFL3 and LC33 convergences",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")),tag_levels = "A")
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure9-Visual-SI2.svg"),fig8SI2,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```

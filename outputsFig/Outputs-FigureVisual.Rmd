@@ -1,129 +1,222 @@
 ---
-title: "Visual PNs output figure"
+title: "Visual PNs outputs, figure 62"
 output: html_notebook
 ---
 
+## Preparing the environment
 ```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
-library(paletteer)
-library(tidygraph)
-library(ggraph)
-library(igraph)
+library(dplyr)
+#library(neuprintr)
+#library(tidyverse)
+#library(cowplot)
+#library(patchwork)
+#library(neuprintrExtra)
+#library(nat)
+#library(Cairo)
+#library(paletteer)
+#library(tidygraph)
+#library(ggraph)
+#library(igraph)
 ```
-
+Loading some local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("outputFunctions-core.R")
-source("../R/paperTheme_linux.R")
-source("../R/neuronMeshes.R")
+#source("outputFunctions-core.R")
+source(file.path("..","R","paperTheme.R"))
+#source("../R/neuronMeshes.R")
 #source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure9-VisualPNs/"
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-CX_outGraphRed <- readRDS("output_graph_reduced.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outGraphBi <- readRDS("output_graph_FullBilateral.rds")
-load("mainTargetsAndConns.Rdata")
-load("outputsBasics.RData")
-knownTypesTable <- readRDS("known-table.rds")
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
+outputsFolder <- "figure62-OutputsToVisual"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
 
+Where the data has been saved (by "Outputs-Core.Rmd"):
 ```{r}
-customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns, Path_weight>0.005)$supertype3.to]
+dataFolder="data"
+```
+
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+## General outputs metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+## Known types in the output graph
+knownTypesTable <- readRDS(file.path(dataFolder,"known-table.rds"))
+## The table of pathway weights
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+## The full outputs graph (and bilateral graph)
+CX_outGraph <- readRDS(file.path(dataFolder,"output_graph.rds"))
+CX_outGraphBi <- readRDS(file.path(dataFolder,"output_graph_FullBilateral.rds"))
+## Metadata about the main targets
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
+```
+
+## Preparing some data
+A palette to be used in network graphs:
+```{r}
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns,
+                                                                             Path_weight>0.005)$supertype3.to]
 extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
 extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
 extraPal <- extraPal[1:length(extraLevs)]
 names(extraPal) <- extraLevs
 customGraphPalette <- c(customGraphPalette,extraPal)
-names(customGraphPalette)[1] <- "Source"
 ```
 
-
-## What are all Visual PNs in the (reduced) network?
-
+## Visual PNs in the strong targets network (panel A)
+We select from the pathway weight table all visual PN types that receive at least 0.05% pathway weight from the CX. We also customize the supertypes to the most common CX output types present in that table: 
 ```{r}
 
-CXoutFFEndpointVPNs <- filter(CXoutFull,(supertype3.to == "Visual PNs") & fullCXwr>0.0005) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
-                                                                                                                         supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
-                                                                                                                         customSupertype = case_when(supertype.from %in% c("PFL") ~ databaseType.from,
-                                                                                                                                                     grepl("ExR8",supertype.from) ~ as.character(supertype.from),
-                                                                                                                                                     type.from %in% c("PFR_b_L*") ~ databaseType.from,
-                                                                                                                                                     TRUE ~ "Other")
-                                                                                                                                                    
-                                                                                                                         )
-
-moreVPNsPlot <- ggplot(CXoutFFEndpointVPNs,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source type",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("")  + theme(strip.text.x = element_text(angle=60),strip.background = element_rect(fill="grey90"))
-
+CXoutFFEndpointVPNs <- filter(CXoutFull,(supertype3.to == "Visual PNs") & 
+                                fullCXwr>0.0005) %>%
+  mutate(supertype.to=knownTypesTable$supertype[match(type.to,
+                                                      knownTypesTable$type)],
+         supertype.from=CXOutputNeurons$supertype[match(databaseType.from,
+                                                        CXOutputNeurons$databaseType)],
+         customSupertype = case_when(supertype.from %in% c("PFL") ~ databaseType.from,
+                                     grepl("ExR8",supertype.from) ~ as.character(supertype.from),
+                                     type.from %in% c("PFR_b_L*") ~ databaseType.from,
+                                     TRUE ~ "Other")
+  )
+head(CXoutFFEndpointVPNs)
+```
+Then generate the plot:
+```{r}
+moreVPNsPlot <- ggplot(CXoutFFEndpointVPNs,aes(x=type.to,y=Path_weight)) + 
+  geom_col(aes(fill=customSupertype))+ 
+  scale_fill_manual(name="source type",
+                    values=c(customSupertypePalette,"Other"="grey90"))+
+  theme_paper(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),
+              strip.text.x = element_text(angle=60),
+              strip.background.x = element_rect(fill="grey90")) +  
+  ylab("total pathway weight") + xlab("target type") 
+  
 moreVPNsPlot
 ```
-
-## PFL3 to LC33
-
+And save it:
 ```{r}
-PFLtoLC33 <- getLocalSubgraph(c("PFL3_L*"),c("LC33_R"),CX_outGraph,order=1) 
-PFLtoLC33Plot <- ggraph(PFLtoLC33,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),nudge_y = 0.05)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]],"LC"=supertype3Palette[["Visual PNs"]]),name="Type")+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"LC"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +  guides(color="none",edge_color="none") + theme(legend.position=c(0.8,0.8)) + coord_cartesian(clip="off")
+save_plot(file.path(outputsFolder,"VPNTargets.svg"),moreVPNsPlot,nrow=0.5,ncol=0.6)
+```
+
+## PFL3 to LC33 (panels B and C)
+### Network graph
+We use `getLocalSubgraph` to extract all neurons in PFL3 to LC33 pathways in 2 steps or less. We also do some retyping to ease the mapping of existing palettes in the plot: 
+```{r}
+PFLtoLC33 <- getLocalSubgraph(c("PFL3_L*"),c("LC33_R"),
+                              CX_outGraph,order=1) %>% 
+    selectSupertypeSet(default_level = 1)  %>%
+    customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
+    mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
+PFLtoLC33
+```
+Then plot it with ggraph:
+```{r}
+PFLtoLC33Plot <- ggraph(PFLtoLC33,layout="stress") +
+  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
+                end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
+  geom_node_point(aes(color=customSupertype),size=4)+
+  geom_node_text(aes(label=type),
+                 nudge_y = 0.05)+
+  theme_paper_map(legend.position=c(0.8,0.8))+
+  scale_color_manual(values=c(customGraphPalette,customSupertypePalette),name="type")+
+  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
+  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
+  guides(color="none",edge_color="none") + 
+  coord_cartesian(clip="off")
 PFLtoLC33Plot
 ```
+And save it: 
+```{r}
+save_plot(file.path(outputsFolder,"PFL3-LC33-NGraph.svg"),PFLtoLC33Plot,nrow=0.4,ncol=0.6)
+```
 
+### Bodyids for renderings
+LC33 neurons connected to PFL3:
 ```{r}
 specialLC33 <- c(1260197431,5813022538,1418186940)
-displayAnatomies(list("FB Columnar"=filter(CXNeurons,type=="PFL3_L*")$bodyid,
-                   "Visual PNs"=specialLC33,
-                   "Source"=filter(mainFFTargetsNeurons,type=="LC33_R" & !bodyid %in% specialLC33)$bodyid,
-                   "LAL"=filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
-                   ),ROIs = c("FB","PB","LAL(R)","LO(R)"),saveName = "PFL3toLC33",neuronPalette = supertype3Palette)
+```
+Other LC33 neurons:
+```{r}
+filter(mainFFTargetsNeurons,type=="LC33_R" & !bodyid %in% specialLC33)$bodyid
+```
+PFL3 neurons:
+```{r}
+filter(CXNeurons,type=="PFL3_L*")$bodyid
+```
+LAL141_R:
+```{r}
+filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
 ```
 
+### Details of PFL3 to LC33 connectivity (figure supplement 2)
+Gathering output connectivity for PFL3, reorder them by FB column:
 ```{r}
-PFL3LC33Anat <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"PFL3toLC33-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"PFL3toLC33-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
-```
+PFL3Bag <- neuronBag(filter(CXNeurons,type=="PFL3_L*"),
+                     selfRef = T,
+                     slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>%
+  combineRois(outsideRegions,"Outside")
 
-PFL3 to LC33 connectivity
-```{r}
-PFL3Bag <- neuronBag(filter(CXNeurons,type=="PFL3_L*"),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
-orderPFL3Name <- c("PFL3(PB12c)_R2_C1_irreg","PFL3(PB12c)_R1_C2_irreg","PFL3(PB12c)_L1_C3","PFL3(PB12c)_L2_C4","PFL3(PB12c)_L3_C5","PFL3(PB12c)_L4_C6","PFL3(PB12c)_L5_C7","PFL3(PB12c)_L6_C8","PFL3(PB12c)_L7_C9")
-PFL3s <- PFL3Bag$names %>% mutate(name=factor(name,levels=orderPFL3Name)) %>% arrange(name)
+orderPFL3Name <- c("PFL3(PB12c)_R2_C1_irreg","PFL3(PB12c)_R1_C2_irreg",
+                   "PFL3(PB12c)_L1_C3","PFL3(PB12c)_L2_C4",
+                   "PFL3(PB12c)_L3_C5","PFL3(PB12c)_L4_C6",
+                   "PFL3(PB12c)_L5_C7","PFL3(PB12c)_L6_C8","PFL3(PB12c)_L7_C9")
+PFL3s <- PFL3Bag$names %>% 
+  mutate(name=factor(name,levels=orderPFL3Name)) %>% 
+  arrange(name)
 orderPFL3BI <- PFL3s$bodyid
-PFL32LC33Mat <- plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R"),grouping="neuron",orderIn = orderPFL3BI,xaxis="outputs",replacementLabels = "name",legendName="Relative weight",theme=theme_paper_grid()) + xlab("post synaptic neuron") + ylab("pre synaptic neuron")
 ```
-Retype 1260197431 5813022538 and 1418186940 for a look at the shared outputs
+Then plot the PFL3 to PF3 direct connectivity:
 ```{r}
+PFL32LC33Mat <- plotConnectivity(filter(PFL3Bag$outputs_raw,type.to=="LC33_R")
+                                 ,grouping="neuron",
+                                 orderIn = orderPFL3BI,xaxis="outputs",
+                                 replacementLabels = "name",
+                                 legendName="relative weight",theme=theme_paper()) + 
+  xlab("postsynaptic neuron") + ylab("presynaptic neuron")
+PFL32LC33Mat
+```
+Save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"PFL3toLC33Mat.svg"),PFL32LC33Mat,nrow=0.6,ncol=0.5)
+```
 
+Retype 1260197431 5813022538 and 1418186940 (the LC33 strongly connected to PFL3) for a look at the shared outputs between those neurons and PFL3 neurons. To do that we create a `specialRenaming` function, that can be used as argument to the `neuronBag` function (which we run for LC33 outputs):
+```{r}
 specialRenaming <- function(connections,postfix=c("raw", "to", "from")){
-  connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),nameModifiers=c("_1_R","_2_R"),postfix=postfix,redefinePartners=T)
-  connections <- redefineTypeByBodyId(connections,sets=list(c(1260197431,5813022538,1418186940)),nameModifiers=c("_b_R"),postfix=postfix,redefinePartners=T)
+  connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),
+                                      nameModifiers=c("_1_R","_2_R"),
+                                      postfix=postfix,redefinePartners=T)
+  connections <- redefineTypeByBodyId(connections,sets=list(c(1260197431,5813022538,1418186940)),
+                                      nameModifiers=c("_b_R"),postfix=postfix,redefinePartners=T)
   connections <- cxRetyping(connections,postfix=postfix)
 }
 
 LC33Bag <- neuronBag("LC33",omitInputs=TRUE,renaming=specialRenaming) %>% combineRois(outsideRegions,"Outside")
-PFLLCOutMat <- plotConnectivity(filter(rbind(PFL3Bag$outputs_raw,filter(LC33Bag$outputs_raw,type.from=="LC33_b_R")),supertype2.to != "Unassigned"),facetInputs="type.from",facetOutputs="supertype2.to",grouping="neuron",replacementLabels = "name",legendName="Relative weight",theme=theme_paper_grid()) + xlab("pre synaptic neuron") + ylab("post synaptic neuron")+ theme(strip.text.y = element_text(angle=0),strip.text.x=element_text(angle=45),axis.text.x = element_blank(),axis.text.y=element_blank())
+```
+
+We then plot the special LC33 outputs matrix side by side with the PFL3 outputs matrix:
+```{r}
+PFLLCOutMat <- plotConnectivity(filter(rbind(PFL3Bag$outputs_raw,
+                                             filter(LC33Bag$outputs_raw,
+                                                    type.from=="LC33_b_R")),
+                                       supertype2.to != "Unassigned"),
+                                facetInputs="type.from",facetOutputs="supertype2.to",
+                                grouping="neuron",replacementLabels = "name",
+                                legendName="relative weight",theme=theme_paper_grid_rects(),
+                                switch="x") + 
+  xlab("presynaptic neuron") + ylab("postsynaptic neuron")+ 
+  theme(strip.text.y = element_text(angle=0),
+        axis.text.x = element_blank(),axis.text.y=element_blank())
 PFLLCOutMat
 ```
+And save the plot:
 ```{r}
-layout <-  c(
-  area(t=1,b=5,l=2,r=4),
-  area(t=1,b=15,l=5,r=10),
-  area(t=7,b=15,l=2,r=4)
-  )
-
-fig8SI2 <-PFL32LC33Mat + PFLLCOutMat + guide_area()+ plot_layout(design=layout,guides = "collect") + plot_annotation(title="Ouputs figure 9 SI2: PFL3 and LC33 convergences",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")),tag_levels = "A")
+save_plot(file.path(outputsFolder,"PFL3andLC33Shared.svg"),PFLLCOutMat,nrow=2.8,ncol=0.8)
 ```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure9-Visual-SI2.svg"),fig8SI2,base_height = 11*1.333333,base_width = 8.5*1.333333)
-```
-
 
 ## The LC10 connection
 
