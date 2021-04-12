@@ -1419,4 +1419,165 @@ fig8SI1 <- PFLRbToLTMCPlot + plot_spacer() + plot_spacer() + plot_layout(design=
 save_plot(paste0(outputsFolder,"outputs-Figure8-Visual-SI1.svg"),fig8SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
 ```
 
+```{r}
+CXoutFFEndpointDNsAll <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(type.to,"DN?"))) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                          supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                          customSupertype = case_when(supertype.from=="PFL" ~ databaseType.from,
+                                                                                                                                      grepl("ExR[7-8]",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                      supertype.from=="FR2" ~ as.character(supertype.from),
+                                                                                                                                      TRUE ~ "Other"),
+                                                                                                                         target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
+                                                                                                                                               type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck and halteres",
+                                                                                                                                               type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck, wings and halteres",
+                                                                                                                                               type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
+                                                                                                                                               TRUE ~ "?"
+                                                                                                                                               )     
+                                                                                                                         )
+
+moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type") + facet_wrap(.~target.to,scale="free_x")
+```
+
+
+```{r}
+PFLsToDNPlot <- ggraph(PFLsToDN,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
+
+PFLsToDNPlot
+```
+
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL018_R"))$bodyid,
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS013_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type =="DNa04_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "ipsiToDNa04",neuronPalette = customGraphPalette)
+
+```
+
+```{r}
+ipsiDNa04Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ipsiToDNa04-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL010_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type %in%"DNa02_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "IpsiToDNa02",neuronPalette = customGraphPalette)
+```
+
+```{r}
+IpsiDNa02Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IpsiToDNa02-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+layout = c(
+   area(t=3,b=5,l=2,r=6),
+   area(t=8,b=15,l=2,r=10),
+   area(t=2,b=6,l=7,r=10),
+   area(t=17,b=22,l=2,r=5),
+   area(t=17,b=22,l=7,r=10)
+)
+
+#figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + PFLBilAnat + ipsiDNa04Anat + IpsiDNa02Anat + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 7: connections to descending neurons",theme=theme(title=element_text(size=12,face="bold")))& 
+#  theme(plot.tag.position = c(-0.05, 1.05))
+figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + plot_spacer() + plot_spacer() + plot_spacer() + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 9: connections to descending neurons",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& 
+  theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure7-DNs.pdf"),figureDNs,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-DNs.svg"),figureDNs,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "ExR8"=filter(CXOutputNeurons,type =="ExR8_R")$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "ExR8toInt",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+ExR8ToInt <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ExR8toInt-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+
+
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "DN"=DNp15Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "IntToDNp15",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+intToDNp15 <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IntToDNp15-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+pathsToMDNPlot <- ggraph(pathsToMDNManual_left,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + scale_x_continuous(trans="reverse")
+pathsToMDNPlot
+```
+
+```{r}
+displayAnatomies(list(
+                   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+                   "PS"=ps10Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","CRE(R)","SPS(R)"),saveName = "PFL2-to-Int",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+```{r}
+MDNId <- neuprint_search("MDN",field="type")
+
+displayAnatomies(list(
+   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDN",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDNLight",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+
+
+```{r}
+PFL22int <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-front.png"),scale=1.6,clip="on") +
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+layout <- c(
+   area(t=3,b=5,l=2,r=3),
+   area(t=2,b=6,l=5,r=7),
+   area(t=2,b=6,l=8,r=10),
+   area(t=8,b=12,l=2,r=4),
+   area(t=8,b=12,l=5,r=10),
+   area(t=14,b=19,l=2,r=10)
+)
+
+#figure7SI1 <- pathsToDNp15Plot + ExR8ToInt + intToDNp15 + pathsToDNp32Plot + MDNsPlot +  PFL22int + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 7 SI1: other DNs reached",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
+figure9SI1 <- pathsToDNp15Plot + plot_spacer() + plot_spacer() + pathsToDNp32Plot + MDNsPlot + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 9 SI1: other DNs reached",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.svg"),figure9SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
 
