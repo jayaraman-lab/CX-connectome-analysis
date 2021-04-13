@@ -73,17 +73,22 @@ customSupertypePalette <- c(
 )
 
 ##
-standardGraph <- function(gr,pal,colP="customSupertype",...){ggraph(gr,...) + 
-  geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=!!sym(colP)),size=4)+
-  geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="Supertype")+ 
-  scale_edge_color_manual(values=pal) + 
-    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + 
-  guides(edge_color="none")}
+standardGraph <- function(gr,pal,colP="customSupertype",...){
+  ggraph(gr,...) + 
+  geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),
+                    width=weightRelative),end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) + 
+    geom_node_point(aes(color=!!sym(colP)),size=4)+
+    geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="supertype")+ 
+    scale_edge_color_manual(values=pal) + 
+    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + 
+    guides(edge_color="none")}
 
 ## Columns/glomeruli matrices + summaries for columnar neurons
 plotGlomMat <- function(bag,type,targetFilt=NULL,
-                        grouping=c("glomerulus","column"),facetInputs=NULL){
+                        grouping=c("glomerulus","column"),
+                        facetInputs=NULL){
   grouping <- match.arg(grouping)
   if (is.null(targetFilt)) outRaw <- outRaw %>% filter(type.to %in% targetFilt$type.to)
   outRaw <- bag$outputs_raw %>% 
@@ -191,20 +196,21 @@ displayAnatomies <- function(neurons=NULL,
 
 plotSubgraph <- function(contributors,
                          influenceThreshold=0.005,
-                         pal=customGraphPalette,
+                         pal=customSupertypePalette,
                          colP="supertype",
                          conns=mainFFConns,
                          targets=mainFFTargetsS,
                          graph=CX_outTblG,...){
-  mainT <- filter(conns, Path_weight>influenceThreshold & type.from %in% contributors & type.to %in% (graph %N>% as_tibble())$type) 
+  mainT <- filter(conns, Path_weight>influenceThreshold & 
+                    type.from %in% contributors & 
+                    type.to %in% (graph %N>% as_tibble())$type) 
+  
   sourceSG <- as_tbl_graph(induced_subgraph(graph,c(contributors,mainT$type.to))) %>% 
     activate(nodes) %>% mutate(databaseType=type) %>% 
     mutate(supertype = targets$supertype[match(type,targets$type)]) %>% 
     mutate(supertype = ifelse(type %in% contributors,"Source",as.character(supertype))) %E>%
     mutate(supertype.from=.N()$supertype[match(type.from,.N()$type)])
-  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP=colP,...)#ggraph(sourceSG,...) + geom_edge_fan(aes(width=weightRelative,color=.N()$supertype[from])) +
-   # geom_node_point(aes(color=supertype),size=3) + geom_node_text(aes(label=type),repel = T,size=2) + 
-   #scale_color_manual(name="Supertype",values=c(customSupertypePalette,customGraphPalette,"Source"="grey30")) + scale_edge_color_manual(values=c(customSupertypePalette,customGraphPalette,"Source"="grey30"))+ theme_paper_map() + scale_edge_width(name="Relative weight",limits=c(0,1)) +guides(edge_color="none")
+  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP=colP,...)
   sourceSGPlot
 }
 
