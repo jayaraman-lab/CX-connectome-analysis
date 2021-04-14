@@ -3,6 +3,12 @@ title: "Old analysis"
 output: html_notebook
 ---
 
+```{r}
+allOutViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"allOuts-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"allOuts-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+allOutViews
+```
 
 ```{r}
 pathwaysSummaryMain <- group_by(filter(pathways,type.to %in% mainTargets$type.to),supertype3.to,hop.to) %>% summarize(pathWeight=sum(Path_weight),nTypes=length(unique(type.to))) %>% ungroup() %>%
@@ -646,3 +652,1332 @@ FR1toMB30Plot <- baseGraph(FRtoMB30)
 FR1toMB30Plot
 ```
 
+### Figure 1: synapses of CX neurons outside the CX
+```{r}
+#layout <- c(
+#   area(t=2,b=4,l=2,r=9),
+#   area(t=6,b=12,l=2,r=9),
+#   area(t=14,b=15,l=2,r=9)
+#)
+
+#outputFig1 <- (outputsInnervation_R + theme(strip.text.x=element_text(angle=90)))+
+#   allOutViews + 
+#   countsSummary + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title = "Figure 1 - Outputs: CX neurons downstream synapses outside the CX",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(-0.05, 1.1))
+#save_plot(paste0(outputsFolder,"outputs-Figure1.pdf"),outputFig1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+```{r}
+divergenceTableTotLong <- pivot_longer(divergenceTableTot,cols=contains("neurons"),names_to = "Measure") %>% mutate(Measure=case_when(Measure == "divergence_neurons" ~ "divergence projection",
+                                                                                                                                    Measure == "n_neurons" ~ "# new targets",
+                                                                                                                                    Measure == "total_neurons" ~ "# targets"))
+```
+
+## Figure 2
+```{r}
+figure2 <- overallGraphPlot /(totalDivergencePlot + (outputComposition + outputCompositionZoom + plot_layout(guides="collect")) + plot_layout(widths=c(1,1.5))) / nReachedPlot + plot_annotation(tag_levels = "A",title= "Outputs Fig 2: Divergence of output networks",theme = theme(title=element_text(face="bold",size=12*1.111111,family="arial"))) & theme(plot.margin=margin(l=10,r=10,b=10,t=10))
+figure2
+```
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure2.svg"),figure2,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+
+## SI2 A large fraction of those are one step connections
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-CX2CXFullMat.svg"),CX2CXFullPlot,ncol=1.3,nrow=19,base_width = 8.5,base_height = 11/35)
+
+compAllTo1 <- (CX2CXFullPlot + ggtitle("All steps")) / (CX2CXFullPlot1 + ggtitle("1 step")) + plot_annotation(title="Outputs figure 3 SI2: comparison of pathway connections to 1 step connections",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))
+```
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI2.svg"),compAllTo1,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+## SI3 Connections to dendritic vs connections to axonal compartments
+```{r}
+figure3SI3 <-backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,3,1.5)) + plot_annotation(tag_levels="A",title="Outputs figure 3 - SI3. CX2CX connections per process reached",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI3.pdf"),figure3SI3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure3-SI3.svg"),figure3SI3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4)
+```
+
+```{r}
+layout <- c(
+  area(t=2,b=4,l=2,r=10),
+  area(t=5,b=7,l=2,r=10),
+  area(t=8,b=18,l=2,r=9),
+  area(t=8,b=18,l=9,r=10),
+  area(t=19,b=35,l=2,r=10)
+)
+
+figure3 <- CXInfluenceSummaryPlot + backCXCompositionFull + allInflViews + legendSource + CX2CXFullPlot + plot_layout(design=layout) +plot_annotation(tag_levels = "A",title="Outputs figure 3 -- CX to CX interactions",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.03, 1.05))
+
+figure3 <- CXInfluenceSummaryPlot + backCXCompositionFull + plot_spacer() + legendSource + CX2CXFullPlot + plot_layout(design=layout) +plot_annotation(tag_levels = "A",title="Outputs figure 3 -- CX to CX interactions",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(plot.tag.position = c(-0.03, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure3.svg"),figure3,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+The connectivity matrix for axo-axonal connections:
+```{r}
+CX2CXaxAxMat <- filter(CXoutFull,databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxAxMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxAxPlot <- plotConnectivity(CX2CXaxAxMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",cmax=0.7,theme=theme_paper_grid())+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) + theme(strip.text.x=element_blank(),strip.text.y=element_blank())+ scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxAxPlot1 <- plotConnectivity(CX2CXaxAxMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight")+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxAxPlot
+```
+
+```{r}
+CXInfluenceAA <- filter(CXInfluence,kind=="To axonal",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(totalWeight=sum(Path_weight),normalizedWeight=Path_weight/totalWeight) %>% ungroup()
+backCXCompositionAA <- ggplot(filter(CXInfluenceAA,Path_weight>0.005),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Axo-axonal connections")+ ylab("normalized pathway weight") + xlab("CX output type")
+backCXCompositionAANorm <- ggplot(CXInfluenceAA,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Connections to axons")
+backCXCompositionAA
+#backCXCompositionAANorm
+```
+
+```{r}
+CX2CXFullMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutsideTypes$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+
+CX2CXaxDendMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxDendMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+CX2CXaxDendPlot <- plotConnectivity(CX2CXaxDendMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,cmax=0.7,theme=theme_paper_grid())+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) +theme(legend.position=c(0.1,0.2),strip.text.x=element_blank(),strip.text.y=element_blank()) + scale_fill_paletteer_c("ggthemes::Blue")
+CX2CXaxDendPlot1 <- plotConnectivity(CX2CXaxDendMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+
+CX2CXFullPlot1 <- plotConnectivity(CX2CXFullMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")+ theme(legend.position = c(0.1,0.2),strip.text.x = element_text(angle=90))
+
+CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+```
+
+```{r}
+CXInfluenceAD <- filter(CXInfluence,kind=="To dendritic",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
+
+backCXComposition <- ggplot(CXInfluenceAD,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to dendrites") + ylab("normalized pathway weight") + xlab("CX output type")
+backCXCompositionNorm <- ggplot(CXInfluenceAD,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to axons")
+backCXComposition
+```
+
+```{r}
+CXInfluenceFull <- filter(CXInfluence,type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
+
+backCXCompositionFull <- ggplot(CXInfluenceFull,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
+backCXCompositionFull
+```
+
+## Anatomies
+
+```{r}
+displayAnatomies(list("EB Columnar" = filter(CXNeurons,type=="EPG_L")$bodyid,
+                       "ER6" = filter(CXNeurons,type=="EL_L")$bodyid,
+                      "PFR_a"= filter(CXNeurons,type=="PFR_a_L*")$bodyid,
+                      "PFR_b"= filter(CXNeurons,type=="PFR_b_L*")$bodyid,
+                      "FR1"= filter(CXNeurons,type=="FR1_L")$bodyid,
+                      "FR2"= filter(CXNeurons,type=="FR2_L")$bodyid
+                 ),ROIs=NULL,neuronPalette = customSupertypePalette)
+```
+
+
+```{r}
+recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
+   summarize(Proportion=mean(Proportion))
+```
+
+## Example motifs
+
+#### Canonical feedback
+PFL1 to FB2B_b. Bodyids to be used in renderings:
+```{r}
+PFL1bodies <- getTypesTable("PFL1") %>% cxRetyping() %>% filter(type=="PFL1_L*")
+PFL1bodies$bodyid
+```
+
+```{r}
+FB2BBodies <- getTypesTable("FB2B_b") %>% cxRetyping() %>% filter(type=="FB2B_b_R")
+FB2BBodies$bodyid
+```
+
+```{r}
+PFL1Synapses <- neuprint_get_synapses(PFL1bodies$bodyid,roi=c("LAL(R)","CRE(R)")) %>% filter(prepost==0, partner %in% FB2BBodies$bodyid) %>% mutate(synapseType="Out of CX pathways")
+FB2BSynapses <- neuprint_get_synapses(FB2BBodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% PFL1bodies$bodyid) %>% mutate(synapseType="CX Canonical feedback")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=PFL1bodies$bodyid,"FB Tangential"=FB2BBodies$bodyid),
+                 synapses=rbind(PFL1Synapses,FB2BSynapses),
+                 ROIs = c("FB","PB","LAL(R)"),saveName ="PFL1-FB2B",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+```
+```{r}
+canFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL1-FB2B-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFL1-FB2B-side.png"),scale=1.6,hjust=-0.9,clip="on") + 
+   theme_paper_map()
+#canFBViews
+```
+
+```{r}
+canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,"PFL1_L*","Path_weight"))
+canMot
+```
+
+#### Parallel
+FB6T to FB6E
+
+```{r}
+FB6Tbodies <- getTypesTable("FB6T") %>% cxRetyping() %>% filter(type=="FB6T_R")
+FB6Ebodies <- getTypesTable("FB6E") %>% cxRetyping() %>% filter(type=="FB6E_R")
+
+FB6ESynapses <- neuprint_get_synapses(FB6Ebodies$bodyid,roi=c("SIP(R)","SMP(R)")) %>% filter(prepost==1, partner %in% FB6Tbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
+FB6TSynapses <- neuprint_get_synapses(FB6Tbodies$bodyid,roi="FB") %>% filter(prepost==0, partner %in% FB6Ebodies$bodyid)%>% mutate(synapseType="CX Parallel connection")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=FB6Tbodies$bodyid,"FB Tangential"=FB6Ebodies$bodyid),
+                 synapses=rbind(FB6ESynapses,FB6TSynapses),
+                 ROIs = c("FB","SIP(R)"),saveName ="FB6T-FB6E",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+
+```
+
+```{r}
+parFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FB6T-FB6E-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FB6T-FB6E-side.png"),scale=1.6,hjust=-1,clip="on") + 
+   theme_paper_map() 
+#parFBViews
+```
+
+
+
+
+#### Linked targets
+FB8F_a to FB6C_a/FB6C_b/FB6G/FB6I
+
+```{r}
+FB8Fabodies <- getTypesTable("FB8F_a") %>% cxRetyping() %>% filter(type=="FB8F_a_R")
+FB8FTargetsbodies <- getTypesTable(c("FB6C_a","FB6C_b","FB6G","FB6I")) %>% cxRetyping() %>% filter(grepl("_R",type))
+
+FB8FSynapses <- neuprint_get_synapses(FB8Fabodies$bodyid,roi=c("SIP(R)","SLP(R)","SMP(R)")) %>% filter(prepost==0, partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Out of CX pathways")
+FB6NetSynapses <- neuprint_get_synapses(FB8FTargetsbodies$bodyid,roi="FB") %>% filter(partner %in% FB8FTargetsbodies$bodyid)%>% mutate(synapseType="Linked targets in CX")
+```
+
+```{r}
+displayAnatomies(neurons=list("Terra incognita"=FB8Fabodies$bodyid,"FB Tangential"=FB8FTargetsbodies$bodyid),
+                 synapses=rbind(FB8FSynapses,FB6NetSynapses),
+                 ROIs = c("FB","SIP(R)"),saveName ="FB8F-FB6",neuronPalette = supertype3Palette,synapseCluster = "synapseType",synapsePalette = motifPal,size=8)
+```
+
+```{r}
+linkFBViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FB8F-FB6-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FB8F-FB6-side.png"),scale=1.6,hjust=-1,clip="on") + 
+   theme_paper_map() 
+#linkFBViews
+```
+
+
+#### Figure 4
+```{r}
+layout <- c(
+   area(t=2,b=4,l=1,r=10),
+   area(t=5,b=11,l=1,r=7),
+   area(t=6,b=10,l=8,r=10),
+   area(t=12,b=18,l=1,r=7),
+   area(t=13,b=17,l=8,r=10),
+   area(t=19,b=25,l=1,r=7),
+   area(t=20,b=24,l=8,r=10),
+   area(t=26,b=28,l=1,r=10)
+)
+
+
+
+
+
+
+figure4 <- guide_area() + canFBViews + canMot + parFBViews + parMot + linkFBViews + linkMot + (recurrentMotifsPrevalence + plot_layout(guides="keep")) + plot_layout(design=layout,guides="collect") + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
+
+#figure4 <- canFBViews / parFBViews / linkFBViews/ (canMot+parMot+linkMot+plot_layout(guides = "collect",widths=1)) / recurrentMotifsPrevalence + plot_layout(heights=c(3,3,3,2,1)) + plot_annotation(tag_levels="A",title="Outputs figure 4: CX to CX motifs")
+#figure3_2
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure4.pdf"),figure4,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+#### SI Motifs
+Plot Motifs for individual original neurons, at different depths
+```{r}
+#for (sty in unique(CX2CXaxDendMat$supertype3.from)){
+#   localDf <- filter(CX2CXaxDendMat,supertype3.from==sty)
+#   allMotifPlots <- lapply(unique(localDf$type.from),function(ty){
+#      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
+#      if(!is.null(motifDf)){
+#      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
+#   })
+#   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
+#   motPlot <- patchwork::wrap_plots(allMotifPlots,ncol=3,widths=1,guides = "collect")
+#   save_plot(paste0(outputsFolder,"outputs-Figure4-SI2-",sty,".pdf"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/3),base_width = 8.5/3,base_height = 11/6,device=cairo_pdf)
+#}
+
+
+allMotifPlots <- lapply(sort(factor(unique(CX2CXaxDendMat$type.from),levels= typesCXOrder)),
+                        function(ty){
+      motifDf <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),allRecurrentCX,ty,"Path_weight")
+      if(!is.null(motifDf)){
+      motifPlot <- plotMotifs(motifDf) + ggtitle(ty)}else{NULL}
+   })
+   allMotifPlots <- allMotifPlots[!is.null(allMotifPlots)]
+   motPlot <- patchwork::wrap_plots(append(list(legend=guide_area()),allMotifPlots),ncol=4,widths=1,guides = "collect") + plot_annotation(title="Outputs figure 4 - SI1: All CX to CX Motifs",theme=theme(plot.title=element_text(size=12,face="bold")))
+   save_plot(paste0(outputsFolder,"outputs-Figure4-SI1.svg"),motPlot,ncol=3,nrow=ceiling(length(allMotifPlots)/4),base_width = 8.5/3,base_height = 11/6)
+
+
+```
+
+```{r}
+allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 6 -- figure supplement 1: Clustering at different dephts",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(axis.text.x = element_blank(),axis.text=element_blank())
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
+```
+
+```{r}
+fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("main feedforward target types")
+
+plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
+```
+
+```{r}
+targetFFSourceTable <- data.frame(databaseType=as.character(unique(mainFFConns$databaseType.from))) %>% mutate(type=databaseType) %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%
+   customOutputSupertype(postfix="raw")
+customContributorsPalette <- customSupertypePalette
+```
+
+```{r}
+graphMainTargetsPlot_ST <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.5,aes(color=.N()$supertype3[from],width=weightRelative)) + geom_node_point(aes(color=supertype3),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(values=supertype3Palette) + scale_edge_color_manual(values=supertype3Palette) + theme_paper_map() + coord_fixed()
+```
+
+```{r}
+allTargetViews <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"allTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"allTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+allTargetViews
+```
+
+## Assemble the figure
+
+```{r}
+layout <- c(
+   area(t=2,b=3,l=2,r=7),
+   area(t=2,b=3,l=8,r=10),
+   area(t=5,b=13,l=2,r=4),
+   area(t=5,b=13,l=5,r=10),
+   area(t=14,b=20,l=3,r=8),
+   area(t=14,b=20,l=9,r=10)
+)
+
+figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1))
+figure5
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+```{r}
+PFLSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFLs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFLs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+PFLTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFLTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFLTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+FSSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FSs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FSs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FSTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FSTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FSTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+FCSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FCs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FCs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FCTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FCTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FCTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+PFRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+PFRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+```{r}
+ExRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+ExRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+```{r}
+FRSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FRs-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FRs-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+#PFLSynapses
+```
+
+```{r}
+FRTargetsSynapses <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FRTargets-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FRTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
+```
+
+## Figure 5 SI3. Neurons and their targets split up
+
+```{r}
+layout <- c(
+   area(t=1,b=5,l=2,r=10),
+   area(t=6,b=10,l=2,r=10),
+   area(t=5,b=6,l=6,r=7),
+   area(t=11,b=15,l=2,r=10),
+   area(t=16,b=20,l=2,r=10),
+   area(t=15,b=16,l=6,r=7)
+)
+
+fig5SI31 <- (PFLSynapses + ggtitle("PFL")) + PFLTargetsSynapses + legendSourcePF + (FSSynapses + ggtitle("FS")) + FSTargetsSynapses + legendSourceFS + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3",theme=theme(title=element_text(size=12,face="bold")))
+
+fig5SI32 <- (FCSynapses + ggtitle("FC")) + FCTargetsSynapses + legendSourceFC + (FRSynapses + ggtitle("FR")) + FRTargetsSynapses + legendSourceFR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued",theme=theme(title=element_text(size=12,face="bold")))
+
+fig5SI33 <- (PFRSynapses + ggtitle("PFR")) + PFRTargetsSynapses + legendSourcePFR + (ExRSynapses + ggtitle("ExR")) + ExRTargetsSynapses + legendSourceExR + plot_layout(design=layout)+ plot_annotation(title="Figure 5 SI3 - continued 2",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-1.pdf"),fig5SI31,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-2.pdf"),fig5SI32,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure5-SI3-3.pdf"),fig5SI33,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+```{r}
+endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
+```
+
+```{r}
+#CXoutFFEndpointsAll <- filter(CXoutFull, type.to %in% mainFFConns$type.to & !type.to %in% mainEndpointInfluencers & fullCXwr>0.05) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                                                              #customType.from=CXOutputNeurons$customSupertype[match(databaseType.from,CXOutputNeurons$databaseType)])
+
+#CXFFInflAll <- ggplot(CXoutFFEndpointsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customType.from))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+facet_wrap(.~supertype2.to,scale="free_x",nrow = 8)+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type")
+
+#CXFFInflAll
+```
+
+Missing: a readable anatomy panel here
+
+```{r}
+layout <-  c(
+  area(t=2,b=3,l=2,r=9),
+  area(t=4,b=5,l=2,r=9),
+  area(t=6,b=7,l=2,r=5),
+  area(t=8,b=14,l=2,r=9)
+)
+figure6 <- endpointsCompositionMainFF + (endpointsCompositionMainFFKnown + guides(fill="none")) + CXFFInfl + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels = "A",title="Outputs figure 6: known types reached",theme=theme(title=element_text(size=12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1)) 
+figure6
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure6.svg"),figure6,base_width = 8.5*1.333333,base_height = 11*1.333333)
+```
+
+```{r}
+#figure7SI1 <- PFR2mALDMBON20Plot / PFRStep1 / PFRStep2 + plot_annotation(tag_levels = "A",title="Outputs figure 7 SI1: PFR_b to MBON 20 and mALD1",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+## figure 7
+
+```{r}
+layout <- c(
+    area(t=3,b=5,l=2,r=5),
+    area(t=8,b=15,l=2,r=10),
+   area(t=2,b=6,l=7,r=10),
+   area(t=17,b=22,l=2,r=5),
+   area(t=17,b=22,l=7,r=10)
+)
+
+#MBPPLPlot <- moreMBONPPLPlot + graphToMBONsPlot + FR1MB30Anat + FR2PPLAnat + FB8PPLAnat +  plot_layout(design=layout) + plot_annotation(title="Outputs figure 7: paths to MBONs and DANs",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) &theme(plot.tag.position = c(-0.05, 1.05))
+
+MBPPLPlot <- moreMBONPPLPlot + graphToMBONsPlot + plot_spacer() + plot_spacer() + plot_spacer() +  plot_layout(design=layout) + plot_annotation(title="Outputs figure 7: paths to MBONs and DANs",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure7-MBONPPLs.pdf"),MBPPLPlot,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure7-MBONPPLs.svg"),MBPPLPlot,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+%>% 
+    mutate(
+           layer=case_when(supertype2 == "FBt"~1,
+                           supertype2 %in% c("ExR","PFR","FS","FR","FBt","PFL") ~ 5,
+                           supertype2 %in% c("LAL","CRE","SMP") ~ 4,
+                           supertype3 == "MBON" ~ 2,
+                           supertype3 == "DAN" ~ 3,
+                           TRUE~3))
+```
+
+```{r}
+mb23 <- getTypesTable("MBON23") %>% cxRetyping()
+
+displayAnatomies(list("FB Tangential"=filter(CXNeurons,type=="FB8F_a_R")$bodyid,
+                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL105_R")$bodyid,
+                   "MBON"=filter(mb23,type=="MBON23_R")$bodyid),ROIs = c("FB","SMP(R)"),saveName = "FB8PPL105",neuronPalette = supertype3Palette)
+```
+
+```{r}
+FB8PPLAnat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"FB8PPL105-side.png"),scale=1.6) + theme_paper_map()
+```
+
+```{r}
+displayAnatomies(list("FR2"=filter(CXNeurons,type=="FR2_L")$bodyid,
+                       "DAN"=filter(mainFFTargetsNeurons,type=="PPL107_R")$bodyid,
+                   "CRE"=filter(mainFFTargetsNeurons,type=="CRE054_R")$bodyid
+                   ),ROIs = c("FB","CRE(R)"),saveName = "FR2PPL107",neuronPalette = c(customSupertypePalette,customGraphPalette))
+```
+
+```{r}
+FR2PPLAnat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"FR2PPL107-front.png"),scale=1.6) + 
+    theme_paper_map()
+```
+
+## FS2 - PPL104
+
+```{r}
+displayAnatomies(list("FB Output"=filter(CXNeurons,type=="FS2_L")$bodyid,
+                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL104_R")$bodyid),ROIs = c("FB","SMP(R)"),saveName = "FS2PPL104",neuronPalette = supertype3Palette)
+```
+
+```{r}
+FS2PPLAnat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FS2PPL104-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FS2PPL104-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+### PFR_b MBON20/mALD1
+
+```{r}
+displayAnatomies(list("FB Columnar"=filter(CXNeurons,type=="PFR_b_L*")$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type=="LAL002_R")$bodyid),ROIs = c("FB","PB","CRE(R)"),saveName = "PFR-LAL002",neuronPalette = c(supertype3Palette,customGraphPalette))
+```
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type=="LAL002_R")$bodyid,
+                   "Antennal lobe"=filter(mainFFTargetsNeurons,type=="mALD1_L")$bodyid,
+                   "MBON"=filter(mainFFTargetsNeurons,type=="MBON20_R")$bodyid),ROIs = c("FB","PB","CRE(R)"),saveName = "LAL002-MBONAL",neuronPalette = c(supertype3Palette,customGraphPalette))
+
+```
+
+```{r}
+PFRStep1 <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"PFR-LAL002-side.png"),scale=1.6) + 
+    theme_paper_map()
+#PFRStep1
+```
+
+```{r}
+PFRStep2 <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"LAL002-MBONAL-side.png"),scale=1.6) + theme_paper_map()
+#PFRStep2
+```
+
+```{r}
+displayAnatomies(neurons=list("FR1"=filter(CXNeurons,type=="FR1_L")$bodyid,
+                   "MBON"=filter(mainFFTargetsNeurons,type=="MBON30_R")$bodyid,
+                   "DAN"=filter(mainFFTargetsNeurons,type=="PPL102_L")$bodyid
+                   ),ROIs = c("FB","CRE(R)"),saveName = "FR1MB30",neuronPalette = c(customSupertypePalette,customGraphPalette))
+```
+
+```{r}
+FR1MB30Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"FR1MB30-side.png"),scale=1.6) + theme_paper_map()
+```
+
+```{r}
+PFR2mALDMBON20_1 <- getLocalSubgraph(c("PFR_b_L*","ExR7_R","ExR7_L"),
+                                     c("mALD1_L","MBON20_R"),CX_outGraphBi,order=1) %>%
+    selectSupertypeSet(default_level = 1) %>%
+    customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type) %E>% 
+    mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)]) 
+```
+```{r}
+PFR2mALDMBON20Plot <- standardGraph(PFR2mALDMBON20_1,
+                                    pal=c(customGraphPalette,customSupertypePalette)) +
+    coord_cartesian(clip="off") + scale_y_continuous(trans="reverse")
+PFR2mALDMBON20Plot
+```
+
+```{r}
+displayAnatomies(list(
+    "FS1"= CXNeurons$bodyid[match( c("FS1A_L","FS1A_R","FS1B_L"),CXNeurons$type)],
+    "FC2"=CXNeurons$bodyid[match( c("FC2B_L"),CXNeurons$type)],
+    "Fru"=filter(mainFFTargetsNeurons,type=="oviIN_R")$bodyid,
+    "MBON"=filter(mainFFTargetsNeurons,type=="MBON27_R")$bodyid
+),ROIs = c("FB","CRE(R)"),saveName = "FCFSOvi",neuronPalette = c(customSupertypePalette,customGraphPalette))
+```
+
+```{r}
+FCFSOviAnat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"FCFSOvi-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"FCFSOvi-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+```{r}
+FCFSKnownOutputsFig <- (FCFStoOviPlot ) / plot_spacer() + plot_annotation(title="Outputs figure 7 SI1 : FC FS to oviIn and MBON27",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) + plot_layout(heights = c(1,3))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure7-SI1.svg"),FCFSKnownOutputsFig,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+displayAnatomies(list("FB Columnar"=filter(CXNeurons,type=="PFL3_L*")$bodyid,
+                   "Visual PNs"=specialLC33,
+                   "Source"=filter(mainFFTargetsNeurons,type=="LC33_R" & !bodyid %in% specialLC33)$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type=="LAL141_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","LO(R)"),saveName = "PFL3toLC33",neuronPalette = supertype3Palette)
+```
+
+```{r}
+PFL3LC33Anat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"PFL3toLC33-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+```{r}
+layout <-  c(
+  area(t=1,b=5,l=2,r=4),
+  area(t=1,b=15,l=5,r=10),
+  area(t=7,b=15,l=2,r=4)
+  )
+
+fig8SI2 <-PFL32LC33Mat + PFLLCOutMat + guide_area()+ plot_layout(design=layout,guides = "collect") + plot_annotation(title="Ouputs figure 9 SI2: PFL3 and LC33 convergences",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")),tag_levels = "A")
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure9-Visual-SI2.svg"),fig8SI2,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+
+```{r}
+plotConnectivity(filter(LC10Bag$inputs_raw,type.from=="AOTU042_L"),slctROI = "All brain",grouping="neuron",xaxis="outputs",theme=theme_paper_map())
+```
+
+```{r}
+
+PFL3Body <- getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*")
+
+displayAnatomies(list(
+                   "mid"=LC10Body$to[300:310],
+                   "Source"=LC10Other$bodyid[1:2],
+                   "Visual PNs"=LC10Body$to[1:10],
+                   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU042_L"))$bodyid,
+                   "PFL3"=PFL3Body$bodyid
+                   ),ROIs = c("FB","LAL(L)","AOTU(R)"),saveName = "PFL3toLC10",neuronPalette = c(customGraphPalette,customSupertypePalette,"mid"="#ff33cc"))
+```
+
+```{r}
+PFL3ToLC10Anat <-  ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC10-front.png"),scale=1.6) + 
+   draw_image(paste0(outputsFolder,"PFL3toLC10-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+```{r}
+#sharedG <- (CX_outGraph %E>% filter(type.from=="PFL3_L*" | type.from=="LC10_R")) %N>% filter(type %in% .E()$type.from | type %in% .E()$type.to)
+```
+
+```{r}
+#LC10Other <- filter(LC10Bag$names,!(bodyid %in% LC10Body$from))
+#PFL3Body <- getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*")
+displayAnatomies(list(
+                   "Visual PNs"=LC27Body$bodyid[1:10],
+                   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL047_R"))$bodyid,
+                   "PLP"=filter(mainFFTargetsNeurons,type %in% c("PLP077_L"))$bodyid,
+                   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+                   ),ROIs = c("FB","LAL(R)"),saveName = "PFL1toLC27",neuronPalette = c(customGraphPalette,customSupertypePalette,"mid"="#ff33cc"))
+```
+```{r}
+PFL1ToLC27Anat <-  PFL3ToLC10Anat <-  ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"PFL1toLC27-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+```{r}
+displayAnatomies(list("ExR8"=filter(CXNeurons,type=="ExR8_R")$bodyid,
+                   "Visual PNs"=filter(mainFFTargetsNeurons,type%in% c("DCH_L","VCH_L"))$bodyid,
+                   "PS"=filter(mainFFTargetsNeurons,type=="PS047_R")$bodyid
+                   ),ROIs = c("EB","IPS(R)","LAL(R)"),saveName = "ExR8CH",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+ExR8CHAnat <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"ExR8CH-front.png"),scale=1.6,clip="on") + 
+   draw_image(paste0(outputsFolder,"ExR8CH-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+## Figure
+```{r}
+layout <- c(
+  area(t=2,b=3,l=2,r=4),
+  area(t=5,b=6,l=2,r=3),
+  area(t=2,b=6,l=5,r=10),
+  area(t=8,b=10,l=2,r=4),
+  area(t=7,b=11,l=5,r=10),
+  area(t=13,b=16,l=2,r=4),
+  area(t=12,b=17,l=5,r=10),
+  area(t=19,b=21,l=2,r=4),
+  area(t=18,b=22,l=5,r=10)
+)
+
+#figure8Visual <- moreVPNsPlot + PFLtoLC33Plot + PFL3LC33Anat + PFL3ToLC10Plot + PFL3ToLC10Anat + ExR8toCHPlot + ExR8CHAnat + PFL1ToLC27Plot + PFL1ToLC27Anat + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 8: connections to visual projection neurons",theme=theme(title = element_text(size=10,face="bold"))) & 
+#  theme(plot.tag.position = c(-0.05, 1.05))
+figure8Visual <- moreVPNsPlot + PFLtoLC33Plot + plot_spacer() + PFL3ToLC10Plot + plot_spacer() + ExR8toCHPlot + plot_spacer() + PFL1ToLC27Plot + plot_spacer() + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 8: connections to visual projection neurons",theme=theme(title = element_text(size=12*1.111111,face="bold",family="arial"))) & 
+  theme(plot.tag.position = c(-0.05, 1.05))
+
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure8-Visual.pdf"),figure8Visual,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure8-Visual.svg"),figure8Visual,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+
+
+displayAnatomies(list("MBON"=filter(mainFFTargetsNeurons,type=="MBON20_R")$bodyid,
+                   "Visual PNs"=LT85Body$bodyid
+                   ),ROIs = c("FB","CRE(R)","LO(R)"),saveName = "MB20LT85",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+MB20LT85Anat <-   ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"MB20LT85-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+```{r}
+displayAnatomies(list("Antennal lobe"=filter(mainFFTargetsNeurons,type=="mALD1_L")$bodyid,
+                   "Visual PNs"=MC62Body$bodyid[1:5]
+                   ),ROIs = c("FB","CRE(R)","ME(R)","LAL(R)"),saveName = "mALDMC62",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+MC62Anat <-   ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"mALDMC62-front.png"),scale=1.6) + theme_paper_map() 
+```
+
+```{r}
+layout <- c(
+  area(t=1,b=4,l=2,r=10),
+  area(t=5,b=10,l=4,r=8),
+  area(t=11,b=16,l=4,r=8)
+)
+
+#fig8SI1 <- PFLRbToLTMCPlot + MB20LT85Anat + MC62Anat + plot_layout(design=layout)+plot_annotation(title= "Outputs figure 8 SI1: PFRb to Visual PNs",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) 
+fig8SI1 <- PFLRbToLTMCPlot + plot_spacer() + plot_spacer() + plot_layout(design=layout)+plot_annotation(title= "Outputs figure 8 SI1: PFRb to Visual PNs",tag_levels = "A",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial"))) 
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure8-Visual-SI1.svg"),fig8SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+CXoutFFEndpointDNsAll <- filter(CXoutFull,(supertype3.to == "DN" | startsWith(type.to,"DN?"))) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+                                                                                                          supertype.from=CXOutputNeurons$supertype[match(databaseType.from,CXOutputNeurons$databaseType)],
+                                                                                                          customSupertype = case_when(supertype.from=="PFL" ~ databaseType.from,
+                                                                                                                                      grepl("ExR[7-8]",supertype.from) ~ as.character(supertype.from),
+                                                                                                                                      supertype.from=="FR2" ~ as.character(supertype.from),
+                                                                                                                                      TRUE ~ "Other"),
+                                                                                                                         target.to = case_when(type.to %in% c("DNa01_R","DNa01_L","MDN_R","MDN_L") ~ "Legs",
+                                                                                                                                               type.to %in% c("DN?_1406000196","DNa09_R","DNa09_L") ~ "Wing",
+                                                                                                                                               type.to %in% c("DNa03_R","DNa03_L") ~ "Tectulum",
+                                                                                                                                               type.to %in% c("DNp15_R","DNp16/17_R","DNb02_R","DNp15_L","DNp16/17_L","DNb02_L") ~ "Neck and halteres",
+                                                                                                                                               type.to %in% c("DNp18_R","DNp18_L","DN?_5813078116","DNa04_R","DNa04_L") ~ "Neck, wings and halteres",
+                                                                                                                                               type.to %in% c("DNa02_R","DNb01_2_R","DNb01_1_R","DNb01_1_L","DNp32_R","DNa02_L","DNb01_2_L","DNp32_L") ~ "Mixed",
+                                                                                                                                               TRUE ~ "?"
+                                                                                                                                               )     
+                                                                                                                         )
+
+moreDNsPlotAll <- ggplot(CXoutFFEndpointDNsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customSupertype))+ scale_fill_manual(name="Source supertype",values=c(customSupertypePalette,"Other"="grey90"))+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type") + facet_wrap(.~target.to,scale="free_x")
+```
+
+
+```{r}
+PFLsToDNPlot <- ggraph(PFLsToDN,layout="stress") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),size = 6*mm2pt)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"ExR"=supertype3Palette[["ExR"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") 
+
+PFLsToDNPlot
+```
+
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL018_R"))$bodyid,
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS013_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type =="DNa04_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "ipsiToDNa04",neuronPalette = customGraphPalette)
+
+```
+
+```{r}
+ipsiDNa04Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ipsiToDNa04-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+displayAnatomies(list("LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL010_R"))$bodyid,
+                   "DN"=filter(mainFFTargetsNeurons,type %in%"DNa02_R")$bodyid
+                   ),ROIs = c("FB","PB","LAL(R)","SPS(R)"),saveName = "IpsiToDNa02",neuronPalette = customGraphPalette)
+```
+
+```{r}
+IpsiDNa02Anat <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IpsiToDNa02-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+layout = c(
+   area(t=3,b=5,l=2,r=6),
+   area(t=8,b=15,l=2,r=10),
+   area(t=2,b=6,l=7,r=10),
+   area(t=17,b=22,l=2,r=5),
+   area(t=17,b=22,l=7,r=10)
+)
+
+#figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + PFLBilAnat + ipsiDNa04Anat + IpsiDNa02Anat + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 7: connections to descending neurons",theme=theme(title=element_text(size=12,face="bold")))& 
+#  theme(plot.tag.position = c(-0.05, 1.05))
+figureDNs <- moreDNsPlot + PFL2DNsHalfPlot + plot_spacer() + plot_spacer() + plot_spacer() + plot_layout(design = layout)+plot_annotation(tag_levels = "A",title="Outputs figure 9: connections to descending neurons",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& 
+  theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure7-DNs.pdf"),figureDNs,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-DNs.svg"),figureDNs,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "ExR8"=filter(CXOutputNeurons,type =="ExR8_R")$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "ExR8toInt",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+ExR8ToInt <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"ExR8toInt-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+
+
+```{r}
+displayAnatomies(list(
+                   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS235_R"))$bodyid,
+                   "DN"=DNp15Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","SPS(R)"),saveName = "IntToDNp15",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+intToDNp15 <- ggdraw(xlim = c(0.2,1)) + 
+   draw_image(paste0(outputsFolder,"IntToDNp15-side.png"),scale=1.6,clip="on") + theme_paper_map()
+```
+
+```{r}
+pathsToMDNPlot <- ggraph(pathsToMDNManual_left,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]]))+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"FR"=supertype3Palette[["FB Output"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + guides(color="none",edge_color="none") + scale_x_continuous(trans="reverse")
+pathsToMDNPlot
+```
+
+```{r}
+displayAnatomies(list(
+                   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+                   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+                   "PS"=ps10Id$bodyid
+                   ),ROIs = c("EB","LAL(R)","CRE(R)","SPS(R)"),saveName = "PFL2-to-Int",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+```{r}
+MDNId <- neuprint_search("MDN",field="type")
+
+displayAnatomies(list(
+   "PFL2"=filter(CXOutputNeurons,type =="PFL2_R")$bodyid,
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R","LAL161_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDN",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL160_R"))$bodyid,
+   "PS"=ps10Id$bodyid,
+   "DN"=MDNId$bodyid
+),ROIs = c("FB","LAL(R)","SPS(R)","CRE(R)"),saveName = "PFL2-to-MDNLight",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+
+
+```{r}
+PFL22int <- ggdraw(xlim = c(0,2)) + 
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-front.png"),scale=1.6,clip="on") +
+   draw_image(paste0(outputsFolder,"PFL2-to-MDN-side.png"),scale=1.6,hjust=-1,clip="on") + theme_paper_map()
+```
+
+
+```{r}
+layout <- c(
+   area(t=3,b=5,l=2,r=3),
+   area(t=2,b=6,l=5,r=7),
+   area(t=2,b=6,l=8,r=10),
+   area(t=8,b=12,l=2,r=4),
+   area(t=8,b=12,l=5,r=10),
+   area(t=14,b=19,l=2,r=10)
+)
+
+#figure7SI1 <- pathsToDNp15Plot + ExR8ToInt + intToDNp15 + pathsToDNp32Plot + MDNsPlot +  PFL22int + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 7 SI1: other DNs reached",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.05, 1.05))
+figure9SI1 <- pathsToDNp15Plot + plot_spacer() + plot_spacer() + pathsToDNp32Plot + MDNsPlot + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels="A",title="Outputs figure 9 SI1: other DNs reached",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+#save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.pdf"),figure7SI1,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+save_plot(paste0(outputsFolder,"outputs-Figure9-SI1.svg"),figure9SI1,base_height = 11*1.333333,base_width = 8.5*1.333333)
+```
+
+
+```{r}
+PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+```
+
+### PFL1 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL087_R"))$bodyid,
+   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","FB"),saveName = "PFL1Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL095_R"))$bodyid,
+   "AOTU"=filter(mainFFTargetsNeurons,type %in% c("AOTU039_R"))$bodyid
+),ROIs = c("LAL(R)","LAL(L)"),saveName = "PFL1Partners4",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL087_R"))$bodyid,
+   "PFL1"=filter(CXOutputNeurons,type=="PFL1_L*")$bodyid
+),ROIs = c("LAL(R)","LAL(L)"),saveName = "PFL1Partners",neuronPalette = customGraphPalette)
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type=="LAL138_L")$bodyid,
+   "WED"=filter(mainFFTargetsNeurons,type=="WED157_R")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","WED(R)"),saveName = "PFL1Partners2",neuronPalette = customGraphPalette)
+
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type=="LAL048_R")$bodyid,
+   "WED"=filter(mainFFTargetsNeurons,type=="WED145_R")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","WED(R)","PLP(R)"),saveName = "PFL1Partners3",neuronPalette = customGraphPalette)
+```
+
+### PFL2 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL090_R"))$bodyid,
+   "PFL2"=filter(CXOutputNeurons,type=="PFL2_L")$bodyid
+),ROIs = c("LAL(R)","LAL(L)","FB"),saveName = "PFL2Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL076_L"))$bodyid,
+   "CRE"=filter(mainFFTargetsNeurons,type %in% c("CRE093_R"))$bodyid,
+   "VES"=filter(mainFFTargetsNeurons,type %in% c("VES054_R"))$bodyid
+),ROIs = c("LAL(R)","LAL(L)","VES(R)","SIP(R)"),saveName = "PFL2Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### PFL3 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL046_R"))$bodyid,
+   "PFL3"=filter(CXOutputNeurons,type=="PFL3_L*")$bodyid
+),ROIs = c("LAL(R)","VES(R)","FB"),saveName = "PFL3Partners",neuronPalette= c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB020_R"))$bodyid
+),ROIs = c("LAL(R)","IB"),saveName = "PFL3Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+## PFL skeletons
+
+```{r}
+PFL1Fig <- PFL1Glom / plot_spacer() / PFL1Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 10: PFL1",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure10-PFL1.pdf"),PFL1Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+PFL2Fig <- PFL2Glom / plot_spacer() / PFL2Graph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 11: PFL2",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure11-PFL2.pdf"),PFL2Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+PFL3Fig <- PFL3Glom / plot_spacer() / PFL3Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 12: PFL3",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure12-PFL3.pdf"),PFL3Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FSBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FS1","FS2","FS3","FS4")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FS1ACol <- ((plotGlomMat(FSBag,"FS1A_L",grouping="col"))  - (plotGlomMat(FSBag,"FS1A_R",grouping="col"))) & theme(axis.text.x = element_text(angle=90,size=4))
+FS1BCol <- (plotGlomMat(FSBag,"FS1B_L",grouping="col") - plotGlomMat(FSBag,"FS1B_R",grouping="col"))  & theme(axis.text.x = element_text(angle=90,size=4))
+FS2Col <- plotGlomMat(FSBag,"FS2_L",grouping="col") - plotGlomMat(FSBag,"FS2_R",grouping="col")
+FS3Col <- plotGlomMat(FSBag,"FS3_L",grouping="col")
+FS4ACol <- plotGlomMat(FSBag,"FS4A_L",grouping="col")
+FS4BCol <- plotGlomMat(FSBag,"FS4B_L",grouping="col")
+FS4CCol <- plotGlomMat(FSBag,"FS4C_L",grouping="col") / plotGlomMat(FSBag,"FS4C_R",grouping="col")
+#FS4ACol
+```
+
+### FS1 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "CL"=filter(mainFFTargetsNeurons,type %in% c("CL007_R"))$bodyid,
+   "FS1"=filter(CXOutputNeurons,type %in% c("FS1B_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SPS(R)","SCL(R)"),saveName = "FS1Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LH"=filter(mainFFTargetsNeurons,type %in% c("LHPV5e3_R"))$bodyid,
+   "SIP"=filter(mainFFTargetsNeurons,type %in% c("SIP087_R"))$bodyid
+),ROIs = c("LAL(R)","SMP(R)","SIP(R)","CRE(R)","LH(R)"),saveName = "FS1Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS2 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP457_R"))$bodyid,
+   "FS2"=filter(CXOutputNeurons,type %in% c("FS2_L"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","SIP(R)"),saveName = "FS2Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP010_R"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","SIP(R)"),saveName = "FS2Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS3 fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP564_R"))$bodyid,
+   "FS3"=filter(CXOutputNeurons,type %in% c("FS3_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SMP(L)"),saveName = "FS3Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP188_R"))$bodyid,
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB042_R"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)","LAL(R)","IB"),saveName = "FS3Partners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4A fig
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP297_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)","FLA(R)"),saveName = "FS4APartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP304_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)","FLA(R)"),saveName = "FS4APartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SLP"=filter(mainFFTargetsNeurons,type %in% c("SLP413_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4APartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4B fig
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP497_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4B_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4BPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SLP"=filter(mainFFTargetsNeurons,type %in% c("SLP414_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4BPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+### FS4C fig
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP167_R"))$bodyid,
+   "FS4"=filter(CXOutputNeurons,type %in% c("FS4C_L"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4CPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP498_R"))$bodyid
+),ROIs = c("FB","SMP(R)","SLP(R)","SIP(R)"),saveName = "FS4CPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+### FS Skeleton figs
+
+```{r}
+FS1Fig <- FS1ACol / FS1BCol / plot_spacer() / FS1Graph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 13: FS1",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure13-FS1.pdf"),FS1Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS2Fig <- FS2Col / plot_spacer() / FS2Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 14: FS2",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure14-FS2.pdf"),FS2Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS3Fig <- FS3Col / plot_spacer() / FS3Graph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 15: FS3",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure15-FS3.pdf"),FS3Fig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4AFig <- FS4ACol / plot_spacer() / FS4AGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 16: FS4A",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure16-FS4A.pdf"),FS4AFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4BFig <- FS4BCol / plot_spacer() / FS4BGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 17: FS4B",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure17-FS4B.pdf"),FS4BFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+FS4CFig <- FS4CCol / plot_spacer() / FS4CGraph / plot_spacer() + plot_layout(heights=c(1,1,2,5,2)) + plot_annotation(title="Outputs figure 18: FS4C",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))# &theme(plot.tag.position = c(-0.05, 1.05))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure18-FS4C.pdf"),FS4CFig,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+```{r}
+allFSSubGraphPlot<- plotSubgraph(c("FS1A_L","FS1B_L","FS2_L","FS3_L","FS4A_L","FS4B_L","FS4C_L"),influenceThreshold = 0.01,graph=CX_outGraphRed,layout="stress") / plot_spacer() + plot_layout()+ plot_annotation(title="Outputs figure 18 SI1: FS network",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+allFSSubGraphPlot
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure18-SI1.pdf"),allFSSubGraphPlot,nrow=3,ncol=3,base_height = 11/3,base_width = 8.5/3,device=cairo_pdf)
+```
+
+### FC fig
+```{r}
+displayAnatomies(neurons=list(
+   "PLP"=filter(mainFFTargetsNeurons,type %in% c("PLP042_b_R"))$bodyid,
+   "FC1"=filter(CXOutputNeurons,type %in% c("FC1E_L"))$bodyid
+),ROIs = c("FB","PLP(R)","CRE(R)"),saveName = "FCPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP376_R"))$bodyid,
+   "FC2"=filter(CXOutputNeurons,type %in% c("FC2A_L"))$bodyid
+),ROIs = c("FB","SMP(R)","CRE(R)"),saveName = "FCPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "ATL"=filter(mainFFTargetsNeurons,type %in% c("ATL027_R"))$bodyid,
+   "IB"=filter(mainFFTargetsNeurons,type %in% c("IB042_R"))$bodyid,
+   "FS1"=filter(CXOutputNeurons,type %in% c("FC2C_L"))$bodyid
+),ROIs = c("FB","ATL(R)","ATL(L)","LAL(R)","IB","CRE(R)"),saveName = "FCPartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+FCBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FC1","FC2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+FC1CCol <- plotGlomMat(FCBag,"FC1C_L",grouping="col")
+FC1ECol <- plotGlomMat(FCBag,"FC1E_L",grouping="col")
+FC2ACol <- plotGlomMat(FCBag,"FC2A_L",grouping="col")
+FC2BCol <- plotGlomMat(FCBag,"FC2B_L",grouping="col")
+FC2CCol <- plotGlomMat(FCBag,"FC2C_L",grouping="col")
+FC1ECol
+```
+
+```{r}
+FCFirstStepFig <- (FC1CCol - FC1ECol) / (FC2ACol - FC2BCol) / (FC2CCol - plot_spacer()) / plot_spacer() / FCGraph / plot_spacer()  + plot_layout(heights=c(1,1,1,2,5,2)) + plot_annotation(title="Outputs figure 19: FC",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure19-FC.pdf"),FCFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+### PFRb fig
+```{r}
+displayAnatomies(neurons=list(
+   "CRE"=filter(mainFFTargetsNeurons,type %in% c("CRE105_R"))$bodyid,
+   "PFL3"=filter(CXOutputNeurons,type %in% c("PFR_b_L*"))$bodyid
+),ROIs = c("FB","CRE(L)","CRE(R)"),saveName = "PFRPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL185_R"))$bodyid,
+   "FS2"=filter(mainFFTargetsNeurons,type %in% c("LAL002_R"))$bodyid
+),ROIs = c("FB","LAL(R)","CRE(R)"),saveName = "PFRPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL147_R"))$bodyid
+),ROIs = c("FB","ATL(R)","IB","CRE(R)","LAL(R)"),saveName = "PFRPartners3",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+PFRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("PFR_a","PFR_b")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+PFRaGlom <- plotGlomMat(PFRBag,"PFR_a_L*",grouping="glom")
+PFRbGlom <- plotGlomMat(PFRBag,"PFR_b_L*",grouping="glom")
+PFRb2aGlom <- plotGlomMat(filter(PFRBag,filterPartners = FALSE,type=="PFR_b_L*"),"PFR_b_L*",grouping="col",targetFilt = filter(mainTargets,type.to=="PFR_a_L*"))
+PFRbGlom
+```
+
+```{r}
+PFRFirstStepFig <- PFRbGlom / plot_spacer() / PFRGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 20: PFR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure20-PFR.pdf"),PFRFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+### FR fig
+```{r}
+displayAnatomies(neurons=list(
+   "PFL2"=filter(mainFFTargetsNeurons,type %in% c("CRE009_R"))$bodyid,
+   "FR1"=filter(CXOutputNeurons,type %in% c("FR1_L"))$bodyid
+),ROIs = c("FB","CRE(L)","CRE(R)","SMP(L)"),saveName = "FRPartners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "SMP"=filter(mainFFTargetsNeurons,type %in% c("SMP448_R"))$bodyid,
+   "FR2"=filter(CXOutputNeurons,type %in% c("FR2_L"))$bodyid
+),ROIs = c("FB","SIP(R)","SMP(R)","SLP(R)","SCL(R)"),saveName = "FRPartners2",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+FRBag <- neuronBag(filter(CXOutputNeurons,customSupertype %in% c("FR1","FR2")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = customRetyping,largeOnly=T) %>% combineRois(outsideRegions,"Outside")
+FR1Col <- plotGlomMat(FRBag,"FR1_L",grouping="col")
+FR2Col <- plotGlomMat(FRBag,"FR2_L",grouping="col")
+FR1Col
+```
+
+```{r}
+FRFirstStepFig <- (FR1Col - FR2Col) / plot_spacer() / FRGraph / plot_spacer() + plot_layout(heights=c(1,2,5,2)) + plot_annotation(title="Outputs figure 21: FR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure21-FR.pdf"),FRFirstStepFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+### ExR78 fig
+```{r}
+displayAnatomies(neurons=list(
+   "PS"=filter(mainFFTargetsNeurons,type %in% c("PS197_R"))$bodyid,
+   "ExR8"=filter(CXOutputNeurons,type %in% c("ExR8_R"))$bodyid
+),ROIs = c("EB","LAL(R)","SPS(R)","WED(R)","GNG","IPS(R)"),saveName = "ExR8Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+```{r}
+displayAnatomies(neurons=list(
+   "LAL"=filter(mainFFTargetsNeurons,type %in% c("LAL013_R"))$bodyid,
+   "ExR7"=filter(CXOutputNeurons,type %in% c("ExR7_R"))$bodyid
+),ROIs = c("EB","CRE(R)","LAL(R)","IPS(R)","WED(R)"),saveName = "ExR7Partners",neuronPalette = c(customGraphPalette,customSupertypePalette))
+```
+
+
+```{r}
+ExRFig <-  plot_spacer() / ExR8Graph / plot_spacer()/ ExR26Graph /plot_spacer() + plot_layout(heights=c(1,2,1,1,1)) + plot_annotation(title="Outputs figure 22: ExR",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold")))
+```
+
+```{r}
+save_plot(paste0(outputsFolder,"outputs-Figure22-ExR.pdf"),ExRFig,nrow=3,ncol=1,base_height = 11/3,base_width = 8.5,device=cairo_pdf)
+```
+
+```{r}
+PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
+PFL2Glom <- plotGlomMat(PFLBag,"PFL2_R",grouping="gl") / plotGlomMat(PFLBag,"PFL2_L",grouping="gl")
+PFL3Glom <- plotGlomMat(PFLBag,"PFL3_L*",grouping="gl")
+PFL1Glom <- plotGlomMat(PFLBag,"PFL1_L*",grouping="gl")
+```

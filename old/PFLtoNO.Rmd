@@ -51,8 +51,6 @@ PFL2toLNO <- getLocalSubgraph(c("PFL2_L","PFL2_R"),c("LNO3_R"),CX_outGraph,order
 
 PFL2toLNOGraph <- ggraph(PFL2toLNO,layout="sugiyama") + geom_edge_fan(aes(color=supertype2.from,width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type),nudge_y = 0.05)+theme_paper_map()+scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],supertype3Palette),name="Type")+ scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],"LC"=supertype3Palette[["Visual PNs"]])) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +  guides(edge_color="none",color="none") + theme(legend.position=c(0.8,0.8)) + coord_cartesian(clip="off")
 
-PFL3toLCNOGraph
-PFL1toERGraph
 PFL2toLNOGraph
 ```
 

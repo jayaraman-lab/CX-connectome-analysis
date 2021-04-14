@@ -2,69 +2,67 @@
 title: "Pathways to known endpoints figure"
 output: html_notebook
 ---
+## Prepare the environment:
 
-```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
-library(paletteer)
-library(ggraph)
-library(tidygraph)
-```
-
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("outputFunctions-core.R")
-source("../R/paperTheme_linux.R")
-source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure6-pathsToKnown/"
-load("outputsBasics.RData")
+source(file.path("..","R","paperTheme.R"))
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-allNodes <-  readRDS("all-nodes.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-knownTypesTable <- readRDS("known-table.rds")
-allKnownTypes <- unique(knownTypesTable$type) 
+outputsFolder <- "figure60-KnownTargets"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
 
-
+Where the data has been saved (by "Outputs-Core.Rmd"):
 ```{r}
-endpointsInfluence <- readRDS("endpoints-influence.rds")
-mainEndpointInfluencers <- readRDS("main-endpoints.rds")
-load("mainTargetsAndConns.Rdata")
-CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
+dataFolder="data"
 ```
 
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+## General outputs metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+## Known types in the output graph
+knownTypesTable <- readRDS(file.path(dataFolder,"known-table.rds"))
+## The normalized pathway weights to known neurons table
+endpointsInfluence <- readRDS(file.path(dataFolder,"endpoints-influence.rds"))
+mainEndpointInfluencers <- readRDS(file.path(dataFolder,"main-endpoints.rds"))
+
+## Information about the main targets in the graph
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
+
+## The pathway weights table
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+```
+
+## Contributions to known pathways (panels A and B)
+We generate a palette, consistent with the palettes used in the rest of the section (but with the CX simplified to one category, as well as all uninformative types):
 ```{r}
 endpointsPalette <- c("Unknown"="grey80",
-                       "CX"=p36[2],
-                        "5HT"=p36[14],
-                        "OA"=p36[16],
-                        "Peptidergic"=p36[28],
-                        "DAN"=p36[29],
-                       "MBON"=p36[4],
-                       "LH"=p36[31],
-                       "DN"=p36[24],
-                       "Fru"=p36[30],
-                       "KC"=p36[13],
-                       "Antennal lobe"=p36[20],
-                       "Clock"=p36[6],
-                       "Visual PNs"=p36[32],
-                       "Other Sensory"=p36[3])
+                      "CX"=p36[2],
+                      "5HT"=p36[14],
+                      "OA"=p36[16],
+                      "Peptidergic"=p36[28],
+                      "DAN"=p36[29],
+                      "MBON"=p36[4],
+                      "LH"=p36[31],
+                      "DN"=p36[24],
+                      "Fru"=p36[30],
+                      "KC"=p36[13],
+                      "Antennal lobe"=p36[20],
+                      "Clock"=p36[6],
+                      "Visual PNs"=p36[32],
+                      "Other Sensory"=p36[3])
 
 endpointsLevels <- c(  "Unknown",
                        "CX",
-                        "5HT",
-                        "OA",
-                        "Peptidergic",
-                        "DAN",
+                       "5HT",
+                       "OA",
+                       "Peptidergic",
+                       "DAN",
                        "MBON",
                        "LH",
                        "DN",
@@ -76,55 +74,104 @@ endpointsLevels <- c(  "Unknown",
                        "Other Sensory")
 ```
 
+We then generate a summary of the normalized pathway weights for all the strong CX output types contributors:
 ```{r}
-endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,type.from %in% mainFFConns$mainContributor),type.from,supertype3.from,supertype.to) %>% summarize(Path_weight=sum(Path_weight)) %>% 
-   mutate(supertype.to=factor(supertype.to,levels=endpointsLevels)) %>% ungroup()
-unknownInfluence <- group_by(endpointsInfluenceSummary,type.from,supertype3.from) %>% summarize(supertype.to="Unknown",Path_weight=1-sum(Path_weight)) %>% ungroup()
+endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,
+                                             type.from %in% mainFFConns$mainContributor),
+                                      type.from,supertype3.from,supertype.to) %>%
+  summarize(Path_weight=sum(Path_weight)) %>%
+  mutate(supertype.to=factor(supertype.to,levels=endpointsLevels)) %>%
+  ungroup()
+```
+One infers the contribution made to pathway not ending on any known type by substracting the full weights from 1, and add it to the summary data frame:
+```{r}
+unknownInfluence <- group_by(endpointsInfluenceSummary,type.from,supertype3.from) %>%
+  summarize(supertype.to="Unknown",Path_weight=1-sum(Path_weight)) %>% 
+  ungroup()
+
 endpointsInfluenceSummary <- rbind(endpointsInfluenceSummary,unknownInfluence)
-#endpointsInfluenceSummary$supertype3.to[endpointsInfluenceSummary$supertype3.to %in% c("EB Columnar","ER","ExR","FB Tangential","FB Output","FB Columnar","PB Input","LNO","SA")] <- "CX"
-#endpointsInfluenceSummary$supertype3.to[endpointsInfluenceSummary$supertype3.to %in% c("EB Columnar","ER","ExR","FB Tangential","FB Output","FB Columnar","PB Input","LNO","SA")] <- "CX"
-endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.to != "CX" & type.from %in% mainFFConns$mainContributor)
-
-endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
-endpointsCompositionMainFF <- ggplot(endpointsInfluenceSummaryMainFF,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
-endpointsCompositionMainFFKnown <- ggplot(filter(endpointsInfluenceSummaryMainFF,supertype.to != "Unknown"),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype.to)) + scale_fill_manual(name="Target supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
-endpointsComposition / endpointsCompositionMainFF / endpointsCompositionMainFFKnown
+```
+We then remove the pathways ending on the CX from this summary (we only want to cover feed forward targets):
+```{r}
+endpointsInfluenceSummary <- filter(endpointsInfluenceSummary,
+                                          supertype.to != "CX" & 
+                                            type.from %in% mainFFConns$mainContributor)
 ```
 
+Finally, one generates the two versions of the plot used in the figure (one includes the unknowns, the other one doesn't):
 ```{r}
-customContributorsPalette <- customSupertypePalette
+endpointsComposition <- ggplot(endpointsInfluenceSummary,aes(x=type.from,y=Path_weight)) +
+  geom_col(aes(fill=supertype.to)) + 
+  scale_fill_manual(name="target supertype",values=endpointsPalette)+ 
+  theme_paper(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),
+              strip.background.x=element_rect(color="black"))+ 
+  facet_grid(.~supertype3.from,scales = "free",space="free") +
+  ylab("normalized pathway weight") + xlab("CX output type")
+
+endpointsCompositionKnown <- ggplot(filter(endpointsInfluenceSummary,
+                                           supertype.to != "Unknown"),
+                                    aes(x=type.from,y=Path_weight)) +
+  geom_col(aes(fill=supertype.to)) + 
+  scale_fill_manual(name="target supertype",values=endpointsPalette)+ 
+  theme_paper(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),
+              strip.text.x=element_blank())+ 
+  facet_grid(.~supertype3.from,scales = "free",space="free") + 
+  ylab("normalized pathway weight") + xlab("CX output type")
+
+endpointsComposition 
+endpointsCompositionKnown
+```
+Save the plots:
+```{r}
+save_plot(file.path(outputsFolder,"endpointsComposition.svg"),
+          endpointsComposition,ncol=1.5,nrow=0.6)
+
+save_plot(file.path(outputsFolder,"endpointsCompositionKnown.svg"),
+          endpointsCompositionKnown,ncol=1.5,nrow=0.6)
 ```
 
-
+## CX influence received by the main known targets
+We then work directly with pathway weights, selecting for types that both receive at least 0.5% of pathway weight from the central complex and are part of the "known" neurons. We relabel the supertypes to end up with a manageable number of levels (we pool together the types that contribute close to nothing to output pathways):
 ```{r}
-CXoutFFEndpoints <- filter(CXoutFull,type.to %in% endpointsInfluence$type.to & type.to %in% mainFFConns$type.to & fullCXwr>0.005) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
-                                                                                                                                             customType.from=CXOutputNeurons$customSupertype[match(databaseType.from,CXOutputNeurons$databaseType)],
-                                                                                                                                             customTypeFig = case_when(customType.from %in% c("EB Columnar","ExR2-6","FB4","FB5","FB6-7","FS3","FS4","PFR_a") ~ "Other",
-                                                                                                                                                                       TRUE ~ customType.from)) 
+CXoutFFEndpoints <- filter(CXoutFull,
+                           type.to %in% endpointsInfluence$type.to & 
+                             type.to %in% mainFFConns$type.to & 
+                             fullCXwr>0.005) %>%
+  mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
+         customType.from=CXOutputNeurons$customSupertype[match(databaseType.from,
+                                                               CXOutputNeurons$databaseType)],
+         customTypeFig = case_when(customType.from %in% c("EB Columnar",
+                                                          "ExR2-6",
+                                                          "FB4",
+                                                          "FB5",
+                                                          "FB6-7",
+                                                          "FS3",
+                                                          "FS4","PFR_a") ~ "Other",
+                                   TRUE ~ customType.from)) 
+## Relabel so that the antennal lobe label fits the plot
+CXoutFFEndpoints$supertype.to[CXoutFFEndpoints$supertype.to=="Antennal lobe"] <- "AL"
+```
 
+Then generate the plot:
+```{r}
+CXFFInfl <- ggplot(CXoutFFEndpoints,aes(x=type.to,y=Path_weight)) +
+  geom_col(aes(fill=customTypeFig))+ 
+  scale_fill_manual(name="source supertype",
+                    values=c(customSupertypePalette,"Other"="grey90"))+
+  facet_grid(.~supertype.to,scale="free",space="free")+
+  theme_paper(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),
+              strip.background.x=element_rect(colour="black")) +   
+  ylab("total pathway weight") + xlab("target type")
 
-CXoutFFEndpointsAll <- filter(CXoutFull, type.to %in% mainFFConns$type.to & !type.to %in% mainEndpointInfluencers & fullCXwr>0.05) %>% mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
-                                                                                                                                              customType.from=CXOutputNeurons$customSupertype[match(databaseType.from,CXOutputNeurons$databaseType)])
-CXFFInfl <- ggplot(CXoutFFEndpoints,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customTypeFig))+ scale_fill_manual(name="Source supertype",values=c(customContributorsPalette,"Other"="grey90"))+facet_grid(.~supertype.to,scale="free",space="free")+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) + ylab("total pathway weight") + xlab("CX output type")
-CXFFInflAll <- ggplot(CXoutFFEndpointsAll,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=customType.from))+ scale_fill_manual(name="Source supertype",values=c(customContributorsPalette,"Other"="grey90"))+facet_wrap(.~supertype2.to,scale="free_x",nrow = 8)+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total pathway weight") + xlab("CX output type")
 CXFFInfl 
-CXFFInflAll
 ```
-Missing: a readable anatomy panel here
-
+And save the plot:
 ```{r}
-layout <-  c(
-  area(t=2,b=3,l=2,r=9),
-  area(t=4,b=5,l=2,r=9),
-  area(t=6,b=7,l=2,r=5),
-  area(t=8,b=14,l=2,r=9)
-)
-figure6 <- endpointsCompositionMainFF + (endpointsCompositionMainFFKnown + guides(fill="none")) + CXFFInfl + plot_spacer() + plot_layout(design=layout) + plot_annotation(tag_levels = "A",title="Outputs figure 6: known types reached",theme=theme(title=element_text(size=12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1)) 
-figure6
+save_plot(file.path(outputsFolder,"mainCXTargets.svg"),
+          CXFFInfl,ncol=0.8,nrow=0.8)
 ```
 
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6.svg"),figure6,base_width = 8.5*1.333333,base_height = 11*1.333333)
-```
+
+
 
 

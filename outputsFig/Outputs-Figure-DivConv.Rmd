@@ -1,177 +1,290 @@
 ---
-title: "Divergence/convergence figure"
+title: "Output pathways: quantification of divergence/convergence/recurrence figure"
 output: html_notebook
 
 ---
 
+This notebook generates the panels for the figure 55, summarizing the output pathways, mostly in terms of their divergence and recurrence.
+
+## Preparing the environment
 ```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 library(paletteer)
 library(tidygraph)
 library(ggraph)
 ```
 
-
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-#source("../R/paperTheme.R")
-source("../R/paperTheme_linux.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure2-DivergenceConvergence/"
-load("outputsBasics.RData")
+source(file.path("..","R","paperTheme.R"))
 ```
 
+Where the data has been saved (by "Outputs-Core.Rmd"):
 ```{r}
-CXoutAllSteps <- readRDS("pathways-allsteps.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outPaths <- readRDS("output_paths.rds")
-allNodes <- readRDS("all-nodes.rds")
+dataFolder="data"
 ```
 
 
-First a diagram like summary
+This is a folder where the figures will be saved if needed:
 ```{r}
-CXOutputTypes <- unique(CXOutputNeurons$type)
-overallFlowRef <- data.frame(layer=rep(0:4,c(2:5,6)),hop=c(unlist(sapply(c(2:6),function(n) seq(n)-1))))
-overallGraphNodes <- data.frame(layer=0:5)
+outputsFolder <- "figure55-OutputsDivergence"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
 
-pathways <- CXoutAllSteps %>% filter(n_steps %in% 1:5) %>% mutate(n_steps=as.numeric(n_steps),
-                                                                  n_type=(CX_outGraph %E>% as_tibble())$n_type[match(type.to,(CX_outGraph %E>% as_tibble())$type.to)]) %>% group_by(type.to) %>% mutate(hop.to=min(n_steps)) %>% ungroup()
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+# Basic metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+
+# The pathway weights connectivity
+CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
+
+# The full graph in different formats (and the metadata about all the neurons in there)
+CX_outGraph <- readRDS(file.path(dataFolder,"output_graph.rds"))
+CX_outPaths <- readRDS(file.path(dataFolder,"output_paths.rds"))
+allNodes <- readRDS(file.path(dataFolder,"all-nodes.rds"))
+```
+
+## Divergence summary (panel A)
+
+We use the table of all pathway weights to find for each neuron the shortest path to that neuron from the CX. This corresponds to a type's "layer" and is stored as `hop.to` in that table. We need to set the CX output neurons to the "0" layer as they are the origin neurons by definition. We also store it in the `allNodes` table.
+```{r}
+pathways <- CXoutAllSteps %>% filter(n_steps %in% 1:5) %>% 
+   mutate(n_steps=as.numeric(n_steps),
+          n_type=(CX_outGraph %E>% 
+                     as_tibble())$n_type[match(type.to,
+                                               (CX_outGraph %E>%
+                                                   as_tibble())$type.to)]) %>%
+   group_by(type.to) %>% mutate(hop.to=min(n_steps)) %>% ungroup()
+
 pathways$hop.to[pathways$type.to %in% CXOutputNeurons$type] <- 0
 
-overallFlowRef <-  overallFlowRef %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,]$type.to)),
-                                                           nNeurons = sum(distinct(pathways[pathways$hop.to==hop & pathways$n_steps==layer+1,],type.to,n_type)$n_type))
-overallGraphNodes <-  overallGraphNodes %>% rowwise() %>% mutate(nTypes = length(unique(pathways[pathways$hop.to==layer & pathways$n_steps==layer,]$type.to)),
-                                                                 nNeurons = sum(distinct(pathways[pathways$hop.to==layer & pathways$n_steps==layer,],type.to,n_type)$n_type))
+allNodes$layer <- pathways$hop.to[match(allNodes$type,pathways$type.to)]
+allNodes$layer[is.na(allNodes$layer)] <- 0
+```
 
-overallGraphNodes$nTypes[1] <- length(CXOutputTypes)
+We then assign nodes in the graph of the all networks to their corresponding layers. We call "layer" the source layer, and "hop" the target layer:
+```{r}
+CX_outGraph <- CX_outGraph %N>%
+   mutate(layer=allNodes$layer[match(type,allNodes$type)]) %E>%
+   mutate(layer=allNodes$layer[match(type.from,allNodes$type)],
+          hop=allNodes$layer[match(type.to,allNodes$type)])
+CX_outGraph
+```
+
+We then count how many connections for each source layer/target layer exist in the full graph, by number of types reached (`nTypes`), or by number of neurons reached (`nNeurons`, this simplifies by assuming all instances of a type are reached. Not unreasonable given that those are significant type to type connections in a very large graph.) in `overallFlowRef`. We also keep the information about the total number of types/neurons in `overallGraphNode`. We're going to use those two objects to build a graph object for the panel.
+```{r}
+overallFlowRef <- CX_outGraph %E>% as_tibble() %>% 
+   group_by(layer,hop) %>% 
+   summarize(nTypes=length(unique(type.to)),
+             nNeurons=sum(n_type[match(unique(type.to),type.to)])) %>% ungroup()
+
+overallGraphNodes <- CX_outGraph %N>% as_tibble() %>% 
+   group_by(layer) %>% 
+   summarize(nTypes=length(unique(type)),
+             nNeurons=sum((CX_outGraph %E>% 
+                              as_tibble())$n_type[match(unique(type),
+                                                        (CX_outGraph %E>%
+                                                            as_tibble())$type.to)]))%>%
+   ungroup()
+
+## Layer 0 number of neurons need to be manually inputed
 overallGraphNodes$nNeurons[1] <- nrow(CXOutputNeurons)
+head(overallFlowRef)
+```
+
+We then reformat the table and create a tidy graph objects from them:
+```{r}
 overallGraphNodes <- mutate(overallGraphNodes,name=layer,
                             label=case_when(layer==0 ~ "CX output",
                                             layer>=1 ~ paste0("Layer ",layer)))
 overallFlowRef <- mutate(overallFlowRef,from=layer+1,to=hop+1) %>% filter(from>=0)
-
-
 overallGraph <- tbl_graph(nodes=overallGraphNodes,edges=overallFlowRef,node_key = "name")
-overallGraphPlot <- ggraph(overallGraph,layout="linear") + geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) + geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +  geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + theme_paper_map() + geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons"),fontface="bold",fontsize=6*1.111111),nudge_y=0.5)+ 
-   scale_fill_paletteer_d("ggthemes::Color_Blind") + scale_edge_color_manual(values=paletteer_d("ggthemes::Color_Blind")[1:6]) + 
-   guides(fill="none",edge_color="none",size="none") + scale_edge_width(name="# neurons contacted") + theme(plot.margin = margin(t=30))
-overallGraphPlot
 ```
 
-Simplest divergence. How many types are reached by the CX given a number of hops (taking the unidentified in/out):
+Finally, we generate the graph using `ggraph`:
 ```{r}
-allNeurons_divergence <- group_by(CX_outGraph %E>% as_tibble(),type.from) %>% summarize(divergenceType=n(),
-                                                                       divergenceNeuron=sum(n_type)) %>% ungroup()
-allNeurons_convergence <- group_by(CX_outGraph %E>% as_tibble(),type.to) %>% summarize(convergenceType=n()) %>% ungroup()
+overallGraphPlot <- ggraph(overallGraph,layout="linear") +
+   geom_edge_arc(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +
+   geom_edge_loop(aes(color=as.factor(.N()$layer[from]),width=nNeurons)) +
+   geom_node_point(aes(size=nNeurons,fill=as.factor(layer)),shape=21) + 
+   theme_paper_map() +
+   geom_node_text(aes(label=paste0(label,"\n",nNeurons," neurons"),
+                      fontface="bold",fontsize=6),nudge_y=0.5)+ 
+   scale_fill_paletteer_d("ggthemes::Color_Blind") +
+   scale_edge_color_manual(values=paletteer_d("ggthemes::Color_Blind")[1:6]) + 
+   guides(fill="none",edge_color="none",size="none") + 
+   scale_edge_width(name="# neurons contacted") + theme(plot.margin = margin(t=30))
+overallGraphPlot
+```
+And we save it:
+```{r}
+save_plot(file.path(outputsFolder,"generalFlow.svg"),overallGraphPlot,ncol=2,nrow=1)
+```
 
-divergenceTable <- data.frame(n_hops=rep(0,length(CXOutputTypes)),
-                              type.from=CXOutputTypes,
-                              n_types=rep(1,length(CXOutputTypes)),
-                              n_neurons=rep(1,length(CXOutputTypes)),
-                              divergence_types=rep(1,length(CXOutputTypes)),
-                              divergence_neurons=rep(1,length(CXOutputTypes)),
-                              total_types=rep(1,length(CXOutputTypes)),
-                              total_neurons=rep(1,length(CXOutputTypes)))
+## Measuring convergence and recurrence (panel B)
 
+First, we're getting a raw number of divergence and convergence (expressed as number of target types or target neurons) for every type in the graph: 
+```{r}
+allNeurons_divergence <- group_by(CX_outGraph %E>% as_tibble(),type.from) %>%
+   summarize(divergenceType=n(),
+             divergenceNeuron=sum(n_type)) %>% ungroup()
+
+allNeurons_convergence <- group_by(CX_outGraph %E>% as_tibble(),type.to) %>% 
+   summarize(convergenceType=n()) %>% ungroup()
+head(allNeurons_divergence)
+```
+
+We then recursively build a table that keeps track, for each layer, of:
+- the number of types (`n_types`) and neurons (`n_neurons`) in the layer 
+- the number of types targeted by the previous layer (`total_types`), which is necessarily larger than `n_types` because of convergence
+- the predicted number of types from the mean divergence in each layer (`divergence_types`). It is necessarily larger than `total_types` because of convergence (and exponentially so)
+`mean_divergence_type` is the mean divergence for the types present in the layer (only used in intermediate calculations).
+```{r}
 divergenceTableTot <- data.frame(n_hops=0,
                                  n_types=length(CXOutputTypes),
                                  n_neurons=nrow(CXOutputNeurons),
                                  mean_divergence_type=mean(allNeurons_divergence[allNeurons_divergence$type.from %in% CXOutputTypes,]$divergenceType),
-                                 mean_convergence_type=mean(allNeurons_convergence[allNeurons_convergence$type.to %in% CXOutputTypes,]$convergenceType),
-                                 mean_divergence_neuron=mean(allNeurons_divergence[allNeurons_divergence$type.from %in% CXOutputTypes,]$divergenceNeuron),
                                  divergence_types=length(CXOutputTypes),
-                                 divergence_neurons=nrow(CXOutputNeurons),
-                                 total_types=length(CXOutputTypes),
-                                 total_neurons=nrow(CXOutputNeurons)
+                                 total_types=length(CXOutputTypes)
                                  )
 
 for (n in 1:5){
-   divergenceTable <- rbind(divergenceTable,
-   data.frame(type.from=CXOutputTypes) %>% mutate(
-               n_hops=n,
-               n_types=sapply(type.from,function(ty) nrow(pathways[pathways$hop.to==n & pathways$n_steps==n & pathways$type.from==ty,])),
-               n_neurons=sapply(type.from,function(ty) sum(pathways[pathways$hop.to==n & pathways$n_steps==n & pathways$type.from==ty,]$n_type)),
-               divergence_types=sapply(type.from,function(ty) divergenceTable[divergenceTable$type.from==ty & divergenceTable$n_hops==n-1,]$total_types *
-                    mean(allNeurons_divergence[allNeurons_divergence$type.from %in% pathways[pathways$n_steps==n & pathways$type.from==ty,]$type.from,]$divergenceType)),
-               divergence_neurons=sapply(type.from,function(ty) divergenceTable[divergenceTable$type.from==ty & divergenceTable$n_hops==n-1,]$total_neurons *
-                    mean(allNeurons_divergence[allNeurons_divergence$type.from %in% pathways[pathways$n_steps==n & pathways$type.from==ty,]$type.from,]$divergenceNeuron)),
-               total_types=sapply(type.from,function(ty) nrow(pathways[pathways$n_steps==n & pathways$type.from==ty,])),
-               total_neurons=sapply(type.from,function(ty) sum(pathways[pathways$n_steps==n & pathways$type.from==ty,]$n_type))))
-   
    divergenceTableTot <- rbind(divergenceTableTot,
    data.frame(n_hops=n,
               n_types=nrow(distinct(pathways[pathways$hop.to==n & pathways$n_steps==n ,],type.to)),
               n_neurons=sum(distinct(pathways[pathways$hop.to==n & pathways$n_steps==n,],type.to,n_type)$n_type),
               mean_divergence_type = mean(allNeurons_divergence[allNeurons_divergence$type.from %in% CX_outPaths[[n]]$type.from,]$divergenceType),
-              mean_convergence_type = mean(allNeurons_convergence[allNeurons_convergence$type.to %in% CX_outPaths[[n]]$type.to,]$convergenceType),
-              mean_divergence_neuron = mean(allNeurons_divergence[allNeurons_divergence$type.from %in% pathways[pathways$n_steps==n,]$type.from,]$divergenceNeuron),
-              total_types=nrow(distinct(CX_outPaths[[n]],type.to)),
-              total_neurons=sum(distinct(CX_outPaths[[n]],type.to,n_type)$n_type)) %>% mutate(divergence_types=divergenceTableTot[divergenceTableTot$n_hops==n-1,]$divergence_types * mean_divergence_type,
-                                                                                                  divergence_neurons=divergenceTableTot[divergenceTableTot$n_hops==n-1,]$divergence_neurons * mean_divergence_neuron))
+              total_types=nrow(distinct(CX_outPaths[[n]],type.to))) %>%
+      mutate(divergence_types=divergenceTableTot[divergenceTableTot$n_hops==n-1,]$divergence_types * mean_divergence_type))
 }
 
-divergenceTable <- supertype(mutate(divergenceTable,databaseType=type.from,type=type.from)) %>% selectSupertypeSet(exceptions=list("PFL"=1,"EL"=3,"EPG"=3,"PEG"=3))
-#divergenceTableSummary <- group_by(divergenceTable,supertype,n_hops) %>% summarize(sd_types=sd(n_types),n_types=mean(n_types)) %>% ungroup()
+head(divergenceTableTot)
 ```
 
+We then pivot the table to a long format (using `tidyr`) for convenient plotting:
 ```{r}
-divergenceTableTotLong <- pivot_longer(divergenceTableTot,cols=contains("neurons"),names_to = "Measure") %>% mutate(Measure=case_when(Measure == "divergence_neurons" ~ "Divergence projection",
-                                                                                                                                    Measure == "n_neurons" ~ "# new targets",
-                                                                                                                                    Measure == "total_neurons" ~ "# targets"))
-divergenceTableTotLongTypes <- pivot_longer(divergenceTableTot,cols=contains("types"),names_to = "Measure") %>% mutate(Measure=case_when(Measure == "divergence_types" ~ "Divergence projection",
-                                                                                                                                    Measure == "n_types" ~ "Types in layer",
-                                                                                                                                    Measure == "total_types" ~ "# targets from previous layer")) %>%
-                                                                                                                mutate(Measure=factor(Measure,levels=c("Divergence projection","# targets from previous layer","Types in layer")))
+divergenceTableTotLongTypes <- pivot_longer(divergenceTableTot,cols=contains("types"),
+                                            names_to = "Measure") %>%
+   mutate(Measure=case_when(Measure == "divergence_types" ~ "divergence projection",
+                            Measure == "n_types" ~ "types in layer",
+                            Measure == "total_types" ~ "# targets from previous layer")) %>%
+   mutate(Measure=factor(Measure,levels=c("divergence projection","# targets from previous layer","types in layer")))
+```
 
+Then generate the plot:
+```{r}
 totalDivergencePlot <- ggplot(divergenceTableTotLongTypes,aes(x=n_hops,y=value)) +
-   geom_line(aes(col=Measure)) + theme_paper_hgrid() + 
+   geom_line(aes(col=Measure)) + theme_paper() + 
    scale_y_log10(limits=c(NA,16000)) +xlab("layer") + ylab("# types") +
    scale_color_grey(start = 0.8, end = 0.2)+
    geom_hline(yintercept =nrow(allNodes),lty=4,col="grey") + 
-   annotate(geom="segment",x=5,xend=5,y=divergenceTableTot$n_types[6],yend=divergenceTableTot$total_types[6],arrow=arrow(ends="both",type="closed",length=unit(2,"mm"))) +
-   annotate(geom="text",x=2,y=15500,label=paste0(sum(divergenceTableTot$n_types)," types/",sum(divergenceTableTot$n_neurons)," neurons total")) + 
-   annotate(geom="text",x=3,y=1000,label=paste0("Mean divergence: ",format(mean(allNeurons_divergence$divergenceType),digits=3),"\n",
-                                                   "Mean convergence: ",format(mean(allNeurons_convergence$convergenceType),digits=3)),hjust=0) +
-   annotate(geom="text",x=4.85,y=5000,angle=90,label="Recurrence") +
+   annotate(geom="segment",x=5,xend=5,
+            y=divergenceTableTot$n_types[6],yend=divergenceTableTot$total_types[6],
+            arrow=arrow(ends="both",type="closed",length=unit(2,"mm"))) +
+   annotate(geom="text",x=2,y=15500,
+            label=paste0(sum(divergenceTableTot$n_types)," types/",sum(divergenceTableTot$n_neurons)," neurons total")) + 
+   annotate(geom="text",x=3,y=1000,label=paste0("mean divergence: ",
+                                                format(mean(allNeurons_divergence$divergenceType),digits=3),"\n",
+                                                "mean convergence: ",
+                                                format(mean(allNeurons_convergence$convergenceType),digits=3)),hjust=0) +
+   annotate(geom="text",x=4.85,y=5000,angle=90,label="recurrence") +
    theme(legend.position=c(0.2,0.2))
 
 totalDivergencePlot
 ```
+Then save it:
+```{r}
+save_plot(file.path(outputsFolder,"total_divergence.svg"),totalDivergencePlot,ncol = 0.7)
+```
+
+## Total number of neurons reached per CX output type (panel E)
+We build a table (again recursively) that keep track of the number of neurons reached in every layer by pathways originitating from given CX output types (using the `pathways` object we built earlier):
+```{r}
+divergenceTablePerType <- data.frame(n_hops=rep(0,length(CXOutputTypes)),
+                                     type.from=CXOutputTypes,
+                                     n_types=rep(1,length(CXOutputTypes)))
+ 
+for (n in 1:5){
+   divergenceTablePerType <- rbind(divergenceTablePerType,
+   data.frame(type.from=CXOutputTypes) %>% mutate(
+               n_hops=n,
+               n_types=sapply(type.from,function(ty) nrow(pathways[pathways$n_steps==n & pathways$type.from==ty,]))))  
+}
+
+# pathways$hop.to==n & 
+
+divergenceTablePerType <- supertype(mutate(divergenceTablePerType,databaseType=type.from,type=type.from)) %>% selectSupertypeSet(exceptions=list("PFL"=1,"EL"=3,"EPG"=3,"PEG"=3))
+```
+
 
 ```{r}
-nReachedPlot <- ggplot(divergenceTable,aes(x=type.from,y=n_types)) + geom_col(aes(fill=as.factor(n_hops))) + scale_fill_manual(name="Layer",values=paletteer_d("ggthemes::Color_Blind")[1:6])+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3,scales = "free",space="free") +ylab("# types reached") + xlab("CX output types")
+nReachedPlot <- ggplot(divergenceTablePerType,aes(x=type.from,y=n_types)) +
+   geom_col(aes(fill=as.factor(n_hops))) + 
+   scale_fill_manual(name="# steps",values=paletteer_d("ggthemes::Color_Blind")[1:6])+ 
+   theme_paper()+ 
+   theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+
+   facet_grid(.~supertype3,scales = "free",space="free") +
+   ylab("# types reached") + xlab("CX output types")
 nReachedPlot
 ```
+Then save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"reachability.svg"),nReachedPlot,ncol=2,nrow=1)
+```
 
+## Composition of different layers of the graph (panels C and D)
+We're going to use the `pathways` object created earlier. First, we add a column with a convenient supertyping (and we make it a factor):
 ```{r}
 pathways <- mutate(pathways,supertype3.to=allNodes$supertype3[match(type.to,allNodes$type)])
-pathways$supertype3.to <- factor(pathways$supertype3.to,levels=c("Unassigned","Terra incognita","EB Columnar","ER","ExR","FB Columnar","FB Output","FB Tangential","PB Input","LNO","SA","DN","Visual PNs","Fru","Antennal lobe","KC","MBON","DAN","LH","OA","5HT","Peptidergic","Clock","Other Sensory"))
-pathwaysSummary <- group_by(pathways,supertype3.to,hop.to) %>% summarize(pathWeight=sum(Path_weight),nTypes=length(unique(type.to))) %>% ungroup() %>%
-   group_by(hop.to) %>% mutate(normalizedPathWeight=pathWeight/sum(pathWeight),normalizedNTypes=nTypes/sum(nTypes)) %>% ungroup() %>% filter(hop.to>0)
+
+pathways$supertype3.to <- factor(pathways$supertype3.to,
+                                 levels=c("Unassigned","Terra incognita","EB Columnar","ER","ExR","FB Columnar","FB Output","FB Tangential","PB Input","LNO","SA","DN","Visual PNs","Fru","Antennal lobe","KC","MBON","DAN","LH","OA","5HT","Peptidergic","Clock","Other Sensory"))
+```
+
+We then summarize it at two level of groupings. `pathwaysSummary` is used for the bar plot, `pathwaysSuperSummary` to get the value of the total pathway weights received in each layer:
+```{r}
+pathwaysSummary <- group_by(pathways,supertype3.to,hop.to) %>%
+   summarize(pathWeight=sum(Path_weight),nTypes=length(unique(type.to))) %>% ungroup() %>%
+   group_by(hop.to) %>% 
+   mutate(normalizedPathWeight=pathWeight/sum(pathWeight),normalizedNTypes=nTypes/sum(nTypes)) %>% #normalize
+   ungroup() %>% filter(hop.to>0)
+
 pathwaysSuperSummary <- group_by(pathwaysSummary,hop.to) %>% summarize(totalWeight=sum(pathWeight))
-
-#pathwaysSummaryCum <- group_by(pathwaysSummary,supertype3.to) %>% arrange(n_steps) %>% mutate(pathWeight=cumsum(pathWeight)) %>%ungroup()
-outputComposition <- ggplot(pathwaysSummary,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("layer")+ylab("normalized weight received") + 
-   theme(strip.background=element_rect(fill = "grey80",color=NA)) + scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1))+ geom_text(data=pathwaysSuperSummary,aes(x=hop.to,y=1.03,label=format(totalWeight,digits=1,scientific=FALSE)),inherit.aes = F,size=5*mm2pt*1.327492) +
-   geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=1.1,size=totalWeight),inherit.aes = F) + scale_size(limits=c(0,28)) + guides(size="none")
-outputCompositionZoom <-  ggplot(filter(pathwaysSummary,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + geom_col() + theme_paper() + scale_fill_manual(values=supertype3Palette,name="Supertype")+ xlab("layer")+ylab("normalized weight received")+ 
-    theme(strip.background=element_rect(fill = "grey80",color=NA)) +
-   geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=0.08,size=totalWeight),inherit.aes = F)+ scale_size(limits=c(0,28)) +guides(fill="none",size="none")
-outputComposition + outputCompositionZoom + plot_layout(guides = "collect")
 ```
-
-## Figure 2
+We then generate the two plots (the second one focuses on the known types that are not CX types):
 ```{r}
-figure2 <- overallGraphPlot /(totalDivergencePlot + (outputComposition + outputCompositionZoom + plot_layout(guides="collect")) + plot_layout(widths=c(1,1.5))) / nReachedPlot + plot_annotation(tag_levels = "A",title= "Outputs Fig 2: Divergence of output networks",theme = theme(title=element_text(face="bold",size=12*1.111111,family="arial"))) & theme(plot.margin=margin(l=10,r=10,b=10,t=10))
-figure2
+outputComposition <- ggplot(pathwaysSummary,aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) +
+   geom_col() + theme_paper() + 
+   scale_fill_manual(values=supertype3Palette,name="supertype")+ 
+   xlab("layer")+ylab("normalized weight received") + 
+   theme(strip.background=element_rect(fill = "grey80",color=NA)) +
+   scale_y_continuous(breaks=c(0,0.2,0.4,0.6,0.8,1))+
+   geom_text(data=pathwaysSuperSummary,
+             aes(x=hop.to,y=1.03,label=format(totalWeight,digits=1,scientific=FALSE)),
+             inherit.aes = F,size=5*mm2pt*1.327492) +
+   geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=1.1,size=totalWeight),inherit.aes = F) + 
+   scale_size(limits=c(0,28)) + guides(size="none")
+
+outputCompositionZoom <-  ggplot(filter(pathwaysSummary,hop.to>0 & supertype3.to %in% c("5HT","Antennal lobe","Clock","DAN","DN","Fru","KC","LH","MBON","OA","Peptidergic","Visual PNs")),
+                                 aes(x=hop.to,y=normalizedPathWeight,fill=supertype3.to)) + 
+   geom_col() + 
+   theme_paper() + theme(strip.background=element_rect(fill = "grey80",color=NA)) +
+   scale_fill_manual(values=supertype3Palette,name="Supertype")+
+   xlab("layer")+ylab("normalized weight received")+ 
+   geom_point(data=pathwaysSuperSummary,aes(x=hop.to,y=0.08,size=totalWeight),inherit.aes = F)+
+   scale_size(limits=c(0,28)) +guides(fill="none",size="none")
+
+outputComposition
+outputCompositionZoom
 ```
+Finally we save those two plots:
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure2.svg"),figure2,base_width = 8.5*1.333333,base_height = 11*1.333333)
+save_plot(file.path(outputsFolder,"outputsComposition.svg"),outputComposition,ncol=0.7)
+save_plot(file.path(outputsFolder,"outputsCompositionZoom.svg"),outputCompositionZoom,ncol=0.4)
 ```
+
+

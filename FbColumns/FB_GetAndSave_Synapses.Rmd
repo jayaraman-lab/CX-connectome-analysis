@@ -5,23 +5,17 @@ output:
     df_print: paged
 ---
 
-
-### Load libraries
+# Load libraries
 ```{r message=FALSE, warning=FALSE}
-library(nat)
-library(neuprintr)
-library(tidyverse)
-library(dplyr)
-library(matlib)
-library(RColorBrewer)
-library(ggraph)
-library(robustbase)
-require(alphahull)
 library(neuprintrExtra)
-options(nat.plotengine = 'rgl')
+library(neuprintr)
+library(ggraph)
+library(dplyr)
+library(nat)
+library(alphahull)
 ```
 
-### Make a directory to save the data to.
+# Make a directory to save the data to.
 ```{r}
 
 SaveDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/"
@@ -29,12 +23,12 @@ if (!dir.exists(SaveDir)){dir.create(SaveDir)}
 
 ```
 
-### Connect to neuprint server.
+# Connect to neuprint server.
 ```{r}
 neuprint_login()
 ```
 
-### Get general functions
+# Get general functions
 ```{r}
 
 source("../R/SynapsePCAUtils.r")
@@ -43,8 +37,8 @@ source("FB_Analysis_Utils.r")
 ```
 
 
-### Get information on all FB columnar neurons
-```{r}
+# Get information on all FB columnar neurons
+```{r warning=FALSE}
 
 # Get all FB bodies
 NamedBodies=getNeuronsInRoiTable("FB",0)
@@ -60,7 +54,7 @@ ColumnarBodies=subset(NamedBodies, NamedBodies$type %in% IncludedTypes)
 ```
 
 
-### Get synapse locations for all columnar neurons and all layers
+# Get synapse locations for all columnar neurons and all layers
 ```{r warning=FALSE}
 
 # Get synapses in layers 1-9

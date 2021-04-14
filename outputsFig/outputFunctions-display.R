@@ -1,7 +1,15 @@
 library(graphlayouts)
+library(tidygraph)
+library(ggraph)
+library(igraph)
 library(neuprintrExtra)
-
-
+library(neuprintr)
+library(nat)
+library(paletteer)
+library(dplyr)
+library(stringr)
+library(patchwork)
+source(file.path("..","R","paperTheme.R"))
 ## Palettes
 customROIPalette <-  function(){
   roiH <- getRoiTree()
@@ -65,31 +73,41 @@ customSupertypePalette <- c(
 )
 
 ##
-standardGraph <- function(gr,pal,colP="customSupertype",...){ggraph(gr,...) + 
-  geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),width=weightRelative),end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) + geom_node_point(aes(color=!!sym(colP)),size=4)+
-  geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="Supertype")+ 
-  scale_edge_color_manual(values=pal) + 
-    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") + 
-  guides(edge_color="none")}
+standardGraph <- function(gr,pal,colP="customSupertype",...){
+  ggraph(gr,...) + 
+  geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),
+                    width=weightRelative),end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) + 
+    geom_node_point(aes(color=!!sym(colP)),size=4)+
+    geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="supertype")+ 
+    scale_edge_color_manual(values=pal) + 
+    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + 
+    guides(edge_color="none")}
 
 ## Columns/glomeruli matrices + summaries for columnar neurons
-plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus","column")){
+plotGlomMat <- function(bag,type,targetFilt=NULL,
+                        grouping=c("glomerulus","column"),
+                        facetInputs=NULL){
   grouping <- match.arg(grouping)
+  if (is.null(targetFilt)) outRaw <- outRaw %>% filter(type.to %in% targetFilt$type.to)
   outRaw <- bag$outputs_raw %>% 
-    filter(type.to %in% targetFilt$type.to & !type.to %in%  type.from) %>%
-    filter(type.from %in% type) %>%
+    filter(!type.to %in%  type.from & type.from %in% type) %>%
     arrange(type.to) %>% 
-    mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),levels=c(paste0("L",9:1),paste0("R",1:9))),
-           column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>% 
+    mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),
+                             levels=c(paste0("L",9:1),paste0("R",1:9))),
+           column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),
+                         levels=paste0("C",9:1))) %>% 
     group_by(glomerulus,type.from) %>% mutate(n_glom_from=length(unique(from))) %>%
     group_by(column,type.from) %>% mutate(n_col_from=length(unique(from))) %>% ungroup()
   
   
   groupingName <- ifelse(grouping=="glomerulus","glom","col")
-  outPerGroup <- group_by(outRaw,!!(sym(grouping)),type.from,type.to,supertype3.to,supertype2.to,to,name.to,roi) %>% 
+  outPerGroup <- group_by(outRaw,!!(sym(grouping)),
+                          type.from,type.to,supertype3.to,supertype2.to,to,name.to,roi) %>% 
     summarize(weightRelative=sum(weightRelative),
-              name.from=paste0((!!(sym(grouping)))[1]," (n=",(!!sym(paste0("n_",groupingName,"_from")))[1],")"),
+              name.from=paste0((!!(sym(grouping)))[1],
+                               " (n=",(!!sym(paste0("n_",groupingName,"_from")))[1],")"),
               from=(!!(sym(grouping)))[1]) %>% ungroup() %>% 
     arrange(type.to,!!(sym(grouping)))
   
@@ -99,33 +117,52 @@ plotGlomMat <- function(bag,type,targetFilt=mainFFTargets,grouping=c("glomerulus
     orderIn <- paste0("C",9:1)
   }
   
-  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],grouping="neuron",xaxis="outputs",replacementLabels = "name",orderIn = orderIn,legendName="Relative weight",theme=theme_paper_grid(),facetOutputs="supertype2.to",facetInputs=facetInputs) + 
+  connMat <- plotConnectivity(outPerGroup,slctROI=outPerGroup$roi[1],
+                              grouping="neuron",xaxis="outputs",
+                              replacementLabels = "name",orderIn = orderIn,
+                              legendName="relative weight",
+                              theme=theme_paper_rects(),
+                              facetOutputs="supertype2.to",facetInputs=facetInputs) + 
     xlab("post synaptic neuron") + ylab(paste(type,grouping)) +theme(strip.text.x=element_blank())
   
   
-  groupCounts <- outPerGroup %>% group_by(name.from,type.from,!!sym(grouping)) %>% summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
+  groupCounts <- outPerGroup %>% 
+    group_by(name.from,type.from,!!sym(grouping)) %>% 
+    summarize(totalW=sum(weightRelative)) %>% ungroup() %>% 
     mutate(!!grouping := factor(!!(sym(grouping)),levels=orderIn)) %>% arrange(!!(sym(grouping))) %>%
     mutate(name.from = factor(name.from,levels=unique(name.from)))
   
-  countPlot <- ggplot(groupCounts,aes(x=name.from,y=totalW,group=type.from)) + geom_line() +theme_paper_hgrid() + coord_flip() + 
-    theme(axis.text.x=element_text(angle=90),axis.text.y=element_blank(),axis.line.y=element_blank(),axis.title.y=element_blank(),axis.ticks.y = element_blank()) + ylim(c(0,NA)) + ylab("total relative weight")
+  countPlot <- ggplot(groupCounts,aes(x=name.from,y=totalW,group=type.from)) + 
+    geom_line() +theme_paper_hgrid() + coord_flip() + 
+    theme_paper(axis.text.x=element_text(angle=90),
+          axis.text.y=element_blank(),axis.line.y=element_blank(),
+          axis.title.y=element_blank(),axis.ticks.y = element_blank()) + 
+    ylim(c(0,NA)) + ylab("total relative weight")
     
   connMat + countPlot + plot_layout(guides="collect",widths=c(1,0.1))
 }
 
 ## MESHES AND SYNAPSES
 
-displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName=NULL,neuronPalette=NULL,synapsePalette=NULL,synapseCluster="customContributor",
-                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),alphaRois=0.05,
-                             roiPal=customROIPalette(),size=c(1500,1500),...){
+displayAnatomies <- function(neurons=NULL,
+                             synapses=NULL,
+                             ROIs,
+                             saveName="rendering",
+                             saveFolder=".",
+                             neuronPalette=NULL,synapsePalette=NULL,
+                             synapseCluster="customContributor",
+                             roiRef=selectRoiSet(getRoiTree(),exceptions=list("LAL(R)"=4,"CRE(R)"=4)),
+                             alphaRois=0.2,
+                             roiPal=customROIPalette(),
+                             roiShininess=1,
+                             size=c(1500,1500),...){
   
   nopen3d()
   par3d(windowRect = c(30, 30, size[1]+30, size[2]+30))
   for (r in ROIs){
     locMesh <- neuprint_ROI_mesh(r)
     superROI <- roiRef$level0[match(r,roiRef$level2)]
-    #plot3d(locMesh,color=roiPal[superROI],alpha=ifelse(superROI=="CX",0.05,0.1),xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
-    plot3d(locMesh,color=roiPal[superROI],alpha=alphaRois,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
+    plot3d(locMesh,color=roiPal[superROI],alpha=alphaRois,shininess=roiShininess,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
   }
   par3d(scale=c(1,1,1))
   if (!is.null(neurons)){
@@ -148,26 +185,32 @@ displayAnatomies <- function(neurons=NULL,synapses=NULL,ROIs,saveName=NULL,neuro
   
   nview3d("ventral")
   if (!is.null(saveName)){
-    rgl.snapshot(paste0(outputsFolder,saveName,"-front.png"))
-    #rgl.postscript(paste0(outputsFolder,saveName,"-front.svg"),fmt="svg")
+    rgl.snapshot(file.path(saveFolder,paste0(saveName,"-front.png")))
     nview3d("right",extramat=rotationMatrix(-pi/2, 1, 0, 0))
-    rgl.snapshot(paste0(outputsFolder,saveName,"-side.png"))
+    rgl.snapshot(file.path(saveFolder,paste0(saveName,"-side.png")))
     rgl.close()
   }
 }
 
 ## GRAPHS and SUBGRAPHS
 
-plotSubgraph <- function(contributors,influenceThreshold=0.005,pal=customGraphPalette,colP="supertype",conns=mainFFConns,targets=mainFFTargetsS,graph=CX_outTblG,...){
-  mainT <- filter(conns, Path_weight>influenceThreshold & type.from %in% contributors & type.to %in% (graph %N>% as_tibble())$type) 
+plotSubgraph <- function(contributors,
+                         influenceThreshold=0.005,
+                         pal=customSupertypePalette,
+                         colP="supertype",
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         graph=CX_outTblG,...){
+  mainT <- filter(conns, Path_weight>influenceThreshold & 
+                    type.from %in% contributors & 
+                    type.to %in% (graph %N>% as_tibble())$type) 
+  
   sourceSG <- as_tbl_graph(induced_subgraph(graph,c(contributors,mainT$type.to))) %>% 
     activate(nodes) %>% mutate(databaseType=type) %>% 
     mutate(supertype = targets$supertype[match(type,targets$type)]) %>% 
     mutate(supertype = ifelse(type %in% contributors,"Source",as.character(supertype))) %E>%
     mutate(supertype.from=.N()$supertype[match(type.from,.N()$type)])
-  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP=colP,...)#ggraph(sourceSG,...) + geom_edge_fan(aes(width=weightRelative,color=.N()$supertype[from])) +
-   # geom_node_point(aes(color=supertype),size=3) + geom_node_text(aes(label=type),repel = T,size=2) + 
-   #scale_color_manual(name="Supertype",values=c(customSupertypePalette,customGraphPalette,"Source"="grey30")) + scale_edge_color_manual(values=c(customSupertypePalette,customGraphPalette,"Source"="grey30"))+ theme_paper_map() + scale_edge_width(name="Relative weight",limits=c(0,1)) +guides(edge_color="none")
+  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP=colP,...)
   sourceSGPlot
 }
 
@@ -186,20 +229,20 @@ getLocalSubgraph <- function(type.from,type.to,graph,order=2){
 
 getMotifsGraphDf <- function(outDf,CXDf,ty,wr="relativeWeight4"){
   CXOuts <- unique(outDf$type.from)
-  outDf <- filter(outDf,type.from %in% ty & !is.na(!!sym(wr))) %>% rename(weightRelative=!!sym(wr)) %>% mutate(motif="Out of CX pathways")
+  outDf <- filter(outDf,type.from %in% ty & !is.na(!!sym(wr))) %>% rename(weightRelative=!!sym(wr)) %>% mutate(motif="out of CX pathways")
   if(nrow(outDf)>0){
     CXDf <- filter(CXDf, (type.from %in% unique(c(outDf$type.from,outDf$type.to))) & 
                      (type.to %in% unique(c(outDf$type.from,outDf$type.to)))) 
     if(nrow(CXDf)==0){CXDf <- mutate(CXDf,motif=character())}else{
       CXDf <- CXDf%>%
         mutate(motif=case_when(
-          paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX Parallel connection",
+          paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX parallel connection",
           paste0(type.from,type.to) %in% paste0(outDf$type.to,outDf$type.from) & 
-            !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX Canonical feedback",
+            !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) ~ "CX canonical feedback",
           (sapply(1:length(type.to),function(i){
             any(outDf[outDf$type.to == type.from[i],]$type.from %in% outDf[outDf$type.to == type.to[i],]$type.from)}) &
              !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to) &
-             !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to)) ~"Linked targets in CX"
+             !paste0(type.from,type.to) %in% paste0(outDf$type.from,outDf$type.to)) ~"linked targets in CX"
         )
         )}
     
@@ -211,12 +254,12 @@ getMotifsGraphDf <- function(outDf,CXDf,ty,wr="relativeWeight4"){
                                                                                                     category.from=factor(category.from,levels=c("Other CX","CX output")),
                                                                                                     layer.from=type.from %in% ty,
                                                                                                     layer.to=type.to %in% ty,
-                                                                                                    motif=factor(motif,levels=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")),
+                                                                                                    motif=factor(motif,levels=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")),
                                                                                                     linkCat = targetCat
     )
-    fullDf$linkCat[fullDf$motif=="Reciprocal"] = fullDf$sourceCat[fullDf$motif=="Reciprocal"]
+    #fullDf$linkCat[fullDf$motif=="Reciprocal"] = fullDf$sourceCat[fullDf$motif=="Reciprocal"]
     
-    return(fullDf %>% mutate(linkCat = factor(linkCat,levels=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")),
+    return(fullDf %>% mutate(linkCat = factor(linkCat,levels=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")),
                              roi=factor(roi,levels=c("Outside","EB","FB","PB","NO(R)","NO(L)")),
                              roiCat=ifelse(roi=="Outside","Outside","CX")))}
 }
@@ -225,7 +268,7 @@ plotMotifs <- function(graphDf){
   focusContrib <- filter(graphDf,roi=="Outside") %>% group_by(type.to) %>% summarize(weightRelative=sum(weightRelative)) %>% ungroup()
   motifGG <- makeGraph(graphDf) 
   edgePal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-  names(edgePal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")
+  names(edgePal) <- c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")
   
   #if(length(E(motifGG))>1){
   motifGG <- motifGG %N>% 
@@ -243,8 +286,8 @@ plotMotifs <- function(graphDf){
            geom_node_point(aes(color=customSuper),size=4)+
            scale_color_manual(values=customPal) +
            guides(color="none") +
-           theme_paper_map() + scale_edge_color_manual(name="Motif",values=edgePal,breaks=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX"),drop=FALSE)+
-           scale_edge_width(name="Relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
+           theme_paper_map() + scale_edge_color_manual(name="motif",values=edgePal,breaks=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX"),drop=FALSE)+
+           scale_edge_width(name="relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
            geom_node_text(aes(label=name),nudge_y = 0.15) + 
            coord_fixed(clip="off"))
   #}

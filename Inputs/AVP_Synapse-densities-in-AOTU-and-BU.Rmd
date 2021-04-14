@@ -1,11 +1,17 @@
 ---
-title: "Analysis of anterior visual pathway"
+title: "Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)"
 output:
   html_document:
     df_print: paged
   pdf_document: default
 ---
-#Analysis of mechanosensory information pathway coming into CX via R1 neurons
+
+#Analysis of anterior visual pathway: Normalized synapse densities and related visualizations
+This notebook shows how to generate normalized synapse densitites and related plots for various types in a given region (AOTU and BU)
+* Figure 6D
+* Figure 6E (TBD what the final visualization will be)
+* Figure 7C
+* Figure 8C,D
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -13,13 +19,16 @@ library(neuprintr)
 library(tidyverse)
 library(dplyr)
 library(neuprintrExtra)
-library(igraph)
-library(paletteer)
 library(gridExtra)
+library(alphahull)
+library(hexbin)
+library(paletteer)
+require(RColorBrewer)
 
 options(nat.plotengine = 'rgl')
-source("../R/visualizeConnectivityTables.R")
-source("../R/SynapsePCAUtils.R")
+source(file.path("..","R","SynapsePCAUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
 
 getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
   #' Get one dataframe of bodyIDs for all search strings in neuronList
@@ -45,19 +54,26 @@ getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
 neuprint_login()
 ```
 
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
 ```{r}
-
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
 ```
 
+## Get some synapse locations
+Choose ROI and get curated list of neurons.
 
-### (0) Get some synapse locations
-Choose ROI and get curated list of neurons
-```{r}
+Settings for...
+- Figure 6 Di: my_types = c("MC61","MC64")
+- Figure 6 Dii: my_types = c("TuBu")
+```{r message=FALSE, warning=FALSE}
 myROI = "AOTU(R)"
-#load(paste0("/Users/haberkernh/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/",myROI,"/",myROI,"_Types.RData"))
 
-saveName = paste0("MC_to_TB_in_", myROI)
-my_types = c("TuBu") #This should be the post-synaptic partners
+saveName = paste0("MC_in_", myROI)
+my_types = c("MC61","MC64")
 # Ring neurons: c("R1","R2","R3","R4","R5","R6")
 # ExR: #EB_Type[grep("ExR.*", EB_Type)]
 # ExR etc in BU: c("ExR", "PDM21a", "TuTu") "colorMap_ExR_and_PDM21a"
@@ -67,16 +83,13 @@ my_types = paste0(my_types, ".*")
 
 my_neurons = getBodyIdsForList(my_types)
 
-roiTree = getRoiTree()
-```
-
-```{r}
 cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
 
-myColorMap <- read.csv(paste0("../colorMap_",cmapNames[1],".csv"))
+# Generate color map
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
 if(length(cmapNames) > 1){
   for(cmapName in cmapNames[2:length(cmapNames)]){ 
-    tmp = read.csv(paste0("../colorMap_",cmapName,".csv"))
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
     myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
     }
 }
@@ -85,10 +98,7 @@ if(length(cmapNames) > 1){
 ...use this list to get synapse locations
 ```{r}
 my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types)$bodyid),myROI)
-# From the doc: A data frame, where each entry is a connection between the specified bodyid and its partner, either presynaptic to the bodyid (prepost=0) or postsynaptic (prepost=1). Each connection is associated with a synapse that has its own unique connector_id, XYZ coordinates and a confidence in its existence.
-```
 
-```{r}
 my_synapses = my_synapses %>% mutate(
 name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
 type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
@@ -96,7 +106,8 @@ partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]
 partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
 ```
 
-### (1) Import of ROI meshes and get vertices in x,y,z
+
+## (1) Import of ROI meshes and get vertices in x,y,z
 ```{r}
 roiMesh = neuprint_ROI_mesh(myROI)
 roiMeshPts = data.frame(dotprops(roiMesh)$points)
@@ -104,7 +115,7 @@ names(roiMeshPts) <- c("x","y","z")
 ```
 
 
-### (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
+## (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
 ***Transform mesh  and synapse locations***
 ```{r}
 # define new origin from roi center of mass
@@ -129,7 +140,16 @@ synPtsRot = changeBasis(synPts, roiEigen)
 
 ***Select either original or EV coordinates and rotate***
 ```{r}
-rot = c(0,0, 0) #BU (45,180, 0) EB: (0,0,180) AOTU: (0,0,0)
+if (myROI == "AOTU(R)"){
+  rot = c(0,0,0)
+}else if (myROI == "BU(R)"){
+  rot = c(45,180,0)
+}else if (myROI == "EB"){
+  rot =  c(0,0,180)
+}else{
+  rot = c(0,0,0)
+}
+
 flipx = 1
 flipy = -1
 flipz = 1
@@ -163,9 +183,7 @@ synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz
 
 #Add simple type name
 synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
-```
 
-```{r}
 synCount = synPtsPlane %>% count(type)
 typeFilter = synCount$type[synCount$n > 10]
 
@@ -182,12 +200,25 @@ mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubty
 
 ```
 
-### Look at synapse distributions of individual neurons
+## (3) Plot distributions
 
 ```{r}
-require(alphahull)
+#Helper plotting function
+coloredDensityPlot <- function(mydata, dims, grouping, levelBins, colorcode){
+  densPlot = ggplot() + stat_density_2d_filled(data = mydata, 
+                          aes(x=.data[[dims[1]]], y=.data[[dims[2]]], fill=.data[[grouping]], alpha = stat(nlevel)),
+                          bins=levelBins,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range=c(0,1)) + 
+  coord_fixed(ratio = 1) + theme_void() + guides(fill=guide_legend(ncol=1)) +
+  scale_fill_manual(values = as.character(cols$hex), name="type")
+  return(densPlot)
+}
+```
+
+### Generate mesh outlines for different orientations
+```{r}
 if(myROI=="AOTU(R)"){
-  alphaval = 120
+  alphaval = 160
 }else{alphaval = 100}
 
 # get outline
@@ -202,12 +233,106 @@ outline_xz = data.frame(meshOutline$arcs)
 
 ```
 
-3D plot
+### 2D histograms
+```{r}
+nbins = 40
+ncolumns = 5
+
+# front view (xy)
+synprojFront = ggplot() + 
+  geom_hex(data=dataFilt, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
+  scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
+  facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5)
+print(synprojFront)
+
+# side view (zy)
+synprojSide = ggplot() + 
+  geom_hex(data=dataFilt, aes(x=z, y=y), bins=nbins) +   #fill=type, color=type
+  scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
+  facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5)
+print(synprojSide)
+
+# top view (xz)
+synprojTop = ggplot() + 
+  geom_hex(data=dataFilt, aes(x=x, y=z), bins=nbins) +   #fill=type, color=type
+  scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
+  facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5)
+print(synprojTop)
+
+```
+
+### 2D densitiy distributions
+```{r}
+plotW = 10
+plotH =  15
+levelBins = 5
+
+# For AOTU plots
+typeSelection = list(c("TuBu01","TuBu06"),paste0("TuBu",c("02","03","04","05")),paste0("TuBu",c("07","08","09","10")))
+
+dataPlot <- dataFilt %>% mutate(group = 0)
+for (i in seq(1,length(typeSelection))){
+  dataPlot <- dataPlot %>% mutate(group = replace(group, type %in% typeSelection[[i]], i))
+}
+
+# front view (xy)
+synprojFront = ggplot() + 
+  stat_density_2d_filled(data = dataPlot, aes(x=x, y=y, fill=type,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1))
+
+synprojFront = synprojFront + geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5)
+synprojFront
+if (savePlot){
+  ggsave( paste("synapseDistributions_",saveName,'_front.pdf', sep=''), plot = synprojFront, device='pdf',
+          path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+# side view (zy)
+synprojSide = ggplot() + 
+  stat_density_2d_filled(data = dataPlot, aes(x=z, y=y, fill=type,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1))
+
+synprojSide = synprojSide + geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5)
+synprojSide
+if (savePlot){
+  ggsave( paste("synapseDistributions_",saveName,'_side.pdf', sep=''), plot = synprojSide, device='pdf',
+          path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+# top view (xz)
+synprojTop = ggplot() + 
+  stat_density_2d_filled(data = dataPlot, aes(x=x, y=z, fill=type,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1)) 
+
+synprojTop = synprojTop + geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5)
+synprojTop
+if (savePlot){
+  ggsave( paste("synapseDistributions_",saveName,'_top.pdf', sep=''), plot = synprojTop, device='pdf',
+          path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+```
+
+
+### Look at synapse distributions of individual neurons
+3D plot (just to aid visual intuition, not used in paper)
 ```{r}
 post = 1
 partnerType = "MC61"#"TuBu08"#
 partnerSubset = getBodyIdsForList(paste0(c(partnerType),".*")) #  "TuBu", "ER"
-focustype = "TuBu10"#"ER4d"# 
+focustype = "TuBu01"#"ER4d"# 
 data = synPtsPlane %>% filter(partnerType %in% partnerSubset$type) %>% 
   filter(type %in% c(focustype) & prepost == post)
 
@@ -220,11 +345,8 @@ mycols = paletteer_c("pals::ocean.phase", n=1+length(myids))[-1]
 nclear3d()
 for (i in seq(1,length(myids),1)){
   toplot = synPtsPlane%>%filter(id == myids[i]) %>% select(c('x','y','z'))
-  if (! i %% 2){
-    plot3d(toplot, col=mycols[i], add=TRUE,  size=5, alpha=0.4)
-    plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=10, add=TRUE)
-  }
-  plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=8, add=TRUE)
+  plot3d(toplot, col=mycols[i], add=TRUE,  size=5, alpha=0.3)
+  plot3d(toplot %>% summarise(across(c(x,y,z), mean)), col=mycols[i], size=10, add=TRUE)
 }
 
 plot3d(roiMeshPtsPlane, size=2, alpha=0.1, add=TRUE)
@@ -232,7 +354,10 @@ decorate3d(box=FALSE)
 ```
 
 
+
 ```{r, warning=FALSE}
+saveName = paste0("MC_to_TB_in_", myROI)
+
 perspective = "post"
 
 prePartnerList =c("MC61","MC64") # c(paste0("TuBu0",seq(1,9)),"TuBu10")#
@@ -241,9 +366,9 @@ postPartnerList = getBodyIdsForList(my_types)
 postPartnerList = unique(postPartnerList$type)#c(paste0("TuBu0",seq(1,9)),"TuBu10")
 postGroup = "TuBu"
 
-xrange = c(-4000, 2500)#c(-1500, 1000)
-yrange = c(-2500, 3500)#c(-500, 1500)
-zrange = c(-1500, 1500)#c(-800, 400)
+xrange = c(-5000, 2000)#c(-1500, 1000)
+yrange = c(-3000, 4000)#c(-500, 1500)
+zrange = c(-2000, 3000)#c(-800, 400)
 
 for (post in seq(0,1)){
   if (perspective  == "pre"){
@@ -252,8 +377,6 @@ for (post in seq(0,1)){
     partnertypelist = postPartnerList
   }
   for (partnertype in partnertypelist){ #
-    #print(partnertype)
-    #partnertype = "TuBu01"
     
     if (perspective  == "pre"){
       dataTypefilt = synPtsPlane %>% filter(partnerType == partnertype)
@@ -284,38 +407,37 @@ for (post in seq(0,1)){
       print(savestring)
 
       colPal = paletteer_c("pals::ocean.phase",n=1+length(unique(toplot_2D$groupingvar)))[-1]
-        #polychrome: paletteer_d("Polychrome::palette36")[-2]
-      
+
       xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=groupingvar, size=1, alpha=0.8)) + 
         geom_point(data=toplot_2D %>% group_by(groupingvar) %>% 
                      summarize_each(mean), aes(x=x, y=y, color=groupingvar, size=3)) +
         scale_color_manual(values = colPal, breaks = unique(toplot_2D$groupingvar)) + 
-        geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(yrange) +
+        geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5)  +
         coord_fixed() + theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=xrange,  y=yrange)
       
       zyproj <- ggplot(toplot_2D) + geom_point(aes(x=z, y=y, color=groupingvar, size=1, alpha=0.8)) + 
         geom_point(data=toplot_2D %>% group_by(groupingvar) %>% 
                      summarize_each(mean), aes(x=z,y=y, color=groupingvar, size=3)) +
         scale_color_manual(values = colPal, breaks = unique(toplot_2D$groupingvar)) + 
-        geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5) + xlim(zrange)  + ylim(yrange) +
+        geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5) +
         coord_fixed() +theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=zrange,  y=yrange)
       
       xzproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=z, color=groupingvar, size=1, alpha=0.8)) + 
         geom_point(data=toplot_2D %>% group_by(groupingvar) %>% 
                      summarize_each(mean), aes(x=x,y=z, color=groupingvar, size=3)) +
         scale_color_manual(values = colPal, breaks = unique(toplot_2D$groupingvar)) + 
-        geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(zrange) +
+        geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5) +
         coord_fixed() +theme_void() + guides(size=FALSE, color=FALSE, alpha=FALSE) + lims(x=xrange,  y=zrange)
       
       projPlot <- grid.arrange(xyproj,zyproj,xzproj, nrow=1)
       
       if (post){
         ggsave(paste("synapseDistributions_",savestring,'_post_projection.pdf', sep=''),
-                plot = projPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
+                plot = projPlot, device='pdf', path = "plots", 
                 scale = 1, width = 60, height = 20, units ="cm", dpi = 600, useDingbats=FALSE)
       }else{
         ggsave(paste("synapseDistributions_",savestring,'_pre_projection.pdf', sep=''),
-                plot = projPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
+                plot = projPlot, device='pdf', path = "plots", 
                 scale = 1, width = 60, height = 20, units ="cm", dpi = 600, useDingbats=FALSE)
       }
      
@@ -325,114 +447,6 @@ for (post in seq(0,1)){
 
 ```
 
-### Quantification of convergence/divergence for a type-2-type connection
-
-(a) From how many type A cells does a single type B cell get input?
-(b) To how many type A cells does a single type B cell give input?
-
-```{r, warning=FALSE}
-prePartnerList = c("MC61","MC64")#c(paste0("TuBu0",seq(1,9)),"TuBu10")#
-preGroup = "MC"#"TuBu"#
-postPartnerList = getBodyIdsForList(my_types)
-postPartnerList = c(paste0("TuBu0",seq(1,9)),"TuBu10")#unique(postPartnerList$type)#
-postGroup = "TuBu"#"ER"#
-
-conPattern = data.frame("focustype"=character(0), "partnertype"=character(0), "focustypeid"=character(0), "n_partners"=integer(0))
-for (post in seq(0,1)){
-  partnertypelist = prePartnerList
-
-  for (partnertype in partnertypelist){ #
-    #print(partnertype)
-    #partnertype = "TuBu01"
-    dataTypefilt = synPtsPlane %>% filter(partnerType == partnertype)
-    focustypelist = c(postPartnerList, prePartnerList)
-   
-    for (focustype in focustypelist){
-      if(post == 1){ direction = paste0(preGroup,"2",postGroup) }else{ direction = paste0(postGroup,"2",preGroup)}
-      
-      data = dataTypefilt %>% filter((type %in% c(focustype)) & (prepost == post)) %>%
-          mutate(groupingvar = id)
-      neuron2neuron = data %>% select(type, partnerType, id, partnerid, prepost) %>% group_by(id, partnerid) %>% mutate(nsyn =  length(prepost))
-    
-      neuron2neuron = unique(neuron2neuron)
-      
-      if(is_empty(unique(data$groupingvar))){next}
-      #if(length((data$groupingvar))<=10){ next}
-      #print(savestring)
-      postFocus = neuron2neuron  %>% group_by(id) %>% summarize(n = length(prepost), s = sum(nsyn))
-      tmpDF = data.frame("focustypeSyn"="post", "focustypeid"=postFocus$id, "n_partners"= postFocus$n,
-                         "focustype" = focustype, "partnertype" = partnertype, syndir = direction, "syn"=postFocus$s)
-      conPattern =  bind_rows(conPattern, tmpDF)
-      
-      preFocus = neuron2neuron  %>% group_by(partnerid) %>% summarize(n = length(prepost), s = sum(nsyn))
-      tmpDF = data.frame("focustypeSyn"="pre", "focustypeid"=preFocus$partnerid, "n_partners"= preFocus$n,
-                         "focustype" = partnertype, "partnertype" = focustype, syndir = direction, "syn"=preFocus$s)
-      conPattern =  bind_rows(conPattern, tmpDF)
-    }
-  }
-}
-
-```
-
-```{r}
-# For TB -> RN
-filtdat = conPattern %>% filter(focustypeSyn == "post")
-myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
-myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
-postPlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners, size = syn)) + 
-  geom_jitter(width = 0.2, height = 0, aes(color=partnertype)) +
-  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
-  facet_grid(rows = vars(syndir), cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic() + 
-  theme(axis.text.x = element_text(angle = 90),text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
-  guides(color=FALSE)  + labs(title = paste(postGroup, "gets input from..."))
-
-filtdat = conPattern %>% filter(focustypeSyn == "pre")
-myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
-myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
-prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
-  geom_jitter(width = 0.2,height = 0, aes(color=partnertype)) + 
-  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
-  facet_grid(rows = vars(syndir), cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic()   +
-  theme(axis.text.x = element_text(angle = 90), text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
-  guides(color=FALSE)  + labs(title=paste(preGroup, "gives output to..."))
-
-conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2)
-
-ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'.pdf', sep=''),
-                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
-                scale = 1, width = 35, height = 26, units ="cm", dpi = 600, useDingbats=FALSE) #height 12
-
-```
 
 
-```{r}
 
-# For TB -> RN
-selectDir = "TuBu2ER"#"MC2TuBu"
-filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir)
-myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
-myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
-postPlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
-  geom_jitter(width = 0.2, height = 0.15, aes(color=partnertype)) +
-  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
-  facet_grid(cols = vars(focustype), scales = "free_x",space='free_x') + theme_classic() + 
-  theme(axis.text.x = element_text(angle = 90),text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
-  guides(color=FALSE) + labs(title = paste(postGroup, "gets input from..."))
-
-filtdat = conPattern %>% filter(focustypeSyn == "pre" & syndir == selectDir)
-myCM = myColorMap %>% filter(Type %in% unique(filtdat$partnertype))
-myCM = myCM[match(as.character(unique(filtdat$partnertype)), myCM$Type),] %>% arrange(unique(filtdat$partnertype))
-prePlot <- ggplot(data=filtdat,aes(x=partnertype, y=n_partners,size = syn)) + 
-  geom_jitter( width = 0.2,height = 0.15, aes(color=partnertype)) + 
-  scale_color_manual(values = as.character(myCM$hex)) + scale_size(range=c(0,2.5)) +
-  facet_grid(cols = vars(focustype), scales = "free_x", space='free_x') + theme_classic()   +
-  theme(axis.text.x = element_text(angle = 90), text = element_text(size=8), axis.line = element_line(colour = 'black', size = .3)) +
-  guides(color=FALSE) + labs(title=paste(preGroup, "gives output to..."))
-
-conPatternPlot <- grid.arrange(postPlot,prePlot, nrow=2)
-
-ggsave(paste("connectionPattern",preGroup,"_and_",postGroup,'_', selectDir,'.pdf', sep=''),
-                plot = conPatternPlot, device='pdf', path = "../../neuprintR_analysis_plots/", 
-                scale = 1, width = 35, height = 18, units ="cm", dpi = 600, useDingbats=FALSE) #height = 8
-
-```

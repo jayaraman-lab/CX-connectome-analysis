@@ -158,30 +158,20 @@ getSelfFBGraphData = function(graphData){
 }
 
 # convenient graph plotting
-constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap=NULL, useRandCol=FALSE){
-  old_dir <- setwd("/Users/haberkernh/Documents/code/neuprintR-notebooks")
-  source("colorCodeLookup.R")
-  setwd(old_dir)
-  
+constructConnectivityGraph = function(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap=NULL){
   connectGraph = graph_from_data_frame(graphData)
   
   nodeCols = colors()[30+seq(1, length(V(connectGraph)$name))]
-  if(!useRandCol){
+  if (! is_null(colormap)){
     for (i in seq(1, length(V(connectGraph)$name))) {
-      ncol = colors()[colorValueLookup$col[colorValueLookup$type ==  getSimpleTypeNames(V(connectGraph)$name[i])]]
-      if (length(ncol) > 0) {nodeCols[i] = ncol}
-    }
-    if (! is_null(colormap)){
-      for (i in seq(1, length(V(connectGraph)$name))) {
-        ncol = unique(colormap %>% filter(Type %in% V(connectGraph)$name[i]) %>% select(hex))
-        if (length(ncol$hex) > 0) {
-          #print(as.character(ncol$hex))
-          nodeCols[i] = as.character(ncol$hex)
-          }
+      ncol = unique(colormap %>% filter(Type %in% V(connectGraph)$name[i]) %>% select(hex))
+      if (length(ncol$hex) > 0) {
+        #print(as.character(ncol$hex))
+        nodeCols[i] = as.character(ncol$hex)
       }
     }
   }
-  
+
   # The labels are currently node IDs. Setting them to NA will render no labels
   V(connectGraph)$label.color="black"
   V(connectGraph)$label.cex=0.8

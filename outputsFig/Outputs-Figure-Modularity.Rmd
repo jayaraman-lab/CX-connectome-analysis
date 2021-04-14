@@ -3,225 +3,408 @@ title: "Feedforward networks modularity figure"
 output: html_notebook
 ---
 
+## Preparing the environment
 ```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
 library(neuprintrExtra)
-library(nat)
-library(Cairo)
+library(dplyr)
+library(stringr)
 library(paletteer)
-library(tidygraph)
-library(ggraph)
-library(igraph)
 ```
-
+Local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
 source("outputFunctions-core.R")
-source("../R/paperTheme_linux.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure6-Modularity/"
+source(file.path("..","R","paperTheme.R"))
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-load("outputsBasics.RData")
-load("mainTargetsAndConns.Rdata")
-outClustersFull <- readRDS("clusters-paths.rds")
-outClusters <- readRDS("cluster-alldephts.rds")
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
-CXoutAllSteps <- readRDS("pathways-allsteps.rds")
-CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
+outputsFolder <- "figure59-OutputsModularity"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+##  Base metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+
+## Info about the strongest targets
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
+
+## Clustering run on the connectivity tables at different depths
+outClustersFull <- readRDS(file.path(dataFolder,"clusters-paths.rds"))
+outClusters <- readRDS(file.path(dataFolder,"cluster-alldephts.rds"))
+
+## Pathway weights table, ad table of neurons exclusively involved in CX to CX connections
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+#CXoutAllSteps <- readRDS("pathways-allsteps.rds")
+CX2CXExclusivePathways <- readRDS(file.path(dataFolder,"cx2cx-pathways.rds"))
+
+## Graphs of the output networks (and version reduced to strong targets)
 #mainTargets <- readRDS("main-targets.rds")
-CX_outGraph <- readRDS("output_graph.rds")
-CX_outGraphRed <- readRDS("output_graph_reduced.rds")
+CX_outGraph <- readRDS(file.path(dataFolder,"output_graph.rds"))
+CX_outGraphRed <- readRDS(file.path(dataFolder,"output_graph_reduced.rds"))
 ```
 
+## Total pathway weight contributed per type and main known targets (panel A)
+We summarize the pathway weights table per type of origin and only distinguish identified from unidentified targets:
 ```{r}
-targetsSummary <- group_by(CXoutFull,type.to) %>% summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
+CXFFTotals <- filter(CXoutFull,
+                     !databaseType.to %in% CXOutsideNeurons$databaseType & 
+                        !type.to %in% CX2CXExclusivePathways$type.from) %>%
+   mutate(typeCategory.to=case_when(supertype3.to %in% c("Terra incognita","Unassigned") ~ "unidentified",
+                                    TRUE ~ "identified")) %>%
+   group_by(type.from,supertype3.from,typeCategory.to) %>% 
+   summarize(Path_weight=sum(Path_weight)) %>% ungroup()
+   
+head(CXFFTotals)
 ```
-
-## Clustering comparisons SI fig
+We then plot the results:
 ```{r}
-cluster1 <- plotClusters(outClusters[[1]],orderX=match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[1]]$hc$labels),
-             orderY=match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[1]]$hc$labels)) + ggtitle("1 hop") + guides(fill="none")
-cluster2 <- plotClusters(outClusters[[2]],orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[2]]$hc$labels)),
-             orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[2]]$hc$labels)))+ ggtitle("2 hops")+ guides(fill="none")
-cluster3 <- plotClusters(outClusters[[3]],orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[3]]$hc$labels)),
-             orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[3]]$hc$labels)))+ ggtitle("3 hops")+ guides(fill="none")
-cluster5 <- plotClusters(outClusters[[5]],orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[5]]$hc$labels)),
-             orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[5]]$hc$labels)))+ ggtitle("5 hops")+ guides(fill="none")
-cluster8 <- plotClusters(outClusters[[8]],orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[8]]$hc$labels)),
-             orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],outClusters[[8]]$hc$labels)))+ ggtitle("8 hops")+ guides(fill="none")
-clusterFull <- plotClusters(outClustersFull)+ ggtitle("Full graph")+ guides(fill="none")
-
-allClusters <- (clusterFull + cluster1)/(cluster2 + cluster3)/(cluster5 + cluster8)+ plot_layout(guides="collect")+ plot_annotation(title="Outputs figure 6 -- figure supplement 1: Clustering at different dephts",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(axis.text.x = element_blank(),axis.text=element_blank())
-#allClusters1 <- clusterFull / cluster1 + plot_layout(guides="collect")+ plot_annotation(title="Cosine distances for different connection dephts") & theme(axis.text=element_text(size=5))
-#allClusters2 <- cluster2 / cluster3  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
-#allClusters3 <- cluster5 / cluster8  + plot_layout(guides="collect")& theme(axis.text=element_text(size=5))
-```
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure6-SI1.pdf"),allClusters,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page1.pdf"),allClusters1,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page2.pdf"),allClusters2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI1_page3.pdf"),allClusters3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-```
-## Total pathway weight contributed per type and main known targets
-```{r}
-CXFFTotals <- filter(CXoutFull,!databaseType.to %in% CXOutsideNeurons$databaseType & !type.to %in% CX2CXExclusivePathways$type.from) %>% group_by(type.from,supertype3.from,supertype3.to) %>% summarize(Path_weight=sum(Path_weight)) %>% ungroup() %>% mutate(typeCategory.to=case_when(supertype3.to %in% c("Terra incognita","Unassigned") ~ "Unidentified",
-                                                                                                                                                                                                                                                                TRUE ~ "Identified"))
-CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=typeCategory.to))+ scale_fill_manual(name="Target",values=c("Unidentified"="grey70","Identified"="#ff5050"))+facet_grid(.~supertype3.from,scale="free",space="free")+theme_paper() +  theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),legend.position = c(0.7,0.5)) + ylab("total pathway weight") + xlab("CX output type")
+CXFFInfl <- ggplot(CXFFTotals,aes(x=type.from,y=Path_weight)) +
+   geom_col(aes(fill=typeCategory.to))+
+   scale_fill_manual(name="target",
+                     values=c("unidentified"="grey70","identified"="#ff5050"))+
+   facet_grid(.~supertype3.from,scale="free",space="free")+
+   theme_paper(strip.text.x=element_blank(),
+               axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),
+               legend.position = c(0.7,0.5)) + 
+   ylab("total pathway weight") + xlab("CX output type")
 CXFFInfl
 ```
-
-## Weights histogram
+And save the plot:
 ```{r}
-totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) + geom_histogram(fill="grey30",binwidth = 0.001) + scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000))+ theme_paper_hgrid() + xlab("total pathway weight coming from the CX") +ylab("# types") 
+save_plot(file.path(outputsFolder,"pathwayWeightContribs.svg"),CXFFInfl,ncol=1.2,nrow=0.45)
+```
+
+## Weights histogram (panel B)
+We summarize the total path weights received by all the targets in the network:
+```{r}
+targetsSummary <- group_by(CXoutFull,type.to) %>% 
+   summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
+head(targetsSummary)
+```
+And plot the histogram:
+```{r}
+totalCX_received_plot <- ggplot(targetsSummary,aes(x=fullCXwr)) +
+   geom_histogram(fill="grey30",binwidth = 0.001) + 
+   scale_y_continuous(trans = scales::log1p_trans(),breaks=c(1,10,100,1000,10000,20000)) +
+   theme_paper() + 
+   xlab("total pathway weight coming from the CX") +ylab("# types") 
 totalCX_received_plot 
 ```
-
-## Connectivity matrix to strong partners
+And save the plot:
 ```{r}
-mainFFPlot <- plotConnectivity(mainFFConnsFilt,grouping = "type",connectionMeasure = "Path_weight",orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),xaxis = "outputs",theme = theme_paper_hgrid())  + theme(axis.text.x = element_blank(),legend.position=c(0.1,0.8)) + ylab("CX output type") + xlab("main feedforward target types")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
+save_plot(file.path(outputsFolder,"pathwayWeightHistogram.svg"),
+          totalCX_received_plot,ncol=0.45,nrow=0.45)
+```
+
+## Connectivity matrix to strong partners (panel C)
+We build this table from the main feed forward connections table (filtering out individual connections below 0.5% for display):
+```{r}
+mainFFPlot <- plotConnectivity(mainFFConns %>% filter(Path_weight>0.005),
+                               grouping = "type",
+                               connectionMeasure = "Path_weight",
+                               orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],
+                              orderOut=unique(arrange(mainFFConns,mainContributor)$type.to),
+                              xaxis = "outputs",
+                              theme = theme_paper_hgrid())  + 
+   theme(axis.text.x = element_blank(),legend.position=c(0.1,0.8)) + 
+   ylab("CX output type") + xlab("main feedforward target types")+
+   guides(fill=guide_colorbar(title="Pathway weight"))+ 
+   scale_fill_paletteer_c("ggthemes::Blue")
 mainFFPlot 
 ```
-
-## Strongest partners graph
-### As a connectivity matrix
+Save the plot:
 ```{r}
-mainTargetsIntraConns <- filter(CX_outGraph %E>% as_tibble(),type.from %in% mainFFTargets$type.to, type.to %in% mainFFTargets$type.to) %>% 
-   mutate(contributor.from=mainFFConns$mainContributor[match(type.from,mainFFConns$type.to)],contributor.to=mainFFConns$mainContributor[match(type.to,mainFFConns$type.to)]) %>%
-   mutate(contributor.from=factor(contributor.from,levels = typesCXOrder),contributor.to=factor(contributor.to,levels = typesCXOrder)) %>% mutate(roi="All")
-intraConnsSummary <- group_by(mainTargetsIntraConns,contributor.from) %>% 
-   mutate(n.from=length(unique(type.from))) %>% 
-   group_by(contributor.to) %>% 
-   mutate(n.to=length(unique(type.to))) %>% group_by(contributor.from,contributor.to,roi) %>% summarize(weightRelative=sum(weightRelative)/(n.from[1]*n.to[1]),fractionConnected=n()/(n.from[1]*n.to[1])) %>% ungroup()
-fullIntraConnMat <- plotConnectivity(mainTargetsIntraConns,grouping = "type",facetInputs = "contributor.from",facetOutputs = "contributor.to",xaxis = "outputs",theme = theme_paper())  + theme(axis.text.x = element_blank(),axis.text.y = element_blank()) + ylab("") + xlab("main feedforward target types")
-byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c(name="Mean relative weight","ggthemes::Green") + theme(legend.position=c(0.88,0.5))
-plotConnectivity(intraConnsSummary,connectionMeasure = "fractionConnected",grouping = "contributor",xaxis = "outputs",orderIn=typesCXOrder,orderOut=typesCXOrder,theme = theme_paper_grid()) + ylab("") + xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+ scale_fill_paletteer_c("ggthemes::Green")
-byContrConnMat
+save_plot(file.path(outputsFolder,"mainTargetsMatrix.svg"),
+          mainFFPlot,ncol=0.5,nrow=1.5)
 ```
 
-### As a graph
-
-```{r}
-targetFFSourceTable <- data.frame(databaseType=as.character(unique(mainFFConns$databaseType.from))) %>% mutate(type=databaseType) %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%
-   customOutputSupertype(postfix="raw")
-customContributorsPalette <- customSupertypePalette
-```
-
-
-```{r}
-customFullGPalette <- c(customContributorsPalette,"Source"="grey70")
-graphMainTargetsPlot <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=.N()$customContributor[from],width=weightRelative)) + geom_node_point(aes(color=customContributor),size=2) + scale_color_manual(name="Main contributor",values=customFullGPalette) + scale_edge_color_manual(values=customFullGPalette) + scale_edge_width(name="Relative weight")+ guides(edge_color="none") + theme_paper_map() + coord_fixed() + theme(legend.position = c(1,0.5))
-graphMainTargetsPlot_IM <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.2,aes(color=as.factor(.N()$lpCommunity[from]),width=weightRelative)) + geom_node_point(aes(color=as.factor(lpCommunity)),size=2) +  scale_color_manual(name="Community (label propagation)",values=p36)+ scale_edge_width(name="Relative weight") + scale_edge_color_manual(values=p36)+ guides(edge_color="none")  + theme_paper_map() + coord_fixed() + theme(legend.position = c(1,0.5))
-graphMainTargetsPlot_ST <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) + geom_edge_fan(alpha=0.5,aes(color=.N()$supertype3[from],width=weightRelative)) + geom_node_point(aes(color=supertype3),size=2) + geom_node_text(aes(label=label),size=2)+ scale_color_manual(values=supertype3Palette) + scale_edge_color_manual(values=supertype3Palette) + theme_paper_map() + coord_fixed()
-graphMainTargetsPlot_IM
-graphMainTargetsPlot
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-graphMainContrib.svg"),graphMainTargetsPlot,base_width = 8,base_height = 20/3)
-save_plot(paste0(outputsFolder,"outputs-graphLabelProp.svg"),graphMainTargetsPlot_IM,base_width = 8,base_height = 20/3)
-save_plot(paste0(outputsFolder,"outputs-modularityMat.svg"),byContrConnMat,base_width = 6,base_height = 6)
-
-#layout <- c(
-##   area(t=2,b=11,l=1,r=10),
- #  area(t=12,b=21,l=1,r=10),
-#   area(t=22,b=30,l=1,r=10)
-#)
-
-#figure5SI2 <- graphMainTargetsPlot + graphMainTargetsPlot_IM + byContrConnMat + plot_layout(design=layout) + plot_annotation(title="Output figures 5 - SI2: modularity",tag_levels = "A",theme=theme(title=element_text(size=12,face="bold"))) & theme(plot.tag.position = c(0, 1))
-#save_plot(paste0(outputsFolder,"intraConnectivityByContributor.svg"),byContrConnMat)
-```
-
-```{r}
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2.pdf"),figure5SI2,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-1.pdf"),graphMainTargetsPlot,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
-#save_plot(paste0(outputsFolder,"outputs-Figure5-SI2-2.pdf"),graphMainTargetsPlot_IM,ncol=1,nrow=4,base_width = 11,base_height = 8.5/4,device=cairo_pdf)
-```
-
-
-## ROI connectivity matrix
+## ROI connectivity matrix (panel D)
+We want to count the innervation of the neurons in the output network.
+We first select all the ROIs out of the CX on the right side of the brain (which is the more complete side):
 ```{r}
 roiSet <- selectRoiSet(getRoiTree()) %>% filter(side2!="Left" & level0 != "CX")
-mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to)
+head(roiSet)
+```
+
+We then collect metadata about all the types present in the outputs network. This require a little bit of gymnastic for the neurons that have no assigned types (we need to go back to their bodyids):
+```{r}
+mainFFTargetsNeurons <- getTypesTable(mainFFTargets$databaseType.to) %>% 
+   cxRetyping()
 unknowns <- filter(mainFFTargets,is.na(databaseType.to))$type.to
 unknowns <- str_extract(unknowns,"[0-9]{6,}") ## Extract bodyids
 unknowns <- getMeta(unknowns)
 unknowns <- retype.na_meta(unknowns)
-mainFFTargetsNeurons <- cxRetyping(mainFFTargetsNeurons) #%>% filter(type %in% mainFFTargets$type.to)
+
 mainFFTargetsNeurons <- rbind(mainFFTargetsNeurons,unknowns)
+head(mainFFTargetsNeurons)
+```
+
+We then summarize their ROI innervation (`getROISummary` is defined in `neuprintrExtra`). We then reduce it to downstream connections in the ROIs chosen. Finally, we use `simulate_roi_contra` (defined in "outputsFunctions-core.Rmd") to simulate the innervation on the other side from mirror symmetric neurons where possible:
+```{r}
 mainFFTargetsRoiSummary<- getROISummary(mainFFTargetsNeurons)
-mainFFTargetsRoiSummary <- select(mainFFTargetsRoiSummary,roi,type,contains("type"),downstream) %>% filter(downstream>0 & roi %in% roiSet$roi) %>% mutate(roi0=roiSet$level0[match(roi,roiSet$roi)],
-                                                                                                                                                          side=roiSet$side2[match(roi,roiSet$roi)]) %>% simulate_roi_contra()
+mainFFTargetsRoiSummary <- select(mainFFTargetsRoiSummary,
+                                  roi,type,contains("type"),downstream) %>% 
+   filter(downstream>0 & roi %in% roiSet$roi) %>% 
+   mutate(roi0=roiSet$level0[match(roi,roiSet$roi)],
+          side=roiSet$side2[match(roi,roiSet$roi)]) %>% 
+   simulate_roi_contra()
 
-mainFFperRoi <- left_join(mainFFConns,mainFFTargetsRoiSummary,by=c("type.to"="type")) #%>% filter(!is.na(downstream))
-mainFFperRoi <- group_by(mainFFperRoi,type.from,roi.y,roi0,side) %>% summarize(roiScore=sum(Path_weight*downstream),nD=sum(downstream),weightScore=sum(Path_weight)) %>% ungroup()
+head(mainFFTargetsRoiSummary)
+```
 
-mainFFperRoi <-  rename(mainFFperRoi,type.to=roi.y) %>% mutate(roi="outside") %>% mutate(databaseType.from=type.from) %>% supertype()
+Finally, we combine this information with the pathway weights table, to generate a "roiScore", which is the product of the pathway weight received by the target neuron and its number of downstream synapses in the region. The data frame is also summarized per CX type of origin:
+```{r}
+mainFFperRoi <- left_join(mainFFConns,mainFFTargetsRoiSummary,by=c("type.to"="type")) 
 
-roiFFConnectPlotRight <- plotConnectivity(filter(mainFFperRoi,roiScore>50, type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side !="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90),plot.title=element_text(size=8)) + ggtitle("Right + central")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
+mainFFperRoi <- group_by(mainFFperRoi,type.from,roi.y,roi0,side) %>%
+   summarize(roiScore=sum(Path_weight*downstream)) %>% 
+   ungroup()
 
-roiFFConnectPlotLeft <- plotConnectivity(filter(mainFFperRoi,roiScore>50,type.from %in% filter(mainFFConns, Path_weight>0.005)$type.from,side =="Left"),connectionMeasure = "roiScore",xaxis="outputs",cmax=4000,orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],facetOutputs = "roi0",facetInputs="supertype3.from",theme=theme_paper_grid()) + xlab("ROI innervated by the target") + ylab("CX output type")+ theme(strip.text.y=element_blank(),strip.text.x=element_text(angle=90),plot.title=element_text(size=8)) + ggtitle("Left (simulated)")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
+mainFFperRoi <-  rename(mainFFperRoi,type.to=roi.y) %>% 
+   mutate(roi="outside") %>% 
+   mutate(databaseType.from=type.from) %>% supertype()
+head(mainFFperRoi)
+```
+Finally we plot the resulting matrix (separating the left side as it is simulated). We also filter for roiScores higher than 50:
+```{r}
+## Right and central ROIs
+roiFFConnectPlotRight <- plotConnectivity(filter(mainFFperRoi,roiScore>50, 
+                                                 type.from %in% filter(mainFFConns,
+                                                                       Path_weight>0.005)$type.from,
+                                                 side !="Left"),
+                                          connectionMeasure = "roiScore",
+                                          xaxis="outputs",
+                                          cmax=4000,
+                                          orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],
+                                          facetOutputs = "roi0",facetInputs="supertype3.from",
+                                          theme=theme_paper_grid_rects(strip.placement="outside"),
+                                          switch="both")+
+   xlab("ROI innervated by the target") + 
+   ylab("CX output type")+ 
+   theme(strip.text.y=element_blank(),plot.title=element_text(size=8)) + ggtitle("right + central")+ scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
 
-roiFFConnectPlotRight + roiFFConnectPlotLeft
+## Left ROIs
+roiFFConnectPlotLeft <- plotConnectivity(filter(mainFFperRoi,
+                                                roiScore>50,
+                                                type.from %in% filter(mainFFConns,
+                                                                      Path_weight>0.005)$type.from,
+                                                side =="Left"),
+                                         connectionMeasure = "roiScore",
+                                         xaxis="outputs",
+                                         cmax=4000,
+                                         orderIn=outClustersFull$hc$labels[outClustersFull$hc$order],
+                                         facetOutputs = "roi0",facetInputs="supertype3.from",
+                                         theme=theme_paper_grid_rects(strip.placement="outside"),
+                                         switch = "both") + 
+   xlab("ROI innervated by the target") + 
+   ylab("CX output type")+ 
+   theme(strip.text.y=element_blank(),plot.title=element_text(size=8)) +
+   ggtitle("left (simulated)")+
+   scale_fill_paletteer_c(name="ROI Score","ggthemes::Orange",limits=c(0,7000))
+
+roiFFConnectPlotRight 
+roiFFConnectPlotLeft
+```
+Saving the plots:
+```{r}
+save_plot(file.path(outputsFolder,"rightROIsInnervation.svg"),
+          roiFFConnectPlotRight,ncol=0.7,nrow=1.5)
+save_plot(file.path(outputsFolder,"leftROIsInnervation.svg"),
+          roiFFConnectPlotLeft,ncol=0.5,nrow=1.5)
 ```
 
 ## Plot the synapses of the main targets
+We load the synapses of the output network neurons:
 ```{r}
-CXTargetsSyn <- readRDS("CX-targets-synapses.rds")
+CXTargetsSyn <- readRDS(file.path(dataFolder,"CX-targets-synapses.rds"))
 ```
 
-
+We then enrich it with some metadata from the targets metadata table
 ```{r}
-CXTargetsSyn <- mutate(CXTargetsSyn,type=mainFFTargetsNeurons$type[match(bodyid,mainFFTargetsNeurons$bodyid)],
-                       mainContributor=mainFFConns$mainContributor[match(type,mainFFConns$type.to)],
-                       mainContributor_data=mainFFConns$mainContributor_data[match(type,mainFFConns$type.to)])
-
-## SOMETHING WRONG IN THE FILTERING HERE
-CXTargetsSyn <- mutate(CXTargetsSyn,customContributor=CXOutputNeurons$customSupertype[match(mainContributor,CXOutputNeurons$type)])
-
-legendSource <- cowplot::get_legend(ggplot(filter(targetFFSourceTable,supertype %in% CXTargetsSyn$customContributor),aes(x=1,y=supertype)) + geom_point(aes(color=supertype)) + theme_paper_map() + scale_color_manual(name="Source type",values=customContributorsPalette))
+CXTargetsSyn <- mutate(CXTargetsSyn,
+                       type=mainFFTargetsNeurons$type[match(bodyid,mainFFTargetsNeurons$bodyid)],
+                       mainContributor=mainFFConns$mainContributor[match(type,
+                                                                         mainFFConns$type.to)],
+                       mainContributor_data=mainFFConns$mainContributor_data[match(type,
+                                                                                   mainFFConns$type.to)],
+                       customContributor=CXOutputNeurons$customSupertype[match(mainContributor,
+                                                                               CXOutputNeurons$type)])
 ```
 
+Finally we generate the plot (using an all white palette for the ROIs)
 ```{r}
 rPalNoPal <- customROIPalette()
 rPalNoPal[1:length(rPalNoPal)] <- "white"
 
 displayAnatomies(synapses=CXTargetsSyn,
-                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
+                 ROIs=c("EB","FB","PB","NO","LAL(R)",
+                        "BU(R)","CRE(R)","SMP(R)","WED(R)",
+                        "SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allTargets-noCol",
-                 synapsePalette = customContributorsPalette,
-                 roiPal=rPalNoPal
+                 synapsePalette = customSupertypePalette,
+                 saveFolder = outputsFolder,
+                 roiPal=rPalNoPal,
+                 size = c(3000,3000)
                )
 ```
 
+We then generate the legend for the plot and save it:
 ```{r}
-allTargetViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"allTargets-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"allTargets-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-allTargetViews
+legendSource <- cowplot::get_legend(ggplot(filter(CXOutputNeurons,
+                                                  customSupertype %in% CXTargetsSyn$customContributor),
+                                           aes(x=1,y=customSupertype)) + 
+                                       geom_point(aes(color=customSupertype)) + 
+                                       theme_paper_map() + scale_color_manual(name="Source type",values=customSupertypePalette))
+
+save_plot(file.path(outputsFolder,"legendRendering.svg"),
+          legendSource,ncol=0.1,nrow=0.6)
 ```
 
-## Assemble the figure
-
+## Clustering comparisons (figure supplement 1):
+We plot the cosine distance matrices of connectivity at different depths using the ordering from the full pathway weight clustering (generated in "Outputs-core.Rmd"). `plotClusters` is defined in `neuprintrExtra`:
 ```{r}
-layout <- c(
-   area(t=2,b=3,l=2,r=7),
-   area(t=2,b=3,l=8,r=10),
-   area(t=5,b=13,l=2,r=4),
-   area(t=5,b=13,l=5,r=10),
-   area(t=14,b=20,l=3,r=8),
-   area(t=14,b=20,l=9,r=10)
-)
+cluster1 <- plotClusters(outClusters[[1]],
+                         orderX=match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                      outClusters[[1]]$hc$labels),
+                         orderY=match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                      outClusters[[1]]$hc$labels)) + 
+   ggtitle("1 hop") + 
+   guides(fill="none")
 
-figure5 <- CXFFInfl + totalCX_received_plot + mainFFPlot + (roiFFConnectPlotRight + roiFFConnectPlotLeft + plot_layout(guides="collect",widths = c(2,1),tag_level = "new"))+ allTargetViews + legendSource + plot_layout(design = layout) + plot_annotation(tag_levels = c("A","i"),title = "Outputs figure 5: feedforward circuits",theme = theme(plot.title = element_text(size = 12*1.333333,face="bold",family="arial"))) & theme(plot.tag.position = c(-0.05, 1))
-figure5
+cluster2 <- plotClusters(outClusters[[2]],
+                         orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[2]]$hc$labels)),
+                         orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[2]]$hc$labels)))+ 
+   ggtitle("2 hops")+ 
+   guides(fill="none")
+
+cluster3 <- plotClusters(outClusters[[3]],
+                         orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[3]]$hc$labels)),
+                         orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[3]]$hc$labels)))+ 
+   ggtitle("3 hops")+ 
+   guides(fill="none")
+
+cluster5 <- plotClusters(outClusters[[5]],
+                         orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[5]]$hc$labels)),
+                         orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[5]]$hc$labels)))+ 
+   ggtitle("5 hops")+ 
+   guides(fill="none")
+
+cluster8 <- plotClusters(outClusters[[8]],
+                         orderX=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[8]]$hc$labels)),
+                         orderY=na.omit(match(outClustersFull$hc$labels[outClustersFull$hc$order],
+                                              outClusters[[8]]$hc$labels)))+ 
+   ggtitle("8 hops")+
+   guides(fill="none")
+
+clusterFull <- plotClusters(outClustersFull)+ 
+   ggtitle("Full graph")+ 
+   guides(fill="none")
+
+clusterFull
+```
+Save all the matrices:
+```{r}
+save_plot(file.path(outputsFolder,"clustersFull.svg"),clusterFull,nrow=2,ncol=2)
+save_plot(file.path(outputsFolder,"clusters-depth1.svg"),cluster1,nrow=2,ncol=2)
+save_plot(file.path(outputsFolder,"clusters-depth2.svg"),cluster2,nrow=2,ncol=2)
+save_plot(file.path(outputsFolder,"clusters-depth3.svg"),cluster3,nrow=2,ncol=2)
+save_plot(file.path(outputsFolder,"clusters-depth5.svg"),cluster5,nrow=2,ncol=2)
+save_plot(file.path(outputsFolder,"clusters-depth8.svg"),cluster8,nrow=2,ncol=2)
 ```
 
+## Modularity quantification (figure supplement 2):
+### As a connectivity matrix
+We create a data frame of the connections between strong targets of the central complex from the full graph object, keeping track of their strongest CX contributors:
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure5.svg"),figure5,base_width = 8.5*1.333333,base_height = 11*1.333333)
+mainTargetsIntraConns <- filter(CX_outGraph %E>% as_tibble(),
+                                type.from %in% mainFFTargets$type.to, 
+                                type.to %in% mainFFTargets$type.to) %>% 
+   mutate(contributor.from=mainFFConns$mainContributor[match(type.from,mainFFConns$type.to)],
+          contributor.to=mainFFConns$mainContributor[match(type.to,mainFFConns$type.to)]) %>%
+   mutate(contributor.from=factor(contributor.from,levels = typesCXOrder),
+          contributor.to=factor(contributor.to,levels = typesCXOrder)) %>%
+   mutate(roi="All")
+head(mainTargetsIntraConns)
 ```
+We then summarize it by counting the average connection strength between neurons grouped based on their main CX contributor:
+```{r}
+intraConnsSummary <- group_by(mainTargetsIntraConns,contributor.from) %>% 
+   mutate(n.from=length(unique(type.from))) %>% 
+   group_by(contributor.to) %>% 
+   mutate(n.to=length(unique(type.to))) %>% 
+   group_by(contributor.from,contributor.to,roi) %>%
+   summarize(weightRelative=sum(weightRelative)/(n.from[1]*n.to[1])) %>%
+   ungroup()
+
+head(intraConnsSummary)
+```
+We then plot the resulting matrix, filtering at mean connectivities higher than 0.1%:
+```{r}
+byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3),
+                                   grouping = "contributor",
+                                   xaxis = "outputs",
+                                   orderIn=typesCXOrder,orderOut=typesCXOrder,
+                                   theme = theme_paper()) + 
+   xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+
+   scale_fill_paletteer_c(name="mean relative weight\n between neurons\n of the groups","ggthemes::Green") + 
+   theme(legend.position=c(0.88,0.5)) + coord_fixed)()
+
+byContrConnMat
+```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"modulesMatrix.svg"),byContrConnMat,base_width = 6,base_height = 6)
+```
+
+### As a graph
+We then plot the graph of the main targets, using a stress majorization layout (using the log of the inverse of the weights as a metric), colored either by the main contributor in the CX or the result of the label propagation algorithm:
+```{r}
+customFullGPalette <- c(customSupertypePalette,"Source"="grey70")
+
+graphMainTargetsPlot <- ggraph(CX_outGraphRed,layout="stress",
+                               weights=log(1/weightRelative)) +
+   geom_edge_fan(alpha=0.2,aes(color=.N()$customContributor[from],width=weightRelative)) +
+   geom_node_point(aes(color=customContributor),size=2) + 
+   scale_color_manual(name="main contributor",values=customFullGPalette) +
+   scale_edge_color_manual(values=customFullGPalette) + 
+   scale_edge_width(name="relative weight")+ guides(edge_color="none") +
+   theme_paper_map() + 
+   coord_fixed() + theme(legend.position = c(1,0.5))
+
+graphMainTargetsPlot_IM <- ggraph(CX_outGraphRed,layout="stress",weights=log(1/weightRelative)) +
+   geom_edge_fan(alpha=0.2,aes(color=as.factor(.N()$lpCommunity[from]),width=weightRelative)) +
+   geom_node_point(aes(color=as.factor(lpCommunity)),size=2) + 
+   scale_color_manual(name="community (label propagation)",values=p36)+ 
+   scale_edge_width(name="relative weight") + 
+   scale_edge_color_manual(values=p36)+ 
+   guides(edge_color="none")  + 
+   theme_paper_map() + coord_fixed() + theme(legend.position = c(1,0.5))
+
+graphMainTargetsPlot_IM
+graphMainTargetsPlot
+```
+Then save the graphs:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-graphMainContrib.svg"),
+          graphMainTargetsPlot,base_width = 8,base_height = 20/3)
+save_plot(file.path(outputsFolder,"outputs-graphLabelProp.svg"),
+          graphMainTargetsPlot_IM,base_width = 8,base_height = 20/3)
+```
+
+
 

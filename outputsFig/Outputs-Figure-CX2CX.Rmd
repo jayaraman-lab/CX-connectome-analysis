@@ -1,204 +1,316 @@
 ---
-title: "CX2CX connections figure"
+title: "CX to CX connections (figure 57)"
 output: html_notebook
 ---
 
+## Preparing the environment
 ```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
+library(dplyr)
+#library(stringr)
+library(ggplot2)
 library(neuprintrExtra)
-library(nat)
-library(Cairo)
+#library(nat)
 library(paletteer)
 ```
 
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
 source("outputFunctions-core.R")
-source("../R/paperTheme_linux.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure3-4-CX2CX/"
-load("outputsBasics.RData")
+source(file.path("..","R","paperTheme.R"))
+```
+
+Where the data has been saved (by "Outputs-Core.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure57-CX2CX"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+# Basic metadata:
+load(file.path(dataFolder,"outputsBasics.RData"))
+# Pathway weights tables
+CXInfluence <- readRDS(file.path(dataFolder,"cx-influence.rds"))
+CXoutFull <- readRDS(file.path(dataFolder,"pathwayWeightsTable.rds"))
+#CXoutAllSteps <- readRDS(file.path(dataFolder,"pathways-allsteps.rds"))
+
+CX_outGraph <- readRDS(file.path(dataFolder,"output_graph.rds"))
+
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
 ```
 
 
+## Composition and importance of the CX to CX connections in "non local" neuropils (panel A)
+Those are the types described in figure 56, to be excluded in that figure
 ```{r}
-CXOutputTypes <- unique(CXOutputNeurons$type)
-CXInfluence <- readRDS("cx-influence.rds")
-CXoutFull <- readRDS("pathwayWeightsTable.rds")
-CXoutAllSteps <- readRDS("pathways-allsteps.rds")
+localNeuropileNeurons <- c("EL","EPG","PEG","ER6",
+                           "ExR1","ExR2","ExR3","ExR5","ExR6",
+                           "PFR_a","PFR_b","FR1","FR2")
 ```
 
-
+We summarize the influence of those types exert by supertype:
 ```{r}
-CXInfluenceSummary <- group_by(filter(CXInfluence,type.from %in% CXOutputTypes),type.from,kind) %>% summarize(totalOC=sum(Path_weight)) %>% ungroup() %>% mutate(databaseType.from=type.from) %>% supertype()
-CXInfluenceSummaryPlot <- ggplot(CXInfluenceSummary,aes(x=type.from,y=totalOC)) + geom_col(aes(fill=kind)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + scale_fill_paletteer_d("ggthemes::Tableau_20",name="Target type") + ylab("normalized pathway weight") + xlab("")
-CXInfluenceSummaryPlot
+CXInfluenceOther <- filter(CXInfluence,
+                           !(databaseType.from %in% localNeuropileNeurons) & type.from %in% CXOutputTypes) %>%
+  group_by(supertype3.to,type.from,supertype3.from) %>% 
+  summarize(Path_weight=sum(Path_weight)) %>% 
+  ungroup()
+head(CXInfluenceOther)
 ```
-
-
-
-
+Generate panel A from this table. `supertype3Palette` is a custom palette defined in "outputFunctions-display.R" to be used throughout the section: 
 ```{r}
-CXInfluenceFull <- filter(CXInfluence,type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
-
-backCXCompositionFull <- ggplot(CXInfluenceFull,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
-backCXCompositionFull
-```
-```{r}
-localNeuropileNeurons <- c("EL","EPG","PEG","ER6","ExR1","ExR2","ExR3","ExR5","ExR6","PFR_a","PFR_b","FR1","FR2")
-
-CXInfluenceLocal <- filter(CXInfluence,databaseType.from %in% localNeuropileNeurons) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
-
-backCXCompositionLocal <- ggplot(CXInfluenceLocal,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
-backCXCompositionLocal
-```
-```{r}
-CXInfluenceOther <- filter(CXInfluence,!(databaseType.from %in% localNeuropileNeurons) & type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
-
-backCXCompositionOther <- ggplot(CXInfluenceOther,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ylab("normalized pathway weight") + xlab("CX output type")
+backCXCompositionOther <- ggplot(CXInfluenceOther,aes(x=type.from,y=Path_weight)) +
+  geom_col(aes(fill=supertype3.to)) + 
+  scale_fill_manual(name="target supertype",values=supertype3Palette) + 
+  theme_paper(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+
+  facet_grid(.~supertype3.from,scales = "free",space="free") + 
+  ylab("normalized pathway weight") + 
+  xlab("CX output type")
 backCXCompositionOther
 ```
-
-
-
+And save the plot:
 ```{r}
-CXInfluenceAD <- filter(CXInfluence,kind=="To dendritic",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(normalizedWeight=Path_weight/sum(Path_weight)) %>% ungroup() %>% group_by(supertype3.to,type.from,supertype3.from) %>% summarize(Path_weight=sum(Path_weight),normalizedWeight=sum(normalizedWeight)) %>% ungroup()
-
-backCXComposition <- ggplot(CXInfluenceAD,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to dendrites") + ylab("normalized pathway weight") + xlab("CX output type")
-backCXCompositionNorm <- ggplot(CXInfluenceAD,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype3.to)) + scale_fill_manual(name="Target supertype",values=supertype3Palette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") + ggtitle("Connections to axons")
-backCXComposition
+save_plot(file.path(outputsFolder,"outputs-CXInfluenceCompositionOther.svg"),
+          backCXCompositionOther,ncol=1,nrow=6,base_width = 8.5,base_height = 11/35)
 ```
 
-The connectivity matrix for axo-dendritic connections:
+## Connectivity matrix (panel B and figure supplement 1 panel B)
+We generate the connectivity matrix of all (direct and indirect) CX to CX connections outside of the CX by filtering the pathway weights table `CXoutFull` to CX types (and to pathway weights over 0.5%):
 ```{r}
-CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+CX2CXFullMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType) %>%
+  mutate(roi="outside") %>% 
+  supertype() %>% 
+  filter(Path_weight>0.005)
+```
 
-CX2CXFullMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-
-CX2CXFullMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutsideTypes$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-
-CX2CXaxDendMat <- filter(CXoutFull,databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-CX2CXaxDendMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutsideTypes$databaseType & !databaseType.to %in% CXOutAxonals$databaseType & databaseType.from != databaseType.to) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-CX2CXaxDendPlot <- plotConnectivity(CX2CXaxDendMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,cmax=0.7,theme=theme_paper_grid())+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) +theme(legend.position=c(0.1,0.2),strip.text.x=element_blank(),strip.text.y=element_blank()) + scale_fill_paletteer_c("ggthemes::Blue")
-CX2CXaxDendPlot1 <- plotConnectivity(CX2CXaxDendMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
-
-CX2CXFullPlot1 <- plotConnectivity(CX2CXFullMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")+ theme(legend.position = c(0.1,0.2),strip.text.x = element_text(angle=90))
-
-CX2CXFullPlot <- plotConnectivity(CX2CXFullMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue") + theme(legend.position = c(0.1,0.2),strip.text.x = element_text(angle=90))
-CX2CXaxDendPlot
-CX2CXFullPlot
-
-CX2CXFullPLotRedux <- plotConnectivity(filter(CX2CXFullMat,supertype2.from != "FBt" & supertype2.to != "FBt" & !(databaseType.from %in% localNeuropileNeurons)),grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",orderIn = typesCXOrder,orderOut=typesCXOrder,theme=theme_paper_grid()) + xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue") + theme(strip.text.x = element_text(angle=90))
+### Main panel
+For the main figure, we exclude the FBt from the matrix:
+```{r}
+CX2CXFullPLotRedux <- plotConnectivity(filter(CX2CXFullMat,
+                                              supertype2.from != "FBt" & 
+                                                supertype2.to != "FBt" & 
+                                                !(databaseType.from %in% localNeuropileNeurons)),
+                                       grouping = "type",
+                                       facetInputs="supertype3.from",facetOutputs = "supertype3.to",
+                                       xaxis = "outputs",
+                                       connectionMeasure = "Path_weight",
+                                       orderIn = typesCXOrder,
+                                       orderOut=typesCXOrder,
+                                       theme=theme_paper_rects(strip.placement="outside"),
+                                       switch="both") + 
+  xlab("target type") + ylab("CX output type")+
+  guides(fill=guide_colorbar(title="pathway weight"))+ 
+  scale_fill_paletteer_c("ggthemes::Blue")  
+  
 CX2CXFullPLotRedux
 ```
-## The synapses labeled by their target influence
+And save the plot:
 ```{r}
-CXInfluenceFullSummary <- group_by(CXInfluence,type.from) %>% summarize(totalOC=sum(Path_weight)) %>% ungroup() 
-CXInfluenceFullSummary$totalOC[CXInfluenceFullSummary$type.from %in% CXNeurons$type] <- 1
+save_plot(file.path(outputsFolder,"outputs-CX2CXReduxMat.svg"),
+          CX2CXFullPLotRedux,base_width = 6.5,base_height = 4)
+```
+
+### Figure supplement panel B
+This is the same plot, but not excluding the FBt:
+```{r}
+CX2CXFullPlot <- plotConnectivity(CX2CXFullMat,
+                                  grouping = "type",
+                                  facetInputs="supertype3.from",facetOutputs = "supertype3.to",
+                                  xaxis = "outputs",
+                                  connectionMeasure = "Path_weight",
+                                  switch="both",
+                                  orderIn = typesCXOrder,orderOut=typesCXOrder,
+                                  theme=theme_paper_grid_rects(strip.placement="outside")) + 
+  xlab("target type") + ylab("CX output type")+
+  guides(fill=guide_colorbar(title="pathway weight"))+ 
+  scale_fill_paletteer_c("ggthemes::Blue") + 
+  theme(legend.position = c(0.1,0.35))
+
+CX2CXFullPlot
+```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-CX2CXFullMat.svg"),
+          CX2CXFullPlot,ncol=1.3,nrow=19,base_width = 8.5,base_height = 11/35)
 ```
 
 
+## Figure supplement 1 panel A: distinguishing different type of CX to CX connections
+Generating a summary per type and "kind" of connection (one also has to restrict it to outputs of CX output neurons):
 ```{r}
-CXOutSyn <- readRDS("CX-outsideSynapses.rds")
-allTargets <- neuprint_get_meta(CXOutSyn$partner) %>% mutate(databaseType=type) %>% customRetyping() %>% supertype() %>% selectSupertypeSet(default_level = 1) %>%  customOutputSupertype(postfix="raw")
-
-CXOutSyn <- mutate(CXOutSyn,
-                   partnerType=allTargets$type[match(partner,allTargets$bodyid)],
-                   totalOC=CXInfluenceFullSummary$totalOC[match(partnerType,CXInfluenceFullSummary$type.from)]) %>% na.omit() %>%
-  mutate(colLevs = cut(totalOC,breaks=seq(0,1,length.out=100),labels=1:99))
-            
-
-cPal <- paletteer_c("viridis::plasma",n=100)
-names(cPal) <- 1:99
-
-displayAnatomies(synapses=CXOutSyn,
-                 ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allOuts-CX2CXLab-pale",
-                 synapsePalette = cPal,
-                 synapseCluster = "colLevs"
-                 )
-
+CXInfluenceSummary <- group_by(filter(CXInfluence,type.from %in% CXOutputTypes),type.from,kind) %>%
+  summarize(totalOC=sum(Path_weight)) %>% 
+  ungroup() %>% 
+  mutate(databaseType.from=type.from) %>% 
+  supertype()
+```
+Generating the plot, coloring per "kind":
+```{r}
+CXInfluenceSummaryPlot <- ggplot(CXInfluenceSummary,aes(x=type.from,y=totalOC)) +
+  geom_col(aes(fill=kind)) + 
+  theme_paper(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+
+  facet_grid(.~supertype3.from,scales = "free",space="free") +
+  scale_fill_paletteer_d("ggthemes::Tableau_20",name="target kind") + 
+  ylab("normalized pathway weight") + xlab("")
+CXInfluenceSummaryPlot
+```
+And save the plot:
+```{r}
+save_plot(file.path(outputsFolder,"outputs-CXInfluenceSummary.svg"),CXInfluenceSummaryPlot,ncol=1.3,nrow=6,base_width = 8.5,base_height = 11/25)
 ```
 
+## Graphs of PFL to LNO connections
+We first generate a palette:
 ```{r}
-allInflViews <- ggdraw(xlim = c(0,2)) + 
-   draw_image(paste0(outputsFolder,"allOuts-CX2CXLab-front.png"),scale=1.6,clip="on") + 
-   draw_image(paste0(outputsFolder,"allOuts-CX2CXLab-side.png"),scale=1.6,hjust=-0.9,clip="on") + theme_paper_map()
-allInflViews
-```
-```{r}
-legendSource <- cowplot::get_legend(ggplot(data.frame(x=1,y=1,c=0.5),aes(x=1,y=1)) + geom_point(aes(color=c)) + theme_paper_map() + scale_color_paletteer_c("viridis::plasma",limits=c(0,1),name="CX to CX fraction"))
-```
-
-
-```{r}
-CXInfluenceAA <- filter(CXInfluence,kind=="To axonal",type.from %in% CXOutputTypes) %>% group_by(type.from) %>% mutate(totalWeight=sum(Path_weight),normalizedWeight=Path_weight/totalWeight) %>% ungroup()
-backCXCompositionAA <- ggplot(filter(CXInfluenceAA,Path_weight>0.005),aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Axo-axonal connections")+ ylab("normalized pathway weight") + xlab("CX output type")
-backCXCompositionAANorm <- ggplot(CXInfluenceAA,aes(x=type.from,y=normalizedWeight)) + geom_col(aes(fill=supertype2.to)) + theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~supertype3.from,scales = "free",space="free") +scale_fill_CX_supertype("Target supertype")+ ggtitle("Connections to axons")
-backCXCompositionAA
-#backCXCompositionAANorm
+customGraphPalette <- supertype3Palette[names(supertype3Palette) %in% filter(mainFFConns,
+                                                                             Path_weight>0.005)$supertype3.to]
+extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
+extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
+extraPal <- extraPal[1:length(extraLevs)]
+names(extraPal) <- extraLevs
+customGraphPalette <- c(customGraphPalette,extraPal)
+names(customGraphPalette)[1] <- "Source"
 ```
 
-The connectivity matrix for axo-axonal connections:
+### PFL2 to LNO3 (panel Ci)
+We then use the `getLocalSubgraph`, defined in "outputFunctions-display.R", which takes input types, output types, and the number of connections to "search" away from both inputs and outputs types (here only one step):
 ```{r}
-CX2CXaxAxMat <- filter(CXoutFull,databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-CX2CXaxAxMat1 <- filter(CXoutAllSteps,n_steps==1 & databaseType.to %in% CXOutAxonals$databaseType) %>% mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-CX2CXaxAxPlot <- plotConnectivity(CX2CXaxAxMat,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight",cmax=0.7,theme=theme_paper_grid())+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight")) + theme(strip.text.x=element_blank(),strip.text.y=element_blank())+ scale_fill_paletteer_c("ggthemes::Blue")
-CX2CXaxAxPlot1 <- plotConnectivity(CX2CXaxAxMat1,grouping = "type",facetInputs="supertype3.from",facetOutputs = "supertype3.to",xaxis = "outputs",connectionMeasure = "Path_weight")+ xlab("target type") + ylab("CX output type")+guides(fill=guide_colorbar(title="Pathway weight"))+ scale_fill_paletteer_c("ggthemes::Blue")
-CX2CXaxAxPlot
+PFL2toLNO <- getLocalSubgraph(c("PFL2_L","PFL2_R"),c("LNO3_R"),CX_outGraph,order=1)
+```
+We can then plot it with `ggraph`:
+```{r}
+PFL2toLNOGraph <- ggraph(PFL2toLNO,layout="sugiyama") +
+  geom_edge_fan(aes(color=supertype2.from,width=weightRelative),
+                end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
+  geom_node_point(aes(color=supertype2),size=4)+
+  geom_node_text(aes(label=type),nudge_y = 0.05)+
+  theme_paper_map(legend.position=c(0.8,0.8))+
+  scale_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],
+                              supertype3Palette),name="Type")+
+  scale_edge_color_manual(values=c(customGraphPalette,"PFL"=supertype3Palette[["FB Columnar"]],
+                                   "LC"=supertype3Palette[["Visual PNs"]])) +
+  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +
+  guides(edge_color="none",color="none") + 
+  coord_cartesian(clip="off")
+
+PFL2toLNOGraph
+```
+Then save the graph:
+```{r}
+save_plot(file.path(outputsFolder,"PFL2toLNO3Graph.svg"),
+          PFL2toLNOGraph,nrow=1,ncol=1,base_height = 11/5,base_width = 8.5/3)
 ```
 
+### PFL3 to LCNO and EB neurons
+We generated graphs in ways similar as the one used above for PFL2. However, for readability, we use a manual layout of the nodes. The tidygraph object is therefore defined manually and with x and y properties defined for every node (`induced_subgraph` is an igraph function):
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-CXInfluenceSummary.svg"),CXInfluenceSummaryPlot,ncol=1.3,nrow=6,base_width = 8.5,base_height = 11/25)
-save_plot(paste0(outputsFolder,"outputs-CXInfluenceCompositionLocal.svg"),backCXCompositionLocal,ncol=0.5,nrow=6,base_width = 8.5,base_height = 11/35)
-save_plot(paste0(outputsFolder,"outputs-CXInfluenceCompositionOther.svg"),backCXCompositionOther,ncol=1,nrow=6,base_width = 8.5,base_height = 11/35)
-save_plot(paste0(outputsFolder,"outputs-CX2CXFullMat.svg"),CX2CXFullPlot,ncol=1.3,nrow=19,base_width = 8.5,base_height = 11/35)
+PFL3_toEB <- as_tbl_graph(induced_subgraph(CX_outGraph,c(
+  "PFL3_L*",
+  "LAL121_R",
+  "LAL076_R",
+  "CRE041_R",
+  "LCNOp_R",
+  "ER6_L",
+  "ExR6_L",
+  "ExR4_L"))) %N>% 
+  mutate(x=case_when(
+    type %in% c("PFL3_L*","LCNOp_R") ~ 1,
+    type %in% c("LAL121_R","LAL076_R") ~ 1.25,
+    type %in% c("CRE041_R") ~ 0.8,
+    type == "ER6_L" ~ 1.3,
+    type == "ExR6_L" ~ 1.4,
+    type == "ExR4_L" ~ 1.5
+  ),
+  y=case_when(
+    type %in% c("PFL3_L*") ~ 3,
+    type %in% c("CRE041_R") ~ 2.3,
+    type %in% c("LAL076_R") ~ 2.5,
+    type %in% c("LAL121_R") ~ 2.0,
+    type %in% c("LCNOp_R","ER6_L","ExR4_L") ~ 1.5,
+    type == "ExR6_L" ~ 1.6)
+  ) %>% selectSupertypeSet(default_level = 1) %>%
+  customOutputSupertype()  %E>% 
+  mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)])
+PFL3_toEB
+```
+We can then similarly plot the object using ggraph:
+```{r}
+PFL3toEBPlot <- ggraph(PFL3_toEB,layout="manual",x=x,y=y) +
+  geom_vline(xintercept = 1.25,lty=2,color="grey50")+
+  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
+                end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
+  geom_node_point(aes(color=customSupertype),size=4)+
+  geom_node_text(aes(label=type))+
+  theme_paper_map()+
+  scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
+  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
+  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +
+  guides(color="none",edge_color="none") + coord_cartesian(clip="off")
 
-save_plot(paste0(outputsFolder,"outputs-CX2CXReduxMat.svg"),CX2CXFullPLotRedux,base_width = 6.5,base_height = 4)
-
-layout <- c(
-  area(t=2,b=4,l=2,r=10),
-  area(t=5,b=7,l=2,r=10),
-  area(t=8,b=18,l=2,r=9),
-  area(t=8,b=18,l=9,r=10),
-  area(t=19,b=35,l=2,r=10)
-)
-
-figure3 <- CXInfluenceSummaryPlot + backCXCompositionFull + allInflViews + legendSource + CX2CXFullPlot + plot_layout(design=layout) +plot_annotation(tag_levels = "A",title="Outputs figure 3 -- CX to CX interactions",theme=theme(title=element_text(size=12,face="bold")))& theme(plot.tag.position = c(-0.03, 1.05))
-
-figure3 <- CXInfluenceSummaryPlot + backCXCompositionFull + plot_spacer() + legendSource + CX2CXFullPlot + plot_layout(design=layout) +plot_annotation(tag_levels = "A",title="Outputs figure 3 -- CX to CX interactions",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))& theme(plot.tag.position = c(-0.03, 1.05))
+PFL3toEBPlot 
+```
+Then save the graph:
+```{r}
+save_plot(file.path(outputsFolder,"PFL3toEBNO.svg"),PFL3toEBPlot,base_height = 2,base_width = 5)
 ```
 
-
+### PFL1 to ER1 neurons (panel Ciii)
+As for PFL3, we use a manual layout:
 ```{r}
-
-#figure3 <- CXInfluenceSummaryPlot / backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,1,3,1.5)) + plot_annotation(tag_levels="A")
-#igure3
+PFL1_toEB <- as_tbl_graph(induced_subgraph(CX_outGraph,c(
+  "PFL1_L*",
+  "LAL047_R",
+  "LAL188_R",
+  "WED034_R",
+  "WED035_R",
+  "LAL138_R",
+  "ER1_b_L",
+  "ER1_a_R")))%N>% mutate(x=case_when(
+    type %in% c("PFL1_L*","LAL047_R","WED034_R") ~ 1,
+    type %in% c("WED035_R","ER1_a_R") ~ 0.75,
+    type %in% c("LAL188_R") ~ 1.2,
+    type == "LAL138_R" ~ 1.25,
+    type == "ER1_b_L" ~ 1.4
+  ),
+  y=case_when(
+    type %in% c("PFL1_L*") ~ 3,
+    type %in% c("LAL047_R") ~ 2.8,
+    type %in% c("LAL188_R","WED035_R","WED034_R","LAL188_R") ~ 2.5,
+    type %in% c("LAL138_R") ~ 2.2,
+    type %in% c("ER1_a_R","ER1_b_L") ~ 1.8)
+  ) %>% selectSupertypeSet(default_level = 1) %>%
+  customOutputSupertype()  %E>% 
+  mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)])
 ```
+Then the plot:
 ```{r}
-#save_plot(paste0(outputsFolder,"outputs-Figure3.pdf"),figure3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure3.svg"),figure3,base_width = 8.5*1.333333,base_height = 11*1.333333)
+PFL1toEBPlot <- ggraph(PFL1_toEB,layout="manual",x=x,y=y) +
+  geom_vline(xintercept = 1.25,lty=2,color="grey50")+
+  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
+                end_cap = circle(3, "mm"),
+                linejoin = "mitre",linemitre=3,
+                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
+  geom_node_point(aes(color=customSupertype),size=4)+
+  geom_node_text(aes(label=type))+theme_paper_map()+
+  scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
+  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
+  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="Relative weight") +
+  guides(color="none",edge_color="none") + coord_cartesian(clip="off")
+
+PFL1toEBPlot 
+```
+Saving:
+```{r}
+save_plot(file.path(outputsFolder,"PFL1toEB.svg"),PFL1toEBPlot,base_height = 2,base_width = 5)
 ```
 
-## SI2 A large fraction of those are one step connections
-```{r}
-#save_plot(paste0(outputsFolder,"outputs-CX2CXFullMat.svg"),CX2CXFullPlot,ncol=1.3,nrow=19,base_width = 8.5,base_height = 11/35)
-
-compAllTo1 <- (CX2CXFullPlot + ggtitle("All steps")) / (CX2CXFullPlot1 + ggtitle("1 step")) + plot_annotation(title="Outputs figure 3 SI2: comparison of pathway connections to 1 step connections",theme=theme(title=element_text(size=12*1.111111,face="bold",family="arial")))
-```
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure3-SI2.svg"),compAllTo1,base_width = 8.5*1.333333,base_height = 11*1.333333)
-```
-
-## SI3 Connections to dendritic vs connections to axonal compartments
-```{r}
-figure3SI3 <-backCXComposition / CX2CXaxDendPlot / (backCXCompositionAA + CX2CXaxAxPlot) + plot_layout(heights=c(1,3,1.5)) + plot_annotation(tag_levels="A",title="Outputs figure 3 - SI3. CX2CX connections per process reached",theme=theme(title=element_text(size=12,face="bold")))
-```
-
-```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure3-SI3.pdf"),figure3SI3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4,device=cairo_pdf)
-save_plot(paste0(outputsFolder,"outputs-Figure3-SI3.svg"),figure3SI3,ncol=1,nrow=4,base_width = 8.5,base_height = 11/4)
-```

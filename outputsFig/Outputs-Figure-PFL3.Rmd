@@ -1,41 +1,46 @@
 ---
-title: "PFL3 figure"
+title: "PFL3 weight distribution per column, figure 64"
 output: html_notebook
 ---
 
-```{r}
-library(neuprintr)
-library(tidyverse)
-library(cowplot)
-library(patchwork)
-library(neuprintrExtra)
-library(nat)
-library(Cairo)
-library(paletteer)
-library(tidygraph)
-library(ggraph)
-library(igraph)
-```
-
+## Preparing the environment
+Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
-source("outputFunctions-core.R")
-source("../R/paperTheme.R")
-source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/NewOutputs/figure10-PFL3//"
 ```
 
+This is a folder where the figures will be saved if needed:
 ```{r}
-load("outputsBasics.RData")
-load("mainTargetsAndConns.Rdata")
+outputsFolder <- "figure64-PFL3"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
 
-
+Where the data has been saved (by "Outputs-Core.Rmd"):
 ```{r}
-PFLBag <- neuronBag(filter(CXNeurons,type %in% c("PFL3_L*","PFL1_L*","PFL2_R","PFL2_L")),selfRef = T,slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>% combineRois(outsideRegions,"Outside")
-PFL3Glom <- plotGlomMat(PFLBag,"PFL3_L*",grouping="gl")
+dataFolder="data"
+```
+Loading some data generated in "Outputs-Core.Rmd":
+```{r}
+## General outputs metadata
+load(file.path(dataFolder,"outputsBasics.RData"))
+load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
+```
+
+## PFL3 outputs connectivity matrix at glomerulus resolution
+We first get the connection information about PFL3_L direct partners:
+```{r}
+PFLBag <- neuronBag(filter(CXNeurons,type == "PFL3_L*"),selfRef = T,
+                    slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>%
+  combineRois(outsideRegions,"Outside")
+```
+We then use the `plotGlomMat` function (defined in "outputFunctions-display.R"). It takes as input a `neuronBag` object, a neuron of interest, a feature to group on (glomerulus or column), and a table of targets to restrict the plot to, and plot the connectivity per glomerulus (or column):
+```{r}
+PFL3Glom <- plotGlomMat(PFLBag,
+                        "PFL3_L*",
+                        grouping="gl",
+                        targetFilt=mainFFTargets)
+PFL3Glom
 ```
 ```{r}
-save_plot(paste0(outputsFolder,"outputs-Figure10-PFL3.svg"),PFL3Glom,base_height = 11/5,base_width = 8.5*1.333333)
+save_plot(file.path(outputsFolder,"outputs-Figure10-PFL3.svg"),PFL3Glom,base_height = 11/5,base_width = 13)
 ```

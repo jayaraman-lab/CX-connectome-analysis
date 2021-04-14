@@ -1,0 +1,287 @@
+---
+title: "Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)
+This notebook shows how neuron groups were selected for generating the connectivity graphs. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
+
+```{r}
+neuprint_login()
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+***Selection of ROI and criteria for neuron selection***
+Adjust settings for Figure 6 (AOTU) or 8 (BU)
+* ROI:      "AOTU"    vs. "BU"
+* slectROI: "AOTU(R)" vs  "BU(R)
+* useCustomPreSelection: FALSE vs. FALSE
+* useCustomPostSelection TRUE  vs. FALSE
+
+For the AOTU connectivity graph we use a cusom selection for the postsynaptic types, because the full AOTU ROI encompasses a large region that is not considered part of the anterior visual pathway (AVP), which we focused on here.
+```{r}
+ROI = "AOTU" # name for reference: "AOTU" vs. "BU"
+slctROI ="AOTU(R)" #name as in neuprint: "AOTU(R)" vs "BU(R)
+
+splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
+makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
+
+saveName = paste0("Inputs_in_", ROI)
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+useCustomPreSelection = FALSE
+useCustomPostSelection = TRUE # TRUE (constrain neurons in large AOTU roi to those that arborize in the small subunit) vs. FALSE 
+
+if(!useCustomPostSelection | !useCustomPreSelection){
+  if(splitLR){
+    roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
+  }else{
+    roiTable = getTypesInRoiTable(slctROI,lateralize = FALSE, minTypePercentage = 0.5)
+  }
+}
+```
+
+
+***Selection of neurons***
+Adjust settings for Figure 6 (AOTU) or 8 (BU):  [no need to adjust anything]
+* postNeuron: c("TuBu","TuTuB","AOTU046")  vs. <not relevant>
+* postName:   "TuBu, TuTu and  AOTU46"     vs  <not relevant>
+```{r}
+# POST
+if(useCustomPostSelection){
+  postNeuron = c("TuBu","TuTuB","AOTU046","AOTU058")
+  postNeuron = paste0(postNeuron,".*")
+  postName = "TuBu, TuTu, AOTU46 and AOTU58"  #gets used in the connectivity matrix plot
+  postIDs = getBodyIdsForList(postNeuron)
+}else{
+  postName = paste0("all in ", ROI)
+  postIDs = roiTable$names
+}
+
+# PRE
+if(useCustomPreSelection){
+  preNeuron = postNeuron
+  preName = postName
+  preIDs = getBodyIdsForList(preNeuron)
+}else{
+    preName = paste0("all ", ROI)
+    preIDs = roiTable$names
+}
+
+```
+
+
+### Get connectivity table
+```{r, warning=FALSE}
+preTypes = c(preIDs$bodyid, postIDs$bodyid) # preIDs$bodyid
+postTypes = preTypes#postIDs$bodyid
+myConnections = getConnectionTable(preTypes, "POST", slctROI)
+myConnections = myConnections %>% filter(to %in% postTypes) 
+```
+
+
+### Format the connectivity matrix, convert to type-to-type
+```{r}
+# Make asymmetric matrix
+if (makeAsymmetric){
+  myConnections = myConnections %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid)
+}
+
+# Make type-to-type connectivity table
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+if (splitLR){
+  # Subdivide types and build a custom types table
+  myConnections = lateralize_types(myConnections, postfix="to")
+  myConnections = lateralize_types(myConnections, postfix="from")
+  typesTable = lateralize_types(typesTable, postfix="raw")
+}
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+### Connectivity matrix
+```{r}
+plotW = 15
+plotH =  10
+plotType = "type" #id, name
+cmax = NULL
+cmaxtype = NULL
+ 
+connectionMeasure = "weightRelative"
+conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = plotType, connectionMeasure, cmaxtype)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+print(conMatPlot)
+if (savePlot){
+  ggsave( paste0("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_by',plotType,'.pdf'), plot = conMatPlot, device='pdf',
+          path = "plots", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+###  Draw graph
+cutoff:  0.05 for AOTU and 0.05 for BU
+```{r, warning=FALSE} 
+require(igraph)
+
+connectionMeasure = "weightRelative"
+cutoff = 0.05 # for weight 0.05, 0.01, 0
+
+largeGraph = TRUE
+edcurve = 0.1 #0.15
+edgeNorm = 0.07 #0.07#0.05#0.07#0.03#
+arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+
+showself = FALSE 
+selfFeedbackScale = 10
+removeIso = TRUE
+
+# drop na in "to" column
+myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
+graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T$weightRelative)
+
+graphData_noSelf = getNoSelfGraphData(graphData)  
+graphData_self = getSelfFBGraphData(graphData)
+
+if (showself){
+  graphData = graphData
+  graphName = saveName
+} else {
+  graphData = left_join(graphData_noSelf, graphData_self)
+  graphName = paste0(saveName, "_noSelf")
+}
+
+# Graph parameter
+if(largeGraph){
+  vertexSize = 7
+  plotSize = 15
+  selfFBscale = vertexSize
+}else{
+  vertexSize = 12
+  plotSize = 10
+  selfFBscale = vertexSize
+}
+```
+
+Plot graph with defined colormap from file
+```{r, warning=FALSE} 
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+
+if(splitLR){
+  myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
+  myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
+  myColorMap= bind_rows(myColorMap_L, myColorMap_R)
+  
+  #rename MC neuron types
+  myColorMap$Type[myColorMap$Type == "MC64_R"] = "MC64"
+  myColorMap$Type[myColorMap$Type == "MC61_R"] = "MC61"
+}
+
+myColorMap = myColorMap %>% filter(Simpletype == "no")
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap = myColorMap)
+
+# remove isolated nodes
+if(removeIso){
+  Isolated = which(degree(myGraph) == 0)
+  myGraph = delete.vertices(myGraph, Isolated)
+}
+
+myGraph$main = paste0("Connectivity within   the ",slctROI)
+l = layout_with_fr(myGraph)
+
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), legend=TRUE,
+     family="Arial", vertex.label.family  = "sans",edge.arrow.size=arrowSize)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1,y=-0,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+if (savePlot){
+  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
+                        "_",connectionMeasure, round(100*cutoff),"perc.pdf")), width=plotSize, height=plotSize)
+}
+```
+
+Layered layout for the AOTU connectivity graph
+```{r}
+patternLayers = c("MC","TuTu","AOTU","TuBu")
+layerPos = c(0,3,4,5)
+defaultX = 1
+edcurve = 0
+
+vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
+vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultX)
+
+for(layer in seq(length(patternLayers))){
+  vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
+    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc))/length(loc) )
+}
+vertexProps$yloc[vertexProps$loc == "default"] = (1/length(vertexProps$loc))*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
+
+plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])),
+     edge.color = customizeGraphEdges(myGraph), family="Arial", vertex.label.family = "sans",edge.arrow.size=arrowSize)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1,y=-0.1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+if (savePlot){
+  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
+                "_",connectionMeasure, round(100*cutoff),"perc_layered.pdf")), width=plotSize, height=plotSize)
+}
+```
+
