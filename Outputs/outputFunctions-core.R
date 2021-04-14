@@ -1,6 +1,8 @@
 library(igraph)
 library(Matrix)
-
+library(dplyr)
+library(neuprintrExtra)
+library(neuprintr)
 
 #' Collect all synapses from neurons in `neuronsTable` in a set of ROIs `ROIs` of a given polarity
 #' 

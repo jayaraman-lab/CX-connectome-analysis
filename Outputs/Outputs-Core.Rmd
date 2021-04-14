@@ -45,7 +45,8 @@ head(CXNeurons)
 
 We define the "outside" regions as any neuropile that is not in the CX and not on the left side of the brain (we want to work with the right side, which is more complete).
 ```{r}
-outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),function(i) return(1),
+outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level1[grepl(roiH$level1,pattern="(R)")])),
+                                                        function(i) return(1),
                                                         USE.NAMES = TRUE,simplify=FALSE),
                                       exceptionLevelMatch = 1)$roi[roiH$level1!="CX" & roiH$side4!="Left"])
 ```
