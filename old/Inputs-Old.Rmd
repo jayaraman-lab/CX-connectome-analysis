@@ -1,0 +1,135 @@
+---
+title: "old input code scrapped"
+output: html_notebook
+---
+
+```{r}
+
+CXin_AdjWR <- igraph::as_adjacency_matrix(CX_inGraph,attr="weightRelative")
+CXin_AdjWRNorm <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_norm")
+CXin_AdjOCWR <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_contribution") ## Here we use the relative contribution - use this for "downstream" computations of influence
+
+## For display, just first 8 steps
+#CXinAllSteps <- endpointConnections_raw(CXin_AdjOCWR,endpoint=CXInputTypes,polarity="downstream",maxIt=8,eps=10^-8)
+#CXinAllSteps <- lapply(1:length(CXinAllSteps),function(i){reshape2::melt(as.matrix(CXinAllSteps[[i]]),na.rm=TRUE,value.name="Path_weight") %>% 
+#      filter(Path_weight>0) %>%
+#      rename(type.from=Var1,type.to=Var2) %>%
+#      mutate(n_steps=i)})
+#CXinAllSteps <- do.call(rbind,CXinAllSteps)
+
+## The result at convergence
+CXinFull <- endpointConnections(CXin_AdjOCWR,endpoint=CXInputTypes,polarity="to_targets",maxIt=100,eps=10^-8)
+CXinFull <- reshape2::melt(as.matrix(CXinFull),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2) %>% mutate(n_steps="All")
+##CXinAllSteps <- rbind(CXinAllSteps,CXinFull) %>% mutate(type.from=as.character(type.from),type.to=as.character(type.to),
+##                     databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+ #                     databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]
+ #                   )
+CXinFull <- mutate(CXinFull,type.from=as.character(type.from),type.to=as.character(type.to),
+                    databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]
+                    )
+CXinFull <- supertype(CXinFull) %>% group_by(type.from) %>% mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
+
+## Fraction of input pathways coming from other CX neurons
+CXNeuronsReached <- allNodes$type[allNodes$type %in% CXNeurons$type]
+CXInfluenced <- endpointConnections(CXin_AdjWR,endpoint=CXNeuronsReached,polarity = "from_sources",maxIt=100,eps=10^-8)
+#CXInfluence <- CXInfluence[CXOutputTypes,]
+CXInfluenced <- reshape2::melt(as.matrix(CXInfluenced),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
+#CXOutAxonals <- filter(CXOutsideTypes,downstreamRatio>0.75)
+CXInfluenced <- mutate(CXInfluenced,type.from=as.character(type.from),type.to=as.character(type.to),
+                      databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]) %>% supertype()
+#,
+#                      kind=case_when(type.from==type.to ~ "Self",
+#                                     databaseType.from==databaseType.to ~ "Self-contralateral",
+#                                     databaseType.to %in% CXOutAxonals$databaseType ~ "To axonal",
+#                                     TRUE ~ "To dendritic")
+#                      ) %>% supertype()
+CX2CXExclusivePathways <- group_by(CXInfluenced,type.to) %>% summarize(totalWeight=sum(Path_weight)) %>% filter(totalWeight>0.95)
+```
+
+```{r}
+#saveRDS(CXinFull,"pathwayWeightsTable_Inputs.rds")
+saveRDS(CXInfluenced,file.path(dataFolder,"cx-influenced.rds"))
+#saveRDS(CXinAllSteps,"pathways-allsteps_Inputs.rds")
+saveRDS(allNodes,file.path(dataFolder,"all-nodes_Inputs.rds"))
+saveRDS(CX2CXExclusivePathways,file.path("cx2cx-pathways_Inputs.rds"))
+```
+
+### The full (bilateral) graph
+For illustration purposes
+```{r}
+#CX_inGraphBi <- distinct(do.call(rbind,CX_inGraphBi))
+## For contra ROI + ipsi ROI case, we need an approximation of the relative weight and output contribution
+CX_inGraphBi <- group_by(CX_inGraphBi,type.to) %>% mutate(combineROIweight=sum(totalROIweight[match(unique(roi),roi)])) %>% ungroup() 
+
+CX_inGraphBi <- group_by(CX_inGraphBi,type.from,type.to,supertype1.from,supertype2.from,supertype3.from,supertype1.to,supertype2.to,supertype3.to,databaseType.from,databaseType.to,n_type) %>%
+   summarize(weightRelative=mean(weightRelative*totalROIweight/combineROIweight),outputContribution=sum(weight)/sum(totalPreROIweight*n_from)) %>% ungroup()
+CX_inGraphBi <- group_by(CX_inGraphBi,type.from) %>% mutate(wr_contribution=weightRelative/sum(weightRelative)) %>% ungroup() 
+## Check that the averaging didn't create anything weird
+CX_inGraphTo_bi <- group_by(CX_inGraphBi,type.to) %>% summarize(wr=sum(weightRelative)) %>% ungroup()
+CX_inGraphFrom_bi <- group_by(CX_inGraphBi,type.from) %>% summarize(oc=sum(outputContribution),wroc=sum(wr_contribution)) %>% ungroup()
+all(CX_inGraphTo_bi$wr<=1) & all(CX_inGraphFrom_bi$oc<=1) 
+```
+```{r}
+CX_inGraphBi <- makeGraph(CX_inGraphBi)
+```
+
+```{r}
+saveRDS(CX_inGraph,"input_graph.rds")
+saveRDS(CX_inGraphBi,"input_graph_FullBilateral.rds")
+```
+
+## Cluster the output neurons at different depths
+Would need another table, as CXinFull is normalized pathway weight
+```{r}
+inClustersFull <- connectivityCluster(inputsTable=CXinFull %>% mutate(roi="Outside",weightRelative=Path_weight))
+inClustersFull$inputsTable <- 1 ## Memory saving
+inClusters <- lapply(1:8,function(i) {ret <- connectivityCluster(inputsTable=CXinAllSteps %>% filter(n_steps==i) %>% mutate(roi="Outside",weightRelative=Path_weight))
+                                       ret$inputsTable <- 1 ## Save memory as we're not using this here
+                                       ret})
+saveRDS(inClustersFull,"clusters-paths_Inputs.rds")
+saveRDS(inClusters,"cluster-alldephts_Inputs.rds")
+```
+
+## Graph reduced to the strong targets
+```{r}
+CX_inGraphRed <- as_tbl_graph(induced_subgraph(CX_inGraph,c(mainFFConnsFilt$type.to,mainFFConnsFilt$type.from))) %N>% mutate(mainContributee=mainFFConns$mainContributee[match(type,mainFFConns$type.from)],
+                                                                                                                             customContributee=CXInputNeurons$customSupertype[match(mainContributee,CXOutputNeurons$type)],
+                                                                                                                             customContributor = ifelse(type %in% mainFFConnsFilt$type.to,"Target",as.character(customContributee)),
+                                                                                                                             label=ifelse(customContributee=="Target",type,NA)) 
+
+#CX_inCommunitiesRed <- cluster_infomap(CX_outGraphRed,e.weights=E(CX_outGraphRed)$weightRelative)
+CX_inCommunitiesRedLP <- cluster_label_prop(CX_inGraphRed,weights=E(CX_inGraphRed)$weightRelative)
+
+CX_inGraphRed <- CX_inGraphRed %N>% mutate(lpCommunity=membership(CX_inCommunitiesRedLP)[type])
+saveRDS(CX_inGraphRed,"input_graph_reduced.rds")
+```
+
+## Synapses of the main sources
+```{r,warning=FALSE}
+
+
+CXTargetsSyn <- collectSynapses(mainFFSourcesNeurons,NULL,polarity="post")
+
+
+saveRDS(CXTargetsSyn,file.path("CX-sources-synapses.rds"))
+```
+
+```{r}
+customContributorsPalette <- customSupertypePalette
+```
+
+
+```{r}
+CXinFFSources <- filter(CXinFull,type.from %in% endpointsInfluence$type.from & type.from %in% mainFFConns$type.from & fullCXwr>0.005 & type.from %in% knownTypesTable$type) %>% mutate(supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)],
+                                                                                                                                             customType.to=CXOutputNeurons$customSupertype[match(databaseType.to,CXOutputNeurons$databaseType)]) 
+
+
+CXinFFEndpointsAll <- filter(CXinFull, type.from %in% mainFFConns$type.from & !type.from %in% mainEndpointInfluencers & fullCXwr>0.05) %>% mutate(supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)],
+                                                                                                                                              customType.to=CXOutputNeurons$customSupertype[match(databaseType.to,CXOutputNeurons$databaseType)])
+CXFFInfl <- ggplot(CXinFFSources,aes(x=type.from,y=Path_weight)) + geom_col(aes(fill=supertype3.to))+ scale_fill_manual(name="Target supertype",values=c(supertype3Palette,"Other"="grey90"))+facet_grid(.~supertype.from,scale="free",space="free")+theme_paper() +  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) + ylab("total pathway weight") + xlab("CX output type")
+
+CXFFInfl 
+
+```
