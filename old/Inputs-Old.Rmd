@@ -194,5 +194,8 @@ CXinFull <- mutate(CXinFull,
 
 CXinFull <- supertype(CXinFull) %>% group_by(type.from) %>%
    mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
+
+CX_inGraph <- group_by(CX_inGraph,type.from) %>%
+   mutate(wr_contribution=weightRelative/sum(weightRelative)) %>% ungroup() 
 ```
 

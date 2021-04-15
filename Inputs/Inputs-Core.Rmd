@@ -7,14 +7,7 @@ This notebook does the computing legwork and save objects to be used by the figu
 # Preparing the environment
 Loading necessary packages
 ```{r message=FALSE, warning=FALSE}
-#library(neuprintr)
-#library(dplyr)
 library(readr)
-#library(neuprintrExtra)
-#library(nat)
-#library(tidygraph)
-#library(Matrix)
-#library(igraph)
 ```
 Loading some local functions (this uses code associated with the outputs analysis)
 ```{r message=FALSE}
@@ -170,23 +163,32 @@ CXInputNeurons <- selectSupertypeSet(CXInputNeurons,default_level = 1) %>%
 
 Save simple variables
 ```{r}
-#typesCXOrder,
 save(CXInputNeurons,CXOutsideTypes,CXInputTypes,outsideRegions,CXOutsideNeurons,CXNeurons,
      file=file.path(dataFolder,"inputsBasics.RData"))
 ```
 
-Then make tables of all post-synapses to CX neurons in the outside regions. This uses the `collectSynapses` function defined in "Outputs/outputFunctions-core.R". This is will be used in the synapse location plots.
+Then make tables of all post-synapses to CX neurons in the outside regions (omitting the FB tangentials as those will be plotted in the FB section). This uses the `collectSynapses` function defined in "Outputs/outputFunctions-core.R". This is will be used in the synapse location plots.
 CAUTION: Executing this cell will take around 30 minutes
 ```{r,warning=FALSE}
-CXInSyn <- collectSynapses(CXInputNeurons,outsideRegions,polarity="post")
-CXInSyn <- supertype(CXInSyn)# mutate(CXInSyn,customSupertype=CXInputNeurons$customSupertype[match(type,CXInputNeurons$type)])
+CXInSyn <- collectSynapses(filter(CXInputNeurons,
+                                  supertype2 != "FBt"),
+                           outsideRegions,polarity="post")
+
+CXInSyn <- supertype(CXInSyn)
+```
+```{r}
 saveRDS(CXInSyn,file.path(dataFolder,"CX-outsideSynapses_Inputs.rds"))
 ```
 
 ## The CX input graph
-### Pathway weights
+We now want to treat this "5 steps" pathways collection as a large graph.
+### Create the graph
+We first collate all connections present:
 ```{r}
 CX_inGraph <- distinct(do.call(rbind,CX_inPaths))
+```
+For cases where a neuron pair has connections on both sides of the brain, we use the average relative weight, weighted on the importance of the innervation on each side: 
+```{r}
 ## For contra ROI + ipsi ROI case, we need an approximation of the relative weight and output contribution
 CX_inGraph <- group_by(CX_inGraph,type.to) %>% 
    mutate(combineROIweight=sum(totalROIweight[match(unique(roi),roi)])) %>% ungroup() 
@@ -198,27 +200,33 @@ CX_inGraph <- group_by(CX_inGraph,type.from,type.to,
    summarize(weightRelative=mean(weightRelative*totalROIweight/combineROIweight),
              outputContribution=sum(weight)/sum(totalPreROIweight*n_from)) %>% 
    ungroup()
+```
 
-CX_inGraph <- group_by(CX_inGraph,type.from) %>%
-   mutate(wr_contribution=weightRelative/sum(weightRelative)) %>% ungroup() 
-
+We are also using a normalized relative weight (so that it sums to 1 for all significant connections to a given neuron, this will be used to make figure 5 panel B interpretable)
+```{r}
 CX_inGraph <- group_by(CX_inGraph,type.to) %>% 
    mutate(wr_norm=weightRelative/sum(weightRelative)) %>% 
    ungroup() 
 
 ```
-Create a graph, then calculate weightRelative contribution to all the possible targets from the CX output types, multiplying the adjacency matrix of the whole graph to convergence.
+
+We then create a graph from the connection table as a `tidygraph` object, using `makeGraph` which is defined in **R/table2ggraphUtils.R**.
+`allNodes` is a data frame of all the neurons (nodes) in the graph, stored for convenience.
 ```{r}
 CX_inGraph <- makeGraph(CX_inGraph)
 
 allNodes <- CX_inGraph %>% activate(nodes) %>% as_tibble()
 ```
 
+### Calculate pathway weights
+We then calculate pathway weights from all the possible sources from the CX output types, multiplying the adjacency matrix of the whole graph to convergence, as described in the Methods figure.
+
+- First we gather the graph as an adjacency matrix using an `igraph` function. We build the adjacency matrix here, with the normalized relative weights.
 ```{r}
 CXin_AdjWRNorm <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_norm")
 ```
 
-## Pathways from known points
+We then use functions `endpointConnections_raw` and `endpointConnections` defined in **../Outputs/outputFunctions-core.R**. Those do the legwork of recursively multiplying/adding the connectivity matrices and checking for convergence. We run this from all the "known" types present in the graph.
 ```{r}
 knownNeuronsReached <- allNodes$type[allNodes$type %in% allKnownTypes]
 
