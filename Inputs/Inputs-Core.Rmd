@@ -210,102 +210,39 @@ CX_inGraph <- group_by(CX_inGraph,type.to) %>%
 Create a graph, then calculate weightRelative contribution to all the possible targets from the CX output types, multiplying the adjacency matrix of the whole graph to convergence.
 ```{r}
 CX_inGraph <- makeGraph(CX_inGraph)
+
 allNodes <- CX_inGraph %>% activate(nodes) %>% as_tibble()
 ```
 
 ```{r}
 CXin_AdjWRNorm <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_norm")
-CXin_AdjOCWR <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_contribution")
-
-CXinFull <- endpointConnections(CXin_AdjOCWR,
-                                endpoint=CXInputTypes,
-                                polarity="to_targets",
-                                maxIt=100,eps=10^-8)
-
-CXinFull <- reshape2::melt(as.matrix(CXinFull),
-                           na.rm=TRUE,value.name="Path_weight") %>%
-   filter(Path_weight>0) %>% 
-   rename(type.from=Var1,type.to=Var2) %>% 
-   mutate(n_steps="All")
-
-CXinFull <- mutate(CXinFull,
-                   type.from=as.character(type.from),
-                   type.to=as.character(type.to),
-                   databaseType.to=allNodes$databaseType[match(type.to,
-                                                               allNodes$type)],
-                   databaseType.from=allNodes$databaseType[match(type.from,
-                                                                 allNodes$type)]
-                    )
-
-CXinFull <- supertype(CXinFull) %>% group_by(type.from) %>%
-   mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
 ```
-
-
-## Strongest partners connectivity matrix
-```{r}
-sourcesSummary <- group_by(CXinFull,type.from) %>% summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
-
-mainSources <- filter(sourcesSummary,fullCXwr>0.005) %>% 
-   mutate(databaseType.from = allNodes$databaseType[match(type.from,
-                                                          allNodes$type)])
-
-mainFFSources <- filter(mainSources,!databaseType.from %in%
-                           CXOutsideNeurons$databaseType & 
-                           !type.from %in% CX2CXExclusivePathways$type.to)
-
-#,levels = inClustersFull$hc$labels[inClustersFull$hc$order]
-mainFFConns <- filter(CXinFull,type.from %in% mainFFSources$type.from) %>% 
-   mutate(roi="All") %>% 
-   group_by(type.from) %>% 
-   mutate(mainContributee=factor(type.to[which.max(Path_weight)]),
-          mainContributee_data=databaseType.to[which.max(Path_weight)]) %>% 
-   ungroup() 
-
-#allMainConns <- filter(CXinFull,type.from %in% mainSources$type.from) %>% mutate(roi="All") %>% group_by(type.from) %>% mutate(mainContributee=factor(type.to[which.max(Path_weight)],levels = inClustersFull$hc$labels[inClustersFull$hc$order]),
-                                                                                                                            #                   mainContributee_data=databaseType.to[which.max(Path_weight)]) %>% ungroup() 
-
-#allMainConnsFilt <- filter(allMainConns,Path_weight>0.005)
-#mainFFConnsFilt <- filter(mainFFConns, Path_weight>0.005)
-mainFFSourcesNeurons <- getTypesTable(unique(mainFFSources$databaseType.from)) %>%
-   customRetyping() %>% filter(type %in% mainFFSources$type.from)
-```
-
-```{r}
-#saveRDS(mainTargets,"main-targets.rds")
-save(mainSources,mainCXSources,
-     mainFFSources,mainFFConns,mainFFSourcesNeurons,file=file.path(dataFolder,"mainSourcesAndConns.Rdata"))
-#allMainConns,allMainConnsFilt,mainFFConnsFilt,
-```
-
 
 ## Pathways from known points
 ```{r}
 knownNeuronsReached <- allNodes$type[allNodes$type %in% allKnownTypes]
 
-endpointsInfluencerM <- endpointConnections(CXin_AdjWRNorm,endpoint=knownNeuronsReached,polarity = "from_sources",maxIt=100,eps=10^-8)
+endpointsInfluencerM <- endpointConnections(CXin_AdjWRNorm,
+                                            endpoint=knownNeuronsReached,
+                                            polarity = "from_sources",
+                                            maxIt=100,eps=10^-8)
 
-endpointInfluencers <- rowSums(endpointsInfluencerM)
-mainEndpointInfluencers <- names(endpointInfluencers[endpointInfluencers>0.95]) ## Those neurons can be considered serving as relays
-#CXInfluence <- CXInfluence[CXOutputTypes,]
 endpointsInfluence <- reshape2::melt(as.matrix(endpointsInfluencerM[,CXInputTypes]),
-                                     na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>%
+                                     na.rm=TRUE,value.name="Path_weight") %>% 
+   filter(Path_weight>0) %>%
    rename(type.from=Var1,type.to=Var2)
 
-endpointsInfluence <- mutate(endpointsInfluence,type.from=as.character(type.from),type.to=as.character(type.to),
+endpointsInfluence <- mutate(endpointsInfluence,
+                             type.from=as.character(type.from),
+                             type.to=as.character(type.to),
                       databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
                       databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
                       supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)]
                       ) %>% supertype()
-#endpointsInfluenceFull <- reshape2::melt(as.matrix(endpointsInfluencerM),na.rm=TRUE,value.name="Path_weight") %>% filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2)
-#endpointsInfluenceFull <- mutate(endpointsInfluenceFull,type.from=as.character(type.from),type.to=as.character(type.to),
-#                      databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
-#                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)],
-#                      supertype.from=knownTypesTable$supertype[match(type.from,knownTypesTable$type)]
-#                      ) %>% supertype()
 
-#endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,type.to,databaseType.to,supertype1.to,supertype2.to,supertype3.to,supertype.from) %>% summarize(Path_weight=sum(Path_weight))
-#saveRDS(endpointsInfluenceFullSummary,"endpoints-influenceFullSummary_Inputs.rds")
+head(endpointsInfluence)
+```
+
+```{r}
 saveRDS(endpointsInfluence,file.path(dataFolder,"endpoints-influence_Inputs.rds"))
-saveRDS(mainEndpointInfluencers,file.path(dataFolder,"main-endpoints_Inputs.rds"))
 ```

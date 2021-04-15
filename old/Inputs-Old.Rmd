@@ -3,6 +3,33 @@ title: "old input code scrapped"
 output: html_notebook
 ---
 
+## Strongest partners connectivity matrix
+```{r}
+sourcesSummary <- group_by(CXinFull,type.from) %>% summarize(fullCXwr=sum(Path_weight)) %>% ungroup()
+
+mainSources <- filter(sourcesSummary,fullCXwr>0.005) %>% 
+   mutate(databaseType.from = allNodes$databaseType[match(type.from,
+                                                          allNodes$type)])
+
+mainFFSources <- filter(mainSources,!databaseType.from %in%
+                           CXOutsideNeurons$databaseType & 
+                           !type.from %in% CX2CXExclusivePathways$type.to)
+
+mainFFConns <- filter(CXinFull,type.from %in% mainFFSources$type.from) %>% 
+   mutate(roi="All") %>% 
+   group_by(type.from) %>% 
+   mutate(mainContributee=factor(type.to[which.max(Path_weight)]),
+          mainContributee_data=databaseType.to[which.max(Path_weight)]) %>% 
+   ungroup() 
+
+mainFFSourcesNeurons <- getTypesTable(unique(mainFFSources$databaseType.from)) %>%
+   customRetyping() %>% filter(type %in% mainFFSources$type.from)
+```
+
+```{r}
+save(mainSources,mainCXSources,
+     mainFFSources,mainFFConns,mainFFSourcesNeurons,file=file.path(dataFolder,"mainSourcesAndConns.Rdata"))
+```
 ```{r}
 
 CXin_AdjWR <- igraph::as_adjacency_matrix(CX_inGraph,attr="weightRelative")
@@ -133,3 +160,39 @@ CXFFInfl <- ggplot(CXinFFSources,aes(x=type.from,y=Path_weight)) + geom_col(aes(
 CXFFInfl 
 
 ```
+
+```{r}
+#FBtSummary <- filter(endpointsInfluenceSummaryMainFF,supertype3.to=="FB Tangential") %>% mutate(layer.to=gsub("FB","",str_extract(type.to,"FB[1-9]")))
+
+#endpointsCompositionMainFB <- ggplot(FBtSummary,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) + scale_fill_manual(name="Source supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~layer.to,scales = "free",space="free") + ylab("pathway weight") + xlab("CX input type")
+
+#save_plot(paste0(outputsFolder,"inputCompositionFBt.svg"),endpointsCompositionMainFB,base_width=10,base_height=3)
+```
+
+```{r}
+CXin_AdjOCWR <- igraph::as_adjacency_matrix(CX_inGraph,attr="wr_contribution")
+
+CXinFull <- endpointConnections(CXin_AdjOCWR,
+                                endpoint=CXInputTypes,
+                                polarity="to_targets",
+                                maxIt=100,eps=10^-8)
+
+CXinFull <- reshape2::melt(as.matrix(CXinFull),
+                           na.rm=TRUE,value.name="Path_weight") %>%
+   filter(Path_weight>0) %>% 
+   rename(type.from=Var1,type.to=Var2) %>% 
+   mutate(n_steps="All")
+
+CXinFull <- mutate(CXinFull,
+                   type.from=as.character(type.from),
+                   type.to=as.character(type.to),
+                   databaseType.to=allNodes$databaseType[match(type.to,
+                                                               allNodes$type)],
+                   databaseType.from=allNodes$databaseType[match(type.from,
+                                                                 allNodes$type)]
+                    )
+
+CXinFull <- supertype(CXinFull) %>% group_by(type.from) %>%
+   mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
+```
+

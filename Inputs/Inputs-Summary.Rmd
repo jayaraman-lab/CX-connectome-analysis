@@ -4,27 +4,11 @@ output: html_notebook
 ---
 
 ## Prepare the environment
-```{r}
-#library(neuprintr)
-#library(tidyverse)
-#library(cowplot)
-#library(patchwork)
-#library(neuprintrExtra)
-#library(nat)
-#library(Cairo)
-#library(paletteer)
-#library(ggraph)
-#ibrary(tidygraph)
-```
+
 Loading local functions:
 ```{r message=FALSE}
 source(file.path("..","Outputs","outputFunctions-display.R"))
-#source("../outputsFig/outputFunctions-core.R")
 source(file.path("..","R","paperTheme.R"))
-#source("../R/neuronMeshes.R")
-#source("../R/table2ggraphUtils.R")
-#outputsFolder <- "~/Dropbox (HHMI)/FIBSEM CX Paper Jan 2020/Figures/Inputs/"
-
 ```
 This is a folder where the figures will be saved if needed:
 ```{r}
@@ -38,20 +22,9 @@ dataFolder="data"
 
 ```{r}
 load(file.path(dataFolder,"inputsBasics.RData"))
-#allNodes <-  readRDS(file.path(dataFolder,"all-nodes_Inputs.rds"))
+
 endpointsInfluence <- readRDS(file.path(dataFolder,"endpoints-influence_Inputs.rds"))
-mainEndpointInfluencers <- readRDS(file.path(dataFolder,"main-endpoints_Inputs.rds"))
-load(file.path(dataFolder,"mainSourcesAndConns.Rdata"))
-#CX_inGraph <- readRDS("input_graph.rds")
-#knownTypesTable <- readRDS("known-table.rds")
-#allKnownTypes <- unique(knownTypesTable$type) 
-```
-
-
-```{r}
-
-#CX2CXExclusivePathways <- readRDS("cx2cx-pathways.rds")
-#CXinFull <- readRDS("pathwayWeightsTable_Inputs.rds")
+#load(file.path(dataFolder,"mainSourcesAndConns.Rdata"))
 ```
 
 ```{r}
@@ -89,7 +62,7 @@ endpointsLevels <- c(  "Unknown",
 ```
 
 ```{r}
-endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,type.to %in% mainFFConns$mainContributee),
+endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,type.to %in% CXInputNeurons$type),
                                       type.to,supertype3.to,supertype.from) %>% 
   summarize(Path_weight=sum(Path_weight)) %>% 
    mutate(supertype.from=factor(supertype.from,levels=endpointsLevels)) %>% 
@@ -101,12 +74,7 @@ unknownInfluence <- group_by(endpointsInfluenceSummary,type.to,supertype3.to) %>
 
 endpointsInfluenceSummary <- rbind(endpointsInfluenceSummary,unknownInfluence)
 
-endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.from != "CX" & 
-                                            type.to %in% mainFFConns$mainContributee)
-
-#FBtSummary <- filter(endpointsInfluenceSummaryMainFF,supertype3.to=="FB Tangential") %>% mutate(layer.to=gsub("FB","",str_extract(type.to,"FB[1-9]")))
-
-#endpointsCompositionMainFB <- ggplot(FBtSummary,aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) + scale_fill_manual(name="Source supertype",values=endpointsPalette)+ theme_paper()+ theme(strip.text.x=element_blank(),axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+facet_grid(.~layer.to,scales = "free",space="free") + ylab("pathway weight") + xlab("CX input type")
+endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.from != "CX")
 
 endpointsCompositionMainFFOthers <- ggplot(filter(endpointsInfluenceSummaryMainFF,
                                                   !(supertype3.to %in% c("FB Tangential","SA",
@@ -123,9 +91,8 @@ endpointsCompositionMainFFOthers
 ```
 
 ```{r}
-#save_plot(paste0(outputsFolder,"inputCompositionFBt.svg"),endpointsCompositionMainFB,base_width=10,base_height=3)
 save_plot(file.path(outputsFolder,"inputCompositionOthers.svg"),
-          endpointsCompositionMainFFOthers,base_width=7,base_height=3)
+          endpointsCompositionMainFFOthers,base_width=9,base_height=3)
 ```
 
 ## Input synapses (figure 5 supplement 1)
@@ -147,7 +114,7 @@ displayAnatomies(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
 ```
 
 ```{r}
-legendSource <- cowplot::get_legend(ggplot(CXOutsideInnervation,aes(x=1,y=supertype3)) + geom_point(aes(color=supertype3)) + theme_paper_map() + scale_color_manual(name="supertype",values=supertype3Palette))
+legendSource <- cowplot::get_legend(ggplot(CXInputNeurons,aes(x=1,y=supertype3)) + geom_point(aes(color=supertype3)) + theme_paper_map() + scale_color_manual(name="supertype",values=supertype3Palette))
 ```
 
 ```{r}
@@ -182,7 +149,11 @@ CXOutsideInnervationSummary <- group_by(CXOutsideInnervation,region,roi) %>%
   mutate(polarityRatio=totalDownstream/(totalUpstream+totalDownstream))
 ```
 ```{r}
-inputTotals <- ggplot(filter(CXOutsideInnervationSummary,upstreamRatio>0.01),aes(x=roi,y=totalUpstream)) + geom_point() + facet_wrap(.~region,scales="free") + theme_paper_grid() + theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + ylab("total # of input synapses")
+inputTotals <- ggplot(filter(CXOutsideInnervationSummary,upstreamRatio>0.01),aes(x=roi,y=totalUpstream)) +
+  geom_point() + facet_wrap(.~region,scales="free") + 
+  theme_paper_grid() + 
+  theme(axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5)) + 
+  ylab("total # of input synapses")
 inputTotals
 ```
 
