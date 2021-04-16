@@ -214,6 +214,26 @@ plotSubgraph <- function(contributors,
   sourceSGPlot
 }
 
+plotSubgraph_subgraph <- function(contributors,
+                         influenceThreshold=0.005,
+                         pal=customSupertypePalette,
+                         colP="supertype",
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         graph=CX_outTblG,...){
+  mainT <- filter(conns, Path_weight>influenceThreshold & 
+                    type.from %in% contributors & 
+                    type.to %in% (graph %N>% as_tibble())$type) 
+  
+  sourceSG <- as_tbl_graph(induced_subgraph(graph,c(contributors,mainT$type.to))) %>% 
+    activate(nodes) %>% mutate(databaseType=type) %>% 
+    mutate(supertype = targets$supertype[match(type,targets$type)]) %>% 
+    mutate(supertype = ifelse(type %in% contributors,"Source",as.character(supertype))) %E>%
+    mutate(supertype.from=.N()$supertype[match(type.from,.N()$type)])
+  
+  sourceSG
+}
+
 getLocalSubgraph <- function(type.from,type.to,graph,order=2){
   to_searchOut <- unlist(sapply(ego(graph,nodes=type.from,mode="out",order=order),names))
   to_searchIn <- unlist(sapply(ego(graph,nodes=type.to,mode="in",order=order),names))
