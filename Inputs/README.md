@@ -20,5 +20,8 @@
 * Figure 6 - Supplemental information 1 A,B
 * Figure 7 - Supplemental information 1 A,B
 
+**AVP_glomerulusCharacterization.Rmd**: Create vizualization of synapse locations in glomeruli in
+* Figure 7 - Supplemental information 1 C
+
 **AVP_TuBu-connectivity-with-AOTU46-and-ExR.Rmd**: Create connectivity matrices in
 * Figure 8 - Supplemental information 1
