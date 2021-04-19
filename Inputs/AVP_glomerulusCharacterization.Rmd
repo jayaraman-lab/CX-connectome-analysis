@@ -55,12 +55,21 @@ neuprint_login()
 ### (0) Get some synapse locations
 Choose ROI and get curated list of neurons.
 
-For Ci choose my_types = c("TuBu"), for Cii choose my_types = c("ER1","ER2","ER3","ER4","ER5","ER6") and ajdust saveName appropriately.
+For Ci choose perspective = "TuBu", for Cii choose "ER"
 ```{r}
 myROI = "BU(R)"
 
-saveName = paste0("TuBu_in_", myROI)
-my_types = c("TuBu")# c("ER1","ER2","ER3","ER4","ER5","ER6") #
+perspective = "TuBu" # {"ER", "TuBu"}
+if (perspective == "TuBu"){
+  my_types = c("TuBu")
+  partnerSubset = getBodyIdsForList(paste0(c("ER"),".*"))
+  focustype = "TuBu06"
+}else if (perspective == "ER"){
+  my_types = c("ER1","ER2","ER3","ER4","ER5","ER6")
+  partnerSubset = getBodyIdsForList(paste0(c("TuBu"),".*"))
+  focustype = "ER5"
+}else{print("Please choose a valid perspective value.")}
+
 my_types = paste0(my_types, ".*")
 my_neurons = getBodyIdsForList(my_types)
 
@@ -130,7 +139,7 @@ synPtsRot = changeBasis(synPts, roiEigen)
 if (myROI == "AOTU(R)"){
   rot = c(0,0,0)
 }else if (myROI == "BU(R)"){
-  rot = c(45,180,0)
+  rot = c(45,0,0)
 }else if (myROI == "EB"){
   rot =  c(0,0,180)
 }else{
@@ -190,20 +199,15 @@ mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubty
 
 ### Look at synapse distributions of individual neurons
 Plot a slice for a focus type neuron.
-
-Select "TuBu06" if you have chosen my_types = c("TuBu") or "ER5" if  you have chosen my_types = c("ER")
-
 ```{r}
-xrange = c(-1000, 1500)
-yrange = c(-1500, 500)
-zrange = c(-400, 800)
+xrange = c(-1500, 1000)
+yrange = c(-500, 1500)
+zrange = c(-800, 400)
 nsyn =40
 xrange_slice = c(-300, 300)
 ```
 
 ```{r}
-partnerSubset = getBodyIdsForList(paste0(c("ER"),".*")) #getBodyIdsForList(paste0(c("TuBu"),".*")) #
-focustype = "TuBu06"#"ER5"#
 data = dataFilt %>% filter(partnerType %in% partnerSubset$type) %>% filter(type %in% c(focustype))
 
 toplot_2D = data %>% filter(x >= xrange[1] & x < xrange[2] ) %>%  filter(y >= yrange[1] & y < yrange[2] ) %>% 
@@ -215,7 +219,7 @@ if (focustype  == "TuBu06"){
   colPal = paletteer_c("grDevices::Heat 2", n=length(unique(toplot_2D$id)))
 }
 
-xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=0.25, alpha=0.8,stroke = 0,)) + 
+xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
   geom_point(data=toplot_2D %>% group_by(id) %>% summarize_each(mean), aes(x=x, y=y, color=id, size=0.5)) +
   scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
   coord_fixed() + guides(size=FALSE,alpha=FALSE)+ theme_paper()
@@ -225,7 +229,7 @@ xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=0.25, alph
 toplot_slice = toplot_2D %>% filter(x >= xrange_slice[1] & x < xrange_slice[2] )
 idfilt = toplot_slice %>%  count(id) %>% filter(n>=nsyn)
 
-zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z, y=y, color=id, size=0.25, alpha=0.8,stroke = 0,)) + 
+zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z, y=y, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
   geom_point(data=toplot_slice %>% filter(id %in% idfilt$id) %>% group_by(id) %>% summarize_each(mean), aes(x=z,y=y, color=id, size=0.5)) +
   scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
   coord_fixed() + guides(size=FALSE, alpha=FALSE) + theme_paper()
