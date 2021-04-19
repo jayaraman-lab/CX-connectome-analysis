@@ -5,6 +5,8 @@
 * Figure 5B
 * Figure 5 figure supplement 1 A and B
 
+**Inputs-Figure-DivConv.Rmd**: ???
+
 **AVP_connectivityGraphs-in-AOTU-and-BU.Rmd**: Create connectivity graphs in the AOTU (Figure 6) and BU (Figure 8)
 * Figure 6C
 * Figure 8B
@@ -14,6 +16,8 @@
 * Figure 6E (TBD what the final visualization will be)
 * Figure 7C
 * Figure 8C,D
+
+**AVP_reorderedConnectivityMatrix_TuBu2ER.Rmd**: Code for generating regular and re-ordered connectivity matrix of connections from TuBu -> ER neurons in the right bulb (Figure 7 D).
 
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
