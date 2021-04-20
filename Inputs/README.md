@@ -5,6 +5,8 @@
 * Figure 5B
 * Figure 5 figure supplement 1 A and B
 
+**Inputs-Figure-DivConv.Rmd**: ???
+
 **AVP_connectivityGraphs-in-AOTU-and-BU.Rmd**: Create connectivity graphs in the AOTU (Figure 6) and BU (Figure 8)
 * Figure 6C
 * Figure 8B
@@ -15,10 +17,20 @@
 * Figure 7C
 * Figure 8C,D
 
+**AVP_reorderedConnectivityMatrix_TuBu2ER.Rmd**: Code for generating regular and re-ordered connectivity matrix of connections from TuBu -> ER neurons in the right bulb (Figure 7 D).
+
+**...**: Code to generate the input pathway graph for putative mechanosensory information (Figure 9A).
+
+**pieCharts**: Generation of pie chart plots as used in Figure 9B.
+
+
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
 * Figure 6 - Supplemental information 1 A,B
 * Figure 7 - Supplemental information 1 A,B
+
+**AVP_glomerulusCharacterization.Rmd**: Create vizualization of synapse locations in glomeruli in
+* Figure 7 - Supplemental information 1 C
 
 **AVP_TuBu-connectivity-with-AOTU46-and-ExR.Rmd**: Create connectivity matrices in
 * Figure 8 - Supplemental information 1
