@@ -1,0 +1,326 @@
+---
+title: "Analysis of windsensory ring neurons in LAL"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of mechanosensory information coming into CX via ER1 neurons
+
+Code to generate visualizations of synapse distributions (Figure 9E, Figure 9 figure supplement 1 B) and a specilized connectivity matrix (Figure 9 figure supplement 1 A).
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+#library(dplyr)
+library(neuprintrExtra)
+library(alphahull)
+#library(igraph)
+library(paletteer)
+library(gridExtra)
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","SynapsePCAUtils.R"))
+source(file.path("..","R","paperTheme.R"))
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+
+neuprint_login()
+```
+
+
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+## Get some synapse locations
+Choose ROI and get curated list of neurons. 
+For *Figure 9Ei* choose my_types = c("ER1_a"), preName = "ER1aInput", postName = "ER1_a".
+For *Figure 9Eii* and *Figure 9 -- figure supplement 1* choose my_types = c("ER1_b"), preName = "ER1bInput", postName = "ER1_b".
+```{r message=FALSE, warning=FALSE}
+myROI = "LAL(R)"
+
+my_types = c("ER1_b") #This should be the post-synaptic partners
+
+preName = "ER1bInput"
+postName = "ER1_b"
+saveName = paste0(preName, "_", myROI)
+
+my_types = paste0(my_types, ".*")
+
+my_neurons = getBodyIdsForList(my_types)
+```
+
+```{r}
+my_types = paste0(my_types, ".*")
+my_neurons = getBodyIdsForList(my_types)
+
+# Generate color map
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+```
+
+...use this list to get synapse locations
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types)$bodyid),myROI)
+
+my_synapses = my_synapses %>% mutate(
+name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
+```
+
+
+## (1) Import of ROI meshes and get vertices in x,y,z
+```{r}
+roiMesh = neuprint_ROI_mesh(myROI)
+roiMeshPts = data.frame(dotprops(roiMesh)$points)
+names(roiMeshPts) <- c("x","y","z")
+```
+
+
+## (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
+***Transform mesh  and synapse locations***
+```{r}
+# define new origin from roi center of mass
+origin = getCOM(roiMeshPts)
+
+#reset orgin
+roiMeshPts = resetOrigin(roiMeshPts, origin)
+
+#get eigenvectors
+roiEigen = covPCA(roiMeshPts)
+
+roiMeshPtsRot = changeBasis(roiMeshPts, roiEigen)
+
+#Synapse locations
+synPts = data.frame(x=as.numeric(my_synapses$x),
+                    y=as.numeric(my_synapses$y),
+                    z=as.numeric(my_synapses$z))
+synPts = resetOrigin(synPts, origin)
+synPtsRot = changeBasis(synPts, roiEigen)
+```
+
+***Select either original or EV coordinates and rotate***
+```{r}
+flipx = 1; flipy = -1; flipz = 1
+
+rot = c(180,0,0)
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X, y=roiMeshPtsRot$Y, z=roiMeshPtsRot$Z)
+synPtsPlane = data.frame(x=synPtsRot$X, y=synPtsRot$Y, z=synPtsRot$Z)
+
+# rotate points
+roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
+synPtsPlane = data.matrix(synPtsPlane)
+
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
+synPtsPlane = synPtsPlane %*% makeRotMatXY(rot[1])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+synPtsPlane = synPtsPlane %*% makeRotMatYZ(rot[2])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+synPtsPlane = synPtsPlane %*% makeRotMatXZ(rot[3])
+
+roiMeshPtsPlane = data.frame(x=flipx*roiMeshPtsPlane[,1],y=flipy*roiMeshPtsPlane[,2],z=flipz*roiMeshPtsPlane[,3])
+synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz*synPtsPlane[,3],
+                         type = as.factor(my_synapses$type), 
+                         partnerType = as.factor(my_synapses$partnertype),
+                         name = as.factor(my_synapses$name), 
+                         partnerName = as.factor(my_synapses$partnerName),
+                         id = as.factor(my_synapses$bodyid),
+                         partnerid = as.factor(my_synapses$partner),
+                         prepost = as.factor(my_synapses$prepost))
+
+#Add simple type name
+synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
+
+synCount = synPtsPlane %>% count(type)
+typeFilter = synCount$type[synCount$n > 10]
+
+# generate color map
+dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
+
+myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
+myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),] %>%
+  arrange(unique(dataFilt$simpleType))
+```
+
+### Look at synapse distributions of individual neurons
+```{r}
+# get outline
+meshOutline <- ahull(x=roiMeshPtsPlane$y,y=roiMeshPtsPlane$x,alpha=150)
+outline_xy = data.frame(meshOutline$arcs)
+
+meshOutline <- ahull(x=roiMeshPtsPlane$z,y=roiMeshPtsPlane$y,alpha=150)
+outline_zy = data.frame(meshOutline$arcs)
+
+meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$z,alpha=150)
+outline_xz = data.frame(meshOutline$arcs)
+```
+
+Find major partners of ER1_b in the LAL
+```{r}
+minSyn = 5
+inputTypes = my_synapses %>% filter(prepost == 1 ) %>% group_by(partnertype) %>% count() %>% filter(n>=minSyn)
+mainInput = inputTypes %>% filter(n>=minSyn)
+mainInput = mainInput$partnertype
+mainInput
+
+mainInputIDs = getBodyIdsForList(mainInput)
+mainOutputIDs = getBodyIdsForList(my_types)
+
+splitLR  = FALSE
+```
+
+
+# Get connectivity table
+```{r, warning=FALSE}
+myConnections = getConnectionTable(mainInputIDs$bodyid, "POST", myROI)
+myConnections = myConnections %>% filter(to %in% mainOutputIDs$bodyid) 
+  
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+Connectivity matrix
+```{r}
+plotW = 12
+plotH = 20
+cmax = NULL
+
+connectionMeasure = c("weightRelative")
+
+position = synPtsPlane %>% select(c('x','id')) %>% group_by(id)  %>% summarize_each(mean) %>% arrange(x) %>% mutate(oder = seq(length(x)))
+position$id =as.numeric(as.character(position$id))
+myConnections_plot = left_join(myConnections,position, by=c("to" = "id"))
+
+conMatPlot = plotConnectivityMatrix(myConnections_plot, byGroup = "id", connectionMeasure, cmax, postfixto=as.character(myConnections_plot$oder))
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, myROI, connectionMeasure)
+  
+print(conMatPlot)
+ggsave(paste0("connectivityMatrix_",saveName,'_',connectionMeasure,'_byID_minSyn',minSyn,'.pdf'), 
+    plot = conMatPlot, device='pdf', path = "plots",
+    scale = 1, width = plotW+3, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+  
+conMatPlot = structureMatrixPlotByType_lines(conMatPlot, TRUE)
+print(conMatPlot)
+ggsave(paste0("connectivityMatrix_",saveName,'_',connectionMeasure,'_byID_grouped_minSyn',minSyn,'.pdf'), 
+    plot = conMatPlot, device='pdf', path = "plots",
+    scale = 1, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+```
+
+
+3D plot (not part of paper)
+```{r}
+post = 1
+partnerType = arrange(inputTypes, desc(n))$partnertype[2]
+partnerSubset = getBodyIdsForList(paste0(c(partnerType),".*")) #  "TuBu", "ER"
+focustype = postName
+data = synPtsPlane %>% filter(partnerType %in% partnerSubset$type) %>% 
+  filter(type %in% c(focustype) & prepost == post)
+
+myids = unique(data$id)
+mycols = paletteer_c("pals::ocean.phase", n=1+length(myids))[-1]
+
+nclear3d()
+for (i in seq(1,length(myids),1)){
+  toplot = synPtsPlane%>%filter(id == myids[i]) %>% select(c('x','y','z'))
+  if (! i %% 1){
+    plot3d(toplot, col=mycols[i], add=TRUE,  size=5, alpha=0.4)
+    plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=10, add=TRUE)
+  }
+  plot3d(toplot %>% summarize_each(mean), col=mycols[i], size=8, add=TRUE)
+}
+
+plot3d(roiMeshPtsPlane, size=2, alpha=0.1, add=TRUE)
+decorate3d(box=FALSE)
+```
+
+### Illustrate synapse distributions of focus type
+This plot is shown for in Figure 9 Ei (for ER1_a) and Eii (for ER1_b). 
+```{r, warning=FALSE}
+xrange = c(-6000, 7000)
+yrange = c(-7000, 8000)
+zrange = c(-5000, 4000)
+
+data = synPtsPlane %>% filter(type %in% c(focustype) & prepost == 1)
+
+focusTypeLoc = ggplot(data) + geom_point(aes(x=y, y=x, color=id, shape=name),size = 1, alpha=1.0, stroke = 0, shape = 16) + 
+     geom_point(data = data %>% group_by(id) %>% summarize_each(mean), aes(x=y, y=x, fill=id), shape = 21, color='black',size=3,stroke=1) +
+     scale_color_manual(values = paletteer_d("Polychrome::palette36", n=9+length(unique(data$id)))[-seq(9)]) + 
+     scale_fill_manual(values = paletteer_d("Polychrome::palette36", n=9+length(unique(data$id)))[-seq(9)]) + 
+     geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(yrange) +
+     coord_fixed() + theme_void() + guides(size=FALSE, alpha=FALSE) 
+
+print(focusTypeLoc)
+
+ggsave(paste("synapseLocations_",focustype,'_byID_projection.pdf', sep=''),
+                plot = focusTypeLoc, device='pdf', path = "plots", 
+                scale = 1, width = 18, height = 8, units ="cm", dpi = 600, useDingbats=FALSE)
+
+```
+
+```{r, warning=FALSE}
+minConN = 20
+
+for (partner in c(arrange(inputTypes, desc(n))$partnertype[-1])){
+  print(partner)
+  
+  toplot_2D = data%>%filter(partnerType==partner) %>% select(c('x','y','z', 'partnerid','id', 'type', 'partnerType', 'name', 'partnerName')) %>%
+    mutate("nameid" = paste(name, id,sep="_"),"partnerNameid" = paste(partnerName, partnerid,sep="_"))
+  minConnections = toplot_2D %>% group_by(id) %>% count() %>% filter(n >= minConN)
+  toplot_2D = toplot_2D %>% filter(id %in% minConnections$id)
+  
+  if(length(toplot_2D$partnerid) == 0  ){
+    print("not enough connections")
+    next
+  }
+  xyproj <- ggplot(toplot_2D) + 
+    #stat_density_2d(aes(x=y, y=x, fill=partnerName, alpha = stat(nlevel)), bins=3, geom = "polygon") +
+    geom_point(aes(x=y, y=x, color=partnerid, shape=partnerName),size=1, alpha=1) + 
+    scale_color_manual(values = paletteer_d("Polychrome::palette36", n=9+length(unique(toplot_2D$partnerid)))[-seq(9)]) + 
+    geom_point(data = toplot_2D %>% group_by(partnerid) %>% summarize_each(mean), aes(x=y, y=x, fill=partnerid), shape = 21, color='black',size=3,stroke=1) +
+    scale_fill_manual(values = paletteer_d("Polychrome::palette36", n=9+length(unique(toplot_2D$partnerid)))[-seq(9)]) + 
+    geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5) + xlim(xrange)  + ylim(yrange) +
+    coord_fixed() + theme_void() + guides(size=FALSE, alpha=FALSE) 
+  
+  print(xyproj)
+  
+  ggsave(paste("synapseDistributions_",focustype,'_',partner,'_post_projection.pdf', sep=''),
+                plot = xyproj, device='pdf', path = "plots", 
+                scale = 1, width = 18, height = 8, units ="cm", dpi = 600, useDingbats=FALSE)
+}
+
+```
