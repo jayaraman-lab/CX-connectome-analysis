@@ -5,47 +5,45 @@ output:
     df_print: paged
   pdf_document: default
 ---
+#Generation of pie chart plots as used in Figure 9B
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
 library(neuprintr)
 library(tidyverse)
-library(dplyr)
 library(plotly)
 library(paletteer)
 library(neuprintrExtra)
-options(nat.plotengine = 'rgl')
-```
+source(file.path("..","R","connectionPieChart.R"))
 
-```{r}
 neuprint_login()
 ```
 
-```{r messages=FALSE, warning=FALSE}
-# Get some custom functions
-source("R/connectionPieChart.R")
-```
 
-### Construct neuron bag for type of interest
+### Construct neuron bag for type of interest and datastructure with roi info
+For Figure 9 B we considered ER1_a, ER1_b, ER3a_b (adjust "myType" accordingly)
 ```{r}
-myType = "ER3a_d"
+myType = "ER1_a"
 myType_bag = neuronBag(myType)
 
-saveDir = "../neuprintR_analysis_plots/ER3a/"
-dir.create(saveDir)
-```
-
-```{r}
 roiTree = getRoiTree()
 slctROIs = selectRoiSet(roiTree, default_level = 1, 
                         exceptions = list("INP"=2, "LX(R)"=3, "LX(L)"=3,"CX"=2, "VLNP(R)"=2,"VLNP(L)"=2), exceptionLevelMatch = 1)
-#unique(roiTree[["level2"]])
 slctROIs = unique(slctROIs$roi)
 
 rpal = paletteer_d("Polychrome::palette36")[1:length(slctROIs)]
-#paletteer_c("grDevices::Set 3",n=length(slctROIs))
-#roisPalette(favoriteRegion="CX",my_palette=paletteer_d("Polychrome::palette36"))
 roiCol = data.frame(roi = slctROIs, col=as.character(rpal))
+```
+
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+  saveDir = "plots/"
+}
 ```
 
 Saving figures to static images is a bit tricky and requires installation of a command line tool (orca). I had to install it through conda and then need to point it too the binaries manually:
@@ -55,19 +53,16 @@ Sys.setenv("PATH" = paste(Sys.getenv("PATH"), "/Users/haberkernh/anaconda3/bin",
 
 ### Generate data for pie chart and plot chart that illustrates input and output fraction per region
 ```{r,warnings=FALSE}
-#singleNeuronThreshold=0.005 #
-#singleNeuronThresholdN=3
 mintextsize = 12
 # Filter out neurons from left side?
 splitLR = TRUE
+sidesToConsider = c("_R")#c("_R","_L")
+dirToConsider = c("input") # c("input", "output")
 if(splitLR){
-  
-  for(side in c("_R","_L")){
+  for(side in sidesToConsider){
     myTypelat = paste0(myType,side)
-    for(dir in c("input", "output")){
-      myTypeDir = prepData4pieChart(myType_bag,partnerDirection=dir,slctRoi=slctROIs, splitLR,
-                                myTypelat)#,minweight=singleNeuronThresholdN, minrelweight=singleNeuronThreshold)
-      
+    for(dir in dirToConsider){
+      myTypeDir = prepData4pieChart(myType_bag,partnerDirection=dir,slctRoi=slctROIs, splitLR, myTypelat)
       if(length(myTypeDir$roi)>0){
         pieDat = generatePieChartData(myTypeDir, myTypelat, rootlab = paste(myTypelat,dir))
         
@@ -76,25 +71,21 @@ if(splitLR){
         labsorder = data.frame(roi=as.character(labs$labels), ind = seq(length(as.character(labs$labels))))
         mycols = roiCol %>% filter(roi %in% pieDat$labels)
         mycols =  full_join(mycols,labsorder) %>% arrange(ind)
-        print(mycols)
-        print(labs$labels)
-        
+
         fig <- plot_ly(data=pieDat, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
                      type = 'sunburst',branchvalues = 'total') %>%
-        layout(sunburstcolorway = mycols$col, uniformtext=list(minsize=mintextsize, mode="show"), font.family="sans") #paletteer_d("awtools::a_palette")
+        layout(sunburstcolorway = mycols$col, uniformtext=list(minsize=mintextsize, mode="show"), font.family="sans") 
         
         print(fig)
-        
         orca(fig, file = paste0(saveDir,"pieChart_",myTypelat,"_",dir,".svg"))
       }
     }
   }
   
 }else{
-  for(dir in c("input", "output")){
-    myTypeDir = prepData4pieChart(myType_bag,partnerDirection=dir,slctRoi=slctROIs, splitLR,
-                              myType,minweight=singleNeuronThresholdN, minrelweight=singleNeuronThreshold)
-
+  for(dir in dirToConsider){
+    myTypeDir = prepData4pieChart(myType_bag,partnerDirection=dir,slctRoi=slctROIs, splitLR, 
+                                  myType,minweight=singleNeuronThresholdN, minrelweight=singleNeuronThreshold)
     if(length(myTypeDir$roi)>0){
       pieDat = generatePieChartData(myTypeDir, myType, rootlab = paste(myType,dir))
       # Select colors
@@ -105,16 +96,10 @@ if(splitLR){
     
       fig <- plot_ly(data=pieDat, ids = ~ids, labels = ~labels, parents = ~parents, values = ~values, 
                    type = 'sunburst',branchvalues = 'total') %>%
-      layout(sunburstcolorway = mycols$col, uniformtext=list(minsize=mintextsize, mode="show"), font.family="sans") #paletteer_d("awtools::a_palette")
-      
+      layout(sunburstcolorway = mycols$col, uniformtext=list(minsize=mintextsize, mode="show"), font.family="sans") 
+      print(fig)
       orca(fig, file = paste0(saveDir,"pieChart_",myType,"_",dir,".svg"))
     }
   }
-  fig
 }
-```
-
-
-```{r}
-
 ```
