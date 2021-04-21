@@ -521,7 +521,7 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_levels2.pdf', sep=''), pl
 
 Color code by region (Ring neurons only)
 ```{r}
-regiondata = left_join(dataFilt, myTypeCols[c("Type","regions","hex")], by = c("simpleType" = "Type"))
+regiondata = left_join(dataFilt,  [c("Type","regions","hex")], by = c("simpleType" = "Type"))
 synprojSlice = ggplot() + 
   stat_density_2d(data=regiondata, aes(x=z, y=syn_dist, fill=regions, alpha = stat(nlevel)), 
                   bins=nlevels,contour_var = "ndensity", geom = "polygon")+ scale_alpha(range = c(0.2, 1)) +

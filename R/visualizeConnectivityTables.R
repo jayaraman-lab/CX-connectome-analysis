@@ -2,6 +2,25 @@
 # Visualization tools for connectivity tables
 ########################################################################################################################
 
+### Util
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
 
 ### Connectivity matrix
 
