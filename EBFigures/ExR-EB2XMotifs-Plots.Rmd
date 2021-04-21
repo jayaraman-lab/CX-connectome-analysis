@@ -1,0 +1,259 @@
+---
+title: "ExR motifs figure: EB to non-EB"
+output: html_notebook
+---
+
+## Preparing the environment
+```{r}
+library(neuprintrExtra)
+library(dplyr)
+library(tidyr)
+#library(ggplot2)
+```
+
+
+Loading local functions:
+```{r}
+source(file.path("..","Outputs","outputFunctions-display.R"))
+source(file.path("..","R","paperTheme.R"))
+source(file.path("..","R","table2ggraphUtils.R"))
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure15-ExR-Motifs"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Where the data has been saved (by "ExR-EB2XMotifs-Preparation.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+Loading some data generated in "ExR-EB2XMotifs-Preparation.Rmd":
+```{r}
+ExRoutFull <- readRDS(file.path(dataFolder,"ExRpathwayWeightsTable.rds"))
+load(file.path(dataFolder,"ExRoutputsBasics.RData"))
+```
+
+
+### Load pre-generated data
+
+
+Generate a list of all EB neurons
+```{r}
+roiTable <- getTypesInRoiTable("EB", minTypePercentage = 0.8)#0.5
+allEBTypes <-  unique(roiTable$names$databaseType)
+
+allEBNeurons <- getTypesTable(allEBTypes)
+allEBNeurons <- cxRetyping(allEBNeurons,postfix="raw")
+allEBNeurons <- supertype(allEBNeurons) #%>% mutate(supertype="CX")
+```
+
+```{r}
+allEBTypes <- getROISummary(allEBNeurons)
+
+allEBTypes <- filter(allEBTypes,roi %in% outsideRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
+   summarize(upstream=sum(upstream),
+             downstream=sum(downstream),
+             fullWeight=sum(fullWeight),
+             downstreamRatio=downstream/fullWeight,
+             polarityRatio=(downstream/totalDownstream[1])/(upstream/totalUpstream[1])) %>%
+   ungroup() %>% distinct()
+allEBTypes <- filter(allEBTypes,upstream>20 | downstream>20)
+
+#Optional filtering:
+allEBTypes <- allEBTypes %>% filter(supertype3 != "MBON")  %>% filter(supertype3 != "Terra incognita") %>% 
+   filter(supertype3 != "DAN")  %>% filter(supertype3 != "DAN") 
+
+```
+
+Generate a list of all ExR partners
+```{r}
+partnerExRTypes <-unique(c(getConnectionTable(ExRNeurons$bodyid, "PRE")$databaseType.from,
+                           getConnectionTable(ExRNeurons$bodyid, "POST")$databaseType.to))
+partnerExRNeurons <- getTypesTable(partnerExRTypes$databaseType)
+partnerExRNeurons <- cxRetyping(partnerExRNeurons,postfix="raw")
+partnerExRNeurons <- supertype(partnerExRNeurons) #%>% mutate(supertype="CX")
+```
+
+```{r}
+#partnerExRTypes <- getROISummary(partnerExRNeurons,threshold=0)
+
+#partnerExRTypes <- filter(partnerExRTypes,roi %in% outsideRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
+#   summarize(upstream=sum(upstream),
+#             downstream=sum(downstream),
+#             fullWeight=sum(fullWeight),
+#             downstreamRatio=downstream/fullWeight,
+#             polarityRatio=(downstream/totalDownstream[1])/(upstream/totalUpstream[1])) %>%
+#   ungroup() %>% distinct()
+#partnerExRTypes <- filter(partnerExRTypes,upstream>20 | downstream>20)
+```
+
+
+Looking at the strong axo dendritic connections only:
+```{r}
+partnerTypes <-  allEBTypes#EBOutsideTypes
+EBOutAxonals <- filter(partnerTypes,downstreamRatio>0.75)
+
+#direction = "outputs"
+#if (direction == "outputs"){
+EB2EBaxDendMat <- filter(ExRoutFull,databaseType.to %in% partnerTypes$databaseType & 
+                           !databaseType.to %in% EBOutAxonals$databaseType & 
+                           databaseType.from != databaseType.to) %>% 
+  mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+
+recurrentInEBBag <- neuronBag(filter(ExRNeurons,type %in% unique(c(EB2EBaxDendMat$type.from,EB2EBaxDendMat$type.to))),
+                              renaming = cxRetyping,omitInputs = T,slctROI=c("EB")) #,"FB","NO(R)","NO(L)","PB"
+allRecurrentEB <- recurrentInEBBag$outputs
+#}else{
+#   EB2EBaxDendMat <- filter(EBoutFull,databaseType.from %in% partnerTypes$databaseType &
+#                               !databaseType.from %in% EBOutAxonals$databaseType & databaseType.from != databaseType.to) %>%
+#      mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
+
+#   recurrentInEBBag <- neuronBag(filter(ExRNeurons,type %in% unique(c(EB2EBaxDendMat$type.from,EB2EBaxDendMat$type.to))),
+#                                 renaming = cxRetyping,omitInputs = T,slctROI=outsideRegions)
+#   allRecurrentEB <- recurrentInEBBag$outputs
+#}
+
+allRecurrentGraph <- makeGraph(allRecurrentEB)
+```
+
+```{r}
+# A rough ordering of types for subsequent figures
+typesEB <- unique(ExRNeurons$type)
+typesEBOrder <- c(typesEB[startsWith(typesEB,"Ex")])
+```
+
+```{r}
+recurrentMotifsSummary <- group_by(EB2EBaxDendMat,type.from,supertype1.from,supertype3.from) %>% 
+  summarize("EB parallel connection"=sum(paste0(type.from,type.to) %in% paste0(allRecurrentEB$type.from,allRecurrentEB$type.to))/n(),
+            "EB canonical feedback"=sum(paste0(type.to,type.from) %in% paste0(allRecurrentEB$type.from,allRecurrentEB$type.to))/n(),
+            "linked targets in EB"=if (n()==1) 0 else sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
+                                                            c(paste0(allRecurrentEB$type.from,allRecurrentEB$type.to),
+                                                              paste0(allRecurrentEB$type.to,allRecurrentEB$type.from)))/(choose(n(),2))
+  ) %>% 
+  pivot_longer(c("EB parallel connection","EB canonical feedback","linked targets in EB"),names_to="stat",values_to="proportion") %>% 
+  mutate(type.fromF = factor(type.from,levels=typesEBOrder),
+         stat=factor(stat,levels=c("EB parallel connection","EB canonical feedback","linked targets in EB")))
+
+recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
+   summarize(proportion=mean(proportion))
+```
+
+```{r}
+recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary %>% filter(supertype3.from == "ExR") ,aes(x=type.fromF,y=stat)) + 
+   geom_point(size=3,color="grey90")+ 
+   geom_point(aes(size=proportion,color=stat))  + 
+   facet_grid(.~supertype1.from,scale="free",space="free")+ 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) +
+  xlab("CX output type") + scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + 
+  scale_color_paletteer_d(name="Motif","ggthemes::Traffic")
+
+#motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
+#names(motifPal) <- c("Out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")
+
+recurrentMotifsPrevalence
+
+#ggsave(paste0('motifSummary_',direction,'.pdf'), plot = recurrentMotifsPrevalence, device='pdf', path = outputsFolder,
+#    scale = 1,height=2.5, width=5, useDingbats=FALSE)
+```
+
+```{r}
+supertypeMotifSummary <-  getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,
+                                           "ExR2_R","Path_weight") %>% 
+  mutate(source = "ExR2_R")
+
+for(mytype in c("ExR3_R","ExR4_R","ExR5_R","ExR6_R","ExR7_R")){
+   #c("ExR1_L","ExR2_R","ExR2_L","ExR3_R","ExR3_L","ExR4_R","ExR5_R","ExR5_L","ExR6_R","ExR7_R","ExR7_L")
+   myMotifGraph = getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),
+                                   allRecurrentEB,mytype,"Path_weight")  %>% 
+     mutate(source = mytype)
+   supertypeMotifSummary = bind_rows(supertypeMotifSummary, myMotifGraph)
+}
+
+supertypeMotifSummary = supertypeMotifSummary %>% select(c(roi, source, motif, type.to, type.from, supertype1.to, supertype1.from,supertype2.to, supertype2.from, supertype3.to, supertype3.from, weightRelative))
+
+```
+
+```{r}
+
+typesInMotif = ggplot(data = supertypeMotifSummary %>% filter(motif != "NA" & roi == "EB") , aes(x=source, y=weightRelative, fill=supertype3.to)) +
+   geom_bar(position = "stack", stat="identity") + 
+   facet_grid(rows=vars(motif)) +
+   #scale_fill_manual(values=p36) + 
+   scale_fill_manual(values=supertype3Palette) + 
+   theme_classic() + theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+typesInMotif
+
+#ggsave(paste0('motifTypesSummary_',direction,'.pdf'), plot = typesInMotif, device='pdf', path = outputsFolder,
+#    scale = 1,height=3.5,width=3, useDingbats=FALSE)
+```
+
+```{r}
+
+plotMotifsCustom <- function(graphDf){
+  focusContrib <- filter(graphDf,roi=="Outside") %>% group_by(type.to) %>% summarize(weightRelative=sum(weightRelative)) %>% ungroup()
+  motifGG <- makeGraph(graphDf) 
+  edgePal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
+  names(edgePal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")
+  
+  motifGG <- motifGG %N>% 
+    mutate(
+      customSuper = ifelse(layer,"Source",supertype2))
+  
+  #customPal <- c("Source"="grey50",supertype2Palette()$pal)
+  
+  return(ggraph(motifGG,layout="focus",focus=(motifGG %N>% as_tibble())$layer)+
+           graphlayouts::draw_circle(max.circle = 1,col="grey90") +
+           geom_edge_fan2(aes(color=motif,
+                              width=weightRelative),
+                          end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                          arrow =arrow(length = unit(1, 'mm'),type = "closed"))+
+           geom_node_point(aes(color=customSuper),size=4)+
+           #scale_color_manual(values=customPal) +
+           guides(color="none") +
+           theme_paper_map() + scale_edge_color_manual(name="Motif",values=edgePal,breaks=c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX"),drop=FALSE)+
+           scale_edge_width(name="Relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
+           geom_node_text(aes(label=name),size=1.5,nudge_y = 0.15) + 
+           coord_fixed(clip="off"))
+}
+
+```
+
+```{r}
+
+mytype  =  "ExR6_R"
+myMotifGraph = getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,mytype,"Path_weight")
+canMot <- plotMotifsCustom(myMotifGraph)
+canMot
+dev.print(pdf, paste0(outputsFolder,'motifGraph',mytype,'_',direction,".pdf"), width=5, height=3,useDingbats=FALSE)
+#save_plot(paste0(c(outputsFolder,'motifGraph',mytype,'.pdf')), plot = canMot, base_width = 8.5,base_height = 11/4,device="pdf")
+```
+
+
+
+
+```{r}
+
+
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
+```
