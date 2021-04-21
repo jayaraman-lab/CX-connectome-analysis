@@ -113,34 +113,18 @@ synPtsRot = changeBasis(synPts, roiEigen)
 
 ***Select either original or EV coordinates and rotate***
 ```{r}
-flipx = 1; flipy = -1; flipz = 1
+rot =  c(180,0,0)
 
-rot = c(180,0,0)
+roiMeshPtsPlane <- rotatePoints(roiMeshPtsRot$X,roiMeshPtsRot$Y,roiMeshPtsRot$Z, rot)
+synPtsPlane <- rotatePoints(synPtsRot$X,synPtsRot$Y,synPtsRot$Z, rot, flip)
 
-roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X, y=roiMeshPtsRot$Y, z=roiMeshPtsRot$Z)
-synPtsPlane = data.frame(x=synPtsRot$X, y=synPtsRot$Y, z=synPtsRot$Z)
-
-# rotate points
-roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
-synPtsPlane = data.matrix(synPtsPlane)
-
-roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
-synPtsPlane = synPtsPlane %*% makeRotMatXY(rot[1])
-roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
-synPtsPlane = synPtsPlane %*% makeRotMatYZ(rot[2])
-roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
-synPtsPlane = synPtsPlane %*% makeRotMatXZ(rot[3])
-
-roiMeshPtsPlane = data.frame(x=flipx*roiMeshPtsPlane[,1],y=flipy*roiMeshPtsPlane[,2],z=flipz*roiMeshPtsPlane[,3])
-synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz*synPtsPlane[,3],
-                         type = as.factor(my_synapses$type), 
-                         partnerType = as.factor(my_synapses$partnertype),
-                         name = as.factor(my_synapses$name), 
-                         partnerName = as.factor(my_synapses$partnerName),
-                         id = as.factor(my_synapses$bodyid),
-                         partnerid = as.factor(my_synapses$partner),
-                         prepost = as.factor(my_synapses$prepost))
-
+synPtsPlane <- synPtsPlane %>% mutate( type = as.factor(my_synapses$type), 
+                                       partnerType = as.factor(my_synapses$partnertype),
+                                       name = as.factor(my_synapses$name), 
+                                       partnerName = as.factor(my_synapses$partnerName),
+                                       id = as.factor(my_synapses$bodyid),
+                                       partnerid = as.factor(my_synapses$partner),
+                                       prepost = as.factor(my_synapses$prepost))
 #Add simple type name
 synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
 
