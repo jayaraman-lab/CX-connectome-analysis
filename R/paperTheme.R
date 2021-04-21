@@ -1,3 +1,4 @@
+library(ggplot2)
 library(cowplot)
 
 mm2pt <- 0.352777778
