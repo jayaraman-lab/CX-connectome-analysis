@@ -13,7 +13,7 @@ This notebook shows how to generate normalized synapse densitites and related pl
 * Figure 10 B (ER4m)
 * Figure 10 -- figure supplement 1 (ring neurons)
 * Figure 10 -- figure supplement 2 (columnar neurons)
-* Figure 10 -- figure supplement 3 (EXR neurons)
+* Figure 10 -- figure supplement 3 (ExR neurons)
 
 Normalized synapse density plots in slices through the EB (see section 3b)
 * Figure 10 C-E
@@ -24,14 +24,15 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 library(nat)
 library(neuprintr)
 library(tidyverse)
-library(dplyr)
 library(neuprintrExtra)
 library(gridExtra)
 library(alphahull)
 library(hexbin)
 library(matlib)
+library(dplyr)
 library(paletteer)
 require(RColorBrewer)
+library(cowplot)
 
 options(nat.plotengine = 'rgl')
 source(file.path("..","R","SynapsePCAUtils.R"))
@@ -52,22 +53,25 @@ if (savePlot){
 
 ## Get some synapse locations
 Choose ROI and get curated list of neurons.
-
-Settings for...
-- Figure 6 Di:myROI = "AOTU(R)", my_types = c("MC61","MC64"), saveName: "MC_in_"
-- Figure 6 Dii: myROI = "AOTU(R)", my_types = c("TuBu"), saveName: "TuBu_in_"
-
-- Figure8 Ci: myROI = "BU(R)", my_types = c("TuBu"), saveName: "TuBu_in_", choose typeSelection for contralaterally projecting types 
-- Figure8 Cii: myROI = "BU(R)", my_types = paste0("ER",seq(1,6)), saveName: "ER_in_", choose typeSelection for contralaterally projecting types 
-
-- Figure 8 Ci: myROI = "AOTU(R)", my_types = c("AOTU046"), saveName: "AOTU46_in_"
-- Figure 8 Cii: myROI = "AOTU(R)", my_types = c("TuTuB"), saveName: "TuTuB_in_"
-- Figure 8 Di,ii: myROI = "BU(R)", my_types = c("AOTU046", "ExR"), saveName: "ContraTypes_in_", choose typeSelection for contralaterally projecting types (see below)
+See below for how to 
+* Figure 10 B, C, Figure 10 -- figure supplement 1: set neuronSelection = "ring"
+* Figure 10 D, Figure 10 figure supplement 2: set neuronSelection = "columnar"
+* Figure 10 E, Figure 10 figure supplement 3: set neuronSelection = "ExR"
 
 ```{r message=FALSE, warning=FALSE}
 myROI = "EB"
-saveName = paste0("ER_in_", myROI)
-my_types = paste0("ER",seq(1,6))
+neuronSelection = "ring" # {"ring","columnar","ExR"}
+
+if (neuronSelection == "ring"){
+  saveName = paste0("ER_in_", myROI)
+  my_types = paste0("ER",seq(1,6))
+}else if (neuronSelection == "columnar"){
+  saveName = paste0("Columnar_in_", myROI)
+  my_types = c("EL","EPG","EPGt","PEG","PEN_a","PEN_b")
+} else if (neuronSelection == "ExR"){
+  saveName = paste0("ExR_in_", myROI)
+  my_types = c("ExR")
+}
 ```
 
 ```{r}
@@ -182,7 +186,6 @@ myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeC
 mySubtypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$type)) %>% filter(Simpletype == "no")
 mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),] %>%
   arrange(unique(dataFilt$type))
-
 ```
 
 ***Collapse along EB ring***
@@ -219,7 +222,6 @@ roiMeshPtsPlane = roiMeshPtsPlane %>%  mutate(angleGroup = cut(angle, breaks=c(-
 ```
 
 ## (3) Plot distributions
-
 ```{r}
 #Helper plotting function
 styleDensity2Dhist <- function(synDens, ncols, Cmax, roioutline){
@@ -258,8 +260,8 @@ ncolumns_xy = 6
 ncolumns_zy = 8
 ncolumns_slice = 8
 
-plotW = 12
-plotH =  8
+plotW = 20
+plotH = 12
 
 # front view (xy)
 Cmax = 100
@@ -289,7 +291,6 @@ if (savePlot){
 }
 ```
 
-
 ### 2D densitiy distributions
 ```{r}
 plotW = 10
@@ -303,14 +304,12 @@ synprojSlice = ggplot() +
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
   guides(fill=guide_legend(ncol=2)) 
-
 synprojSlice = synprojSlice + geom_path(data=outline_slice, aes(x=c1, y=c2), size = 0.5)
 synprojSlice
 if (savePlot){
   ggsave( paste("synapseDistributions_",saveName,'_slice_byType.pdf', sep=''), plot = synprojSlice, device='pdf',
           path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
-
 
 # simple types (grouping similar neuron types)
 synprojSlice = ggplot() + 
@@ -328,22 +327,6 @@ if (savePlot){
 }
 ```
 
-###Color code by region (Ring neurons only)
-This plot corresponds to figure 10 Cii
-```{r}
-regiondata = left_join(dataFilt, myTypeCols[c("Type","regions","hex")], by = c("simpleType" = "Type"))
-synprojSlice = ggplot() + 
-  stat_density_2d(data=regiondata, aes(x=z, y=syn_dist, fill=regions, alpha = stat(nlevel)), 
-                  bins=nlevels,contour_var = "ndensity", geom = "polygon")+ scale_alpha(range = c(0.2, 1)) +
-  coord_fixed(ratio = 1) + theme_void() + guides(alpha=FALSE) +
-  scale_fill_manual(values = paletteer_d("basetheme::brutal", length(unique(myTypeCols$regions)))) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
-print(synprojSlice)
-
-ggsave( paste("synapseDistributions_",saveName,'_slice_levels_byRegion.pdf', sep=''), plot = synprojSlice, device='pdf', path = "plots",
-    scale = 1.5, width = 7, height = 7, units ="cm", dpi = 600, limitsize = TRUE)
-```
-
  
 ```{r}
 # get outline
@@ -354,45 +337,28 @@ outline = data.frame(meshOutline$arcs)
 
 
 Split into quadrants
-
-
 ```{r}
 dataFilt = dataFilt %>% mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
 
-
-# Uncomment lines below if you'd like to see a vizualization of the definition of syn_angle and syn_dist
-ggplot(dataFilt %>% filter(type == "ExR1"), aes(x=x,y=y, color=angleGroup)) + geom_point()  + theme_classic()
-ggsave( paste("synapseDistributions_",saveName,'_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "plots",
-    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
-```
-
-```{r}
 # get outline 
 outline = data.frame()
 for (i in unique(roiMeshPtsPlane$angleGroup)) {
   roiMeshPtsPlaneSub = roiMeshPtsPlane %>% filter(angleGroup == i)
-  meshOutline <- ahull(x=roiMeshPtsPlaneSub$z,y=roiMeshPtsPlaneSub$dist,alpha=250)
+  meshOutline <- ahull(x=roiMeshPtsPlaneSub$z,y=roiMeshPtsPlaneSub$dist,alpha=300)
   outlineGroup = data.frame(meshOutline$arcs) %>% mutate(angleGroup = i)
   outline = bind_rows(outline,outlineGroup)
-  #outline = bind_rows(outline, outline[1,]) # close the shape
 }
 ```
 
 ```{r}
-ggplot() + geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + facet_wrap( ~ angleGroup,  ncol=4) +
-  coord_fixed(ratio = 1) + theme_void()
-```
-
-```{r}
-library(cowplot)
-
+# simple types (grouping similar neuron types)
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=type, alpha = stat(nlevel)), 
-                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
-  scale_alpha(range = c(0.2, 1)) +
+  stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=simpleType,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") + 
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = as.character(myTypeCols$hex), name="type") +
   facet_wrap( ~ angleGroup,  ncol=4) +
-  coord_fixed(ratio = 1) + theme_void() + theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex)) + 
+  theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
   geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
 print(synprojSlice)
 
@@ -400,20 +366,27 @@ ggsave( paste("synapseDistributions_",saveName,'_slice_splitRad.pdf', sep=''), p
     scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
 ```
 
-
+###Color code by region (Ring neurons only)
+This plot corresponds to figure 10 Cii
 ```{r}
-library(cowplot)
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+
+myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
+myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),] %>%
+  arrange(unique(dataFilt$simpleType))
+
+regiondata = left_join(dataFilt, myTypeCols[c("Type","regions","hex")], by = c("simpleType" = "Type"))
 
 synprojSlice = ggplot() + 
-  stat_density_2d(data=dataFilt, aes(x=z, y=syn_dist, fill=simpleType, alpha = stat(nlevel)), 
-                  bins=nlevels,contour_var = "ndensity", geom = "polygon") + 
-  scale_alpha(range = c(0.2, 1)) +
-  facet_wrap( ~ angleGroup,  ncol=4) +
-  coord_fixed(ratio = 1) + theme_void() + theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
-  scale_fill_manual(values = as.character(myTypeCols$hex)) + 
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
-print(synprojSlice)
-
-ggsave( paste("synapseDistributions_",saveName,'_slice_simple_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "plots",
-    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
+  stat_density_2d_filled(data = regiondata, aes(x=z, y=syn_dist, fill=regions,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = paletteer_d("basetheme::brutal", length(unique(myTypeCols$regions)))) + 
+  guides(fill=guide_legend(ncol=2)) 
+synprojSlice = synprojSlice + geom_path(data=outline_slice, aes(x=c1, y=c2), size = 0.5)
+synprojSlice
+if (savePlot){
+  ggsave( paste("synapseDistributions_",saveName,'_slice_byRegion.pdf', sep=''), plot = synprojSlice, device='pdf',
+          path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
 ```
