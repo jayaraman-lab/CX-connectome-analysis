@@ -19,10 +19,15 @@
 
 **AVP_reorderedConnectivityMatrix_TuBu2ER.Rmd**: Code for generating regular and re-ordered connectivity matrix of connections from TuBu -> ER neurons in the right bulb (Figure 7 D).
 
-**...**: Code to generate the input pathway graph for putative mechanosensory information (Figure 9A).
+**Mech_inputPathway.Rmd**: Code to generate the input pathway graph for putative mechanosensory information (Figure 9A).
 
 **pieCharts**: Generation of pie chart plots as used in Figure 9B.
 
+**Mech_synLocations.Rmd**: Code to generate visualizations of synapse distributions in 
+* Figure 9E
+* Figure 9 figure supplement 1 B
+and a specilized connectivity matrix in
+* Figure 9 figure supplement 1 A
 
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
