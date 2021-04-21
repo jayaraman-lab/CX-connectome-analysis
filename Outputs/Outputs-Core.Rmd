@@ -8,13 +8,7 @@ This notebook does most of the computing legwork and save objects to be used by 
 # Preparing the environment
 Loading necessary packages
 ```{r message=FALSE, warning=FALSE}
-library(neuprintr)
-library(dplyr)
 library(readr)
-library(neuprintrExtra)
-library(tidygraph)
-library(Matrix)
-library(igraph)
 ```
 
 Loading some local functions.
@@ -528,17 +522,4 @@ saveRDS(endpointsInfluence,file.path(dataFolder,"endpoints-influence.rds"))
 saveRDS(mainEndpointInfluencers,file.path(dataFolder,"main-endpoints.rds"))
 ```
 
-Finally we also make a summary per target supertype:
-```{r}
-endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,
-                                          type.from,
-                                          databaseType.from,supertype1.from,supertype2.from,supertype3.from,
-                                          supertype.to) %>% 
-   summarize(Path_weight=sum(Path_weight))
-
-```
-
-```{r}
-saveRDS(endpointsInfluenceFullSummary,file.path(dataFolder,"endpoints-influenceFullSummary.rds"))
-```
 

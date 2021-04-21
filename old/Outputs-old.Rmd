@@ -1981,3 +1981,17 @@ PFL2Glom <- plotGlomMat(PFLBag,"PFL2_R",grouping="gl") / plotGlomMat(PFLBag,"PFL
 PFL3Glom <- plotGlomMat(PFLBag,"PFL3_L*",grouping="gl")
 PFL1Glom <- plotGlomMat(PFLBag,"PFL1_L*",grouping="gl")
 ```
+
+Finally we also make a summary per target supertype:
+```{r}
+endpointsInfluenceFullSummary <- group_by(endpointsInfluenceFull,
+                                          type.from,
+                                          databaseType.from,supertype1.from,supertype2.from,supertype3.from,
+                                          supertype.to) %>% 
+   summarize(Path_weight=sum(Path_weight))
+
+```
+
+```{r}
+saveRDS(endpointsInfluenceFullSummary,file.path(dataFolder,"endpoints-influenceFullSummary.rds"))
+```
