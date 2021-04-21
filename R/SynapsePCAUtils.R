@@ -115,6 +115,19 @@ changeBasis_df <- function(Input_DF, NewAxes) {
 }
 
 
+rotatePoints <- function( x, y, z, rot = c(0,0,0), flip = c(1,-1,1) ){
+  # rotate points
+  points = data.matrix(data.frame(x=x,y=y,z=z))
+  points = points %*% makeRotMatXY(rot[1])
+  points = points %*% makeRotMatYZ(rot[2])
+  points = points %*% makeRotMatXZ(rot[3])
+  
+  #make df, flip if necessary
+  pointsDf = data.frame(x=flip[1]*points[,1],y=flip[2]*points[,2],z=flip[3]*points[,3])
+  
+  return(pointsDf)
+}
+
 
 
 
