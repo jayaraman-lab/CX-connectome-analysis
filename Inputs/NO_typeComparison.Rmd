@@ -1,0 +1,741 @@
+---
+title: "Analysis of inputs to the noduli (NO): Type comparison plots (partners by region bar graph and similarity analysis)"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of inputs to the NO: Type comparison plots (partners by region bar graph and similarity analysis)
+This notebook shows how neuron groups were selected for generating the connectivity graphs. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(paletteer)
+library(igraph)
+library(neuprintrExtra)
+library(gridExtra)
+options(nat.plotengine = 'rgl')
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+neuprint_login()
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+```{r}
+#util function
+myplot_dist <- function(dd,order=TRUE){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+  }
+  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=1-value)) +
+    theme_classic() +
+    scale_fill_gradient2(low="white", mid="grey", high="black", 
+                         midpoint =0.5, limits=c(0,1), name="Similarity") +
+    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
+    xlab("") + ylab("")+coord_fixed() 
+}
+```
+
+### Select types for comparison
+```{r}
+myTypeList = unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type)
+  #c("ER3a_a","ER3a_b","ER3a_c","ER3a_d","ER1_a","ER1_b")
+  #paste0(c("ExR"),seq(1,8))
+  #c("PFR_a", "PFR_b", unique(getBodyIdsForList(paste0( c("PFN"),".*"))$type), "vDeltaJ", "vDeltaK", "vDeltaL", "vDeltaM")
+  #c("FB6A","FB6C_a","FB6C_b","FB6D","FB6E","FB6F","FB6G","FB6H","FB6I","FB6Z","FB7A","FB7B","FB7K","FB7L","FB5J","FB5H","FB5I","FB5AA", "FB5AB","FB1D","FB1E")
+  #c("GLNO","LNO1","LNO2","LNO3","LNOa", "LCNOpm","LCNOp") #
+side ="_L" # "_R"#
+myTypeList_lat = paste0(myTypeList, side)
+
+saveName = "PFN_comparison"
+saveDir = "plots"
+```
+
+
+```{r}
+myTypes_bag_full = neuronBag(myTypeList)
+
+# Filter out neurons from left side?
+splitLR = TRUE
+if(splitLR){
+  myTypes_bag_full = lateralize_types(myTypes_bag_full)
+  }
+```
+
+### Filter neuron bag to contain only subset of types (considering lateralization)
+```{r}
+myTypes_bag =  filter(myTypes_bag_full, filterPartners = FALSE, type %in% myTypeList_lat)
+```
+
+### Generate list of ROIs to consider
+```{r}
+roiTree = getRoiTree()
+slctROIs = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+                                          "VMNP"=1,"INP"=1, "LX(R)"=3, "LX(L)"=3), exceptionLevelMatch = 1)
+slctROIs = unique(slctROIs$roi)
+slctROIs_r = slctROIs[!grepl("\\(L\\)",slctROIs)]
+slctROIs_r
+```
+
+# Use raw inputs as few connections in non-CX ROIs are significant according to general criteria??
+```{r}
+myTypes_in = myTypes_bag$inputs
+myTypes_out = myTypes_bag$outputs
+myTypes = myTypes_bag$names
+```
+
+
+### Generate dataframe of inputs to types of interest
+# Filter based on rois to use
+```{r}
+minsyn = 3
+minWeightRel = 0.001 #used to filter connectivity tables
+
+
+myTypes_in_filt = myTypes_in %>% filter(roi %in% slctROIs) %>%
+  #filter(type.to %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.to) %>% filter(sum(weight) >= minsyn) %>% filter(weightRelative >= minWeightRel)
+
+myTypes_in_filt = bind_cols(myTypes_in_filt, data.frame(dir = rep("in", length(myTypes_in_filt$roi))))
+
+myTypes_out_filt = myTypes_out %>% filter(roi %in% slctROIs) %>%
+  #filter(type.from %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.from) %>% filter(sum(weight) >= minsyn) %>% filter(outputContribution >= minWeightRel)
+
+myTypes_out_filt = bind_cols(myTypes_out_filt, data.frame(dir = rep("out", length(myTypes_out_filt$roi))))
+```
+
+```{r}
+#myTypes_in_filt %>% group_by(roi,  type.from,  type.to) %>% summarise(sw = sum(weight))
+plotData = myTypes_in_filt %>% ungroup() %>% group_by(roi,  type.from, type.to) %>% summarise(sw = sum(weight))
+ggplot(data = plotData) + geom_freqpoly( aes(x=sw, color=type.to), bins=100) + xlim(0, 100) + facet_grid(rows = vars(roi))
+
+plotData = myTypes_out_filt %>% ungroup() %>% group_by(roi,  type.to, type.from) %>% summarise(sw = sum(weight))
+ggplot(data = plotData) + 
+  geom_freqpoly( aes(x=sw, color=type.from), bins=100) + xlim(0, 100) +
+  facet_grid(rows = vars(roi))
+```
+
+# Visualize in bar graph different input types
+```{r}
+inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
+  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","weight","absoluteWeight","outputContribution", "dir")) %>% 
+    mutate(ref = type.to, measure=weightRelative) %>% rename(databaseType=databaseType.from)
+  
+  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "weight","absoluteWeight","outputContribution", "dir")) %>% 
+    mutate(ref = type.from, measure=outputContribution) %>% rename(databaseType=databaseType.to)
+  
+  if(supertypeLevel == 0){
+    inData <- supertype(inData) %>% selectSupertypeSet(default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% mutate(partner = supertype, partner2=supertype2)
+    
+    outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% mutate(partner = supertype, partner2=supertype2)
+  }else{
+    inData = supertype(inData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
+    outData = supertype(outData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
+  }
+  data = bind_rows(inData,outData)
+  return(data)
+}
+
+```
+
+```{r, warning=FALSE}
+for(st in c(0,2,3)){
+  myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
+  
+  if(sum(is.na(myTypes_filt$partner)) > 0){
+    myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
+  }
+  bar = inOutContributionPlot(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free") 
+  show(bar)
+  if (savePlot){
+    ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'.pdf', sep=''),plot = bar, device='pdf', path = "plots",
+        scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+  }
+}
+
+```
+
+```{r, warning=FALSE}
+
+inOutContributionPlotNotNorm <- function(data){
+  source("R/paperTheme.R")
+  ncol = length(unique(data$partner))
+  data = data %>% ungroup() %>% group_by(partner, roi, dir, ref) %>% summarise(measure = sum(absoluteWeight))
+  bar = ggplot(data, aes(x=ref, y=measure, fill=partner)) + 
+    geom_bar(position = "stack",stat="identity") + 
+    theme_classic() + theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+  
+  if(ncol <= 31){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(data$partner)))[c(-seq(5))])
+  }else if(ncol <= 36){
+    bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=length(unique(data$partner))))
+  }#else{ ...add a better colormap than the default}
+  return(bar)
+}
+
+for(st in c(0,2,3)){
+  myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
+  
+  if(sum(is.na(myTypes_filt$partner)) > 0){
+    myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
+  }
+  bar = inOutContributionPlotNotNorm(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free")
+  show(bar)
+  
+  if (savePlot){
+    ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'_nonNorm.pdf', sep=''),plot = bar, device='pdf', path = "plots",
+        scale = 1, width=15, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+  }
+}
+
+```
+
+
+
+
+
+### Compare input and outputs to these types
+# select inputs to focus types in main input regions
+```{r}
+myROIs = unique(myTypes_filt$roi)[unique(myTypes_filt$roi)!="EB"] #
+myROIsName = "allROIbutEB" #paste(myROIs, collapse = '-')#"allButEB" #"allROIbutNO" # #"PB_EB_NOr" #
+myROIs  
+
+```
+
+# construct new connection table for combined ROIs
+```{r}
+myTypes_bag_comboRoi = combineRois(myTypes_bag, myROIs, "comboRoi")
+typesInput_combiRoi = myTypes_bag_comboRoi$inputs %>% filter(type.to %in% myTypeList_lat)
+typesOutput_combiRoi = myTypes_bag_comboRoi$outputs %>% filter(type.from %in% myTypeList_lat)
+
+myTypeList_lat_in = unique(typesInput_combiRoi$type.to)
+myTypeList_lat_out = unique(typesOutput_combiRoi$type.from)
+```
+
+# Connectivity matrix from neuron bag
+```{r}
+weightMeasure ="weightRelative" 
+groupBy = "type"
+cmax = max(typesInput_combiRoi$weightRelative)
+
+conMatPlot = plotConnectivityMatrix(typesInput_combiRoi, byGroup = groupBy, weightMeasure , cmax)
+conMatPlot = addMatrixPlotLabs(conMatPlot, "Inputs",  "",paste(myROIs, collapse = '-'), weightMeasure)
+
+print(conMatPlot)
+
+plotW = 7
+plotH = 12#20
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_in_',myROIsName,'_', weightMeasure,'_fromNBag.pdf', sep=''), plot = conMatPlot, device='pdf', path = "plots",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+weightMeasure ="weightRelative" 
+groupBy = "type"
+cmax = max(is.finite(typesOutput_combiRoi$weightRelative))
+
+conMatPlot = plotConnectivityMatrix(typesOutput_combiRoi, byGroup = groupBy, weightMeasure , cmax)
+conMatPlot = addMatrixPlotLabs(conMatPlot, "Outputs",  "",paste(myROIs, collapse = '-'), weightMeasure)
+
+print(conMatPlot)
+
+plotW = 25
+plotH = 6
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_out_",saveName,'_in_',myROIsName,'_', weightMeasure,'_fromNBag.pdf', sep=''), plot = conMatPlot, device='pdf', path = "plots",
+    scale = 2, width = plotW, height =plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+# Cluster input vectors to reference neurons
+```{r}
+conmat <- connectivityMatrix( typesInput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+
+conmat_cd = cos_dist(conmat)
+plt <- myplot_dist(conmat_cd, order=TRUE) + theme_paper(axis.text.x = element_text(angle = 90)) 
+plt
+
+hcl=hclust(conmat_cd)
+
+cut = 0.7#0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8) + theme_paper()# + rect.hclust(hcl, h=cut, border = "red")
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/inputCorrelation_",saveName,'_', myROIsName,'_nBag_tree.pdf'), width=6, height=4)
+
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+
+typeClusters <- stack(clu.h) %>% rename(type = ind, clust=values) %>% arrange(clust)
+
+if (savePlot){
+  ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_nBag.pdf', sep=''), plot = plt, device='pdf', path = "plots", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+conmat <- connectivityMatrix( typesInput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+conmat_cd = cos_dist(t(conmat))
+plt <- myplot_dist(conmat_cd, order=TRUE) + theme_paper(axis.text.x = element_text(angle = 90)) 
+plt
+
+hcl=hclust(conmat_cd)
+
+cut = 0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
+dev.print(pdf, paste0("../neuprintR_analysis_plots/inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag_tree.pdf'), width=12, height=6)
+
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+
+typePreClusters <- stack(clu.h) %>% rename(type = ind, preclust=values) %>% arrange(preclust)
+
+if (savePlot){
+  ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag.pdf', sep=''), plot = plt, device='pdf', path = "plots", scale = 1, width = 16, height = 16, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+# Cluster output vectors to reference neurons
+
+```{r}
+conmat <- connectivityMatrix( typesOutput_combiRoi %>% filter(is.finite(weightRelative) ), "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+
+conmat_cd = cos_dist(conmat)
+plt <- myplot_dist(conmat_cd, order=TRUE) + theme_paper(axis.text.x = element_text(angle = 90)) 
+plt
+
+hcl=hclust(conmat_cd)
+
+cut = 0.7#0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/outputCorrelation_",saveName,'_', myROIsName,'_nBag_tree.pdf'), width=12, height=6)
+
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+
+typeClusters <- stack(clu.h) %>% rename(type = ind, clust=values) %>% arrange(clust)
+
+if (savePlot){
+  ggsave( paste("outputCorrelation_",saveName,'_', myROIsName,'_nBag.pdf', sep=''), plot = plt, device='pdf', path = "plots", scale = 1, width = 16, height = 16, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+conmat <- connectivityMatrix( typesOutput_combiRoi %>% filter(is.finite(weightRelative) ), "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+conmat_cd = cos_dist(t(conmat))
+plt <- myplot_dist(conmat_cd, order=TRUE)
+plt
+
+hcl=hclust(conmat_cd)
+
+cut = 0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
+dev.print(pdf, paste0("../neuprintR_analysis_plots/outputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag_tree.pdf'), width=6, height=4)
+
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+
+typePreClusters <- stack(clu.h) %>% rename(type = ind, preclust=values) %>% arrange(preclust)
+
+if (savePlot){
+  ggsave( paste("outputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag.pdf', sep=''), plot = plt, device='pdf', path = "plots", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+# For LNO/PFN
+## Investigate inptuts outside of NO
+```{r}
+inputDatabaseTypes = unique(typesInput_combiRoi$databaseType.from)
+NAtypes = typesInput_combiRoi %>% filter(is.na(databaseType.from)) %>% select(type.from)
+#inputDatabaseTypes = c(inputDatabaseTypes,NAtypes$type.from)
+inputTypes = unique(typesInput_combiRoi$type.from)
+
+myInputTypes_bag = neuronBag(inputDatabaseTypes)
+
+# Filter out neurons from left side
+splitLR = TRUE
+if(splitLR){
+  myInputTypes_bag = lateralize_types(myInputTypes_bag)
+}
+```
+
+#TODO: Improve filtering to get one side (R) of the pathways
+```{r}
+# Find which rois inputs are innervating
+myROIs_in = unique(myInputTypes_bag$inputs$roi) 
+myROIs_in = intersect(myROIs_in,slctROIs)
+myROIs_in
+```
+
+```{r}
+myInputTypes_bag_comboRoi = combineRois(myInputTypes_bag, myROIs_in, "comboRoi")
+#myInputTypes_bag_comboRoi = filter(myInputTypes_bag_comboRoi,filterPartners = FALSE, type %in% inputTypes)
+
+inInput_combiRoi = myInputTypes_bag_comboRoi$inputs %>% filter(type.to %in% inputTypes)
+```
+
+```{r}
+conmat <- connectivityMatrix(inInput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+
+conmat_cd = cos_dist(conmat)
+plt <- myplot_dist(conmat_cd, order=TRUE)
+plt
+
+hcl=hclust(conmat_cd)
+cut2 = 0.8# 0.995 used for LNO inputs, 0.8 used otherwise
+plot(hcl,hang= -1, cex = 0.6)#,labels = TRUE, )
+rect.hclust(hcl, h=cut2, border = "red")
+dev.print(pdf, paste0("../neuprintR_analysis_plots/inputCorrelation_",saveName,'_', myROIsName,'_inputs_nBag_tree.pdf'), width=8, height=4)
+
+clu.h2=cutree(hcl,h=cut2) # cut tree/dendrogram from height 80
+
+inTypeClusters <- stack(clu.h2) %>% rename(type = ind, inclust=values) %>% arrange(inclust)
+
+if (savePlot){
+  ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_inputs_nBag.pdf', sep=''), plot = plt, device='pdf', path = "plots", scale = 1, width = 22, height = 22, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+inTypesContribution <- myInputTypes_bag_comboRoi$outputs %>% filter(type.to %in% myTypeList_lat)
+
+inTypesCon <- left_join(inTypesContribution, inTypeClusters, by=c("type.from"="type")) %>% 
+  mutate(fromCluster = paste(inclust,type.from, sep="_"))
+inTypesCon <- left_join(inTypesCon, typeClusters, by=c("type.to"="type")) %>% 
+  mutate(toCluster = paste(clust,type.to, sep="_"))
+
+cmax = max(inTypesCon$weightRelative)
+
+plt <- ggplot(data = inTypesCon) + geom_tile(aes(x=type.to,y=type.from,fill=weightRelative)) +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*cmax, limits=c(0,cmax))   +
+    xlab("") + ylab("")#+coord_fixed()
+plt <- plt + theme(strip.placement = "outside", 
+                   strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(inclust, desc(inclust)) ~ clust, space="free", scales="free",switch="both")
+print(plt)
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_', myROIsName,'_byCluster.pdf', sep=''), plot = plt, device='pdf',
+         path = "plots",width = 15, height= 40, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+plt <- ggplot(data = inTypesCon) + geom_tile(aes(y=type.to,x=type.from,fill=weightRelative)) +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*cmax, limits=c(0,cmax))   +
+    xlab("") + ylab("")#+coord_fixed()
+plt <- plt + theme(strip.placement = "outside", 
+                   strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(clust, desc(clust)) ~ inclust, space="free", scales="free",switch="both")
+print(plt)
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_', myROIsName,'_byCluster_v2.pdf', sep=''), plot = plt, device='pdf',
+         path = "plots",width = 45, height =10, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+inTypesContribution <- typesInput_combiRoi
+
+inTypesConPre <- left_join(inTypesContribution, typePreClusters, by=c("type.from"="type")) %>% 
+  mutate(fromCluster = paste(preclust,type.from, sep="_"))
+inTypesConPre <- left_join(inTypesConPre, typeClusters, by=c("type.to"="type")) %>% 
+  mutate(toCluster = paste(clust,type.to, sep="_"))
+
+cmax = max(inTypesConPre$weightRelative)
+
+plt <- ggplot(data = inTypesConPre) + geom_tile(aes(x=type.to,y=type.from,fill=weightRelative)) +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*cmax, limits=c(0,cmax))   +
+    xlab("") + ylab("")#+coord_fixed()
+plt <- plt + theme(strip.placement = "outside", 
+                   strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(preclust, desc(preclust)) ~ clust, space="free", scales="free",switch="both")
+print(plt)
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_', myROIsName,'_byCluster_pre_alltypes.pdf', sep=''), plot = plt, device='pdf',
+         path = "plots",width = 15, height= 40,  units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+```{r}
+inTypesConPre <- left_join(inTypesContribution, typePreClusters, by=c("type.from"="type")) %>% 
+  mutate(fromCluster = paste(preclust,type.from, sep="_"))
+inTypesConPre <- left_join(inTypesConPre, typeClusters, by=c("type.to"="type")) %>% 
+  mutate(toCluster = paste(clust,type.to, sep="_"))
+
+cmax = max(inTypesConPre$weightRelative)
+
+plt <- ggplot(data = inTypesConPre) + geom_tile(aes(x=type.to,y=type.from,fill=weightRelative)) +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*cmax, limits=c(0,cmax))   +
+    xlab("") + ylab("")#+coord_fixed()
+plt <- plt + theme(strip.placement = "outside", 
+                   strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(preclust, desc(preclust)) ~ clust, space="free", scales="free",switch="both")
+print(plt)
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_', myROIsName,'_byCluster_pre.pdf', sep=''), plot = plt, device='pdf',
+         path = "plots",width = 15, height= 40,  units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+plt <- ggplot(data = inTypesConPre) + geom_tile(aes(y=type.to,x=type.from,fill=weightRelative)) +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", midpoint =0.5*cmax, limits=c(0,cmax))   +
+    xlab("") + ylab("")#+coord_fixed()
+plt <- plt + theme(strip.placement = "outside", 
+                   strip.background = element_rect(fill=NA, colour="grey50")) +
+    facet_grid(reorder(clust, desc(clust)) ~ preclust, space="free", scales="free",switch="both")
+print(plt)
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_', myROIsName,'_byCluster_pre_v2.pdf', sep=''), plot = plt, device='pdf',
+         path = "plots",width = 45, height =10, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+## Relate clustering from inputs based on their inputs to the clustering based on their output
+```{r}
+# output based clusters: typePreClusters
+# input based clusters: inTypeClusters
+
+clustCompare = full_join(inTypeClusters,typePreClusters, by="type") %>% na.omit()
+
+preclustStats = clustCompare %>% group_by(preclust) %>% summarise(n_clust = length(unique(inclust)), members = length(inclust)) %>%
+  mutate(av_n = members/n_clust)
+
+inclustStats = clustCompare %>% group_by(inclust) %>% summarise(n_clust = length(unique(preclust)), members = length(preclust)) %>%
+  mutate(av_n = members/n_clust)
+```
+
+```{r}
+preclustStats_fit = preclustStats %>% 
+    do({
+      mod = lm(n_clust ~ members, data = .)
+      data.frame(Intercept = coef(mod)[1], Slope = coef(mod)[2])
+    })
+
+inclustStats_fit = inclustStats %>% 
+    do({
+      mod = lm(n_clust ~ members, data = .)
+      data.frame(Intercept = coef(mod)[1], Slope = coef(mod)[2])
+    })
+
+lim1 = 20
+lim2 = 10
+inClustStatPlot = ggplot(preclustStats,aes(members, n_clust)) + coord_fixed() + theme_classic() + xlim(0,lim1) + ylim(0,lim1) + 
+  geom_jitter(height=0.15, width=0.15)+
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle(paste0("Fit: slope = ",round(preclustStats_fit$Slope,2),", intercept = ", round(preclustStats_fit$Intercept,2))) +
+  xlab("# members per output-based cluster") + ylab("#different input-clusters")
+#Each dot is a cluster of the LNO inputs, based on their connectivity to LNO (i.e. output-based cluster). 
+
+preClustStatPlot = ggplot(inclustStats,aes(y=n_clust,x=members))  + coord_fixed() + theme_classic() + xlim(0,lim2) + ylim(0,lim2) +
+  geom_jitter(height=0.15, width=0.15) +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle(paste0("Fit: slope = ",round(inclustStats_fit$Slope,2),", intercept = ", round(inclustStats_fit$Intercept,2))) +
+  xlab("# members per input-based cluster") + ylab("# different output-clusters")
+
+plt = grid.arrange(inClustStatPlot, preClustStatPlot, nrow = 1)
+
+if (savePlot){
+  ggsave(paste("clusterStatistic_",saveName,'_', myROIsName,'_inputClustersPerOutputCluster.pdf', sep=''), plot = plt, device='pdf',path = "../neuprintR_analysis_plots/",width = 20, height =10, units ="cm", dpi = 600, limitsize = TRUE, useDingbats=FALSE)
+}
+```
+## divergence/convergence between steps
+
+```{r}
+# type
+types_inin = unique(inInput_combiRoi$type.from)
+types_in = unique(inInput_combiRoi$type.to)
+types_in2 = unique(typesInput_combiRoi$type.from)
+types_in3 = unique(c(types_in,types_in2))
+types_to = unique(typesInput_combiRoi$type.to)
+
+print(length(types_inin))
+print(length(types_in))
+print(length(types_in2))
+print(length(types_in3))
+print(length(types_to))
+print(types_to)
+```
+
+```{r}
+
+clustGraph = clustCompare %>% mutate(from = paste0("f",inclust), to = paste0("t",preclust)) %>% select(c("from","to")) %>% mutate(relWeight = 1)
+nodesSet1 = unique(clustGraph$from)
+nodesSet2 = unique(clustGraph$to)
+# first we give prefixes to the nodes to discern the two partition
+g <- graph.empty()
+g <- add.vertices(g,nv=length(nodesSet1),attr=list(name=nodesSet1,type=rep(TRUE,length(nodesSet1))))
+g <- add.vertices(g,nv=length(nodesSet2),attr=list(name=nodesSet2,type=rep(FALSE,length(nodesSet2))))
+
+# we need to turn edgeList into a vector
+edgeListVec <- as.vector(t(as.matrix(clustGraph%>% select(c("from","to")))))
+g <- add.edges(g,edgeListVec)
+
+# check if is recognized as bipartite: is.bipartite(g)
+
+#plot.igraph(g, layout=layout.bipartite, vertex.color=c("orange","grey")[V(g)$type+1])
+
+arrowSize= .3
+vertexSize= 5 #clustCompare %>% group_by(inclust) %>% count()
+#vertexSize = 5 + vertexSize$n
+selfFBscale = vertexSize
+edgeNorm = .8
+cutoff = 0
+edcurve = 0
+
+myGraph = constructConnectivityGraph(clustGraph, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, useRandCol = TRUE)
+
+l = layout_as_bipartite(myGraph, types = grepl("t",V(myGraph)$name))
+
+myGraph$main = paste0("Cluster relationship\n layer 1: ",length(types_inin), " -> ",length(types_in2),"; layer 2:", length(types_in2), " -> ",length(types_to))
+graphPlot = plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph))
+
+
+dev.print(pdf, paste0("../neuprintR_analysis_plots/clusterGraph_",saveName,'_', myROIsName,".pdf"), width=20, height=15)
+
+d = decompose(myGraph, mode ="weak", max.comps = NA, min.vertices = 0)
+d
+
+todeg <- degree(myGraph, v = V(myGraph)[grepl("t",V(myGraph)$name)], mode = "in",loops = TRUE, normalized = FALSE)
+fromdeg <- degree(myGraph, v = V(myGraph)[grepl("f",V(myGraph)$name)], mode = "out",loops = TRUE, normalized = FALSE)
+
+todeg = stack(todeg) %>% rename(to = ind, degree=values) %>% mutate(direction = "upstream")
+fromdeg = stack(fromdeg) %>% rename(from = ind, degree=values) %>% mutate(direction = "downstream")
+
+degreeDist = ggplot(data = bind_rows(todeg, fromdeg), aes(degree,fill=direction, color=direction,alpha=0.6)) + geom_bar(alpha=0.5) + theme_classic()
+degreeDist
+
+if (savePlot){
+  ggsave(paste("clusterGraph_degreeDistribution_",saveName,'_', myROIsName,'.pdf', sep=''), plot = degreeDist, device='pdf',path = "plots",width = 12, height =7, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+
+## Generate a data frame that lists all inputs by type and for each input type, provides a list of ROIs in they innervate
+
+```{r}
+roiTree = getRoiTree()
+
+simpleROIs  = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+                                          "VMNP"=1,"INP"=1,"SNP(R)"=1,"SNP(L)"=1, "LX(R)"=3, "LX(L)"=3), exceptionLevelMatch = 1)
+simpleROIs = as.character(unique(simpleROIs$roi))
+simpleROIs = c(simpleROIs[!simpleROIs=="NO"])
+simpleROIs = c(c("NO(R)","NO(L)"),simpleROIs)
+#simpleROIs = c(simpleROIs[!simpleROIs=="FB"])
+#simpleROIs = c(paste0("FBl",seq(1,9)),simpleROIs)
+simpleROIs
+```
+
+
+```{r}
+myTypes_bag_filt = filter(myTypes_bag_full,filterPartners = FALSE, type %in% myTypeList_lat)#databaseType %in% paste0(myTypeList))
+myInputTypes_bag_filt= filter(myInputTypes_bag,filterPartners = FALSE,  type %in% inputTypes)
+
+# get roi info
+typeROI = getROISummary(myTypes_bag_filt) %>% filter(roi %in% simpleROIs)
+inTypeROI = getROISummary(myInputTypes_bag_filt) %>% filter(roi %in% simpleROIs)
+```
+
+```{r}
+# lookup table of input types -> types
+inputTypes_2_types = myInputTypes_bag_filt$outputs %>% filter(roi %in% simpleROIs) %>% filter(type.to %in% myTypeList_lat) %>% select(c("type.from", "type.to",  "roi", "weightRelative", "absoluteWeight"))
+
+inputTypeROIs_by_types  = inputTypes_2_types %>% group_by(roi, type.to) %>% 
+  summarise(sumWeightRel = sum(weightRelative),
+            absWeight =  as.integer(sum(absoluteWeight))) %>% ungroup()
+
+# Generate list of ROIs for each type
+th = 30
+inType_ROIs = inTypeROI %>% filter((upstream> th) | (downstream > th)) %>%
+  mutate(roisimple = sub("\\(R\\)", "r", roi))  %>% 
+  mutate(roisimple = sub("\\(L\\)", "l", roisimple)) %>%
+  mutate(roisupsimple = sub("\\(R\\)", "", roi))  %>% 
+  mutate(roisupsimple = sub("\\(L\\)", "", roisupsimple)) %>% select(c("roi","roisimple", "roisupsimple","type", "n")) %>% distinct()
+```
+
+```{r}
+# add info on to-type
+type_inputTypeMap <- data.frame() 
+for(type in myTypeList_lat){
+  print(type)
+  onetype_inputTypeMap = right_join(inType_ROIs, inputTypes_2_types  %>% select(type.from, type.to, absoluteWeight, weightRelative) %>% filter(type.to == type), 
+                                   by=c("type" = "type.from")) %>% 
+    group_by(roisimple, type.to) %>% summarise(weightRel_all =  mean(weightRelative),
+                                               weightAbs_all = as.integer(mean(absoluteWeight)),
+                                               n = length(weightAbs_all)) %>% ungroup()
+  type_inputTypeMap = bind_rows(type_inputTypeMap,onetype_inputTypeMap)
+}
+```
+
+```{r}
+cmax = max(type_inputTypeMap$weightRel_all)# - 0.05
+wRel_plt <- ggplot(type_inputTypeMap, aes(x=type.to,y=roisimple,fill=weightRel_all)) + geom_tile() +
+  scale_fill_gradient2(low="azure2", mid="azure4", high="black", 
+                         midpoint =0.5*cmax, limits=c(0,cmax))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+wAbs_plt <- ggplot(type_inputTypeMap, aes(x=type.to,y=roisimple,fill=weightAbs_all)) + geom_tile() +
+  scale_fill_gradient2(low="azure2", mid="azure4", high="black", 
+                         midpoint =0.5*max(type_inputTypeMap$weightAbs_all), limits=c(0,max(type_inputTypeMap$weightAbs_all)))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+pltin <- grid.arrange(wRel_plt, wAbs_plt, nrow = 1)
+if (savePlot){
+  ggsave(paste("InputMap_inputs_",saveName,'_', myROIsName,'.pdf', sep=''), plot = pltin, device='pdf',path = "plots",width = 20, height=12, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+Map of input places
+```{r}
+th = 30
+type_inputMap = typeROI %>%  filter((upstream> th) | (downstream > th))  %>% group_by(type, roi) %>% summarise(upstream_all =  as.integer(mean(upstream)),
+                                                                                          downstream_all = as.integer(mean(downstream))) %>% ungroup()
+
+upstr_plt <- ggplot(type_inputMap, aes(x=type,y=roi,fill=upstream_all)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="azure2", mid="azure4", high="black", 
+                         midpoint =0.5*max(type_inputMap$upstream_all), limits=c(0,max(type_inputMap$upstream_all)))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+dwstr_plt <- ggplot(type_inputMap, aes(x=type,y=roi,fill=downstream_all)) + 
+  geom_tile() +
+  scale_fill_gradient2(low="azure2", mid="azure4", high="black",
+                         midpoint =0.5*max(type_inputMap$downstream_all), limits=c(0,max(type_inputMap$downstream_all)))  +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+
+plt <- grid.arrange(upstr_plt, dwstr_plt, nrow = 1)
+
+if (savePlot){
+  ggsave(paste("InputOutputMap_",saveName,'_', myROIsName,'.pdf', sep=''), plot = plt, device='pdf',path = "plots",width=25, height=8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
