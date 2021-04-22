@@ -6,7 +6,7 @@ output:
   pdf_document: default
 ---
 #Analysis of inputs to the NO: Connectivity graphs and corresponding connectivity matrices
-This notebook shows how to generate the connectivity graph in **Figure 25 B** as well as connectivity matrices in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
+This notebook shows how to generate the connectivity graph in **Figure 25 B** as well as the connectivity matrix in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graph).
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -35,6 +35,13 @@ if (savePlot){
 
 ### Make selection of neurons to be used in connecitivy analysis
 ***Selection of ROI and criteria for neuron selection***
+
+For the connectivity graph in **Figure 25B** select:
+PFN_PEN_matrix = FALSE
+
+For the connectivity matrix in **Figure 26D** select:
+PFN_PEN_matrix = TRUE
+
 ```{r}
 ROI = "NOr"
 slctROI ="NO(R)"
@@ -45,10 +52,9 @@ makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup co
 saveName = paste0("Inputs_in_", ROI)
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
-useCustomPreSelection = FALSE
-useCustomPostSelection = FALSE
+PFN_PEN_matrix = TRUE
 
-if(!useCustomPostSelection | !useCustomPreSelection){
+if(!PFN_PEN_matrix){
   if(splitLR){
     roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
   }else{
@@ -59,15 +65,12 @@ if(!useCustomPostSelection | !useCustomPreSelection){
 
 
 ***Selection of neurons***
-Adjust settings for Figure 6 (AOTU) or 8 (BU):  [no need to adjust anything]
-* postNeuron: c("TuBu","TuTuB","AOTU046")  vs. <not relevant>
-* postName:   "TuBu, TuTu and  AOTU46"     vs  <not relevant>
 ```{r}
 # POST
-if(useCustomPostSelection){
-  postNeuron = c("TuBu","TuTuB","AOTU046","AOTU058")
+if(PFN_PEN_matrix){
+  postNeuron = c("PEN","PFN")
   postNeuron = paste0(postNeuron,".*")
-  postName = "TuBu, TuTu, AOTU46 and AOTU58"  #gets used in the connectivity matrix plot
+  postName = "PEN, PFN"  #gets used in the connectivity matrix plot
   postIDs = getBodyIdsForList(postNeuron)
 }else{
   postName = paste0("all in ", ROI)
@@ -75,7 +78,7 @@ if(useCustomPostSelection){
 }
 
 # PRE
-if(useCustomPreSelection){
+if(PFN_PEN_matrix){
   preNeuron = postNeuron
   preName = postName
   preIDs = getBodyIdsForList(preNeuron)
@@ -118,23 +121,27 @@ myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
 
 ### Connectivity matrix
 ```{r}
-plotW = 15
-plotH =  10
-plotType = "type" #id, name
 cmax = NULL
 cmaxtype = NULL
  
 connectionMeasure = "weightRelative"
-conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = plotType, connectionMeasure, cmaxtype)
-conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+if(!PFN_PEN_matrix){ 
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmaxtype)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+}else{
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+}
 print(conMatPlot)
-#ggsave( paste0("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_by',plotType,'.pdf'), plot = conMatPlot, device='pdf',
-#        path = "plots", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=21, height=18, units ="cm", dpi = 600, limitsize = TRUE)
+}
 ```
 
 ###  Draw graph
-cutoff:  0.05 for AOTU and 0.05 for BU
 ```{r, warning=FALSE} 
 require(igraph)
 
@@ -142,9 +149,9 @@ connectionMeasure = "weightRelative"
 cutoff = 0.05 # for weight 0.05, 0.01, 0
 
 largeGraph = TRUE
-edcurve = 0.1 #0.15
-edgeNorm = 0.07 #0.07#0.05#0.07#0.03#
-arrowSize = 0# 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+edcurve = 0.1
+edgeNorm = 0.5
+arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
 
 showself = TRUE 
 selfFeedbackScale = 10
@@ -193,10 +200,6 @@ if(splitLR){
   myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
   myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
   myColorMap= bind_rows(myColorMap_L, myColorMap_R)
-  
-  #rename MC neuron types
-  myColorMap$Type[myColorMap$Type == "MC64_R"] = "MC64"
-  myColorMap$Type[myColorMap$Type == "MC61_R"] = "MC61"
 }
 
 myColorMap = myColorMap %>% filter(Simpletype == "no")
@@ -217,7 +220,7 @@ plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myG
 
 maxEdge = max(E(myGraph)$width)
 minEdge = min(E(myGraph)$width)
-legend(x=-1,y=-0,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+legend(x=-1.3,y=-0.3,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
        lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
 
 if (savePlot){
@@ -225,34 +228,3 @@ if (savePlot){
                         "_",connectionMeasure, round(100*cutoff),"perc.pdf")), width=plotSize, height=plotSize)
 }
 ```
-
-Layered layout for the AOTU connectivity graph
-```{r}
-patternLayers = c("MC","TuTu","AOTU","TuBu")
-layerPos = c(0,3,4,5)
-defaultX = 1
-edcurve = 0
-
-vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
-vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultX)
-
-for(layer in seq(length(patternLayers))){
-  vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
-    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc))/length(loc) )
-}
-vertexProps$yloc[vertexProps$loc == "default"] = (1/length(vertexProps$loc))*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
-
-plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])),
-     edge.color = customizeGraphEdges(myGraph), family="Arial", vertex.label.family = "sans",edge.arrow.size=arrowSize)
-
-maxEdge = max(E(myGraph)$width)
-minEdge = min(E(myGraph)$width)
-legend(x=-1,y=-0.1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
-       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
-
-if (savePlot){
-  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
-                "_",connectionMeasure, round(100*cutoff),"perc_layered.pdf")), width=plotSize, height=plotSize)
-}
-```
-
