@@ -133,8 +133,8 @@ synPtsRot = changeBasis(synPts, roiEigen)
 
 ***Use EV coordinates and rotate for get "intuitive" view***
 ```{r}
-rot =  c(0,0,180)
-flip = c(1,-1, 1)
+rot =  c(180,0,180)
+flip = c(1,1,1)
 
 roiMeshPtsPlane <- rotatePoints(roiMeshPtsRot$X,roiMeshPtsRot$Y,roiMeshPtsRot$Z, rot, flip)
 synPtsPlane <- rotatePoints(synPtsRot$X,synPtsRot$Y,synPtsRot$Z, rot, flip)
@@ -206,7 +206,14 @@ styleDensity2Dhist <- function(synDens, Cmax, roioutline){
     scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), breaks=c(0,Cmax), limits=c(0, Cmax), oob = scales::squish) +
     coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
     geom_path(data=roioutline, aes(x=c1, y=c2), size = 0.5)
-    return(synDens)
+  return(synDens)
+}
+
+styleNormDens <- function(synDens, colorvals, roioutline, legendCols){
+  synDens <- synDens + scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+    scale_fill_manual(values = as.character(colorvals), name="type") +
+    guides(fill=guide_legend(ncol=legendCols)) + geom_path(data=roioutline, aes(x=c1, y=c2), size = 0.5)
+  return(synDens)
 }
 ```
 
@@ -267,41 +274,33 @@ if (savePlot){
 ```{r}
 plotW = 12
 plotH =  12
-levelBins = 4
+levelBins = 6
 
 # types
-synprojSlice = ggplot() + 
-  stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=type,alpha = ..nlevel..),
-                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
-  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
-  scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
-  guides(fill=guide_legend(ncol=2)) 
-synprojSlice = synprojSlice + geom_path(data=outline_slice, aes(x=c1, y=c2), size = 0.5)
+synprojSlice <- ggplot() + stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=type,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon")
+synprojSlice <- styleNormDens(synprojSlice, mySubtypeCols$hex, outline_slice, 2)
 synprojSlice
-if (savePlot){
-  ggsave( paste("synapseDistributions_",saveName,'_slice_byType.pdf', sep=''), plot = synprojSlice, device='pdf',
-          path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
-}
 
 # simple types (grouping similar neuron types)
-synprojSlice = ggplot() + 
-  stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=simpleType,alpha = ..nlevel..),
-                         bins=levelBins,contour_var = "ndensity", geom = "polygon") +
-  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
-  scale_fill_manual(values = as.character(myTypeCols$hex), name="type") +
-  guides(fill=guide_legend(ncol=1)) 
+synprojSliceSimple <- ggplot() + stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=simpleType,alpha = ..nlevel..),
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon")
+synprojSliceSimple <- styleNormDens(synprojSliceSimple, myTypeCols$hex, outline_slice, 1)
+synprojSliceSimple
 
-synprojSlice = synprojSlice + geom_path(data=outline_slice, aes(x=c1, y=c2), size = 0.5)
-synprojSlice
 if (savePlot){
-  ggsave( paste("synapseDistributions_",saveName,'_slice_bySimpletype.pdf', sep=''), plot = synprojSlice, device='pdf',
+  ggsave( paste("synapseDistributions_",saveName,'_slice_byType.pdf', sep=''), plot = synprojSlice, device='pdf',
+          path = "plots", scale = 1 , width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+  ggsave( paste("synapseDistributions_",saveName,'_slice_bySimpletype.pdf', sep=''), plot = synprojSliceSimple, device='pdf',
           path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
 Split into quadrants
 ```{r}
+dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
 dataFilt = dataFilt %>% mutate(angleGroup = cut(angle, breaks=c(-0, 1/8*360 ,2/8*360, 3/8*360, 1/2*360 ,5/8*360, 6/8*360, 7/8*360, 360), labels=c("1","2","3","4","5","6","7","8")))
+convfactor = 8/1000 # The default distance is in pixels with 8x8x8 nm/pixel resolution, so we convert to um as follows: pixels*8(nm/pixel)/1000(nm/um).
 
 # get outline 
 outline = data.frame()
@@ -316,17 +315,32 @@ for (i in unique(roiMeshPtsPlane$angleGroup)) {
 ```{r}
 # simple types (grouping similar neuron types)
 synprojSlice = ggplot() + 
-  stat_density_2d_filled(data = dataFilt, aes(x=z, y=syn_dist, fill=simpleType,alpha = ..nlevel..),
+  stat_density_2d_filled(data = dataFilt, aes(x=z*convfactor, y=syn_dist*convfactor, fill=type,alpha = ..nlevel..), 
+                         bins=levelBins,contour_var = "ndensity", geom = "polygon") + 
+  scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
+  scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  facet_wrap( ~ angleGroup,  ncol=4) + xlab("anterior-posterior axis [µm]") + ylab("radial axis [µm]") + 
+  theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
+  geom_path(data=outline, aes(x=c1*convfactor, y=c2*convfactor), size = 0.5) + guides(fill=guide_legend(ncol=1))
+print(synprojSlice)
+
+# simple types (grouping similar neuron types)
+synprojSliceSimple = ggplot() + 
+  stat_density_2d_filled(data = dataFilt, aes(x=z*convfactor, y=syn_dist*convfactor, fill=simpleType,alpha = ..nlevel..), 
                          bins=levelBins,contour_var = "ndensity", geom = "polygon") + 
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = as.character(myTypeCols$hex), name="type") +
-  facet_wrap( ~ angleGroup,  ncol=4) +
+  facet_wrap( ~ angleGroup,  ncol=4) + xlab("anterior-posterior axis [µm]") + ylab("radial axis [µm]") +
   theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) +
-  geom_path(data=outline, aes(x=c1, y=c2), size = 0.5) + guides(fill=guide_legend(ncol=1))
-print(synprojSlice)
+  geom_path(data=outline, aes(x=c1*convfactor, y=c2*convfactor), size = 0.5) + guides(fill=guide_legend(ncol=1))
+print(synprojSliceSimple)
 
-ggsave( paste("synapseDistributions_",saveName,'_slice_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "plots",
-    scale = 1.5, width = 13, height = 6, units ="cm", dpi = 600, limitsize = TRUE)
+if (savePlot){
+  ggsave( paste("synapseDistributions_",saveName,'_slice_splitRad.pdf', sep=''), plot = synprojSlice, device='pdf', path = "plots",
+      width = 23, height = 12, units ="cm", dpi = 600, limitsize = TRUE)
+  ggsave( paste("synapseDistributions_",saveName,'_slice_splitRadSimple.pdf', sep=''), plot = synprojSliceSimple, device='pdf', path = "plots",
+      width = 23, height = 12, units ="cm", dpi = 600, limitsize = TRUE)
+}
 ```
 
 ###Color code by region (Ring neurons only)
@@ -345,11 +359,13 @@ synprojSlice = ggplot() +
                          bins=levelBins,contour_var = "ndensity", geom = "polygon") +
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = paletteer_d("basetheme::brutal", length(unique(myTypeCols$regions)))) + 
-  guides(fill=guide_legend(ncol=2)) 
+  guides(fill=guide_legend(ncol=1)) 
 synprojSlice = synprojSlice + geom_path(data=outline_slice, aes(x=c1, y=c2), size = 0.5)
 synprojSlice
+
 if (savePlot){
   ggsave( paste("synapseDistributions_",saveName,'_slice_byRegion.pdf', sep=''), plot = synprojSlice, device='pdf',
           path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
+
