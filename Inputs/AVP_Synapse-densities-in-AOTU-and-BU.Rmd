@@ -57,16 +57,16 @@ Settings for...
 - Figure 8 Di,ii: myROI = "BU(R)", my_types = c("AOTU046", "ExR"), saveName: "ContraTypes_in_", choose typeSelection for contralaterally projecting types (see below)
 
 ```{r message=FALSE, warning=FALSE}
-myROI = "AOTU(R)" #"BU(R)" #
+myROI = "BU(R)" #"AOTU(R)" #
 
 saveName = paste0("TuBu_in_", myROI)
 my_types = c("TuBu")
 
 # For plots with many types, define grouping to split into multiple subplots.........
 ## For TuBu (Figure 6 Dii)
-typeSelection = list(c("TuBu01","TuBu06"),paste0("TuBu",c("02","03","04","05")),paste0("TuBu",c("07","08","09","10")))
+#typeSelection = list(c("TuBu01","TuBu06"),paste0("TuBu",c("02","03","04","05")),paste0("TuBu",c("07","08","09","10")))
 ## For TuBu (Figure 7 Cii)
-#typeSelection = list(paste0("TuBu",c("06","07","08","09","10")),paste0("TuBu",c("01","02","03","04","05")))
+typeSelection = list(paste0("TuBu",c("06","07","08","09","10")),paste0("TuBu",c("01","02","03","04","05")))
 
 ## For ER (Figure 7 Cii)
 #typeSelection = list(paste0("ER",c("2_a","2_b","2_c","2_d","3w","4d","5","6")),
@@ -112,7 +112,7 @@ names(roiMeshPts) <- c("x","y","z")
 
 
 ## (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
-***Transform mesh  and synapse locations***
+***Transform mesh and synapse locations***
 ```{r}
 # define new origin from roi center of mass
 origin = getCOM(roiMeshPts)
@@ -135,14 +135,18 @@ synPtsRot = changeBasis(synPts, roiEigen)
 ```
 
 ***Select either original or EV coordinates and rotate***
+The default distance is in pixels with 8x8x8 nm/pixel resolution, so we convert to um as follows: pixels*8(nm/pixel)/1000(nm/um).
 ```{r}
 if (myROI == "AOTU(R)"){ rot = c(0,0,0)
 }else if (myROI == "BU(R)"){ rot = c(45,0,0)
 }else if (myROI == "EB"){ rot =  c(0,0,180)
 }else{ rot = c(0,0,0) }
 
-roiMeshPtsPlane <- rotatePoints(roiMeshPtsRot$X,roiMeshPtsRot$Y,roiMeshPtsRot$Z, rot)
-synPtsPlane <- rotatePoints(synPtsRot$X,synPtsRot$Y,synPtsRot$Z, rot, flip)
+convfactor = 8/1000
+
+# rotate points and scale to obtain positions in um.
+roiMeshPtsPlane <- rotatePoints(roiMeshPtsRot$X*convfactor,roiMeshPtsRot$Y*convfactor,roiMeshPtsRot$Z*convfactor, rot)
+synPtsPlane <- rotatePoints(synPtsRot$X*convfactor,synPtsRot$Y*convfactor,synPtsRot$Z*convfactor, rot)
 
 synPtsPlane <- synPtsPlane %>% mutate( type = as.factor(my_synapses$type), 
                                        partnerType = as.factor(my_synapses$partnertype),
@@ -188,8 +192,8 @@ coloredDensityPlot <- function(mydata, dims, grouping, levelBins, colorcode){
 ### Generate mesh outlines for different orientations
 ```{r}
 if(myROI=="AOTU(R)"){
-  alphaval = 160
-}else{alphaval = 120}
+  alphaval = 160*convfactor
+}else{alphaval = 120*convfactor}
 
 # get outline
 meshOutline <- ahull(x=roiMeshPtsPlane$x,y=roiMeshPtsPlane$y,alpha=alphaval)
@@ -208,27 +212,32 @@ outline_xz = data.frame(meshOutline$arcs)
 nbins = 40
 ncolumns = 5
 
+# the size indicator shows 10 um distance
+
 # front view (xy)
 synprojFront = ggplot() + 
-  geom_hex(data=dataFilt, aes(x=x, y=y), bins=nbins) +   #fill=type, color=type
+  geom_hex(data=dataFilt, aes(x=x, y=y), bins=nbins) +
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
+  geom_segment(data=outline_xy,aes(x = -40, y = -20, xend = -30, yend = -20)) +
   facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
   geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5)
 print(synprojFront)
 
 # side view (zy)
 synprojSide = ggplot() + 
-  geom_hex(data=dataFilt, aes(x=z, y=y), bins=nbins) +   #fill=type, color=type
+  geom_hex(data=dataFilt, aes(x=z, y=y), bins=nbins) +
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
   facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_segment(data=outline_zy,aes(x = -30, y = -20, xend = -20, yend = -20 )) +
   geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5)
 print(synprojSide)
 
 # top view (xz)
 synprojTop = ggplot() + 
-  geom_hex(data=dataFilt, aes(x=x, y=z), bins=nbins) +   #fill=type, color=type
+  geom_hex(data=dataFilt, aes(x=x, y=z), bins=nbins) +
   scale_fill_gradientn(colours = brewer.pal(5,"BuPu"), oob = scales::squish) +
   facet_wrap(~type, ncol=ncolumns) + coord_fixed(ratio = 1) + theme_void() + guides(color=FALSE) +
+  geom_segment(data=outline_xz,aes(x = -40, y = -20, xend = -30, yend = -20)) +
   geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5)
 print(synprojTop)
 
@@ -251,6 +260,7 @@ synprojFront = ggplot() +
                          bins=levelBins,contour_var = "ndensity", geom = "polygon") +
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  geom_segment(data=outline_xy,aes(x = -40, y = -20, xend = -30, yend = -20)) +
   facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1))
 
 synprojFront = synprojFront + geom_path(data=outline_xy, aes(x=c1, y=c2), size = 0.5)
@@ -266,6 +276,7 @@ synprojSide = ggplot() +
                          bins=levelBins,contour_var = "ndensity", geom = "polygon") +
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  geom_segment(data=outline_zy,aes(x = -30, y = -20, xend = -20, yend = -20)) +
   facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1))
 
 synprojSide = synprojSide + geom_path(data=outline_zy, aes(x=c1, y=c2), size = 0.5)
@@ -281,6 +292,7 @@ synprojTop = ggplot() +
                          bins=levelBins,contour_var = "ndensity", geom = "polygon") +
   scale_alpha(range=c(0,1)) + coord_fixed(ratio = 1) + theme_void() +
   scale_fill_manual(values = as.character(mySubtypeCols$hex), name="type") +
+  geom_segment(data=outline_xz,aes(x = -40, y = -20, xend = -30, yend = -20)) +
   facet_grid(vars(group)) + guides(fill=guide_legend(ncol=1)) 
 
 synprojTop = synprojTop + geom_path(data=outline_xz, aes(x=c1, y=c2), size = 0.5)
@@ -330,9 +342,9 @@ prePartnerList =c("MC61","MC64") # c(paste0("TuBu0",seq(1,9)),"TuBu10")#
 preGroup = "MC"
 postPartnerList = c("TuBu01","TuBu03")#unique(getBodyIdsForList(my_types)$type)
 
-xrange = c(-5000, 2000)#c(-1500, 1000)
-yrange = c(-3000, 4000)#c(-500, 1500)
-zrange = c(-2000, 3000)#c(-800, 400)
+xrange = c(-5000, 2000)*convfactor
+yrange = c(-3000, 4000)*convfactor
+zrange = c(-4000, 3000)*convfactor
 ```
 
 ```{r, warning=FALSE}
