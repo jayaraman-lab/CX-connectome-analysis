@@ -4,12 +4,6 @@ output: html_notebook
 ---
 
 ## Preparing the environment
-```{r}
-library(neuprintrExtra)
-library(dplyr)
-library(stringr)
-library(paletteer)
-```
 Local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
@@ -362,7 +356,7 @@ byContrConnMat <- plotConnectivity(filter(intraConnsSummary,weightRelative>10^-3
                                    theme = theme_paper()) + 
    xlab("main contributor of postsynaptic")+ ylab("main contributor of presynaptic")+
    scale_fill_paletteer_c(name="mean relative weight\n between neurons\n of the groups","ggthemes::Green") + 
-   theme(legend.position=c(0.88,0.5)) + coord_fixed)()
+   theme(legend.position=c(0.88,0.5)) + coord_fixed()
 
 byContrConnMat
 ```

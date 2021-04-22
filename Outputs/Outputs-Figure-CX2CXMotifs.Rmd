@@ -5,10 +5,7 @@ output: html_notebook
 
 ## Preparing the environment
 ```{r}
-library(dplyr)
 library(tidyr)
-library(neuprintrExtra)
-library(paletteer)
 ```
 Loading local functions:
 ```{r message=FALSE}
@@ -86,7 +83,7 @@ canMot
 ```
 And save the graph:
 ```{r}
-save_plot(file.path(outputsFolder,"outputs-canMot.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
+save_plot(file.path(outputsFolder,"outputs-canMot2.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
 ```
 
 ### Parallel connections (panel C)
@@ -180,9 +177,6 @@ recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary ,aes(x=type.fromF,y=s
                strip.text.x = element_text(angle=90)) + 
    xlab("CX output type") + 
    scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + scale_color_paletteer_d(name="motif","ggthemes::Traffic")
-
-#motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-#names(motifPal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked #targets in CX")
 
 recurrentMotifsPrevalence
 ```
