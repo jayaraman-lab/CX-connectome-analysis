@@ -90,8 +90,9 @@ plotGlomMat <- function(bag,type,targetFilt=NULL,
                         grouping=c("glomerulus","column"),
                         facetInputs=NULL){
   grouping <- match.arg(grouping)
-  if (is.null(targetFilt)) outRaw <- outRaw %>% filter(type.to %in% targetFilt$type.to)
-  outRaw <- bag$outputs_raw %>% 
+  outRaw <- bag$outputs_raw
+  if (!is.null(targetFilt)) outRaw <- outRaw %>% filter(type.to %in% targetFilt$type.to)
+  outRaw <- outRaw %>% 
     filter(!type.to %in%  type.from & type.from %in% type) %>%
     arrange(type.to) %>% 
     mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),
