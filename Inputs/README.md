@@ -29,13 +29,26 @@
 and a specilized connectivity matrix in
 * Figure 9 figure supplement 1 A
 
+**NO_connectivityGraphsAndMatrix.Rmd**: Generate connectivity graph and matrix of PFN/PEN connectivity
+* Figure 25 B
+* Figure 26 D
+
+**NO_typeComparison**: Generate type comparison plots (partners by region bar graph and similarity analysis, as well as ordered connectivity matrices)
+* Figure 26 B (bar graph)
+* Figure 26 C (similarity matrix)
+* Figure 26 figure supplement 1A (non-normalized bar graph)
+* Figure 26 figure supplement 1B,C (Connectivity matrices ordered by similarity)
+* Figure 27 A (bar graph)
+* Figure 27 figure supplement A (similarity matrices)
+* Figure 27 figure supplement B (Connectivity matrices ordered by similarity)
+
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
-* Figure 6 - Supplemental information 1 A,B
-* Figure 7 - Supplemental information 1 A,B
+* Figure 6 figure supplement 1 A,B
+* Figure 7 figure supplement 1 A,B
 
 **AVP_glomerulusCharacterization.Rmd**: Create vizualization of synapse locations in glomeruli in
-* Figure 7 - Supplemental information 1 C
+* Figure 7 figure supplement  1 C
 
 **AVP_TuBu-connectivity-with-AOTU46-and-ExR.Rmd**: Create connectivity matrices in
-* Figure 8 - Supplemental information 1
+* Figure 8 figure supplement  1
