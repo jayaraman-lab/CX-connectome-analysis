@@ -1,4 +1,7 @@
+library(neuprintrExtra)
 library(neuprintr)
+library(dplyr)
+library(tidyr)
 library(broom)
 library(purrr)
 
@@ -50,12 +53,12 @@ getFit <- function(compTable,
 }
 
 #### GET ROI INFO FOR INPUT/OUTPUT SETS ACCROSS 2 VERSIONS OF THE DATABASE
-getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newC,oldC){
+getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newDataset,oldDataset){
   polarity <- match.arg(polarity)
-  newRefTable <- neuprint_get_meta(bodyids,conn=newC)
-
-  newRoiTable <- getRoiInfo(bodyids,conn=newC) %>% filter(roi == ROI) %>% mutate(version="new")
-  oldRoiTable <- getRoiInfo(bodyids,conn=oldC) %>% filter(roi == ROI) %>% mutate(version="old")
+  newRefTable <- neuprint_get_meta(bodyids,dataset=newDataset)
+  
+  newRoiTable <- getRoiInfo(bodyids,dataset=newDataset) %>% filter(roi == ROI) %>% mutate(version="new")
+  oldRoiTable <- getRoiInfo(bodyids,dataset=oldDataset) %>% filter(roi == ROI) %>% mutate(version="old")
 
   roiTable <- bind_rows(newRoiTable,oldRoiTable) 
   if (polarity == "inputs")
@@ -66,31 +69,36 @@ getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),ne
   mutate(roiTable,databaseType=newRefTable$type[match(bodyid,newRefTable$bodyid)]) %>% supertype() %>% mutate(side=polarity)
 }
 
-getCompRoiInfo <- function(bodyidsIn,bodyidsOut,roi,newC,oldC){
-  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="inputs",newC=newC,oldC=oldC)
-  roiTableOut <- getCompRoiInfoInternal(bodyidsOut,roi,polarity="Outputs",newC=newC,oldC=oldC)
+getCompRoiInfo <- function(bodyidsIn,bodyidsOut,roi,newDataset,oldDataset){
+  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="inputs",newDataset=newDataset,oldDataset=oldDataset)
+  roiTableOut <- getCompRoiInfoInternal(bodyidsOut,roi,polarity="outputs",newDataset=newDataset,oldDataset=oldDataset)
   
   bind_rows(roiTableIn,roiTableOut) 
 }
 
 #### MAKE COMPARABLE NEURON TO NEURON CONNECTION TABLES BETWEEN OLD (missing type) AND NEW DATASET
-getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","Outputs"),newC,oldC){
+getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newDataset,oldDataset){
   polarity <- match.arg(polarity)
   
-  newRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,conn=newC) %>% drop_na(ROIweight)
-  oldRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,conn=oldC) %>% drop_na(ROIweight)
+  newRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,dataset=newDataset) %>% 
+    drop_na(ROIweight)
+  
+  oldRawTable <- neuprint_connection_table(bodyids,ifelse(polarity=="inputs","PRE","POST"),roi=ROI,dataset=oldDataset) %>% 
+    drop_na(ROIweight)
 
-  newRefTable <- neuprint_get_meta(bodyids,conn=newC)
+  newRefTable <- neuprint_get_meta(bodyids,dataset=newDataset)
   ## Get the types from the new dataset
-  oldRefTable <- neuprint_get_meta(bodyids,conn=oldC) %>% mutate(type=newRefTable$type[match(bodyid,newRefTable$bodyid)]) 
+  oldRefTable <- neuprint_get_meta(bodyids,dataset=oldDataset) %>% 
+    mutate(type=newRefTable$type[match(bodyid,newRefTable$bodyid)]) 
 
-  newPartnerTable <- neuprint_get_meta(newRawTable$partner,conn=newC)
+  newPartnerTable <- neuprint_get_meta(newRawTable$partner,dataset=newDataset)
 
   ## Filter for bodyids that exist and are traced in both datasets
-  newPartnersOldDataset <- neuprint_get_meta(newRawTable$partner,conn=oldC) %>% filter(status == "Traced")
-  oldPartnersNewDataset <- neuprint_get_meta(oldRawTable$partner,conn=newC) %>% filter(status == "Traced")
+  newPartnersOldDataset <- neuprint_get_meta(newRawTable$partner,dataset=oldDataset) %>% filter(status == "Traced")
+  oldPartnersNewDataset <- neuprint_get_meta(oldRawTable$partner,dataset=newDataset) %>% filter(status == "Traced")
 
-  oldPartnerTable <- neuprint_get_meta(oldRawTable$partner,conn=oldC) %>% mutate(type=oldPartnersNewDataset$type[match(bodyid,oldPartnersNewDataset$bodyid)]) 
+  oldPartnerTable <- neuprint_get_meta(oldRawTable$partner,dataset=oldDataset) %>% 
+    mutate(type=oldPartnersNewDataset$type[match(bodyid,oldPartnersNewDataset$bodyid)]) 
 
   newRawTable <- filter(newRawTable,partner %in% newPartnersOldDataset$bodyid)
   oldRawTable <- filter(oldRawTable,partner %in% oldPartnersNewDataset$bodyid)
@@ -99,11 +107,11 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","Outp
   oldPartnerTable <- filter(oldPartnerTable,bodyid %in% oldPartnersNewDataset$bodyid)
 
   
-  newConnTable <- processConnectionTableOld(newRawTable,3,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="inputs","PRE","POST"),
-                                         slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=newC,computeKnownRatio=TRUE,chunk_connections = TRUE)
+  newDatasetonnTable <- processConnectionTableOld(newRawTable,3,newRefTable,newPartnerTable,newRefTable,ifelse(polarity=="inputs","PRE","POST"),
+                                         slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,dataset=newDataset,computeKnownRatio=TRUE,chunk_connections = TRUE)
   
-  oldConnTable <- processConnectionTableOld(oldRawTable,3,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="inputs","PRE","POST"),
-                                         slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,conn=oldC,computeKnownRatio = TRUE,chunk_connections = TRUE)
+  oldDatasetonnTable <- processConnectionTableOld(oldRawTable,3,oldRefTable,oldPartnerTable,oldRefTable,ifelse(polarity=="inputs","PRE","POST"),
+                                         slctROI=ROI,by.roi=FALSE,verbose=FALSE,chunk_meta=TRUE,dataset=oldDataset,computeKnownRatio = TRUE,chunk_connections = TRUE)
   
   groupVars <- c("from","to","roi","type.from","type.to",paste0("supertype",1:3,".from"),paste0("supertype",1:3,".to"))
   measureVars <- c(paste0(c("ROIweight",ifelse(polarity=="inputs","knownWeightRelative","knownOutputContribution")),".old"),
@@ -113,7 +121,7 @@ getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","Outp
   
   measureReplace <- rep(0,length(measureVars))
   names(measureReplace) <- measureVars
-  compTable <- full_join(newConnTable,oldConnTable,by = groupVars,suffix=c(".new",".old")) %>% select_at(c(groupVars,measureVars,extraMeasure)) %>%
+  compTable <- full_join(newDatasetonnTable,oldDatasetonnTable,by = groupVars,suffix=c(".new",".old")) %>% select_at(c(groupVars,measureVars,extraMeasure)) %>%
     replace_na(as.list(measureReplace))
   compTable <- na_matchValue(compTable,"input_completedness.old","to") %>% 
                na_matchValue("input_completedness.new","to") %>%
@@ -152,22 +160,22 @@ na_matchValue <- function(table,variable,variableMatch){
   table
 }
 
-getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newC,oldC){
-  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"inputs",newC,oldC)
-  outputsComp <- getCompConnectionTableInternal(bodyidsOut,ROI,"Outputs",newC,oldC)
+getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newDataset,oldDataset){
+  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"inputs",newDataset,oldDataset)
+  outputsComp <- getCompConnectionTableInternal(bodyidsOut,ROI,"outputs",newDataset,oldDataset)
   inputsComp <- mutate(inputsComp,
                        old=knownWeightRelative.old,
                        new=knownWeightRelative.new,
-                       oldCompletedness=input_completedness.old,
-                       newCompletedness=input_completedness.new,
+                       oldDatasetcompletedness=input_completedness.old,
+                       newDatasetcompletedness=input_completedness.new,
                        supertype2=supertype2.to) %>% mutate(side="inputs")
   
   outputsComp <- mutate(outputsComp,
                         old=knownOutputContribution.old,
                         new=knownOutputContribution.new,
-                        oldCompletedness=output_completedness.old,
-                        newCompletedness=output_completedness.new,
-                        supertype2=supertype2.from) %>% mutate(side="Outputs")
+                        oldDatasetcompletedness=output_completedness.old,
+                        newDatasetcompletedness=output_completedness.new,
+                        supertype2=supertype2.from) %>% mutate(side="outputs")
   
   bind_rows(inputsComp,outputsComp)
   
@@ -192,7 +200,7 @@ processConnectionTableOld <- function(myConnections,synThresh,refMeta,partnerMet
   if (synapseType == "PRE"){
     if (computeKnownRatio){
       knownTablePost <- myConnections
-      if (length(myConnections$from)==0){knownTablePre <- empty_connTable(by.roi | !(is.null(slctROI)))}else{
+      if (length(myConnections$from)==0){knownTablePre <- empty_connTableLocal(by.roi | !(is.null(slctROI)))}else{
         knownTablePre <- neuprint_connection_table(unique(myConnections$from),"POST",slctROI,by.roi=by.roi,chunk=chunk_connections,...)}
       knownTablePre <- knownTablePre %>% mutate(from = bodyid,to = partner) %>% select(-bodyid,-partner,-prepost)
       
@@ -213,7 +221,7 @@ processConnectionTableOld <- function(myConnections,synThresh,refMeta,partnerMet
   } else {
     if (computeKnownRatio){
       knownTablePre <- myConnections
-      if (length(myConnections$to)==0){knownTablePost <- empty_connTable(by.roi | !(is.null(slctROI)))}else{
+      if (length(myConnections$to)==0){knownTablePost <- empty_connTableLocal(by.roi | !(is.null(slctROI)))}else{
         knownTablePost <- neuprint_connection_table(unique(myConnections$to),"PRE",slctROI,by.roi=by.roi,chunk=chunk_connections,...)}
       knownTablePost <- knownTablePost %>% mutate(from = partner,to = bodyid) %>% select(-bodyid,-partner,-prepost)
       if (by.roi | !is.null(slctROI)){
@@ -312,4 +320,10 @@ simplifyConnectionTableLocal <- function(connectionTable){
       select(-bodyid,-partner,-name,-partnerName,-partnerType,-type,-prepost)
     return(connectionTable)
   }
+}
+
+empty_connTableLocal <- function(has.roi = FALSE){
+  res <- data.frame(bodyid=numeric(),partner=numeric(),prepost=integer(),weight=integer())
+  if (has.roi){res <- mutate(res,roi=character(),ROIweight=integer())}
+  res
 }
