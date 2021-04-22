@@ -1,12 +1,12 @@
 ---
-title: "Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)"
+title: "Analysis of inputs to the noduli (NO): connectivity graphs"
 output:
   html_document:
     df_print: paged
   pdf_document: default
 ---
-#Analysis of anterior visual pathway: Connectivity graphs in the AOTU (Figure 6C) and BU (Figure 8B)
-This notebook shows how neuron groups were selected for generating the connectivity graphs. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
+#Analysis of inputs to the NO: Connectivity graphs and corresponding connectivity matrices
+This notebook shows how to generate the connectivity graph in **Figure 25 B** as well as connectivity matrices in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graphs).
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -19,9 +19,7 @@ library(igraph)
 options(nat.plotengine = 'rgl')
 source(file.path("..","R","visualizeConnectivityTables.R"))
 source(file.path("..","R","paperTheme.R"))
-```
 
-```{r}
 neuprint_login()
 ```
 
@@ -37,16 +35,9 @@ if (savePlot){
 
 ### Make selection of neurons to be used in connecitivy analysis
 ***Selection of ROI and criteria for neuron selection***
-Adjust settings for Figure 6 (AOTU) or 8 (BU)
-* ROI:      "AOTU"    vs. "BU"
-* slectROI: "AOTU(R)" vs  "BU(R)
-* useCustomPreSelection: FALSE vs. FALSE
-* useCustomPostSelection TRUE  vs. FALSE
-
-For the AOTU connectivity graph we use a cusom selection for the postsynaptic types, because the full AOTU ROI encompasses a large region that is not considered part of the anterior visual pathway (AVP), which we focused on here.
 ```{r}
-ROI = "AOTU" # name for reference: "AOTU" vs. "BU"
-slctROI ="AOTU(R)" #name as in neuprint: "AOTU(R)" vs "BU(R)
+ROI = "NOr"
+slctROI ="NO(R)"
 
 splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
 makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
@@ -55,7 +46,7 @@ saveName = paste0("Inputs_in_", ROI)
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
 useCustomPreSelection = FALSE
-useCustomPostSelection = TRUE # TRUE (constrain neurons in large AOTU roi to those that arborize in the small subunit) vs. FALSE 
+useCustomPostSelection = FALSE
 
 if(!useCustomPostSelection | !useCustomPreSelection){
   if(splitLR){
@@ -65,6 +56,7 @@ if(!useCustomPostSelection | !useCustomPreSelection){
   }
 }
 ```
+
 
 ***Selection of neurons***
 Adjust settings for Figure 6 (AOTU) or 8 (BU):  [no need to adjust anything]
@@ -136,10 +128,9 @@ connectionMeasure = "weightRelative"
 conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = plotType, connectionMeasure, cmaxtype)
 conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
 print(conMatPlot)
-if (savePlot){
-  ggsave( paste0("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_by',plotType,'.pdf'), plot = conMatPlot, device='pdf',
-          path = "plots", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
-}
+#ggsave( paste0("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_by',plotType,'.pdf'), plot = conMatPlot, device='pdf',
+#        path = "plots", scale = 1.5, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
 ```
 
 ###  Draw graph
@@ -153,9 +144,9 @@ cutoff = 0.05 # for weight 0.05, 0.01, 0
 largeGraph = TRUE
 edcurve = 0.1 #0.15
 edgeNorm = 0.07 #0.07#0.05#0.07#0.03#
-arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+arrowSize = 0# 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
 
-showself = FALSE 
+showself = TRUE 
 selfFeedbackScale = 10
 removeIso = TRUE
 

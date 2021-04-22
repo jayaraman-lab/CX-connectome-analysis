@@ -28,7 +28,6 @@ neuprint_login()
 
 ### (0) Get some synapse locations
 Choose ROI and get curated list of neurons.
-
 For Ci choose perspective = "TuBu", for Cii choose "ER"
 ```{r}
 myROI = "BU(R)"
@@ -173,12 +172,16 @@ mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubty
 
 ### Look at synapse distributions of individual neurons
 Plot a slice for a focus type neuron.
+The default distance is in pixels with 8x8x8 nm/pixel resolution, so we convert to um as follows: pixels*8(nm/pixel)/1000(nm/um).
+
 ```{r}
 xrange = c(-1500, 1000)
 yrange = c(-500, 1500)
 zrange = c(-800, 400)
 nsyn =40
 xrange_slice = c(-300, 300)
+
+convfactor = 8/1000
 ```
 
 ```{r}
@@ -193,9 +196,10 @@ if (focustype  == "TuBu06"){
   colPal = paletteer_c("grDevices::Heat 2", n=length(unique(toplot_2D$id)))
 }
 
-xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
-  geom_point(data=toplot_2D %>% group_by(id) %>% summarize_each(mean), aes(x=x, y=y, color=id, size=0.5)) +
-  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x*convfactor, y=y*convfactor, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
+  geom_point(data=toplot_2D %>% group_by(id) %>% summarize_each(mean), aes(x=x*convfactor, y=y*convfactor, color=id, size=0.5)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + xlab("x [µm]") + ylab("y [µm]") + 
+  geom_vline(xintercept = xrange_slice[1]*convfactor) + geom_vline(xintercept = xrange_slice[2]*convfactor) +
   coord_fixed() + guides(size=FALSE,alpha=FALSE)+ theme_paper()
 
 # take a slice in z and only plot points from neurons with > nsyn synapses in slice
@@ -203,9 +207,9 @@ xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x, y=y, color=id, size=0.25, alph
 toplot_slice = toplot_2D %>% filter(x >= xrange_slice[1] & x < xrange_slice[2] )
 idfilt = toplot_slice %>%  count(id) %>% filter(n>=nsyn)
 
-zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z, y=y, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
-  geom_point(data=toplot_slice %>% filter(id %in% idfilt$id) %>% group_by(id) %>% summarize_each(mean), aes(x=z,y=y, color=id, size=0.5)) +
-  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + 
+zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z*convfactor, y=y*convfactor, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
+  geom_point(data=toplot_slice %>% filter(id %in% idfilt$id) %>% group_by(id) %>% summarize_each(mean), aes(x=z*convfactor,y=y*convfactor, color=id, size=0.5)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + xlab("z [µm]") + ylab("y [µm]") +
   coord_fixed() + guides(size=FALSE, alpha=FALSE) + theme_paper()
 
 projPlot <- grid.arrange(xyproj,zyproj, nrow=1)
