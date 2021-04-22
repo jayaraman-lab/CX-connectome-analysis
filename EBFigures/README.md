@@ -6,13 +6,13 @@ Below is a guide for indentifying which notebooks were used for which figure pan
 
 2D histograms (see section 3a below)
 * Figure 10 B (ER4m)
-* Figure 10 -- figure supplement 1 (ring neurons)
-* Figure 10 -- figure supplement 2 (columnar neurons)
-* Figure 10 -- figure supplement 3 (EXR neurons)
+* Figure 10 figure supplement 1 (ring neurons)
+* Figure 10 figure supplement 2 (columnar neurons)
+* Figure 10 figure supplement 3 (EXR neurons)
 
 Normalized synapse density plots in slices through the EB (see section 3b)
 * Figure 10 C-E
-* Figure 10 -- figure supplement 4
+* Figure 10 figure supplement 4
 
 ### Supplemental information only
 **....Rmd**: ...
