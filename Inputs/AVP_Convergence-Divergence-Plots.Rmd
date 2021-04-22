@@ -25,20 +25,18 @@ library(gridExtra)
 options(nat.plotengine = 'rgl')
 source(file.path("..","R","visualizeConnectivityTables.R"))
 source(file.path("..","R","SynapsePCAUtils.R"))
-```
 
-```{r}
 neuprint_login()
 ```
 
 #### Load colormaps
 ```{r}
+# Generate color map
 cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
-
-myColorMap <- read.csv(paste0("~/Documents/code/neuprintR-notebooks/colormaps/colorMap_",cmapNames[1],".csv"))
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
 if(length(cmapNames) > 1){
   for(cmapName in cmapNames[2:length(cmapNames)]){ 
-    tmp = read.csv(paste0("~/Documents/code/neuprintR-notebooks/colormaps/colorMap_",cmapName,".csv"))
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
     myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
     }
 }
@@ -122,8 +120,8 @@ for (post in seq(0,1)){
 
 ```
 
+For MC -> TB (Figure 6 figure supplement 1 A,B)
 ```{r}
-# For MC -> TB
 selectDir = "MC2TuBu"
 
 filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir) %>% unique()
@@ -224,6 +222,7 @@ for (post in seq(0,1)){
 
 ```
 
+For TB -> TRing (Figure 7 figure supplement 1 A,B)
 ```{r}
 selectDir = "TuBu2ER"
 filtdat = conPattern %>% filter(focustypeSyn == "post" & syndir == selectDir) %>% unique()
