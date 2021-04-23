@@ -5,16 +5,12 @@ output: html_notebook
 
 ## Preparing the environment
 ```{r}
-#library(neuprintrExtra)
-#library(dplyr)
 library(tidyr)
 library(readr)
-#library(ggplot2)
 ```
 
-
 Loading local functions:
-```{r}
+```{r,warning=FALSE,message=FALSE}
 source(file.path("..","Outputs","outputFunctions-display.R"))
 source(file.path("..","R","paperTheme.R"))
 source(file.path("..","R","table2ggraphUtils.R"))
@@ -33,8 +29,10 @@ dataFolder="data"
 
 Loading some data generated in "ExR-EB2XMotifs-Preparation.Rmd":
 ```{r}
-ExRoutFull <- readRDS(file.path(dataFolder,"ExRpathwayWeightsTable.rds"))
+## General metadata
 load(file.path(dataFolder,"ExRoutputsBasics.RData"))
+## The pathway weights table
+ExRoutFull <- readRDS(file.path(dataFolder,"ExRpathwayWeightsTable.rds"))
 ```
 
 And load the list of CX neurons:
@@ -44,19 +42,24 @@ CXtypes <- supertype(read_csv(file.path("..","CX-cell-types060920.csv")) %>% ren
 
 
 ## Prepare the data
-
-
+### List the EB neurons interacting with ExR neurons outside the EB
 Generate a list of all EB neurons (we want all CX neurons with at least 80% of instances with synapses in the EB):
 ```{r}
-roiTable <- getTypesInRoiTable("EB", minTypePercentage = 0.8)#0.5
+## Neurons with at least 80% of instances touching the EB
+roiTable <- getTypesInRoiTable("EB", minTypePercentage = 0.8)
+
+## Intersect with the CX types
 allEBTypes <-  CXtypes$databaseType[CXtypes$databaseType %in% roiTable$names$databaseType]
 
+## Get a table of individual neurons
 allEBNeurons <- getTypesTable(allEBTypes)
 allEBNeurons <- cxRetyping(allEBNeurons,postfix="raw")
 allEBNeurons <- supertype(allEBNeurons)
+
+head(allEBNeurons)
 ```
 
-We then further restrict this list of types to those that innervate the outside regions, and filter out :
+We then further restrict this list of types to those that innervate regions outside the EB (at least 20 synapses), and filter out:
 ```{r}
 allEBTypes <- getROISummary(allEBNeurons)
 
@@ -69,72 +72,38 @@ allEBTypes <- filter(allEBTypes,roi %in% outsideRegions) %>% group_by(type,datab
    ungroup() %>% distinct()
 allEBTypes <- filter(allEBTypes,upstream>20 | downstream>20)
 
-#Optional filtering:
-#allEBTypes <- allEBTypes %>% filter(supertype3 != "MBON")  %>% filter(supertype3 != "Terra incognita") %>% 
-#   filter(supertype3 != "DAN")  %>% filter(supertype3 != "DAN") 
-
 allEBNeurons <- filter(allEBNeurons,type %in% allEBTypes$type)
 ```
 
-Generate a list of all ExR partners
-```{r}
-#partnerExRTypes <-unique(c(getConnectionTable(ExRNeurons$bodyid, "PRE")$databaseType.from,
-#                           getConnectionTable(ExRNeurons$bodyid, "POST")$databaseType.to))
-#partnerExRNeurons <- getTypesTable(partnerExRTypes$databaseType)
-#partnerExRNeurons <- cxRetyping(partnerExRNeurons,postfix="raw")
-#partnerExRNeurons <- supertype(partnerExRNeurons) #%>% mutate(supertype="CX")
-```
-
-```{r}
-#partnerExRTypes <- getROISummary(partnerExRNeurons,threshold=0)
-
-#partnerExRTypes <- filter(partnerExRTypes,roi %in% outsideRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
-#   summarize(upstream=sum(upstream),
-#             downstream=sum(downstream),
-#             fullWeight=sum(fullWeight),
-#             downstreamRatio=downstream/fullWeight,
-#             polarityRatio=(downstream/totalDownstream[1])/(upstream/totalUpstream[1])) %>%
-#   ungroup() %>% distinct()
-#partnerExRTypes <- filter(partnerExRTypes,upstream>20 | downstream>20)
-```
-
-We first select all ExR to EB neurons connections outside the EB to look for motifs in. 
+We then select all ExR to EB neurons connections outside the EB to look for motifs in. 
 We exclude projections to EB neurons that are mostly axonal, and consider only connections with pathway weights over 0.5%.
 ```{r}
 partnerTypes <-  allEBTypes
 EBOutAxonals <- filter(partnerTypes,downstreamRatio>0.75)
 
-#direction = "outputs"
-#if (direction == "outputs"){
 EB2EBaxDendMat <- filter(ExRoutFull,
                          databaseType.to %in% partnerTypes$databaseType & 
                            !databaseType.to %in% EBOutAxonals$databaseType & 
                            databaseType.from != databaseType.to) %>% 
   mutate(roi="Outside") %>% supertype() %>% filter(Path_weight>0.005)
+head(EB2EBaxDendMat)
 ```
 
-We then build the connection tables for the recipient types in the CX neuropils (we also make a graph object of it):
+### Build the connection table in the EB
+We then build the EB connection tables for those ExR partners (we also make a graph object of it):
 ```{r}
 recurrentInEBBag <- neuronBag(filter(allEBNeurons,type %in% unique(c(EB2EBaxDendMat$type.from,EB2EBaxDendMat$type.to))),
                               renaming = cxRetyping,omitInputs = T,slctROI=c("EB")) #,"FB","NO(R)","NO(L)","PB"
 allRecurrentEB <- recurrentInEBBag$outputs
-#}else{
-#   EB2EBaxDendMat <- filter(EBoutFull,databaseType.from %in% partnerTypes$databaseType &
-#                               !databaseType.from %in% EBOutAxonals$databaseType & databaseType.from != databaseType.to) %>%
-#      mutate(roi="outside") %>% supertype() %>% filter(Path_weight>0.005)
-
-#   recurrentInEBBag <- neuronBag(filter(ExRNeurons,type %in% unique(c(EB2EBaxDendMat$type.from,EB2EBaxDendMat$type.to))),
-#                                 renaming = cxRetyping,omitInputs = T,slctROI=outsideRegions)
-#   allRecurrentEB <- recurrentInEBBag$outputs
-#}
 
 allRecurrentGraph <- makeGraph(allRecurrentEB)
+allRecurrentGraph
 ```
 
 ```{r}
 # A rough ordering of types for subsequent figures
-typesEB <- unique(ExRNeurons$type)
-typesEBOrder <- c(typesEB[startsWith(typesEB,"Ex")])
+#typesEB <- unique(ExRNeurons$type)
+#typesEBOrder <- c(typesEB[startsWith(typesEB,"Ex")])
 ```
 
 ## Motifs prevalence (panel B)
@@ -156,19 +125,17 @@ recurrentMotifsSummary <- group_by(EB2EBaxDendMat,
   ) %>% ungroup()
 head(recurrentMotifsSummary)
 ```
-
+We then pivot the table to a longer format for easier plotting:
 ```{r}
 recurrentMotifsSummary <- pivot_longer(recurrentMotifsSummary,
                                        c("EB parallel connection","EB canonical feedback","linked targets in EB"),
                                        names_to="stat",values_to="proportion") %>% 
-  mutate(type.fromF = factor(type.from,levels=typesEBOrder),
+  mutate(type.fromF = factor(type.from,levels=unique(ExRNeurons$type)),
          stat=factor(stat,levels=c("EB parallel connection","EB canonical feedback","linked targets in EB")))
 
-#recurrentMotifSuperSummary <- recurrentMotifsSummary %>% group_by(supertype1.from,supertype3.from,stat) %>% 
-#   summarize(proportion=mean(proportion))
 ```
 
-
+We then plot the prevalence of each motif per type:
 ```{r}
 recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary %>% filter(supertype3.from == "ExR") ,aes(x=type.fromF,y=stat)) + 
    geom_point(size=3,color="grey90")+ 
@@ -178,23 +145,16 @@ recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary %>% filter(supertype3
   xlab("CX output type") + scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + 
   scale_color_paletteer_d(name="motif","ggthemes::Traffic")
 
-#motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-#names(motifPal) <- c("Out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX")
-
 recurrentMotifsPrevalence
-
-
 ```
-
+And save it:
 ```{r}
 ggsave("ExR-motifPrevalence.pdf", plot = recurrentMotifsPrevalence, device='pdf', path = outputsFolder,
     scale = 1,height=2.5, width=5, useDingbats=FALSE)
-#ggsave(paste0('motifSummary_',direction,'.pdf'), plot = recurrentMotifsPrevalence, device='pdf', path = outputsFolder,
-#    scale = 1,height=2.5, width=5, useDingbats=FALSE)
 ```
 
 ## Motifs weight breakdown (panel C)
-For each ExR type participating in motifs, we collate the motifs using the `getMotifsGraphDf` function (defined in **Outputs/outputFunctions-display.R**):
+For each ExR type participating in motifs, we collate the motifs using the `getMotifsGraphDf` function (defined in **Outputs/outputFunctions-display.R**): `getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the EB connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
 ```{r}
 supertypeMotifSummary <-  getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,
                                            "ExR2_R","Path_weight") %>% 
@@ -207,19 +167,18 @@ for(mytype in c("ExR3_R","ExR5_R","ExR6_R","ExR7_R")){
      mutate(source = mytype)
    supertypeMotifSummary = bind_rows(supertypeMotifSummary, myMotifGraph)
 }
+head(supertypeMotifSummary)
 ```
 
 We then sum all the weights of the connections involved in a given motif for a given ExR neuron:
 ```{r}
 supertypeMotifSummary <- group_by(supertypeMotifSummary,supertype3.to,source,motif,roi) %>%
   summarize(weight=sum(weightRelative)) %>% ungroup()
-#supertypeMotifSummary = supertypeMotifSummary %>% 
-#  select(c(roi, source, motif, type.to, type.from, supertype1.to, supertype1.from,supertype2.to, supertype2.from, supertype3.to, supertype3.from, weightRelative))
 
+head(supertypeMotifSummary)
 ```
 And plot the result:
 ```{r}
-
 typesInMotif = ggplot(data = supertypeMotifSummary %>% filter(motif != "NA" & roi == "EB") , aes(x=source, y=weight, fill=supertype3.to)) +
    geom_bar(position = "stack", stat="identity") + 
    facet_grid(rows=vars(motif),scale="free") +
@@ -235,31 +194,28 @@ typesInMotif
 ```{r}
 ggsave('ExR-motifContributions.pdf', plot = typesInMotif, device='pdf', path = outputsFolder,
     scale = 1,height=3.5,width=3, useDingbats=FALSE)
-
-#ggsave(paste0('motifTypesSummary_',direction,'.pdf'), plot = typesInMotif, device='pdf', path = outputsFolder,
-#    scale = 1,height=3.5,width=3, useDingbats=FALSE)
 ```
 
 ## Motifs plots (panels D through G)
+We then use the `plotMotifs` function (defined in **outputFunctions-display.R**), which takes a graph object outputed by `getMotifsGraphDf` as an input and returns the radial motif plot used in the figures on each ExR of interest.
 
-
-
+For example (change `mytype` to look at different source neurons):
+```{r}
+mytype <- "ExR2_R"
+myMotifGraph <- getMotifsGraphDf(EB2EBaxDendMat,allRecurrentEB,mytype,"Path_weight")
+exRMot <- plotMotifs(myMotifGraph)
+exRMot
+```
+We run it in a loop for all ExR of interest to save the panels:
 ```{r}
 for (mytype in c("ExR2_R","ExR3_R","ExR5_R","ExR6_R")){
   myMotifGraph <-  getMotifsGraphDf(EB2EBaxDendMat,allRecurrentEB,mytype,"Path_weight")
-  canMot <- plotMotifs(myMotifGraph)
-  #canMot
-  ggsave(paste0('motifGraph',mytype,".pdf"),path=outputsFolder, device="pdf", plot=canMot,scale=1,width=5, height=3,useDingbats=FALSE)
+  exRMot <- plotMotifs(myMotifGraph)
+  ggsave(paste0('motifGraph',mytype,".pdf"),path=outputsFolder, device="pdf", plot=exRMot,scale=1,width=5, height=3,useDingbats=FALSE)
 }
-#save_plot(paste0(c(outputsFolder,'motifGraph',mytype,'.pdf')), plot = canMot, base_width = 8.5,base_height = 11/4,device="pdf")
 ```
 
-```{r}
-mytype <- "ExR2_R"
-myMotifGraph = getMotifsGraphDf(EB2EBaxDendMat,allRecurrentEB,mytype,"Path_weight")
-  canMot <- plotMotifs(myMotifGraph)
-  canMot
-```
+
 
 
 ## Old code
