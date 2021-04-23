@@ -39,8 +39,9 @@ and a specilized connectivity matrix in
 * Figure 26 figure supplement 1A (non-normalized bar graph)
 * Figure 26 figure supplement 1B,C (Connectivity matrices ordered by similarity)
 * Figure 27 A (bar graph)
-* Figure 27 figure supplement A (similarity matrices)
-* Figure 27 figure supplement B (Connectivity matrices ordered by similarity)
+* Figure 27 C (clustering of LNO neurons)
+* Figure 27 figure supplement 1A (similarity matrices)
+* Figure 27 figure supplement 1B (Connectivity matrices ordered by similarity)
 
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
