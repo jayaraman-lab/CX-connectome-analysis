@@ -43,7 +43,7 @@ extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
 extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
 extraPal <- extraPal[1:length(extraLevs)]
 names(extraPal) <- extraLevs
-customGraphPalette <- c(customGraphPalette,extraPal)
+customGraphPalette <- c(customGraphPalette,extraPal,customSupertypePalette)
 ```
 
 ## DN in the strong targets network (panel A)
@@ -158,19 +158,10 @@ PFL_toDNs_Half <- as_tbl_graph(induced_subgraph(CX_outGraphBi,c("PFL2_L","PFL2_R
    mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)])
 PFL_toDNs_Half
 ```
-Then plot it:
+Then plot it using `standardGraph`, defined in **outputFunctions-display.R**, which is a shortcut for calling `ggraph` with our standard set of parameters
 ```{r}
-PFL2DNsHalfPlot <- ggraph(PFL_toDNs_Half,layout="manual",x=x,y=y) + 
-   geom_vline(xintercept = 2,lty=2,color="grey50")+
-   geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                 end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-   geom_node_point(aes(color=customSupertype),size=4)+
-   geom_node_text(aes(label=type))+
-   theme_paper_map()+scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-   scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-   scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-   guides(color="none",edge_color="none") 
+PFL2DNsHalfPlot <- standardGraph(PFL_toDNs_Half,pal=customGraphPalette,layout="manual",x=x,y=y) + 
+   geom_vline(xintercept = 2,lty=2,color="grey50")
 
 PFL2DNsHalfPlot 
 ```
@@ -229,18 +220,7 @@ pathsToDNp15<- getLocalSubgraph(c("ExR8_R","ExR8_L"),c("DNp15_R","DNp16/17_R"),
 ```
 And plot it: 
 ```{r}
-pathsToDNp15Plot <- ggraph(pathsToDNp15,layout="sugiyama") +
-   geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                 end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-   geom_node_point(aes(color=customSupertype),size=4)+
-   geom_node_text(aes(label=type))+
-   theme_paper_map()+
-   scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-   scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-   scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-   guides(color="none",edge_color="none") + 
-   coord_cartesian(clip="off") + theme(legend.position = c(0.05,0.9))
+pathsToDNp15Plot <- standardGraph(pathsToDNp15,pal=customGraphPalette,layout="sugiyama") 
 pathsToDNp15Plot
 ```
 Save it:
@@ -275,16 +255,7 @@ pathsToDNp32<- getLocalSubgraph(c("FR2_R","FR2_L"),c("DNp32_R"),CX_outGraphBi,or
 ```
 And plot it: 
 ```{r}
-pathsToDNp32Plot <- ggraph(pathsToDNp32,layout="sugiyama") +
-   geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                 end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-   geom_node_point(aes(color=supertype2),size=4)+geom_node_text(aes(label=type))+
-   theme_paper_map()+
-   scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-   scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-   scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-   guides(color="none",edge_color="none") + theme(legend.position=c(0.6,0.5))
+pathsToDNp32Plot <- standardGraph(pathsToDNp32,pal=customGraphPalette,layout="sugiyama") 
 
 pathsToDNp32Plot
 ```
@@ -341,18 +312,8 @@ pathsToMDNManual <- graph_join(pathsToMDNManual_left,pathsToMDNManual_right) %N>
 ```
 Then plot the graph:
 ```{r}
-MDNsPlot <- ggraph(pathsToMDNManual,layout="manual",x=x,y=y) + 
-   geom_vline(xintercept = 1,lty=2,color="grey50")+
-   geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                 end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-   geom_node_point(aes(color=customSupertype),size=4)+
-   geom_node_text(aes(label=type),nudge_y = 0.1)+
-   theme_paper_map()+
-   scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-   scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-   scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-   guides(color="none",edge_color="none") + theme(legend.position=c(0.85,0.9))
+MDNsPlot <- standardGraph(pathsToMDNManual,pal=customGraphPalette,layout="manual",x=x,y=y) + 
+   geom_vline(xintercept = 1,lty=2,color="grey50")
 
 MDNsPlot
 ```

@@ -74,11 +74,19 @@ FB2BBodies$bodyid
 ```
 
 #### PFL1 network motifs
-We use the `plotMotifs` function, defined in "outputFunctions-display", that takes as input the connections tables in the two neuropils (or sets of neuropils) we're considering, the neuron of interest (at the center of the motif graph) and the stat considered:
+We use two functions defined in **outputFunctions-display.R**, `plotMotifs` and `getMotifsGraphDf`. 
+-`getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the CX connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
+-`plotMotifs` takes such an object as input an plots the radial motif plot used in the figures
 ```{r}
-canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
+pfl1MotifGraph <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
                                       allRecurrentCX,
-                                      "PFL1_L*","Path_weight"))
+                                      "PFL1_L*","Path_weight")
+pfl1MotifGraph
+```
+
+
+```{r}
+canMot <- plotMotifs(pfl1MotifGraph)
 canMot
 ```
 And save the graph:

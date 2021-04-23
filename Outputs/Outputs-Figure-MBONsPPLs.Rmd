@@ -3,9 +3,7 @@ title: "Paths to MBONs and PPLs figure"
 output: html_notebook
 ---
 ## Preparing the environment
-```{r}
-library(dplyr)
-```
+
 Loading some local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
@@ -105,24 +103,14 @@ graphToMBONs<- getLocalSubgraph(c("PFR_b_L*",
     customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
     mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
 ```
-We then generate the plot with `ggraph`: 
+
+We then generate the plot using `standardGraph`, defined in **outputFunctions-display.R**, which is a shortcut for calling `ggraph` with our standard set of parameters (set.seed ensures the layout is always the same as "dh" has a random component): 
 ```{r}
 set.seed(20)
-graphToMBONsPlot <- ggraph(graphToMBONs,layout="dh") +
-    geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                  end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                   arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-    geom_node_point(aes(color=customSupertype),size=4)+
-    geom_node_text(aes(label=type))+theme_paper_map()+
-    scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-    scale_edge_color_manual(name="supertype",values=c(customGraphPalette,customSupertypePalette)) +
-    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + 
-    guides(edge_color="none") + 
-    coord_cartesian(clip = "off")+ 
-    theme(legend.position=c(0.9,0.5))
-
+graphToMBONsPlot <-standardGraph(graphToMBONs,pal = c(customGraphPalette,customSupertypePalette), layout="dh")
 graphToMBONsPlot
 ```
+
 
 Save the plot:
 ```{r}
