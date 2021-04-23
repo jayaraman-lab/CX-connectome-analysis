@@ -9,7 +9,7 @@ library(paletteer)
 library(dplyr)
 library(stringr)
 library(patchwork)
-source(file.path("..","R","paperTheme.R"))
+
 ## Palettes
 customROIPalette <-  function(){
   roiH <- getRoiTree()
