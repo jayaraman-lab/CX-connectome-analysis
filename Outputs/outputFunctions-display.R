@@ -79,8 +79,9 @@ standardGraph <- function(gr,pal,colP="customSupertype",...){
                     width=weightRelative),end_cap = circle(3, "mm"),
                 linejoin = "mitre",linemitre=3,
                 arrow =arrow(length = unit(1, 'mm'),type = "closed")) + 
-    geom_node_point(aes(color=!!sym(colP)),size=4)+
-    geom_node_text(aes(label=type))+theme_paper_map()+scale_color_manual(values=pal,name="supertype")+ 
+    geom_node_point(aes(fill=!!sym(colP)),size=4,shape=21)+
+    geom_node_text(aes(label=type))+theme_paper_map()+
+    scale_fill_manual(values=pal,name="supertype")+ 
     scale_edge_color_manual(values=pal) + 
     scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + 
     guides(edge_color="none")}
