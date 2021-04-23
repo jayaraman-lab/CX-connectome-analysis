@@ -14,6 +14,17 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 * Figure 10 C-E
 * Figure 10 figure supplement 4
 
+**EB_connectivityGraphsAndMatrix.Rmd**: Generate connectivity graph and matrix of connectivity
+* Figure 10 F: connectivity graph
+* Figure 11 A: connectivity matrix
+* Figure 11 D: connectivity matrix (TODO)
+* Figure 13 A: connectivity matrix
+* Figure 13 C: connectivity graph ordered by EPG input (TODO)
+* Figure 13 figure supplement 1 A,B: connectivity matrix (TODO)
+
+
+**EPGmorphology.Rmd**: ...  (maybe rename since the same notebook is used for EL?)
+
 ### Supplemental information only
 **....Rmd**: ...
 * ...

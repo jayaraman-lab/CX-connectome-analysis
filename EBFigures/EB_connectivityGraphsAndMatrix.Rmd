@@ -1,12 +1,12 @@
 ---
-title: "Analysis of inputs to the noduli (NO): connectivity graphs"
+title: "Analysis of connectivity inside the ellipsoid body (EB): connectivity graphs and matrices"
 output:
   html_document:
     df_print: paged
   pdf_document: default
 ---
-#Analysis of inputs to the NO: Connectivity graphs and corresponding connectivity matrices
-This notebook shows how to generate the connectivity graph in **Figure 25 B** as well as the connectivity matrix in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graph).
+#Analysis of connectivity inside the ellipsoid body (EB): Connectivity graphs and corresponding connectivity matrices
+This notebook shows how to generate the connectivity graph in **Figure 10 F** as well as the connectivity matrix in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graph).
 
 ```{r message=FALSE, warning=FALSE}
 library(nat)
@@ -36,25 +36,63 @@ if (savePlot){
 ### Make selection of neurons to be used in connecitivy analysis
 ***Selection of ROI and criteria for neuron selection***
 
-For the connectivity graph in **Figure 25B** select:
-PFN_PEN_matrix = FALSE
+For the connectivity graph in **Figure 10F** select:
+mySelection = "allEB
 
-For the connectivity matrix in **Figure 26D** select:
-PFN_PEN_matrix = TRUE
+For the connectivity matrix in **Figure 11A** select:
+mySelection = "ER2EPGEL"
+
+For the connectivity matrix in **Figure 11D** select:
+mySelection = "ER2EPGEL"
+* Figure 11 D: connectivity matrix (TODO)
+
+For the connectivity matrix in **Figure 13A** select:
+mySelection = "ER2ER"
+
+For the connectivity matrix in **Figure 13 figure supplement 1A,B** select:
+mySelection = "ER2EPGEL" for A
+mySelection = "ER2EPGEL"for B
+* Figure 13 figure supplement 1 A,B: connectivity matrix (TODO)
 
 ```{r}
-ROI = "NOr"
-slctROI ="NO(R)"
+mySelection = "ER2ER"
 
-splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
+ROI = "EB"
+slctROI ="EB"
+splitLR = TRUE  # Whether or not to split neurons within a type into a left and right group.
 makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
+  
+if (mySelection == "allEB"){
+  splitLR = FALSE 
+  makeAsymmetric = FALSE 
+  saveName = paste0("Inputs_in_", ROI)
+  
+}else if (mySelection == "ER2EPGEL"){
+  saveName = paste0("ER2EL-EPG_in_", ROI)
+  postNeuron = paste0(c("EPG","EL"),".*")
+  postName = "EPG, EL"  #gets used in the connectivity matrix plot
+  preNeuron = paste0(paste0("ER",seq(1,6)),".*")
+  preName = "ER neurons"
+  
+}else if (mySelection == "ER2ER"){
+  splitLR = FALSE 
+  saveName = paste0("ER2ER_in_", ROI)
+  postNeuron = paste0(paste0("ER",seq(1,6)),".*")
+  postName = "EPG, EL"  #gets used in the connectivity matrix plot
+  preNeuron = paste0(paste0("ER",seq(1,6)),".*")
+  preName = "ER neurons"
+  
+}else{
+  saveName = paste0("neurons_in_", ROI)
+  postNeuron = paste0(c("PEN","PFN"),".*")
+  postName = "PEN, PFN"  #gets used in the connectivity matrix plot
+  preNeuron = postNeuron
+  preName = postName
+}
 
-saveName = paste0("Inputs_in_", ROI)
 if(splitLR){saveName = paste0(saveName,"_LR")}
 
-PFN_PEN_matrix = TRUE
-
-if(!PFN_PEN_matrix){
+if(mySelection == "allEB"){
   if(splitLR){
     roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
   }else{
@@ -67,28 +105,24 @@ if(!PFN_PEN_matrix){
 ***Selection of neurons***
 ```{r}
 # POST
-if(PFN_PEN_matrix){
-  postNeuron = c("PEN","PFN")
-  postNeuron = paste0(postNeuron,".*")
-  postName = "PEN, PFN"  #gets used in the connectivity matrix plot
+if(mySelection != "allEB"){
   postIDs = getBodyIdsForList(postNeuron)
+  if (mySelection == "ER2EPGEL"){ postIDs <- postIDs %>% filter(type %in% c("EPG","EL"))}
 }else{
-  postName = paste0("all in ", ROI)
   postIDs = roiTable$names
+  postName = paste0("all ", ROI)
+  print(postName)
 }
 
 # PRE
-if(PFN_PEN_matrix){
-  preNeuron = postNeuron
-  preName = postName
+if(mySelection != "allEB"){
   preIDs = getBodyIdsForList(preNeuron)
 }else{
-    preName = paste0("all ", ROI)
-    preIDs = roiTable$names
+  preName = paste0("all ", ROI)
+  preIDs = roiTable$names
 }
 
 ```
-
 
 ### Get connectivity table
 ```{r, warning=FALSE}
@@ -98,19 +132,15 @@ myConnections = getConnectionTable(preTypes, "POST", slctROI)
 myConnections = myConnections %>% filter(to %in% postTypes) 
 ```
 
-
 ### Format the connectivity matrix, convert to type-to-type
 ```{r}
 # Make asymmetric matrix
-if (makeAsymmetric){
-  myConnections = myConnections %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid)
-}
+if (makeAsymmetric){ myConnections = myConnections %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid) }
 
 # Make type-to-type connectivity table
 typesTable <- getTypesTable(unique(myConnections$databaseType.to))
 
-if (splitLR){
-  # Subdivide types and build a custom types table
+if (splitLR){ # Subdivide types and build a custom types table
   myConnections = lateralize_types(myConnections, postfix="to")
   myConnections = lateralize_types(myConnections, postfix="from")
   typesTable = lateralize_types(typesTable, postfix="raw")
@@ -125,19 +155,23 @@ cmax = NULL
 cmaxtype = NULL
  
 connectionMeasure = "weightRelative"
-if(!PFN_PEN_matrix){ 
+if(mySelection == "allEB"){ 
   conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmaxtype)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  pw=26; ph=22
 }else{
   conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
   conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
   conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+  if (mySelection == "ER2EPGEL"){pw=15; ph=35}
+  else if (mySelection == "ER2ER"){pw=28; ph=25}
+  else {pw=20; ph=15}
 }
 print(conMatPlot)
 
 if (savePlot){
   ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
-      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=21, height=18, units ="cm", dpi = 600, limitsize = TRUE)
+      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=pw, height=ph, units ="cm", dpi = 600, limitsize = TRUE)
 }
 ```
 
@@ -150,12 +184,12 @@ cutoff = 0.05 # for weight 0.05, 0.01, 0
 
 largeGraph = TRUE
 edcurve = 0.1
-edgeNorm = 0.5
-arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
-
-showself = TRUE 
+edgeNorm = 0.1
+arrowSize = 0.2 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+removeIso = FALSE
+showself = FALSE 
 selfFeedbackScale = 10
-removeIso = TRUE
+
 
 # drop na in "to" column
 myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
