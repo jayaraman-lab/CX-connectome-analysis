@@ -1,0 +1,230 @@
+---
+title: "Analysis of connectivity inside the ellipsoid body (EB): connectivity graphs and matrices"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of connectivity inside the ellipsoid body (EB): Connectivity graphs and corresponding connectivity matrices
+This notebook shows how to generate the connectivity graph in **Figure 10 F** as well as the connectivity matrix in **Figure 26 D**. It also will generate a type-to-type connectivity  matrix that shows all connections (i.e. no cutoff weight as used on the graph).
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+neuprint_login()
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+***Selection of ROI and criteria for neuron selection***
+
+For the connectivity graph in **Figure 25B** select:
+PFN_PEN_matrix = FALSE
+
+For the connectivity matrix in **Figure 26D** select:
+PFN_PEN_matrix = TRUE
+
+```{r}
+ROI = "NOr"
+slctROI ="NO(R)"
+
+splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
+makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
+
+saveName = paste0("Inputs_in_", ROI)
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+PFN_PEN_matrix = TRUE
+
+if(!PFN_PEN_matrix){
+  if(splitLR){
+    roiTable = getTypesInRoiTable(slctROI,lateralize = TRUE, minTypePercentage = 0.5)
+  }else{
+    roiTable = getTypesInRoiTable(slctROI,lateralize = FALSE, minTypePercentage = 0.5)
+  }
+}
+```
+
+
+***Selection of neurons***
+```{r}
+# POST
+if(PFN_PEN_matrix){
+  postNeuron = c("PEN","PFN")
+  postNeuron = paste0(postNeuron,".*")
+  postName = "PEN, PFN"  #gets used in the connectivity matrix plot
+  postIDs = getBodyIdsForList(postNeuron)
+}else{
+  postName = paste0("all in ", ROI)
+  postIDs = roiTable$names
+}
+
+# PRE
+if(PFN_PEN_matrix){
+  preNeuron = postNeuron
+  preName = postName
+  preIDs = getBodyIdsForList(preNeuron)
+}else{
+    preName = paste0("all ", ROI)
+    preIDs = roiTable$names
+}
+
+```
+
+
+### Get connectivity table
+```{r, warning=FALSE}
+preTypes = c(preIDs$bodyid, postIDs$bodyid) # preIDs$bodyid
+postTypes = preTypes#postIDs$bodyid
+myConnections = getConnectionTable(preTypes, "POST", slctROI)
+myConnections = myConnections %>% filter(to %in% postTypes) 
+```
+
+
+### Format the connectivity matrix, convert to type-to-type
+```{r}
+# Make asymmetric matrix
+if (makeAsymmetric){
+  myConnections = myConnections %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid)
+}
+
+# Make type-to-type connectivity table
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+if (splitLR){
+  # Subdivide types and build a custom types table
+  myConnections = lateralize_types(myConnections, postfix="to")
+  myConnections = lateralize_types(myConnections, postfix="from")
+  typesTable = lateralize_types(typesTable, postfix="raw")
+}
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+### Connectivity matrix
+```{r}
+cmax = NULL
+cmaxtype = NULL
+ 
+connectionMeasure = "weightRelative"
+if(!PFN_PEN_matrix){ 
+  conMatPlot = plotConnectivityMatrix(myConnectionsT2T, byGroup = "type", connectionMeasure, cmaxtype)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+}else{
+  conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+  conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+  conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+}
+print(conMatPlot)
+
+if (savePlot){
+  ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=21, height=18, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+###  Draw graph
+```{r, warning=FALSE} 
+require(igraph)
+
+connectionMeasure = "weightRelative"
+cutoff = 0.05 # for weight 0.05, 0.01, 0
+
+largeGraph = TRUE
+edcurve = 0.1
+edgeNorm = 0.5
+arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+
+showself = TRUE 
+selfFeedbackScale = 10
+removeIso = TRUE
+
+# drop na in "to" column
+myConnectionsT2T = myConnectionsT2T %>% drop_na(type.to)
+graphData = data.frame(from = myConnectionsT2T$type.from, to = myConnectionsT2T$type.to, relWeight = myConnectionsT2T$weightRelative)
+
+graphData_noSelf = getNoSelfGraphData(graphData)  
+graphData_self = getSelfFBGraphData(graphData)
+
+if (showself){
+  graphData = graphData
+  graphName = saveName
+} else {
+  graphData = left_join(graphData_noSelf, graphData_self)
+  graphName = paste0(saveName, "_noSelf")
+}
+
+# Graph parameter
+if(largeGraph){
+  vertexSize = 7
+  plotSize = 15
+  selfFBscale = vertexSize
+}else{
+  vertexSize = 12
+  plotSize = 10
+  selfFBscale = vertexSize
+}
+```
+
+Plot graph with defined colormap from file
+```{r, warning=FALSE} 
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+
+if(splitLR){
+  myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
+  myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
+  myColorMap= bind_rows(myColorMap_L, myColorMap_R)
+}
+
+myColorMap = myColorMap %>% filter(Simpletype == "no")
+
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexSize, selfFBscale, arrowSize, edgeNorm, colormap = myColorMap)
+
+# remove isolated nodes
+if(removeIso){
+  Isolated = which(degree(myGraph) == 0)
+  myGraph = delete.vertices(myGraph, Isolated)
+}
+
+myGraph$main = paste0("Connectivity within   the ",slctROI)
+l = layout_with_fr(myGraph)
+
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), legend=TRUE,
+     family="Arial", vertex.label.family  = "sans",edge.arrow.size=arrowSize)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1.3,y=-0.3,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+if (savePlot){
+  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_in_',slctROI,
+                        "_",connectionMeasure, round(100*cutoff),"perc.pdf")), width=plotSize, height=plotSize)
+}
+```
