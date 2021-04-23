@@ -21,7 +21,7 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 * Figure 13 C: connectivity graph ordered by EPG input
 * Figure 13 figure supplement 1 A,B: connectivity matrix
 
-**EB_contributionsBarGraph.Rmd**: Visualize normalized contributions of different ring neuron types to EL and EPG neurons (Figure 13 B).
+**EB_typeComparison.Rmd**: Visualize normalized contributions of different ring neuron types to EL and EPG neurons (Figure 13 B).
 
 **EPGmorphology.Rmd**: ...  (maybe rename since the same notebook is used for EL?)
 
