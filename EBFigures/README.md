@@ -25,6 +25,13 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 
 **EPGmorphology.Rmd**: ...  (maybe rename since the same notebook is used for EL?)
 
+**ExR-EB2EXMotifs-Preparation.Rmd** and **ExR-EB2EXMotifs-Plots.Rmd**: generate plots in figure 15. The "preparation" notebook does the 
+computationally intensive work of gathering the output pathways of the ExR neurons and stores the results into a local "data" folder. The "plots" 
+notebook just does the plotting. The "preparation" notebook only needs to be run once.
+* Figure 15 B: motifs prevalence plot
+* Figure 15 C: breakdown of motifs weights
+* Figure 15 D-G: motifs circular plots for 4 ExR neurons
+
 ### Supplemental information only
 **....Rmd**: ...
 * ...
