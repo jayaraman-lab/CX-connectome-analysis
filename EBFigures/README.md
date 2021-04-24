@@ -1,5 +1,5 @@
 # Code for generating figure panels in the ellipsoid body (EB) section
-Below is a guide for indentifying which notebooks were used for which figure panels.
+Below is a guide for identifying which notebooks were used for which figure panels.
 
 ### Main figures and supplemental information
 **EB_synapseDistributions.Rmd**: Generate visualizations of synapse locations shown in Figure 10 and Figure 10 figure supplements.
