@@ -4,9 +4,14 @@ library(dplyr)
 library(neuprintrExtra)
 library(neuprintr)
 
-#' Collect all synapses from neurons in `neuronsTable` in a set of ROIs `ROIs` of a given polarity
-#' 
-collectSynapses <- function(neuronsTable,ROIs,polarity=c("post","pre")){
+#' Collect all synapses from a set of neurons 
+#' @param neuronsTable A neuron metadata table for which we're collecting synapses from
+#' @param ROIs ROIs to consider
+#' @param polarity Whether to look for "presynapses" or "postsynapses"
+#' @return A table of synapses
+collectSynapses <- function(neuronsTable,
+                            ROIs,
+                            polarity=c("post","pre")){
   polarity <- match.arg(polarity)
   if(is.null(ROIs)) {ROIs <- list("1"=NULL)}
   syns <- dplyr::bind_rows(pbapply::pblapply(ROIs,function(r){
@@ -26,8 +31,11 @@ collectSynapses <- function(neuronsTable,ROIs,polarity=c("post","pre")){
   syns
 }
 
-#' A custom retyping that splits DNb01 in 2 groups (personal communication rom Shigehiro Namiki that they are indeed
+#' A custom retyping that splits DNb01 in 2 groups (personal communication from Shigehiro Namiki that they are indeed
 #' two different types)
+#' @param connections A connection table
+#' @param postfix Whether to retype the "type", "type.to" or "type.from" column
+#' @details This function is usually passed as the \code{renaming} parameter to other functions like \code{neuronBag} 
 customRetyping <- function(connections,postfix=c("raw", "to", "from")){
   # DNb01
   connections <- redefineTypeByBodyId(connections,sets=list(1566597156,1655997973),nameModifiers=c("_1_R","_2_R"),postfix=postfix,redefinePartners=T)
@@ -46,9 +54,9 @@ customRetyping <- function(connections,postfix=c("raw", "to", "from")){
 #' it should be in a metric <=1 when summing all the outputs of a given neuron (we used a relative weights normalized)
 #' @param eps The convergence threshold on the norm of the matrix
 #' @param maxIt The maximum number of iterations
-#' @return A list of n matrices, corresponding to the connectivity matrices for pathways of length 1:n
-#' @details If you run this function with a lot of iterations, this could create a very large object. 
-#' @seealso 'endpointConnections' does the same but only returns one matrix, the sum over the pathways of all lenghts
+#' @return For \code{endpointConnections_raw}, a list of n matrices, corresponding to the connectivity matrices for pathways of length 1:n. For 
+#' \code{endpointConnections}, the sum of those matrices
+#' @details If you run \code{endpointConnections_raw} this function with a lot of iterations, this could create a very large object. 
 endpointConnections_raw <- function(connmat,endpoint=1,polarity=c("to_targets","from_sources"),eps=10^-3,maxIt=100){
   polarity <- match.arg(polarity)
   if(polarity=="to_targets") connmat <- t(connmat)
@@ -72,10 +80,6 @@ endpointConnections_raw <- function(connmat,endpoint=1,polarity=c("to_targets","
   return(simple)
 }
 
-
-#' This function takes an adjacency matrix and multiplies it recursively to convergence, restricting it to a given set 
-#' of sources or targets
-#' #' @seealso 'endpointConnections_raw'
 endpointConnections <- function(connmat,endpoint=1,polarity=c("to_targets","from_sources"),eps=10^-3,maxIt=100){
   polarity <- match.arg(polarity)
   if(polarity=="to_targets") connmat <- t(connmat)
@@ -99,7 +103,13 @@ endpointConnections <- function(connmat,endpoint=1,polarity=c("to_targets","from
 }
 
 #' Supertyping customized for the outputs section.
-customOutputSupertype <- function(typesTable,postfix = c("raw", "to", "from"),extraTypes=""){
+#' @param typesTable Any table with type/type.to/type.from and databaseType columns
+#' @param postfix Whether to supertype from the type, type.to or type.from columns
+#' @param extraTypes Types not covered by this function (typically outside of the CX),
+#' for which we want to use the "supertype3" level
+customOutputSupertype <- function(typesTable,
+                                  postfix = c("raw", "to", "from"),
+                                  extraTypes=""){
   postfix <- match.arg(postfix)
   if (postfix == "raw") postfix <- "" else postfix <- paste0(".",postfix)
   
