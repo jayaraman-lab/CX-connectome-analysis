@@ -32,7 +32,6 @@ if (savePlot){
 }
 ```
 
-
 ### Make selection of neurons to be used in connecitivy analysis
 ***Selection of ROI and criteria for neuron selection***
 
@@ -43,16 +42,14 @@ For the connectivity matrix in **Figure 11A** select:
 mySelection = "ER2EPGEL"
 
 For the connectivity matrix in **Figure 11D** select:
-mySelection = "ER2EPGEL"
-* Figure 11 D: connectivity matrix (TODO)
+mySelection = "ER4m2EPG"
 
-For the connectivity matrix in **Figure 13A** select:
+For the connectivity matrix in **Figure 13A** and the connectivity graph in **Figure 13C** select:
 mySelection = "ER2ER"
 
 For the connectivity matrix in **Figure 13 figure supplement 1A,B** select:
-mySelection = "ER2EPGEL" for A
-mySelection = "ER2EPGEL"for B
-* Figure 13 figure supplement 1 A,B: connectivity matrix (TODO)
+mySelection = "ER2PEN-PEG" for A
+mySelection = "columnar2ER"for B
 
 ```{r}
 mySelection = "ER2ER"
@@ -67,20 +64,39 @@ if (mySelection == "allEB"){
   makeAsymmetric = FALSE 
   saveName = paste0("Inputs_in_", ROI)
   
-}else if (mySelection == "ER2EPGEL"){
-  saveName = paste0("ER2EL-EPG_in_", ROI)
-  postNeuron = paste0(c("EPG","EL"),".*")
+}else if (mySelection == "ER2EPGEL" | mySelection == "ER2PEN-PEG"){
+  if (mySelection == "ER2EPGEL"){
+    saveName = paste0("ER2EL-EPG_in_", ROI)
+    postNeuron = paste0(c("EPG","EL"),".*")
+  }else { # mySelection == "ER2PEN-PEG"
+    saveName = paste0("ER2PEN-PEG_in_", ROI)
+    postNeuron = paste0(c("PEN","PEG"),".*")
+  }
   postName = "EPG, EL"  #gets used in the connectivity matrix plot
   preNeuron = paste0(paste0("ER",seq(1,6)),".*")
   preName = "ER neurons"
+  
+}else if (mySelection == "ER4m2EPG"){
+  saveName = paste0("ER4m2EPG_in_", ROI)
+  postNeuron = "EPG.*"
+  postName = "EPG"  #gets used in the connectivity matrix plot
+  preNeuron = "ER4m.*"
+  preName = "ER4m"
   
 }else if (mySelection == "ER2ER"){
   splitLR = FALSE 
   saveName = paste0("ER2ER_in_", ROI)
   postNeuron = paste0(paste0("ER",seq(1,6)),".*")
-  postName = "EPG, EL"  #gets used in the connectivity matrix plot
+  postName = "ER"  #gets used in the connectivity matrix plot
   preNeuron = paste0(paste0("ER",seq(1,6)),".*")
   preName = "ER neurons"
+  
+}else if (mySelection == "columnar2ER"){
+  saveName = paste0("columnar2ER_in_", ROI)
+  postNeuron = paste0(paste0("ER",seq(1,6)),".*")
+  postName = "ER neurons"  #gets used in the connectivity matrix plot
+  preNeuron = paste0(c("PEN","PEG","EPG","EL"),".*")
+  preName = "columnar neurons"
   
 }else{
   saveName = paste0("neurons_in_", ROI)
@@ -108,6 +124,7 @@ if(mySelection == "allEB"){
 if(mySelection != "allEB"){
   postIDs = getBodyIdsForList(postNeuron)
   if (mySelection == "ER2EPGEL"){ postIDs <- postIDs %>% filter(type %in% c("EPG","EL"))}
+  if (mySelection == "ER4m2EPG"){ postIDs <- postIDs %>% filter(type %in% c("EPG"))}
 }else{
   postIDs = roiTable$names
   postName = paste0("all ", ROI)
@@ -126,8 +143,8 @@ if(mySelection != "allEB"){
 
 ### Get connectivity table
 ```{r, warning=FALSE}
-preTypes = c(preIDs$bodyid, postIDs$bodyid) # preIDs$bodyid
-postTypes = preTypes#postIDs$bodyid
+preTypes = c(preIDs$bodyid, postIDs$bodyid)
+postTypes = postIDs$bodyid
 myConnections = getConnectionTable(preTypes, "POST", slctROI)
 myConnections = myConnections %>% filter(to %in% postTypes) 
 ```
@@ -165,6 +182,8 @@ if(mySelection == "allEB"){
   conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
   if (mySelection == "ER2EPGEL"){pw=15; ph=35}
   else if (mySelection == "ER2ER"){pw=28; ph=25}
+  else if (mySelection == "ER2PEN-PEG"){pw=20; ph=18}
+  else if (mySelection == "columnar2ER"){pw=40; ph=18}
   else {pw=20; ph=15}
 }
 print(conMatPlot)
@@ -175,14 +194,37 @@ if (savePlot){
 }
 ```
 
-###  Draw graph
+Plot connectivity with columnar neurons ordered by columns (Figure 11 D)
+```{r}
+if (mySelection == "ER4m2EPG"){
+    EBorder = c("R1","L8","R2","L7","R3","L6","R4","L5","R5","L4","R6","L3","R7","L2","R8","L1") #cut at bottom
+    EBorder
+    
+    myConnections = myConnections %>% mutate(colname.to = as.character(
+      regmatches(as.character(myConnections$name.to),
+                 gregexpr("[R,L]{1}[1-9]{1}",as.character(myConnections$name.to)) ) ))
+    myConnections$colname.to = factor(myConnections$colname.to,levels = EBorder)
+    
+    connectionMeasure = "weightRelative"
+    conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "colname", connectionMeasure,cmax)
+    conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+    print(conMatPlot)
+    if (savePlot){
+      ggsave( paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byColNameEB.pdf', sep=''), 
+              plot = conMatPlot, device='pdf', path = "plots",
+              scale = 1, width = 21, height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+    }
+ }
+```
+
+###  Draw regular connectivity graph
+This is for Figure 10F and 13C.
 ```{r, warning=FALSE} 
 require(igraph)
 
 connectionMeasure = "weightRelative"
 cutoff = 0.05 # for weight 0.05, 0.01, 0
 
-largeGraph = TRUE
 edcurve = 0.1
 edgeNorm = 0.1
 arrowSize = 0.2 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
@@ -207,15 +249,9 @@ if (showself){
 }
 
 # Graph parameter
-if(largeGraph){
-  vertexSize = 7
-  plotSize = 15
-  selfFBscale = vertexSize
-}else{
-  vertexSize = 12
-  plotSize = 10
-  selfFBscale = vertexSize
-}
+vertexSize = 7
+plotSize = 15
+selfFBscale = vertexSize
 ```
 
 Plot graph with defined colormap from file
@@ -262,3 +298,99 @@ if (savePlot){
                         "_",connectionMeasure, round(100*cutoff),"perc.pdf")), width=plotSize, height=plotSize)
 }
 ```
+
+***Hierarchy graph with node size indicating input/output ratio and sorted by EPG weight***
+This is for Figure 13C.
+```{r}
+edgeNorm = 0.05
+vertexSize = 10
+
+EPGs = neuprint_search("EPG", field = "type")
+myConnections_toEPG = getConnectionTable(preIDs$bodyid, "POST", slctROI)
+myConnections_toEPG = myConnections_toEPG %>% filter(to %in% EPGs$bodyid) 
+
+typesTable_toEPG <- getTypesTable(unique(myConnections_toEPG$databaseType.to))
+
+if (splitLR){
+  # Subdevide types and build a custom types table
+  myConnections_toEPG = lateralize_types(myConnections_toEPG, postfix="to")
+  myConnections_toEPG = lateralize_types(myConnections_toEPG, postfix="from")
+  typesTable_toEPG = lateralize_types(typesTable_toEPG, postfix="raw")
+}
+myConnectionsT2T_toEPG = getTypeToTypeTable(myConnections_toEPG,typesTable = typesTable_toEPG)
+
+```
+
+Use community info, hierarchy measure and EPG input to generate a layout
+```{r}
+# find communities
+wc = cluster_walktrap(myGraph)
+print(modularity(wc))
+communitymembership = stack(membership(wc))
+
+# compute hierarchy measure for each node: # of nodes that can be reached
+downstreamNodes = data.frame(vertex = V(myGraph)$name, 
+                             closeness = closeness(myGraph, vids = V(myGraph), mode = "out", weights = NULL, normalized = TRUE),
+                             ndownstream = 1)
+
+for (v in V(myGraph)$name){
+  subgraph = delete_vertices(myGraph,v)
+  pathfromSouce = all_simple_paths(myGraph, V(myGraph)[v], to = V(myGraph)[c(V(subgraph)$name)], mode = "out")
+  nv = length(V(myGraph)[unique(c(unlist(pathfromSouce)))])
+  downstreamNodes <- within(downstreamNodes, ndownstream[vertex == v] <- nv)
+}
+
+for (v in V(myGraph)$name){
+  
+  subgraph = delete_vertices(myGraph,v)
+}
+
+# align community and EPG input data
+layoutInfo = full_join(data.frame("type.from" = V(myGraph)$name), 
+                  myConnectionsT2T_toEPG[c("type.from", "weightRelative")])
+layoutInfo[is.na(layoutInfo)] <- 0
+layoutInfo = layoutInfo %>% mutate(order = rank(weightRelative))
+layoutInfo = full_join(layoutInfo, communitymembership, by=c("type.from" = "ind"))
+```
+
+
+
+```{r, warning=FALSE} 
+
+inWeight = myConnectionsT2T %>% group_by(type.to) %>% summarise(inWeight = sum(weightRelative))
+outWeight = myConnectionsT2T %>% group_by(type.from) %>% summarise(outWeight = sum(weightRelative))
+weightRatio  = full_join(inWeight,outWeight,by = c("type.to" = "type.from")) %>% mutate(ratio = outWeight/inWeight) %>% rename("type" = "type.to")
+weightRatio$ypos <- cut(weightRatio$ratio, breaks = c(seq(0,2.5,0.1), Inf), labels = seq(length(c(seq(0,2.5,0.1), Inf))-1))
+
+vertexBaseSize = 4
+myGraph = constructConnectivityGraph(graphData, cutoff, vertexBaseSize, selfFBscale, arrowSize, edgeNorm, colormap = myColorMap)
+
+vertexSize = integer(length(V(myGraph)$name)) + vertexBaseSize
+```
+
+
+Plot
+```{r}  
+for (i in seq(1, length(V(myGraph)$name))) {
+  ratio = weightRatio %>% filter(type == V(myGraph)$name[i]) %>% select(ratio)
+  vertexSize[i] = ratio$ratio * vertexBaseSize + vertexBaseSize
+}
+
+V(myGraph)$size = vertexSize 
+myLayout = matrix(c(jitter(layoutInfo$values*1), layoutInfo$order), ncol = 2, nrow = length(V(myGraph)$name))
+
+myGraph$main = "Hierarchy between RNs \n(x ~ community + jitter, y ~ input to EPGs (low to high),  vertex size ~ hierarchy measure)"
+plot(myGraph,edge.curved=0.15, layout=norm_coords(myLayout, xmin=-1.75, xmax=1.75, ymin=-1, ymax=1), 
+     edge.color = customizeGraphEdges(myGraph), rescale=FALSE,  cex.lab=1.5, cex.axis=1, family="Arial", 
+     vertex.label.family  = "sans",)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1.5,y=1,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+
+dev.print(pdf, paste0("plots/connectivityGraph_",graphName,'_in_',slctROI,
+                      "_",connectionMeasure, round(100*cutoff),"perc_byEPG.pdf"), width=20, height=10)
+```
+
