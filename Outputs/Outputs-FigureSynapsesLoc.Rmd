@@ -46,11 +46,11 @@ CXTargetsSyn <- mutate(CXTargetsSyn,
                                                                                CXOutputNeurons$type)])
 ```
 
-Throughout this notebook, we'll use the `displayAnatomies` function, defined in "outputFunctions-display" repeatedly. It takes as inputs a synapses data frame, a choice of ROIs to render a variable (of the synapses data frame) to cluster the synapses upon (here the supertype or the main contributor), and information about the palette to use and the file where to save the results. The function saves two views of the rendering. We also generate a legend panel for each type.
+Throughout this notebook, we'll use the `displaySynapses3D` function, defined in "outputFunctions-display" repeatedly. It takes as inputs a synapses data frame, a choice of ROIs to render a variable (of the synapses data frame) to cluster the synapses upon (here the supertype or the main contributor), and information about the palette to use and the file where to save the results. The function saves two views of the rendering. We also generate a legend panel for each type.
 ## PFLs
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("PFL1","PFL2","PFL3")),
                  ROIs = c("LAL(R)","CRE(R)"),
                  saveName = "PFLs",
@@ -62,7 +62,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 ### Synapses of their main targets
 
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","PFL2","PFL3")),
+displaySynapses3D(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","PFL2","PFL3")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "PFLTargets",
                  synapsePalette = customSupertypePalette,
@@ -89,7 +89,7 @@ save_plot(file.path(outputsFolder,"legendPFLSyns.svg"),legendSourcePF,nrow=0.3,n
 ## FSs
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FS1","FS2","FS3","FS4")),
                  ROIs = c("CRE(R)","SMP(R)"),
                  saveName = "FSs",
@@ -99,7 +99,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 ```
 ### Synapses of their main targets
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,
+displaySynapses3D(synapses=filter(CXTargetsSyn,
                                  customContributor %in% c("FS1","FS2","FS3","FS4")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "FSTargets",
@@ -127,7 +127,7 @@ save_plot(file.path(outputsFolder,"legendFSSyns.svg"),legendSourceFS,nrow=0.3,nc
 ## FCs
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FC1","FC2")),
                  ROIs = c("CRE(R)","SMP(R)"),
                  saveName = "FCs",
@@ -137,7 +137,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 ```
 ### Synapses of their main targets
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,
+displaySynapses3D(synapses=filter(CXTargetsSyn,
                                  customContributor %in% c("FC1","FC2")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "FCTargets",
@@ -163,7 +163,7 @@ save_plot(file.path(outputsFolder,"legendFCSyns.svg"),legendSourceFC,nrow=0.3,nc
 ## PFR neurons
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("PFR_b","PFR_a")),
                  ROIs = c("CRE(R)"),
                  saveName = "PFRs",
@@ -174,7 +174,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 
 ### Synapses of their main targets
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,
+displaySynapses3D(synapses=filter(CXTargetsSyn,
                                  customContributor %in% c("PFR_b","PFR_a")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "PFRTargets",
@@ -201,7 +201,7 @@ save_plot(file.path(outputsFolder,"legendPFRSyns.svg"),legendSourcePFR,nrow=0.3,
 ## ExRs
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("ExR1","ExR2-6","ExR7","ExR8")),
                  ROIs = c("BU(R)","LAL(R)","SPS(R)","WED(R)","CRE(R)"),
                  saveName = "ExRs",
@@ -212,7 +212,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 
 ### Synapses of their main targets
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,
+displaySynapses3D(synapses=filter(CXTargetsSyn,
                                  customContributor %in% c("ExR1","ExR2-6","ExR7","ExR8")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "ExRTargets",
@@ -239,7 +239,7 @@ save_plot(file.path(outputsFolder,"legendExRSyns.svg"),legendSourceExR,nrow=0.3,
 ## FRs
 ### Their synapses
 ```{r}
-displayAnatomies(synapses=filter(CXOutSyn,
+displaySynapses3D(synapses=filter(CXOutSyn,
                                  customSupertype %in% c("FR1","FR2")),
                  ROIs = c("CRE(R)"),
                  saveName = "FRs",
@@ -250,7 +250,7 @@ displayAnatomies(synapses=filter(CXOutSyn,
 ### Synapses of their main targets
 
 ```{r}
-displayAnatomies(synapses=filter(CXTargetsSyn,
+displaySynapses3D(synapses=filter(CXTargetsSyn,
                                  customContributor %in% c("FR1","FR2")),
                  ROIs = c("LAL(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "FRTargets",

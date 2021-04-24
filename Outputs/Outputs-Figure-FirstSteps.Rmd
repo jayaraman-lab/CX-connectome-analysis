@@ -9,6 +9,7 @@ This notebook generates the network graphs used to guide the schematic of figure
 Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
+source(file.path("..","R","paperTheme.R"))
 ```
 
 This is a folder where the figures will be saved if needed:
@@ -51,7 +52,7 @@ customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
 ```
 
 ## PFL neurons
-Throughout this script, we'll use the the `plotSubgraph` function, which takes a contributing type and a graph as an input, together with the metadata tables about the strong targets, and reduced the graph of the strong target of the type of interest, with the contributing type in red. For example for PFL1 (figure supplement 1):
+Throughout this script, we'll use the the `plotSubgraph` function, which takes a contributing type and a graph as an input, together with the metadata tables about the strong targets, and reduces the graph to the strong target of the type of interest, with the contributing type in red. For example for PFL1 (figure supplement 1):
 ```{r}
 PFL1Graph <- plotSubgraph("PFL1_L*",
                           graph=CX_outGraphRed,
@@ -68,48 +69,78 @@ save_plot(file.path(outputsFolder,"outputs-Figure74-SI1.svg"),PFL1Graph,base_hei
 
 We proceed to run the same for most CX output neurons:
 ```{r}
-PFL2Graph <- plotSubgraph(c("PFL2_L","PFL2_R"),graph=CX_outGraphRed) + coord_cartesian(clip="off")
+PFL2Graph <- plotSubgraph(c("PFL2_L","PFL2_R"),
+                          graph=CX_outGraphRed,
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 PFL2Graph
 ```
 
 ```{r}
-PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01) + coord_cartesian(clip="off")
+PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01,
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 PFL3Graph
 ```
 
 ## FS neurons
 
 ```{r}
-FS1Graph <- plotSubgraph(c("FS1A_L","FS1B_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FS1Graph <- plotSubgraph(c("FS1A_L","FS1B_L"),graph=CX_outGraphRed,
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         pal=customGraphPalette,
+                         layout="stress") + coord_cartesian(clip="off")
 FS1Graph
 ```
 
 ```{r}
-FS2Graph <- plotSubgraph(c("FS2_L","FS2_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FS2Graph <- plotSubgraph(c("FS2_L","FS2_R"),graph=CX_outGraphRed,
+                         conns=mainFFConns,
+                         pal=customGraphPalette,
+                         targets=mainFFTargetsS,
+                         layout="stress") + coord_cartesian(clip="off")
 FS2Graph
 ```
 
 ```{r}
-FS3Graph <- plotSubgraph(c("FS3_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+FS3Graph <- plotSubgraph(c("FS3_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
+                         conns=mainFFConns,
+                         targets=mainFFTargetsS,
+                         pal=customGraphPalette) + coord_cartesian(clip="off")
 FS3Graph
 ```
 ```{r}
-FS4AGraph <- plotSubgraph(c("FS4A_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+FS4AGraph <- plotSubgraph(c("FS4A_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FS4AGraph
 ```
 ```{r}
-FS4BGraph <- plotSubgraph(c("FS4B_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+FS4BGraph <- plotSubgraph(c("FS4B_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FS4BGraph
 ```
 ```{r}
-FS4CGraph <- plotSubgraph(c("FS4C_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001) + coord_cartesian(clip="off")
+FS4CGraph <- plotSubgraph(c("FS4C_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FS4CGraph
 ```
 
 
 ## FC neurons
 ```{r}
-FCGraph <- plotSubgraph(c("FC1C_L","FC1E_L","FC2A_L","FC2B_L","FC2C_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FCGraph <- plotSubgraph(c("FC1C_L","FC1E_L","FC2A_L","FC2B_L","FC2C_L"),graph=CX_outGraphRed,layout="stress",
+                        conns=mainFFConns,
+                        pal=customGraphPalette,
+                        targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FCGraph
 ```
 
@@ -117,25 +148,37 @@ FCGraph
 
 ## PFR neurons
 ```{r}
-PFRGraph <- plotSubgraph(c("PFR_b_L*"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+PFRGraph <- plotSubgraph(c("PFR_b_L*"),graph=CX_outGraphRed,layout="stress",
+                         conns=mainFFConns,
+                         pal=customGraphPalette,
+                         targets=mainFFTargetsS) + coord_cartesian(clip="off")
 PFRGraph
 ```
 
 ## FR neurons
 ```{r}
-FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+FRGraph <- plotSubgraph(c("FR1_L","FR2_L"),graph=CX_outGraphRed,layout="stress",
+                        conns=mainFFConns,
+                        pal=customGraphPalette,
+                        targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FRGraph
 ```
 
 ## ExR7/8 neurons
 
 ```{r}
-ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R","ExR7_L"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R","ExR7_L"),graph=CX_outGraphRed,layout="stress",
+                          conns=mainFFConns,
+                          pal=customGraphPalette,
+                          targets=mainFFTargetsS) + coord_cartesian(clip="off")
 ExR8Graph
 ```
 ## ExR2-6 neurons
 ```{r}
-ExR26Graph <- plotSubgraph(c("ExR2_R","ExR3_R","ExR2_R","ExR6_R"),graph=CX_outGraphRed,layout="stress") + coord_cartesian(clip="off")
+ExR26Graph <- plotSubgraph(c("ExR2_R","ExR3_R","ExR2_R","ExR6_R"),graph=CX_outGraphRed,
+                           conns=mainFFConns,
+                           pal=customGraphPalette,
+                           targets=mainFFTargetsS,layout="stress") + coord_cartesian(clip="off")
 ExR26Graph
 ```
 

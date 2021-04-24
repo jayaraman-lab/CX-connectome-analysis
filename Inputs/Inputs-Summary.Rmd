@@ -117,9 +117,9 @@ We load the synapses:
 ```{r}
 CXInSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses_Inputs.rds"))
 ```
-Then plot (and save) their rendering in the volume using `displayAnatomies` (defined in ***Outputs\outputFunctions-display.R***):
+Then plot (and save) their rendering in the volume using `displaySynapses3D` (defined in ***Outputs\outputFunctions-display.R***):
 ```{r}
-displayAnatomies(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
+displaySynapses3D(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)",
                         "CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allIns-noFB",

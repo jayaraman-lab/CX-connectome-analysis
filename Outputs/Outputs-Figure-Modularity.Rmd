@@ -235,10 +235,10 @@ CXTargetsSyn <- mutate(CXTargetsSyn,
 
 Finally we generate the plot (using an all white palette for the ROIs)
 ```{r}
-rPalNoPal <- customROIPalette()
+rPal <- roisPalette(rois = selectRoiSet(roisPalette(),default_level = 0))
 rPalNoPal[1:length(rPalNoPal)] <- "white"
 
-displayAnatomies(synapses=CXTargetsSyn,
+displaySynapses3D(synapses=CXTargetsSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)",
                         "BU(R)","CRE(R)","SMP(R)","WED(R)",
                         "SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
