@@ -52,31 +52,44 @@ getFit <- function(compTable,
   left_join(compFitsCoeff,compFitsStats,by=groups)
 }
 
-#### GET ROI INFO FOR INPUT/OUTPUT SETS ACCROSS 2 VERSIONS OF THE DATABASE
-getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newDataset,oldDataset){
-  polarity <- match.arg(polarity)
-  newRefTable <- neuprint_get_meta(bodyids,dataset=newDataset)
+#' Create a table of connectivity comparisons between two versions of the dataset
+#' @param bodyidsIn The neurons to compare the inputs of
+#' @param bodyidsOut The neurons to compare the outputs of
+#' @param roi The region to make the comparison in
+#' @param newDataset The new dataset
+#' @param oldDataset
+#' @return A data frame of all connections found in at least one of the two data frames, with columns:
+#' - \code{side} specify if the connection is to be used for inputs or outputs comparisons
+#' - \code{known_synapses} refers to the number of synapses made onto (or received from) traced partners (rather than fragments)
+#' - \code{knownWeightRelative} and \code{knownOutputContribution} are similar to \code{weightRelative} and \code{outputContribution} except
+#'  that they are relative to the synapses made to traced partners rather than relative to all the neuron's synapses
+#' - \code{old} and \code{new} are \code{knownWeightRelative.old/new} if \code{side} is "inputs", \code{knownOutputContribution.old/new} is it's "outputs".
+#'  Similarly, \code{bodyid} is the postsynaptic partner if \code{side} is "inputs" and the presynaptic partner otherwise 
+#' - \code{known_synapses_ratio} is the fraction increase in the number of synapses to traced partners between the old and the
+#'  new dataset for the neuron defined in \code{bodyid}
+#' The function also computes completedness statistics.
+getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newDataset,oldDataset){
+  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"inputs",newDataset,oldDataset)
+  outputsComp <- getCompConnectionTableInternal(bodyidsOut,ROI,"outputs",newDataset,oldDataset)
+  inputsComp <- mutate(inputsComp,
+                       old=knownWeightRelative.old,
+                       new=knownWeightRelative.new,
+                       oldDatasetcompletedness=input_completedness.old,
+                       newDatasetcompletedness=input_completedness.new,
+                       supertype2=supertype2.to) %>% mutate(side="inputs")
   
-  newRoiTable <- getRoiInfo(bodyids,dataset=newDataset) %>% filter(roi == ROI) %>% mutate(version="new")
-  oldRoiTable <- getRoiInfo(bodyids,dataset=oldDataset) %>% filter(roi == ROI) %>% mutate(version="old")
-
-  roiTable <- bind_rows(newRoiTable,oldRoiTable) 
-  if (polarity == "inputs")
-   roiTable <- pivot_wider(roiTable,names_from = version,values_from=upstream,id_cols = bodyid)
-  else
-    roiTable <- pivot_wider(roiTable,names_from = version,values_from=downstream,id_cols = bodyid)
- 
-  mutate(roiTable,databaseType=newRefTable$type[match(bodyid,newRefTable$bodyid)]) %>% supertype() %>% mutate(side=polarity)
+  outputsComp <- mutate(outputsComp,
+                        old=knownOutputContribution.old,
+                        new=knownOutputContribution.new,
+                        oldDatasetcompletedness=output_completedness.old,
+                        newDatasetcompletedness=output_completedness.new,
+                        supertype2=supertype2.from) %>% mutate(side="outputs")
+  
+  bind_rows(inputsComp,outputsComp)
+  
 }
 
-getCompRoiInfo <- function(bodyidsIn,bodyidsOut,roi,newDataset,oldDataset){
-  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="inputs",newDataset=newDataset,oldDataset=oldDataset)
-  roiTableOut <- getCompRoiInfoInternal(bodyidsOut,roi,polarity="outputs",newDataset=newDataset,oldDataset=oldDataset)
-  
-  bind_rows(roiTableIn,roiTableOut) 
-}
-
-#### MAKE COMPARABLE NEURON TO NEURON CONNECTION TABLES BETWEEN OLD (missing type) AND NEW DATASET
+#Internal function
 getCompConnectionTableInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newDataset,oldDataset){
   polarity <- match.arg(polarity)
   
@@ -160,29 +173,7 @@ na_matchValue <- function(table,variable,variableMatch){
   table
 }
 
-getCompConnectionTable <- function(bodyidsIn,bodyidsOut,ROI,newDataset,oldDataset){
-  inputsComp <- getCompConnectionTableInternal(bodyidsIn,ROI,"inputs",newDataset,oldDataset)
-  outputsComp <- getCompConnectionTableInternal(bodyidsOut,ROI,"outputs",newDataset,oldDataset)
-  inputsComp <- mutate(inputsComp,
-                       old=knownWeightRelative.old,
-                       new=knownWeightRelative.new,
-                       oldDatasetcompletedness=input_completedness.old,
-                       newDatasetcompletedness=input_completedness.new,
-                       supertype2=supertype2.to) %>% mutate(side="inputs")
-  
-  outputsComp <- mutate(outputsComp,
-                        old=knownOutputContribution.old,
-                        new=knownOutputContribution.new,
-                        oldDatasetcompletedness=output_completedness.old,
-                        newDatasetcompletedness=output_completedness.new,
-                        supertype2=supertype2.from) %>% mutate(side="outputs")
-  
-  bind_rows(inputsComp,outputsComp)
-  
-}
-
-
-
+# A modified internal neuprintrExtra function to compute the "known" family of statistics
 processConnectionTableOld <- function(myConnections,synThresh,refMeta,partnerMeta,refMetaOrig,synapseType,by.roi,slctROI,verbose,chunk_meta,chunk_connections,computeKnownRatio,...){
   
   
