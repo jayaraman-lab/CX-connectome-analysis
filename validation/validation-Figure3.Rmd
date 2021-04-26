@@ -122,16 +122,16 @@ nopen3d()
 ## Setting a large window for good resolution
 par3d(windowRect = c(30, 30, 1530, 1530))
 ## Plot the neuropil mesh
-plot3d(EBMesh,color="grey10",alpha=0.2,shininess=1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+plot3d(EBMesh,color="grey60",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,specular="black",smooth=FALSE)
 par3d(scale=c(1,1,1))
 
 ## Plot the meshes
-shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"])
-shade3d(exampleEPGNew,color="green")
+shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"], specular="black",smooth=FALSE)
+shade3d(exampleEPGNew,color="green", specular="black",smooth=FALSE)
 
 ## Plot the synapses
 plot3d(epgInputSynapsesOld,add=T,col="orange",type="s",size=0.15)
-plot3d(epgInputSynapsesNew,add=T,col="yellow",type="s",size=0.15)
+plot3d(epgInputSynapsesNew,add=T,col="blue",type="s",size=0.15)
 
 ## Set the view
 nview3d("ventral")
@@ -150,12 +150,12 @@ par3d(userProjection=translationMatrix(-1.2,1.6,0) %*% zoom0View)
 plot3d(EBMesh,color="grey10",alpha=0.2,shininess=1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
 par3d(scale=c(1,1,1))
 nview3d("ventral",zoom=0.1)
-shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"])
-shade3d(exampleEPGNew,color="red")
+shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"], specular="black")
+shade3d(exampleEPGNew,color="green", specular="black")
 
 
 plot3d(epgInputSynapsesOld,add=T,col="orange",type="s",size=0.07)
-plot3d(epgInputSynapsesNew,add=T,col="yellow",type="s",size=0.07)
+plot3d(epgInputSynapsesNew,add=T,col="blue",type="s",size=0.07)
 rgl.snapshot(file.path(validationFolder,"frontEBZoom2.png"))
 ```
 
