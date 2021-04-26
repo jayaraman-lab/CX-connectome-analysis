@@ -336,7 +336,7 @@ Plot the neuron-to-neuron connections between the EPGs or Delta7s
 ```{r}
 PBTpNames <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG",
                "PFNa","PFNd","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_e","PFNv",
-               "PFG","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+               "PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
 
 EPGD7ToPFX <- EPGD7Bag$outputs_raw %>% filter((roi=="PB") & (type.to %in% PBTpNames))
 EPGD7ToPFX$nameOrder.from <- PBRename(EPGD7ToPFX$name.from,EPGD7ToPFX$from)
@@ -346,7 +346,7 @@ EPGD7ToPFX$nameOrder.to <- PBRename(EPGD7ToPFX$name.to,EPGD7ToPFX$to)
 #  lapply(function(x) str_replace(x,'PEN1_|PEN2_|PFRa_|PFRb_|PFGs_|PFNma_|PFNmb_|PFNpa_|PFNpb_|PFNpc_|PFNpd_|PFNpe_|PFNd_|PFNv_|PFL1_|PFL2_|PFL3_|PEG_|PFNa_','')) %>% 
 #  unlist() %>% lapply(function(x) str_replace(x,'_L-|_R-','-')) %>% unlist()
 
-cmax = 150
+cmax = 200
 PBEBTpNames <- c("PEN_a(PEN1)","PEN_b(PEN2)","PEG")
 PBEBPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PBEBTpNames)) + 
   scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
@@ -356,7 +356,7 @@ PBEBPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PBEBTpNames)) +
   xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PBEBPlt <- structureMatrixPlotByType_lines(PBEBPlt)
 
-cmax = 100
+cmax = 150
 PFN1TpNames <- c("PFNa","PFNd","PFNm_a","PFNm_b","PFNv")
 PFN1Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN1TpNames)) + 
   scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
@@ -366,7 +366,7 @@ PFN1Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN1TpNames)) +
   xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PFN1Plt <- structureMatrixPlotByType_lines(PFN1Plt)
 
-cmax = 100
+cmax = 150
 PFN2TpNames <- c("PFNp_a","PFNp_b","PFNp_c","PFNp_e")
 PFN2Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN2TpNames)) + 
   scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
@@ -376,8 +376,8 @@ PFN2Plt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFN2TpNames)) +
   xlab("postsynaptic neuron") + ylab("presynaptic neuron")
 PFN2Plt <- structureMatrixPlotByType_lines(PFN2Plt)
 
-cmax = 150
-PFXTpNames <- c("PFG","PFL1","PFL2","PFL3","PFR_a","PFR_b")
+cmax = 200
+PFXTpNames <- c("PFGs","PFL1","PFL2","PFL3","PFR_a","PFR_b")
 PFXPlt <- ggplot(EPGD7ToPFX %>% filter(type.to %in% PFXTpNames)) + 
   scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
                        midpoint =0.5*cmax, limits=c(0,cmax)) +

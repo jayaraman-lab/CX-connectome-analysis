@@ -1,0 +1,195 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Load the functions
+```{r}
+library(neuprintr)
+library(tidyverse)
+library(cowplot)
+library(neuprintrExtra)
+library(reshape2)
+library(patchwork)
+source(file.path("..","PBFigures","PBAnalysisUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+```
+
+Get the EPG and D7 connections
+```{r}
+EPGD7Bag <- neuronBag(getTypesTable(c("EPG","Delta7")))
+```
+
+Plot the neuron-to-neuron connections between the EPGs and the Delta7s
+```{r}
+EPGD7ToSelf <- EPGD7Bag$outputs_raw %>% filter((roi=="PB") & (type.to %in% c("EPG","Delta7")))
+EPGD7ToSelf$nameOrder.from <- PBRename(EPGD7ToSelf$name.from,EPGD7ToSelf$from)
+EPGD7ToSelf$nameOrder.to <- PBRename(EPGD7ToSelf$name.to,EPGD7ToSelf$to) %>% lapply(function(x) sub('elta','',x)) %>% unlist()
+
+cmax=50
+EPGToD7_CM <- ggplot(EPGD7ToSelf %>% filter(type.from == 'EPG', type.to =='Delta7')) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
+  guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+print(EPGToD7_CM)
+```
+
+Convert the EPG to D7 connection table to a weight matrix and shift the rows to align the peaks
+```{r}
+EPGToD7 <- EPGD7ToSelf %>% filter(type.to == "Delta7" & type.from == "EPG")
+```
+```{r}
+# Get info about the D7 and EPG neurons
+allD7ids <- levels(EPGToD7$nameOrder.to)[which(grepl("Delta7",levels(EPGToD7$nameOrder.to)))]
+allEPGids <- levels(EPGToD7$nameOrder.from)[which(grepl("EPG",levels(EPGToD7$nameOrder.from)))]
+```
+```{r}
+#Get the first L glomeruli for each D7
+allD7LGloms <- allD7ids %>% lapply(function(x) sub('.*_(L[[:digit:]]).*','\\1',x)) %>% unlist()
+```
+
+
+```{r}
+# Create a matrix of just the weights
+EPGToD7_WM <- WMFromConTab(EPGToD7,allEPGids,allD7ids) 
+
+# Shift the entries to align the peaks
+for (i in 1:length(allD7ids)){
+  # First, move the max so that the two peaks occur ~1/4 and ~3/4 of the way in
+  wNow <- EPGToD7_WM[,i]
+  shift = 2-3*as.numeric(substr(allD7LGloms[i],2,2))
+  if (shift == 0){
+    wNow
+  } else {
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  }
+  
+  EPGToD7_WM[,i] <- wNow
+}
+
+colnames(EPGToD7_WM) <- allD7ids %>% lapply(function(x) sub('elta','',x)) %>% unlist()
+rownames(EPGToD7_WM) <- seq(1:dim(EPGToD7_WM)[1])
+PBRegInputs <- melt(EPGToD7_WM,value.name = 'regInput',varnames = c('position','D7id'))
+PBRegInputs$D7id <- as.factor(PBRegInputs$D7id)
+PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
+
+conmatPlot <- ggplot(PBRegInputs) + 
+  scale_fill_gradient(low="white", high="black") +
+  geom_tile(aes(position,D7id,fill=regInput)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  ylab("postsynaptic D7 neuron") + xlab("shifted EPG input position") +
+  guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', title.hjust = 0.5, barwidth = 0.5, title.theme = element_text(angle=90)))
+
+print(conmatPlot)
+```
+
+Plot the mean and SD with a cosine fit
+```{r}
+PBRegInputStats <- PBRegInputs %>% group_by(position) %>% summarize(mean = mean(regInput), sd = sd(regInput))
+
+g_PBProf <- ggplot(PBRegInputStats) + geom_line(aes(x=position,y=mean,group=1, color='mean profile')) +
+  geom_line(aes(x=position,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=position,y=mean+sd,group=1),color='gray')
+
+# Fit a cosine to the entire profile and plot it
+df = data.frame(pts = PBRegInputStats$position, wMean = PBRegInputStats$mean)
+fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+  start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+pts = c(1:length(wNow)-1)
+dffit <- data.frame(pts)
+dffit$wMean <- predict(fit, newdata=dffit)
+
+g_PBProf <- g_PBProf + geom_line(data=dffit,aes(x=pts,y=wMean,color='cosine fit'))
+
+g_PBProf <- g_PBProf + theme_cowplot() + xlab('EPG input position') + ylab('# of synapses') + 
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_color_manual(values = c('mean profile' = 'black',
+                                'cosine fit' = 'red',
+                                'cosine fit - R peak' = 'blue'))
+print(g_PBProf)
+```
+
+Group the EPGs and D7s by name
+```{r}
+EPGToD7Gp <- EPGD7ToSelf %>% filter(type.from == 'EPG', type.to =='Delta7') %>% group_by(name.from, name.to) %>% summarize(totalWeight = sum(ROIweight))
+EPGToD7Gp$nameOrder.from <- EPGToD7Gp$name.from %>% lapply(function(x) sub('\\(PB08\\)','',x)) %>% unlist()
+EPGToD7Gp$nameOrder.from <- factor(EPGToD7Gp$nameOrder.from,
+                                   levels = as.factor(c('EPG_L8','EPG_L7','EPG_L6','EPG_L5','EPG_L4','EPG_L3','EPG_L2','EPG_L1',
+                                                        'EPG_R1','EPG_R2','EPG_R3','EPG_R4','EPG_R5','EPG_R6','EPG_R7','EPG_R8')))
+EPGToD7Gp$nameOrder.to <- EPGToD7Gp$name.to %>% lapply(function(x) sub('elta','',sub('\\(PB15\\)','',x))) %>% unlist()
+EPGToD7Gp$nameOrder.to <- factor(EPGToD7Gp$nameOrder.to, levels = as.factor(sort(unique(EPGToD7Gp$nameOrder.to),decreasing=FALSE)))
+
+cmax=500
+EPGToD7Gp_CM <- ggplot(EPGToD7Gp) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=totalWeight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
+  guides(fill = guide_colourbar(title = 'total # of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+print(EPGToD7Gp_CM)
+```
+
+
+```{r}
+#Get the first L glomeruli for each D7
+D7Gpids <- levels(EPGToD7Gp$nameOrder.to)
+allD7LGlomsGp <- D7Gpids %>% lapply(function(x) sub('.*_(L[[:digit:]]).*','\\1',x)) %>% unlist()
+```
+
+```{r}
+# Create a matrix of just the weights
+colnames(EPGToD7Gp)[colnames(EPGToD7Gp) == 'totalWeight'] <- 'ROIweight'
+EPGToD7Gp_WM <- WMFromConTab(EPGToD7Gp,levels(EPGToD7Gp$nameOrder.from),D7Gpids) 
+
+# Shift the entries to align the peaks
+for (i in 1:length(D7Gpids)){
+  # First, move the max so that the two peaks occur ~1/4 and ~3/4 of the way in
+  wNow <- EPGToD7Gp_WM[,i]
+  shift = 1-as.numeric(substr(allD7LGlomsGp[i],2,2))
+  if (shift == 0){
+    wNow
+  } else {
+    wNow <- c(tail(wNow, -shift), head(wNow, shift))
+  }
+  
+  EPGToD7Gp_WM[,i] <- wNow
+}
+
+colnames(EPGToD7Gp_WM) <- D7Gpids
+rownames(EPGToD7Gp_WM) <- seq(1:dim(EPGToD7Gp_WM)[1])
+PBRegInputs <- melt(EPGToD7Gp_WM,value.name = 'regInput',varnames = c('position','D7id'))
+PBRegInputs$D7id <- as.factor(PBRegInputs$D7id)
+PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
+
+conmatPlotGp <- ggplot(PBRegInputs) + 
+  scale_fill_gradient(low="white", high="black") +
+  geom_tile(aes(position,D7id,fill=regInput)) +
+  theme_paper() + coord_fixed(ratio = 1) + 
+  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
+  ylab("postsynaptic D7 neuron") + xlab("shifted EPG input position") +
+  guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', title.hjust = 0.5, barwidth = 0.5, title.theme = element_text(angle=90)))
+
+print(conmatPlotGp)
+```
+
+
+Combine the plots
+```{r}
+design <- "
+  14
+  25
+  36
+"
+allPlts <- EPGToD7_CM + conmatPlot + g_PBProf + EPGToD7Gp_CM + conmatPlotGp + plot_spacer() +
+  plot_layout(design = design)
+allPlts
+ggsave('D7MidVsOut.pdf',allPlts,
+       width=8, height = 10)
+```
