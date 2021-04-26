@@ -1,0 +1,162 @@
+---
+title: "Analysis of connectivity in the ellipsoid body (EB): Connectivity of ER and collumnar neurons"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+#Analysis of connectivity in the ellipsoid body (EB): Connectivity of ER and collumnar neurons (Figure 13B)
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+neuprint_login()
+```
+
+### Make selection of neurons to be used in connecitivy analysis
+This should be done based on some broadly used criteria. Alternatively, one could read in previously curated lists of neurons.
+```{r}
+ROI = "EB"
+slctROI ="EB"# "EB"#LAL(-GA)
+
+saveName = paste0("EPG_with_RN",slctROI) #RN_TB_ExR #RN_ExR_col_in_ EPG-EL_with_RN
+
+neuron1 = c("EPG", "EL")
+neuron1 = paste0(neuron1,".*")
+neuronName1 = "EPG-EL"#"columnar"
+IDs1 = getBodyIdsForList(neuron1)
+
+# group 2
+neuron2 = c(paste0("ER",seq(6)))
+neuron2 = paste0(neuron2,".*")
+neuronName2 = "ER"
+IDs2 = getBodyIdsForList(neuron2)
+
+cmapName = "RingNeurons"
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+### Get connectivity table
+```{r}
+getT2Ttable <- function(preIDs, postIDs){
+  myConnections = getConnectionTable(preIDs$bodyid, "POST", slctROI)
+  myConnections = myConnections %>% filter(to %in% postIDs$bodyid) 
+  typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+  
+  myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+}
+```
+
+```{r, warning=FALSE}
+myConnections_1to2_full = getT2Ttable(IDs1,IDs2)
+myConnections_2to1_full = getT2Ttable(IDs2,IDs1)
+```
+
+```{r}
+myConnections_1to2 = myConnections_1to2_full %>% select(c(type.from, type.to, weightRelative, weight)) %>% 
+  rename(c(type1 = type.from, type2 = type.to)) %>% mutate(dir = paste("to",neuronName2)) %>%
+  group_by(dir, type1) %>% mutate(normRelWeight = weightRelative/sum(weightRelative))
+myConnections_2to1 = myConnections_2to1_full %>% select(c(type.from, type.to, weightRelative, weight)) %>% 
+  rename(c(type2 = type.from, type1 = type.to)) %>% mutate(dir = paste("from",neuronName2)) %>%
+  group_by(dir, type1) %>% mutate(normRelWeight = weightRelative/sum(weightRelative))
+```
+
+### Connectivity matrix
+```{r}
+myConnections = bind_rows(myConnections_2to1,myConnections_1to2)
+plotW = 19 #24#25# 45 # 20
+plotH = 5 #4 #40  #17
+cmax = max(myConnections[["weightRelative"]]) #0.48
+
+myConTab = myConnections  %>% 
+  ungroup() %>% mutate(plotWeight = myConnections[["weightRelative"]]) %>% 
+  filter(type1 %in% c("EPG", "EL"))
+
+conmatPlot = ggplot(myConTab) + 
+  geom_tile(aes(type2,dir,fill=plotWeight)) + 
+  theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient2(low="thistle", mid="blueviolet", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  facet_grid(rows=vars(type1))
+
+conmatPlot = conmatPlot +
+    xlab("Post-synaptic neuron")+ylab("Pre-synaptic neuron") + labs(fill="weightRelative") +
+    labs(title=paste(neuronName1,'to', neuronName2, 'Connectivity within', slctROI, sep=' ')) +
+    theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3))
+
+print(conmatPlot)
+
+if (savePlot){
+  ggsave( paste("typeConmarison_matrix_",saveName,'_in_',slctROI,'_weightRelative.pdf', sep=''), plot = conmatPlot,
+          device='pdf', path = "plots", scale = 1, width = plotW, height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+}
+
+```
+
+
+```{r}
+library("paletteer")
+myTypeCMap = myColorMap %>% filter(Simpletype == "no")
+myConnections_regionInfo = left_join(myConTab, myTypeCMap, by=c("type2" = "Type")) %>% mutate()
+
+plotW = 7#10
+plotH = 8
+
+bargraph_wr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = weightRelative, x = type1, fill = type2), stat="identity") + 
+  facet_grid(cols=vars(dir)) + scale_fill_manual(values = c(as.character(myTypeCMap$hex))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Relative weight") + labs(fill="Partner type") + guides(fill=guide_legend(ncol=2))
+
+print(bargraph_wr)
+  
+bargraph_nwr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = normRelWeight, x = type1, fill = type2), stat="identity") + 
+  facet_grid(cols=vars(dir)) + scale_fill_manual(values = c(as.character(myTypeCMap$hex))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Normalized relative weight") + labs(fill="Partner type") + guides(fill=guide_legend(ncol=2))
+
+print(bargraph_nwr)
+
+if (savePlot){
+  ggsave( paste("typeConmarison_bar_",saveName,'_in_',slctROI,'_norm_weightRelative.pdf', sep=''), plot = bargraph_nwr, device='pdf',
+          path = "plots", scale = 1.5, width = plotW*0.8, height = plotH*0.8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+bargraph_wr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = weightRelative, x = type1, fill = regions), stat="identity") + 
+  facet_grid(cols=vars(dir)) + 
+  scale_fill_manual(values = paletteer_d("Polychrome::kelly",n=length(unique(myColorMap$regions)))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Relative weight") + labs(fill="Partner type")
+
+print(bargraph_wr)
+  
+bargraph_nwr <- ggplot(data = myConnections_regionInfo) + 
+  geom_bar(aes(y = normRelWeight, x = type1, fill = regions), stat="identity") + 
+  facet_grid(cols=vars(dir)) + 
+  scale_fill_manual(values = paletteer_d("Polychrome::kelly",n=length(unique(myColorMap$regions)))) +
+  theme_classic() + theme(text = element_text(size=9), axis.line = element_line(colour = 'black', size = .3)) +
+  xlab("")+ylab("Normalized relative weight") + labs(fill="Partner type")
+
+print(bargraph_nwr)
+```

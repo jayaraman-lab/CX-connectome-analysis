@@ -1,0 +1,317 @@
+---
+title: "Analysis of ExR connectivity"
+output:
+  html_document:
+    df_print: paged
+---
+#Analysis of ExR connectivity: Connectivity and similarity matrices, bar graph of partners
+* Figure 14 B (similarity matrices)
+* Figure 14 C (connectivity matrices) TODO
+* Figure 14 figure supplement 2A (similarity matrices)
+* Figure 14 figure supplement 2B (bar graph) TODO
+* Figure 14 figure supplement 3A,B (connectivity matrices) TODO
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(paletteer)
+library(neuprintrExtra)
+library(gridExtra)
+options(nat.plotengine = 'rgl')
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+neuprint_login()
+```
+
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+```{r}
+myplot_dist <- function(dd,order=TRUE){
+  ddM <- as.matrix(dd)
+  if (order){
+    hcl <- hclust(dd)
+    ddM <- ddM[hcl$order,hcl$order]
+  }
+  ggplot(reshape2::melt(ddM)) + geom_tile(aes(x=Var1,y=Var2,fill=1-value)) +
+    theme_classic() +
+    scale_fill_gradient2(low="white", mid="grey", high="black", 
+                         midpoint =0.5, limits=c(0,1), name="Similarity") +
+    theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5)) + 
+    xlab("") + ylab("")+coord_fixed() 
+  
+}
+```
+
+### Select types for comparison
+```{r}
+myTypeList = paste0(c("ExR"),seq(1,8))
+side ="_R"
+myTypeList_lat = paste0(myTypeList, side)
+saveName = "ExR_comparison"
+
+saveDir = "plots"
+```
+
+### Filter neuron bag to contain only subset of types (considering lateralization)
+```{r}
+myTypes_bag_full = neuronBag(myTypeList)
+myTypes_bag_full = lateralize_types(myTypes_bag_full)
+saveName = paste0(saveName,"_LR")
+
+myTypes_bag =  filter(myTypes_bag_full, filterPartners = FALSE, type %in% myTypeList_lat)
+```
+
+### Generate list of ROIs to consider
+```{r}
+roiTree = getRoiTree()
+slctROIs = selectRoiSet(roiTree, default_level = 2, 
+                        exceptions = list("OL(R)"=1,"AL(R)"=1,"PENP"=1,"AL(L)"=1,"MB(+ACA)(R)"=1,"MB(L)"=1,
+                                          "VMNP"=1,"INP"=1, "LX(R)"=3, "LX(L)"=3), exceptionLevelMatch = 1)
+slctROIs = unique(slctROIs$roi)
+slctROIs_r = slctROIs[!grepl("\\(L\\)",slctROIs)]
+slctROIs_r
+```
+
+### Use raw inputs as few connections in non-CX ROIs are significant according to general criteria??
+```{r}
+myTypes_in = myTypes_bag$inputs
+myTypes_out = myTypes_bag$outputs
+myTypes = myTypes_bag$names
+```
+
+
+### Generate dataframe of inputs to types of interest
+#### Filter based on rois to use
+```{r}
+minsyn = 3
+minWeightRel = 0.001 #used to filter connectivity tables
+
+
+myTypes_in_filt = myTypes_in %>% filter(roi %in% slctROIs) %>%
+  #filter(type.to %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.to) %>% filter(sum(weight) >= minsyn) %>% filter(weightRelative >= minWeightRel)
+
+myTypes_in_filt = bind_cols(myTypes_in_filt, data.frame(dir = rep("in", length(myTypes_in_filt$roi))))
+
+myTypes_out_filt = myTypes_out %>% filter(roi %in% slctROIs) %>%
+  #filter(type.from %in% c(paste0(myTypeList,side))) %>%
+  group_by(roi,  type.from) %>% filter(sum(weight) >= minsyn) %>% filter(outputContribution >= minWeightRel)
+
+myTypes_out_filt = bind_cols(myTypes_out_filt, data.frame(dir = rep("out", length(myTypes_out_filt$roi))))
+```
+
+#### select inputs to focus types in main input regions
+```{r}
+myROIs = unique(bind_rows(myTypes_in_filt, myTypes_out_filt)$roi)#[unique(myTypes_filt$roi)!="EB"] #
+myROIs  
+
+```
+
+
+### Compare input and outputs to these types
+#### select inputs to focus types in main input regions
+For **Figure 14B** choose:
+myROIs = myROIs 
+myROIsName ="all"
+
+For **Figure 14 figure supplement 2A** choose:
+myROIs = myROIs[myROIs!="EB"] 
+myROIsName ="allButEB" 
+```{r}
+myROIs = myROIs #myROIs[myROIs!="EB"] #
+myROIsName ="all" #"allButEB" #
+myROIs  
+
+```
+
+#### construct new connection table for combined ROIs
+```{r}
+myTypes_bag_comboRoi = combineRois(myTypes_bag, myROIs, "comboRoi")
+typesInput_combiRoi = myTypes_bag_comboRoi$inputs %>% filter(type.to %in% myTypeList_lat)
+typesOutput_combiRoi = myTypes_bag_comboRoi$outputs %>% filter(type.from %in% myTypeList_lat)
+
+myTypeList_lat_in = unique(typesInput_combiRoi$type.to)
+myTypeList_lat_out = unique(typesOutput_combiRoi$type.from)
+```
+
+#### Cluster input vectors to reference neurons 
+Inputs (Figure 14 Bi, Figure 14 figure supplement Ai)
+```{r}
+conmat <- connectivityMatrix( typesInput_combiRoi, "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+
+conmat_cd = cos_dist(conmat)
+plt <- myplot_dist(conmat_cd, order=TRUE) + theme_paper(axis.text.x = element_text(angle = 90)) 
+plt
+hcl=hclust(conmat_cd)
+
+cut = 0.7#0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8) + theme_paper()# + rect.hclust(hcl, h=cut, border = "red")
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+
+typeClusters <- stack(clu.h) %>% rename(type = ind, clust=values) %>% arrange(clust)
+if (savePlot){
+  ggsave( paste("inputCorrelation_",saveName,'_', myROIsName,'_nBag.pdf', sep=''), plot = plt, device='pdf', 
+          path ="plots", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+#### Cluster output vectors to reference neurons
+Outputs (Figure 14 Bii, Figure 14 figure supplement Aii)
+```{r}
+conmat <- connectivityMatrix( typesOutput_combiRoi %>% filter(is.finite(weightRelative) ), "comboRoi", allToAll = FALSE, from = "type.from", to = "type.to", value = "weightRelative", ref = "outputs")
+conmat_cd = cos_dist(t(conmat))
+plt <- myplot_dist(conmat_cd, order=TRUE)
+plt
+
+hcl=hclust(conmat_cd)
+
+cut = 0.8
+tplt <- plot(hcl,hang= -.5,cex = 0.8)# + rect.hclust(hcl, h=cut, border = "red")
+clu.h=cutree(hcl,h=cut) # cut tree/dendrogram from height 80
+typePreClusters <- stack(clu.h) %>% rename(type = ind, preclust=values) %>% arrange(preclust)
+
+if (savePlot){
+  ggsave( paste("outputCorrelation_",saveName,'_', myROIsName,'_onPre_nBag.pdf', sep=''), plot = plt, device='pdf',
+          path = "plots", scale = 1, width = 8, height = 8, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+
+## Visualize pre- and postsynaptic partners in bar graph
+This will create **Figure 14 figure supplement 2B**
+```{r}
+inOutContributionDataPrep <- function(myTypes_in_filt, myTypes_out_filt,  supertypeLevel){
+  inData = myTypes_in_filt %>% select(c("roi","databaseType.from","type.from", "type.to", "weightRelative","weight","absoluteWeight","outputContribution", "dir")) %>% 
+    mutate(ref = type.to, measure=weightRelative) %>% rename(databaseType=databaseType.from)
+  
+  outData = myTypes_out_filt %>% select(c("roi","databaseType.to","type.from", "type.to","weightRelative", "weight","absoluteWeight","outputContribution", "dir")) %>% 
+    mutate(ref = type.from, measure=outputContribution) %>% rename(databaseType=databaseType.to)
+  
+  if(supertypeLevel == 0){
+    inData <- supertype(inData) %>% selectSupertypeSet(default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% mutate(partner = supertype, partner2=supertype2)
+    
+    outData <- supertype(outData) %>% selectSupertypeSet(default_level = 3,
+                        exceptions = list("AOTU"=2,"TuBu"=2,"LAL"=2,"SMP"=2,"MBON"=2, "LNO"=2,"ER"=2, "ExR"=2),exceptionLevelMatch = 2) %>% mutate(partner = supertype, partner2=supertype2)
+  }else{
+    inData = supertype(inData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
+    outData = supertype(outData) %>% mutate(partner=!!sym(paste0("supertype",supertypeLevel)))#(databaseType,supertypeLevel))
+  }
+  data = bind_rows(inData,outData)
+  return(data)
+}
+
+for(st in c(0,2,3)){
+  myTypes_filt = inOutContributionDataPrep(myTypes_in_filt, myTypes_out_filt,  st) %>% filter(roi %in% slctROIs_r)
+  
+  if(sum(is.na(myTypes_filt$partner)) > 0){
+    myTypes_filt = myTypes_filt  %>% mutate(partner = coalesce(partner, "Other"))
+  }
+  bar = inOutContributionPlot(myTypes_filt)+ facet_grid(cols=vars(roi), rows=vars(dir), scales="free_x", space = "free") 
+  show(bar)
+  if (savePlot & st == 0){
+    ggsave(paste("inputAndOutputComposition_",saveName,"_supertype",st,'.pdf', sep=''),plot = bar, device='pdf', path = "plots", scale = 1.5, width=23, height=10, units ="cm", dpi = 600, limitsize = TRUE)
+  }
+}
+
+```
+
+## Connectivity matrices between ExR and columnar neurons
+
+```{r}
+ROI = "EB"
+slctROI ="EB"
+makeAsymmetric = TRUE
+postNeuron = paste0(paste0("ExR",seq(1,8)),".*")
+postName = "ExR neurons"  #gets used in the connectivity matrix plot
+preNeuron = paste0(c("PEN","PEG","EPG","EL"),".*")
+preName = "columnar neurons"
+
+postIDs = getBodyIdsForList(postNeuron)
+preIDs = getBodyIdsForList(preNeuron)
+```
+
+### Get connectivity table
+```{r, warning=FALSE}
+preTypes = c(preIDs$bodyid, postIDs$bodyid)
+postTypes = postIDs$bodyid
+myConnections_Col2ExR = getConnectionTable(preTypes, "POST", slctROI)
+myConnections_ExR2Col = getConnectionTable(postTypes, "POST", slctROI)
+
+myConnections_Col2ExR = myConnections_Col2ExR %>% filter(to %in% postTypes) 
+myConnections_ExR2Col = myConnections_ExR2Col %>% filter(to %in% preTypes) 
+```
+
+### Format the connectivity matrix, convert to type-to-type
+This will generate **Figures 14 C** and **Figure 14 figure supplement 3**.
+```{r}
+# Make asymmetric matrix
+myConnections_Col2ExR = myConnections_Col2ExR %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid) 
+myConnections_ExR2Col = myConnections_ExR2Col %>% filter(to %in% preIDs$bodyid)  %>% filter(from %in% postIDs$bodyid) 
+
+# Make type-to-type connectivity table
+typesTable_Col2ExR <- getTypesTable(unique(myConnections_Col2ExR$databaseType.to))
+typesTable_ExR2Col <- getTypesTable(unique(myConnections_ExR2Col$databaseType.to))
+
+myConnectionsT2T_Col2ExR = getTypeToTypeTable(myConnections_Col2ExR,typesTable = typesTable_Col2ExR)
+myConnectionsT2T_ExR2Col = getTypeToTypeTable(myConnections_ExR2Col,typesTable = typesTable_ExR2Col)
+```
+
+### Connectivity matrices
+```{r}
+cmax = NULL
+cmaxtype = NULL
+ 
+connectionMeasure = "weightRelative"
+conMatPlot = plotConnectivityMatrix(myConnectionsT2T_Col2ExR, byGroup = "type", connectionMeasure, cmaxtype)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure) + theme_paper()
+print(conMatPlot)
+
+conMatPlot_id = plotConnectivityMatrix(myConnections_Col2ExR, byGroup = "id", connectionMeasure, cmax)
+conMatPlot_id = addMatrixPlotLabs(conMatPlot_id, preName,  postName, slctROI, connectionMeasure)
+conMatPlot_id = structureMatrixPlotByType_lines(conMatPlot_id)
+print(conMatPlot_id)
+
+if (savePlot){
+  pw=10; ph=6
+  ggsave(paste("connectivityMatrix_col2ExR_in_",slctROI,'_',connectionMeasure,'_bytype.pdf', sep=''), 
+      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=pw, height=ph, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  pw=11; ph=22
+  ggsave(paste("connectivityMatrix_col2ExR_in_",slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+      plot = conMatPlot_id, device='pdf', path = "plots", scale=1, width=pw, height=ph, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```
+
+```{r}
+conMatPlot = plotConnectivityMatrix(myConnectionsT2T_ExR2Col, byGroup = "type", connectionMeasure, cmaxtype)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure) + theme_paper()
+print(conMatPlot)
+
+conMatPlot_id = plotConnectivityMatrix(myConnections_ExR2Col, byGroup = "id", connectionMeasure, cmax)
+conMatPlot_id = addMatrixPlotLabs(conMatPlot_id, preName,  postName, slctROI, connectionMeasure)
+conMatPlot_id = structureMatrixPlotByType_lines(conMatPlot_id)
+print(conMatPlot_id)
+
+if (savePlot){
+  pw=8; ph=7
+  ggsave(paste("connectivityMatrix_ExR2col_in_",slctROI,'_',connectionMeasure,'_bytype.pdf', sep=''), 
+      plot = conMatPlot, device='pdf', path = "plots", scale=1, width=pw, height=ph, units ="cm", dpi = 600, limitsize = TRUE)
+  
+  pw=24; ph=9
+  ggsave(paste("connectivityMatrix_ExR2col_in_",slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+      plot = conMatPlot_id, device='pdf', path = "plots", scale=1, width=pw, height=ph, units ="cm", dpi = 600, limitsize = TRUE)
+}
+```

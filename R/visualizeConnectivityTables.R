@@ -2,6 +2,25 @@
 # Visualization tools for connectivity tables
 ########################################################################################################################
 
+### Util
+getBodyIdsForList = function (neuronList,prefix="",postfix=".*",...){
+  #' Get one dataframe of bodyIDs for all search strings in neuronList
+  #' @param neuronList: A list of search strings to be passed.
+  #' @param prefix: String to be added before each query (default "")
+  #' @param postfix: String to be added after each query (default ".*")
+  #' @param ...: Parameters to be passed to neuprint_search. Note that meta=FALSE won't work for now.
+  #' @return A data frame of metadata for the results of all the queries
+  #' @examples
+  #' \dontrun{
+  #' # Both will return the same
+  #' getBodyIdsForList(c("PFL1","PFL2"))
+  #' getBodyIdsForList(c("PFL1","PFL2"),postfix="",field="type")
+  #' }
+  
+  neuronList <-  paste0(prefix,neuronList,postfix)
+  bodiesList <- lapply(neuronList,neuprint_search,...)
+  return(bind_rows(bodiesList))
+}
 
 ### Connectivity matrix
 
@@ -100,12 +119,11 @@ structureMatrixPlotByType_lines = function(conmatPlot, yonly=FALSE){
 
 ### Bar plot
 inOutContributionPlot <- function(data){
-  source("R/paperTheme.R")
   ncol = length(unique(data$partner))
   data = data %>% ungroup() %>% group_by(partner, roi, dir, ref) %>% summarise(measure = sum(measure))
   bar = ggplot(data, aes(x=ref, y=measure, fill=partner)) + 
     geom_bar(position = "fill", stat="identity") + 
-    theme_classic() + theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
+    theme_classic() + theme(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2))
   
   if(ncol <= 31){
     bar = bar + scale_fill_manual(values=paletteer_d("Polychrome::palette36", n=5+length(unique(data$partner)))[c(-seq(5))])

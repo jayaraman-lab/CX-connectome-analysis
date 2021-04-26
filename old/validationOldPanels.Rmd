@@ -279,3 +279,18 @@ EBCompFull <- ggplot(filter(EBAges_filtered),aes(x=old,y=new,fill=supertype2)) +
 #EBCompFull
 save_plot(paste0(validationFolder,"Validation-Figure1-SI1.pdf"),EBCompFull,nrow = 2,ncol=3,base_width = 8.5/3,device=cairo_pdf)
 ```
+
+```{r}
+#synChangeEBTot <- ggplot(distinct(EBAges,bodyid,side,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2,size=1) + scale_color_CX_supertype(name="Type") + theme_paper() + facet_grid(.~side,scales="free_x")+ xlab("") + ylab("known synapses change (%)") + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) + geom_hline(yintercept = 10,linetype=2,color="grey") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side =="inputs")),color="black",expand=0.03)
+#synChangeEBTot
+```
+
+```{r}
+EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=50,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=50))+ggtitle("Adjusted r\u00b2"))/
+  (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect") + plot_annotation(title="Validation Figure 1 - figure supplement 1",theme=theme(title=element_text(size=12,face="bold")))
+EBSI2
+```
+
+```{r}
+save_plot(paste0(validationFolder,"Validation-Figure1-SI1_new.svg"),EBSI2,base_width = 8.5*1.333333,base_height=6)
+```

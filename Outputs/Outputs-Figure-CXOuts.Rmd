@@ -5,11 +5,7 @@ output: html_notebook
 
 This notebook generates the panels for the first outputs figure (figure 54).
 ## Preparing the environment
-```{r}
-library(ggplot2)
-library(dplyr)
-library(paletteer)
-```
+
 Loading local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
@@ -66,9 +62,9 @@ First load the synapses (the data frame was generated in "Outputs-Core.Rmd"):
 CXOutSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses.rds"))
 ```
 
-Then generate and save the 2 views of the rendering as pngs. The `displayAnatomies` function is defined in "outputFunctions-display.R":
+Then generate and save the 2 views of the rendering as pngs. The `displaySynapses3D` function is defined in "outputFunctions-display.R":
 ```{r}
-displayAnatomies(synapses=CXOutSyn,
+displaySynapses3D(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allOuts-pale4",
                  saveFolder=outputsFolder,

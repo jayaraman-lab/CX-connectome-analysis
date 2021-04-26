@@ -5,6 +5,8 @@
 * Figure 5B
 * Figure 5 figure supplement 1 A and B
 
+**Inputs-Figure-DivConv.Rmd**: ???
+
 **AVP_connectivityGraphs-in-AOTU-and-BU.Rmd**: Create connectivity graphs in the AOTU (Figure 6) and BU (Figure 8)
 * Figure 6C
 * Figure 8B
@@ -15,10 +17,39 @@
 * Figure 7C
 * Figure 8C,D
 
+**AVP_reorderedConnectivityMatrix_TuBu2ER.Rmd**: Code for generating regular and re-ordered connectivity matrix of connections from TuBu -> ER neurons in the right bulb (Figure 7 D).
+
+**Mech_inputPathway.Rmd**: Code to generate the input pathway graph for putative mechanosensory information (Figure 9A).
+
+**pieCharts**: Generation of pie chart plots as used in Figure 9B.
+
+**Mech_synLocations.Rmd**: Code to generate visualizations of synapse distributions in 
+* Figure 9E
+* Figure 9 figure supplement 1 B
+and a specilized connectivity matrix in
+* Figure 9 figure supplement 1 A
+
+**NO_connectivityGraphsAndMatrix.Rmd**: Generate connectivity graph and matrix of PFN/PEN connectivity
+* Figure 25 B
+* Figure 26 D
+
+**NO_typeComparison**: Generate type comparison plots (partners by region bar graph and similarity analysis, as well as ordered connectivity matrices)
+* Figure 26 B (bar graph)
+* Figure 26 C (similarity matrix)
+* Figure 26 figure supplement 1A (non-normalized bar graph)
+* Figure 26 figure supplement 1B,C (Connectivity matrices ordered by similarity)
+* Figure 27 A (bar graph)
+* Figure 27 C (clustering of LNO neurons)
+* Figure 27 figure supplement 1A (similarity matrices)
+* Figure 27 figure supplement 1B (Connectivity matrices ordered by similarity)
+
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
-* Figure 6 - Supplemental information 1 A,B
-* Figure 7 - Supplemental information 1 A,B
+* Figure 6 figure supplement 1 A,B
+* Figure 7 figure supplement 1 A,B
+
+**AVP_glomerulusCharacterization.Rmd**: Create vizualization of synapse locations in glomeruli in
+* Figure 7 figure supplement  1 C
 
 **AVP_TuBu-connectivity-with-AOTU46-and-ExR.Rmd**: Create connectivity matrices in
-* Figure 8 - Supplemental information 1
+* Figure 8 figure supplement  1

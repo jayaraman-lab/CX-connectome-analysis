@@ -6,123 +6,304 @@ output: html_notebook
 This notebook generates the plots related to the first "validation" figure (figure 3), which compares connectivity in the EB in two different versions of the dataset.
 
 ## Preparing the environment:
-- Loading necessary packages:
-```{r,warning=FALSE,message=FALSE}
-library(tidyverse)
-library(neuprintrExtra)
-library(paletteer)
+```{r}
+library(nat)
 ```
-  
+
+
 - Path to the folder where the plots will be saved if need be (by default in a folder created for that in the validation folder)
 ```{r}
-validationFolder <- file.path("validationFigures")
+validationFolder <- file.path("validationFigures-figure3")
 if (!dir.exists(validationFolder)) dir.create(validationFolder)
 ```
 
-- Loading some local functions for the validation (+ the ggplot theme)
+- Loading some local functions
 ```{r}
 source("validationFunctions.R")
+source("neuronMeshes-dvid.R")
 source(file.path("..","R","paperTheme.R"))
 ```
 
 ## Preparing the data
-One starts by creating two different logins for the database explicitely, one for the "current" version (v1.1), one for an old version. Be careful once you connect to different versions, it is important to explicitly specify the one you want to use in all neuprint commands. I recommend restarting your R session once you're done with this notebook if you want to avoid running your analysis on the old version of the database.
-NOTE: FOR NOW IT ONLY WORKS IF CONNECTED ON THE JANELIA VPN (the old version of the database isn't public facing)
 
-First the recent version:
+We want to compare two version of the dataset. One is the recent one used throughout this paper (v1.1), the other one corresponds to a stage where the EB wasn't densely proofread yet (v0.9, which has been added to newprint). Those two variables can be passed as the `dataset` argument in most `neuprintr` functions:
 ```{r}
-newConnection <- neuprint_login(server="https://neuprint.janelia.org",token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FDSGkzcmRaaThLWElURkNhTWpzQldIZUFqcTZ6SkdtX2cvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzYzMzY1MTMyfQ.yCthFpsDrQJLl41WjLf3U-iN-21x_opCXDcnhbizC_g",Force = T)
+newD <- "hemibrain:v1.1"
+oldD <- "hemibrain:v0.9"
 ```
 
-Then the old version:
+We first collect information about the EB innervation of neurons in the new dataset:
 ```{r}
-oldConnection <- neuprint_login(server="https://emdata1.int.janelia.org:11000/",token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJvbWFpbi5mcmFuY29udmlsbGVAZ21haWwuY29tIiwibGV2ZWwiOiJyZWFkd3JpdGUiLCJpbWFnZS11cmwiOiJodHRwczovL2xoNi5nb29nbGV1c2VyY29udGVudC5jb20vLWdtUDkxREF4LTNvL0FBQUFBQUFBQUFJL0FBQUFBQUFBQUFBL0FBS1dKSk14RURObVNiekk5TjNULWw2RkRySWhHdG5LNncvcGhvdG8uanBnP3N6PTUwP3N6PTUwIiwiZXhwIjoxNzY2NDY0NjI2fQ.HsBHKOqeLUUcBcOY-GwzbCHrBMdCBesaICM4UUQSH_k",config=httr::config(ssl_verifypeer=0L),dataset="hemibrain:v0.9pre_dense",Force=T)
-```
-
-Select EB neurons for inputs/outputs
-```{r}
-ebNeurons <- neuprint_bodies_in_ROI("EB",all_segments = FALSE,conn = newConnection)
-ebInfo <- filter(getRoiInfo(ebNeurons$bodyid,conn=newConnection),roi=="EB")
+ebNeurons <- neuprint_bodies_in_ROI("EB",all_segments = FALSE,dataset=newD)
+ebInfo <- filter(getRoiInfo(ebNeurons$bodyid,dataset=newD),roi=="EB")
 ebInfo[is.na(ebInfo)] <- 0
+head(ebInfo)
 ```
 
+We then select neurons with at least 200 upstream or downstream synapses to be used in the comparisons of inputs (or outputs):
 ```{r}
 ebIns <- filter(ebInfo,upstream>200)
 ebOuts <- filter(ebInfo,downstream>200)
 ```
 
+We then run `getCompConnectionTable`, defined in **validationFunctions.R**. This gathers modified connection tables in both versions of the dataset, for an "input" and an "output" set of bodyids and returns a table of comparisons. A few notes on variables in that table:
+- `side` specify if the connection is to be used for inputs or outputs comparisons
+- `known_synapses` refers to the number of synapses made onto (or received from) traced partners (rather than fragments)
+- `knownWeightRelative` and `knownOutputContribution` are similar to `weightRelative` and `outputContribution` except that they are relative to the synapses made to traced partners rather than relative to all the neuron's synapses
+- `old` and `new` are `knownWeightRelative.old/new` if `side` is "inputs", `knownOutputContribution.old/new` is it's "outputs". Similarly, `bodyid` is the postsynaptic partner if `side` is "inputs" and the presynaptic partner otherwise 
+- `known_synapses_ratio` is the fraction increase in the number of synapses to traced partners between the old and the new dataset for the neuron defined in `bodyid`
+The function also computes completedness statistics we won't be using here.
 ```{r}
-EBAges <- getCompConnectionTable(ebIns$bodyid,ebOuts$bodyid,"EB",newConnection,oldConnection)
+EBAges <- getCompConnectionTable(ebIns$bodyid,ebOuts$bodyid,"EB",newD,oldD)
+head(EBAges)
 ```
 
+The bodyid of the EPG used as an example in the figure:
+```{r}
+exampleEPG <- 789126240
+```
+
+## Comparing the anatomy of the example neuron (panel A)
+We're going to access neuron meshes on the dvid server "https://hemibrain-dvid.janelia.org/". This is because this server allows us to access old versions of the segmentation, which we need for our comparison (note that this is not the recommended way to access neuron meshes programmatically, to get the latest highest quality meshes, see `hemibrain_neuron_meshes` in the `hemibrainr` package for example, which accesses precomputed neuroglancer meshes through `cloudvolume`).
+
+We first define the nodes of interest:
+```{r}
+## Node for version 0.9 34d7a
+## Node for version 1.1 (nov 15): 577e3
+newNode <- "577e3"
+oldNode <- "34d7a"
+```
+
+And grab the mesh for the EB:
+```{r}
+EBMesh <- neuprint_ROI_mesh("EB")
+```
+
+We then get the meshes for the two versions, using the `getNeuronMeshDvid` function (defined in **neuronMeshes-dvid.R**), which takes a bodyid and a node as an input and returns a mesh (by default it uses the hemibrain dvid server):    
+```{r}
+exampleEPGNew <- getNeuronMeshDvid(exampleEPG,node=newNode)
+exampleEPGOld <- getNeuronMeshDvid(exampleEPG,node=oldNode)
+exampleEPGOld
+```
+We then collect the input synapses, again for both datasets:
+```{r}
+epgInputSynapsesNew <- filter(neuprint_get_synapses(exampleEPG,roi="EB",dataset=newD),
+                              prepost==1)
+epgInputSynapsesOld <- filter(neuprint_get_synapses(exampleEPG,roi="EB",dataset=oldD),
+                              prepost==1)
+head(epgInputSynapsesNew)
+```
+
+We then filter those synapses to the ones made to "traced" partners:
+```{r}
+## Collect metadata on the partners
+partnerListNew <- filter(neuprint_get_meta(unique(c(epgInputSynapsesNew$partner)),
+                                           all_segments = FALSE,dataset=newD),
+                         status=="Traced")
+
+partnerListOld <- filter(neuprint_get_meta(unique(c(epgInputSynapsesOld$partner)),
+                                           all_segments = FALSE,dataset=oldD),
+                         status=="Traced")
+## Filter the synapses
+epgInputSynapsesNew <-  filter(epgInputSynapsesNew,partner %in% partnerListNew$bodyid) %>% select(x,y,z)
+epgInputSynapsesOld <- filter(epgInputSynapsesOld,partner %in% partnerListOld$bodyid) %>% select(x,y,z)
+```
+
+We add normals to the meshes for better quality renderings:
+```{r}
+exampleEPGNew <- addNormals(exampleEPGNew)
+exampleEPGOld <- addNormals(exampleEPGOld)
+```
+
+
+Finally we make the renderings. First the zoomed out view:
+```{r}
+nopen3d()
+## Setting a large window for good resolution
+par3d(windowRect = c(30, 30, 1530, 1530))
+## Plot the neuropil mesh
+plot3d(EBMesh,color="grey60",alpha=0.05,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,specular="black",smooth=FALSE)
+par3d(scale=c(1,1,1))
+
+## Plot the meshes
+shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"], specular="black",smooth=FALSE)
+shade3d(exampleEPGNew,color="green", specular="black",smooth=FALSE)
+
+## Plot the synapses
+plot3d(epgInputSynapsesOld,add=T,col="orange",type="s",size=0.15)
+plot3d(epgInputSynapsesNew,add=T,col="blue",type="s",size=0.15)
+
+## Set the view
+nview3d("ventral")
+zoom0View <- par3d("userProjection")
+
+## Save
+rgl.snapshot(file.path(validationFolder,"frontEBZoom1.png"))
+
+```
+
+Then the zoomed in view:
+```{r}
+nopen3d()
+par3d(windowRect = c(30, 30, 1530, 1530))
+par3d(userProjection=translationMatrix(-1.2,1.6,0) %*% zoom0View)
+plot3d(EBMesh,color="grey10",alpha=0.2,shininess=1,xlab="",ylab="",zlab="",box=FALSE,axes=FALSE)
+par3d(scale=c(1,1,1))
+nview3d("ventral",zoom=0.1)
+shade3d(exampleEPGOld,color=supertype2Palette()$pal["EPG"], specular="black")
+shade3d(exampleEPGNew,color="green", specular="black")
+
+
+plot3d(epgInputSynapsesOld,add=T,col="orange",type="s",size=0.07)
+plot3d(epgInputSynapsesNew,add=T,col="blue",type="s",size=0.07)
+rgl.snapshot(file.path(validationFolder,"frontEBZoom2.png"))
+```
+
+## Plotting the increase in synapses to known partners (panel B)
+We select neurons with at least a 10% change and get a condensed version of the table for plotting:
 ```{r}
 EBAges_filtered <- filter(EBAges,known_synapses_ratio>0.1)
-EBAges_summary <-distinct(EBAges_filtered,bodyid,side,.keep_all = TRUE) 
-synChangeEB <- ggplot(EBAges_summary,aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.25,size=0.4) + 
-     scale_color_CX_supertype(name="Supertype") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)") +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) + ylim(c(0,120))+ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="inputs")),color="black",expand=0.03)
+EBAges_summary <-distinct(EBAges_filtered,bodyid,side,databaseType,supertype2,known_synapses_ratio) 
+head(EBAges_summary)
+```
+
+We then plot the results, separating inputs and outputs:
+```{r}
+synChangeEB <- ggplot(EBAges_summary,aes(x=databaseType,
+                                         y=known_synapses_ratio*100,
+                                         color=supertype2)) +
+  geom_jitter(width=0.25,size=0.4) + 
+     scale_color_CX_supertype(name="supertype") +
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) + 
+  facet_grid(.~side,scales="free_x") + 
+  xlab("") + ylab("known synapses change (%)") +
+  ylim(c(0,120))+ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="inputs")),color="black",expand=0.03)
 synChangeEB
 ```
-
+And save it:
 ```{r}
-synChangeEBTot <- ggplot(distinct(EBAges,bodyid,side,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2)) + geom_jitter(width=0.2,size=1) + scale_color_CX_supertype(name="Type") + theme_paper() + facet_grid(.~side,scales="free_x")+ xlab("") + ylab("known synapses change (%)") + theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) + geom_hline(yintercept = 10,linetype=2,color="grey") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side =="inputs")),color="black",expand=0.03)
-synChangeEBTot
-```
-```{r}
-EBFits <- getFit(EBAges,groups = c("bodyid","databaseType","supertype2","side"),predicted="new",predictor="old")
-EBFits <- left_join(EBFits,distinct(EBAges,bodyid,databaseType,supertype2,side,known_synapses_ratio,known_synapses.old,known_synapses.new),by=c("bodyid","databaseType","supertype2","side"))
+save_plot(file.path(validationFolder,"EBCounts.svg"),synChangeEB,base_width=6.5,base_height=2.25)
 ```
 
-
-
+## Linear fits of connectivity between the two dataset (panels C and D)
+We used the `getFit` function, a convenience function defined in **validationFunctions.R** to run linear fits on a dataframe between `predictor` and `predicted` grouped according to `groups`. We use it on our comparison table, between the `old` and `new` variable:
 ```{r}
-EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(size=0.4/20,position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("") +ylab("slope estimate") + ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="inputs")),color="black",expand=0.03) + geom_hline(yintercept = 1,lty=2)
-EBSlopes
+EBFits <- getFit(EBAges,
+                 groups = c("bodyid","databaseType","supertype2","side"),
+                 predicted="new",predictor="old")
+head(EBFits)
+```
+We also combine it with the original table to get metadata we need for plots:
+```{r}
+EBFits <- left_join(EBFits,
+                    distinct(EBAges,bodyid,databaseType,supertype2,side,known_synapses_ratio,known_synapses.old,known_synapses.new),
+                    by=c("bodyid","databaseType","supertype2","side"))
 ```
 
+### Example fit (panel C)
+We use one EPG neuron as an example, showing the relative weight in the old vs the new dataset, overlaying the liner fit (we use ggplot's `geom_smooth` for that) and annotating with the fit statistics:
 ```{r}
 fitValsEPG <- filter(EBFits,bodyid==exampleEPG & side=="Inputs")
-EBCompExample <- ggplot(filter(EBAges_filtered,bodyid==exampleEPG & side=="inputs"),aes(x=old,y=new)) + geom_point(aes(color=supertype2.from),size=0.4) + geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
-  geom_abline(linetype=2,lwd=0.2) + theme_paper()  + scale_color_CX_supertype(name="Supertype") + xlab("relative weight in the old dataset") + coord_fixed() +
-  ylab("relative weight in the new dataset") + annotate(geom="text",x=0.015,y=0.002,label=paste0("s= ",format(fitValsEPG$estimate,digits = 3),"\n r\u00b2= ",format(fitValsEPG$adj.r.squared,digits=3)))
+EBCompExample <- ggplot(filter(EBAges_filtered,bodyid==exampleEPG & side=="inputs"),aes(x=old,y=new)) +
+  geom_point(aes(color=supertype2.from),size=0.4) + 
+  geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
+  geom_abline(linetype=2,lwd=0.2) + theme_paper()  +
+  scale_color_CX_supertype(name="Supertype") + xlab("relative weight in the old dataset") +
+  coord_fixed() +
+  ylab("relative weight in the new dataset") + 
+  annotate(geom="text",x=0.015,y=0.002,label=paste0("s= ",format(fitValsEPG$estimate,digits = 3),"\n r\u00b2= ",format(fitValsEPG$adj.r.squared,digits=3)))
 
 EBCompExample
 ```
-
+Then save it:
 ```{r}
-save_plot(paste0(validationFolder,"EBCounts.svg"),synChangeEB,base_width=6.5,base_height=2.25)
-save_plot(paste0(validationFolder,"EBSlopes.svg"),EBSlopes,base_width=6.5,base_height=2.25)
-save_plot(paste0(validationFolder,"EBExampleFit.svg"),EBCompExample,base_width=3,base_height=3)
-
+save_plot(file.path(validationFolder,"EBExampleFit.svg"),EBCompExample,base_width=3,base_height=3)
 ```
 
-#### EB validation: SI figure
-
-
+### Fits results (panel D)
+We plot the estimated slope (with error bars) for all the fits run:
 ```{r}
-incSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(size=0.2/3) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("known synapse increase") +ylab("slope estimate") + geom_hline(yintercept=1,lty=2)
+EBSlopes <- ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),
+                   aes(x=databaseType,y=estimate,
+                       ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) +
+  geom_pointrange(size=0.4/20,position=position_jitter(width=0.2)) + scale_color_CX_supertype(name="supertype") +
+  facet_grid(.~side,scales = "free_x") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("") +ylab("slope estimate") + 
+  ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="inputs")),color="black",expand=0.03) + 
+  geom_hline(yintercept = 1,lty=2)
+EBSlopes
+```
+
+And save it:
+```{r}
+save_plot(file.path(validationFolder,"EBSlopes.svg"),EBSlopes,base_width=6.5,base_height=2.25)
+```
+
+##  Influence of the amount of proofreading on the fit results (figure supplement 1)
+We quantify how the slope and r^2 of the fits vary as the function of:
+- the increase in synapse numbers between the two dataset 
+- the absolute number of synapses the neuron of interest has
+
+### Increase to slope (panel A)
+```{r}
+incSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% 
+                             paste(EBAges_summary$bodyid,EBAges_summary$side)),
+                    aes(x=known_synapses_ratio*100,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + 
+  geom_pointrange(size=0.2/3) +
+  scale_color_CX_supertype(name="supertype") + 
+  facet_grid(.~side,scales = "free_x") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("known synapse increase") +ylab("slope estimate") + geom_hline(yintercept=1,lty=2)
 incSlope
 ```
 ```{r}
-incRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses_ratio*100,y=adj.r.squared,color=supertype2)) + geom_point(size=1) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333))  +xlab("known synapse increase") +ylab("adjusted r\u00b2") + geom_hline(yintercept=1,lty=2)
+save_plot(file.path(validationFolder,"SI-panelA.svg"),incSlope,base_width=4,base_height=2)
+```
+
+### Increase to r^2 (panel B)
+
+```{r}
+incRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),
+                 aes(x=known_synapses_ratio*100,y=adj.r.squared,color=supertype2)) + 
+  geom_point(size=1) + scale_color_CX_supertype(name="supertype") + 
+  facet_grid(.~side,scales = "free_x") +
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("known synapse increase") +ylab("adjusted r\u00b2") + geom_hline(yintercept=1,lty=2)
 incRS
 ```
 
-
 ```{r}
-nSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_pointrange(size=0.2/3) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("# synapses") +ylab("slope estimate")  + geom_hline(yintercept=1,lty=2)
+save_plot(file.path(validationFolder,"SI-panelB.svg"),incRS,base_width=4,base_height=2)
+```
+
+### Absolute to slope (panel C)
+```{r}
+nSlope <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),
+                  aes(x=known_synapses.new,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + 
+  geom_pointrange(size=0.2/3) + 
+  scale_color_CX_supertype(name="supertype") + 
+  facet_grid(.~side,scales = "free_x") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("# synapses") +ylab("slope estimate")  + geom_hline(yintercept=1,lty=2)
 nSlope
 ```
 ```{r}
-nRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),aes(x=known_synapses.new,y=adj.r.squared,color=supertype2)) + geom_point(size=1) + scale_color_CX_supertype(name="Supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6*1.333333)) +xlab("# synapses") +ylab("adjusted r\u00b2") +geom_hline(yintercept=1,lty=2)
+save_plot(file.path(validationFolder,"SI-panelC.svg"),nSlope,base_width=4,base_height=2)
+```
+
+### Absolute to r^2 (panel D)
+
+```{r}
+nRS <-  ggplot(filter(EBFits,paste(bodyid,side) %in% paste(EBAges_summary$bodyid,EBAges_summary$side)),
+               aes(x=known_synapses.new,y=adj.r.squared,color=supertype2)) + 
+  geom_point(size=1) + 
+  scale_color_CX_supertype(name="Supertype") + 
+  facet_grid(.~side,scales = "free_x") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("# synapses") +ylab("adjusted r\u00b2") +geom_hline(yintercept=1,lty=2)
 nRS
 ```
-
 ```{r}
-EBSI2 <- (incSlope + theme(legend.position="none",plot.margin = margin(b=50,r=50))+ggtitle("Slope estimates")| incRS+ theme(legend.position="none",plot.margin = margin(b=50))+ggtitle("Adjusted r\u00b2"))/
-  (nSlope + theme(legend.position="none",plot.margin = margin(r=50))| nRS) + plot_layout(guides="collect") + plot_annotation(title="Validation Figure 1 - figure supplement 1",theme=theme(title=element_text(size=12,face="bold")))
-EBSI2
-```
-
-```{r}
-save_plot(paste0(validationFolder,"Validation-Figure1-SI1_new.svg"),EBSI2,base_width = 8.5*1.333333,base_height=6)
+save_plot(file.path(validationFolder,"SI-panelD.svg"),nRS,base_width=4,base_height=2)
 ```

@@ -1,0 +1,516 @@
+---
+title: "Neuropil innervation plots"
+output: html_notebook
+---
+
+This notebook generates all the neuropil innervation plots (starting with figure 7 panel E) throughout the paper:
+
+## Preparing the environment
+```{r}
+library(neuprintrExtra)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+source(file.path("..","R","paperTheme.R"))
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+NIPFolder <- "NeuronInnervationPlots-figures"
+if (!dir.exists(NIPFolder)) dir.create(NIPFolder)
+```
+
+```{r}
+CXTypes <- supertype(read_csv(file.path("..","CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
+```
+
+Picking the lowest level ROIs
+```{r}
+roiH <- getRoiTree()
+```
+
+We define a local function that filters a ROI innervation summary so that for any given neurons, only the neuropils where it makes significant type to type connections are reported:
+```{r}
+#' A function to filter summaries to only neuropiles where neurons make significant connections
+#' @param ROIsummary The ROI summary to filter
+#' @param nBagROI The `neuronBag` object used to build the ROI summary (used to extract metadata)
+#' @param roiTypes The table of types making significant connections in the "mother" ROI
+#' @param rois The ROIs to consider (usually the ones one wants to plot)
+#' @param renaming The renaming function to use when computing type to type connections in other ROIs
+filterROISummary <- function(ROIsummary,
+                             nBagROI,
+                             roiTypes,
+                             rois,
+                             renaming=cxRetyping){
+  
+  roiConnections <- neuronBag(filter(nBagROI$names, type %in% roiTypes$type),
+                              slctROI = unique(filter(ROIsummary,roi %in% rois$roi)$roi),
+                              verbose=TRUE,
+                              selfRef=TRUE,
+                              renaming=renaming)
+  
+  goodTypes <- distinct(do.call(rbind,lapply(unique(ROIsummary$roi),function(r){
+    typesUnfiltered <- roiConnections$names$type
+    inputs <- roiConnections$inputs %>% filter((roi == r) & 
+        (type.to %in% typesUnfiltered))
+    outputs <- roiConnections$outputs %>% filter((roi ==r) & 
+        (type.from %in% typesUnfiltered))
+    roiTypes <- data.frame(type = unique(c(inputs$type.to, outputs$type.from))) %>% 
+        mutate(databaseType = roiConnections$names$databaseType[match(type, 
+            roiConnections$names$type)])
+    return(roiTypes %>% mutate(roi=r))})))
+  ROISummary <- inner_join(goodTypes,ROIsummary)
+  ROISummary
+}
+```
+
+This notebook is generally organized by neuropil, generating one (or more) plot for all the neurons innervating that neuropil.
+
+## BU (figure 7 panel A)
+Get all the neurons making significant type to type connections in the right BU. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object:
+```{r}
+BUTypesTable <- getTypesInRoiTable("BU(R)",verbose=TRUE)
+BURTypes <- typesInROI(BUTypesTable,ROI = "BU(R)")
+head(BURTypes)
+```
+
+Select the ROIs to be displayed, and the larger groups to be colored in the plot using the `selectRoiSet` function:
+```{r}
+BURois <- selectRoiSet(roiH,default_level = 2,
+                       exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),
+                       exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisBU <- selectRoiSet(roiH,default_level = 0,
+                            exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),
+                            exceptionLevelMatch = c(2,1,1))
+```
+
+Generate the summary of ROI innervation using `getROISummary`, restricting to region innervated with at least 3 synapses:
+```{r}
+BUSummary <- getROISummary(BUTypesTable,threshold=3)
+```
+
+Then filter it to type/roi combinations where significant type to type connections are made:
+```{r}
+BUSummary_ttFiltered <- filterROISummary(BUSummary,BUTypesTable,BURTypes,BURois)
+head(BUSummary_ttFiltered)
+```
+
+We then plot the neuropil innervation, removing a few types we chose to exclude from the figure:
+```{r}
+haneschBUR_ttFCustom <- haneschPlot(BUSummary_ttFiltered %>% 
+                                      filter(type %in% BURTypes$type & !(databaseType %in% c("CRE013","LHCENT11","LHPV5l1","ExR7","SMP238"))),
+                                    grouping="supertype2",flip=T,
+                                    roiSelect = BURois,roiLabel = labelRoisBU,
+                                    interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+
+haneschBUR_ttFCustom
+```
+
+And save the plot:
+```{r}
+save_plot(file.path(NIPFolder,"BU_NIP.svg"),haneschBUR_ttFCustom,ncol=2,nrow=1.5,base_width = 8.5/2)
+```
+
+We then repeat the same process for other neuropils, starting with the EB:
+
+## EB 
+### EB summary (figure 10 panel A)
+Get all the neurons making significant type to type connections in the EB. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object:
+```{r}
+EBTypesTable <- getTypesInRoiTable("EB")
+EBTypes <- typesInROI(EBTypesTable,ROI = "EB") 
+head(EBTypes)
+```
+
+Select the ROIs to be displayed, and the larger groups to be labeled:
+```{r}
+EBRois <- selectRoiSet(roiH,default_level = 2,
+                       exceptions = list("EB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),
+                       exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisEB <- selectRoiSet(roiH,default_level = 0,
+                            exceptions = list("EB"=2),exceptionLevelMatch = 2)
+head(EBRois)
+```
+
+Generate the summary of ROI innervation using `getROISummary`, restricting to region innervated with at least 20 synapses:
+```{r}
+EBSummary <- getROISummary(EBTypesTable,threshold=20) 
+head(EBSummary)
+```
+
+Then filter it to type/roi combinations where significant type to type connections are made:
+```{r}
+EBSummary_ttFiltered <- filterROISummary(EBSummary,EBTypesTable,EBTypes,EBRois)
+head(EBSummary_ttFiltered)
+```
+
+For plotting purposes, we use the symbol for Delta in labels:
+```{r}
+EBTypes <- EBTypes %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+EBSummary_ttFiltered  <- EBSummary_ttFiltered %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+```
+
+We then plot the neuropil innervation, restricting to neurons going to the right side of the brain (_R neurons, or _L neurons in the case of the columnar types that cross over):
+```{r}
+haneschEB_R_ttF <- haneschPlot(EBSummary_ttFiltered %>% 
+                                 filter(type %in% EBTypes$type & 
+                                          ((!grepl("_L.*",type) & supertype3 != "EB Columnar")| 
+                                             grepl("_L",type) & supertype3 == "EB Columnar")),
+                               grouping="supertype2",flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,showCount = TRUE,theme = theme_paper_grid())
+haneschEB_R_ttF
+```
+
+And save it:
+```{r}
+save_plot(file.path(NIPFolder,"EB-NIP.svg"),haneschEB_R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+```
+
+### Zoom on the ExR neurons (figure 14 panel A)
+We also make a plot specifically for the ExR neurons:
+```{r}
+haneschExR_ttF <- haneschPlot(EBSummary_ttFiltered %>% filter(startsWith(type,"ExR") & grepl("_R.*",type)),
+                              flip=T,roiSelect = EBRois,roiLabel = labelRoisEB,showCount = T,theme=theme_paper_grid())
+
+haneschExR_ttF
+```
+
+```{r}
+save_plot(file.path(NIPFolder,"ExRs-NIP.svg"),haneschExR_ttF,nrow=1,base_width=8.5/2)
+```
+
+## PB
+### Summary of PB types innervations (figure 19 panel D)
+Get all the neurons making significant type to type connections in the PB. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object:
+```{r}
+PBTypesTable <- getTypesInRoiTable("PB")
+PBTypes <- typesInROI(PBTypesTable,ROI = "PB")
+head(PBTypes)
+```
+Select the ROIs to be displayed, and the larger groups to be labeled:
+```{r}
+PBRois <- selectRoiSet(roiH,default_level = 2,
+                       exceptions = list("PB"=2,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),
+                       exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisPB <- selectRoiSet(roiH,default_level = 0,
+                            exceptions = list("PB"=2,"AL(R)"=1,"AL(L)"=1),
+                            exceptionLevelMatch = c(2,1,1))
+```
+
+Generate the summary of ROI innervation using `getROISummary`:
+```{r}
+PBSummary <- getROISummary(PBTypesTable,threshold=0)
+```
+
+Then filter it to type/roi combinations where significant type to type connections are made:
+```{r}
+PBSummary_ttFiltered <- filterROISummary(PBSummary,PBTypesTable,PBTypes,PBRois) %>%
+  mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+head(PBSummary_ttFiltered)
+```
+
+For plotting purposes, we use the symbol for Delta in labels:
+```{r}
+PBTypes <- mutate(PBTypes,type=stringr::str_replace(type,"Delta","\u0394"))
+PBSummary_ttFiltered <- PBSummary_ttFiltered %>%  mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+```
+
+For this panel, we want to restrict the panel to canonical types, and enforce the ordering:
+```{r}
+PBsummary_ttFiltered <- PBSummary_ttFiltered %>% 
+  filter((type %in% PBTypes$type) & ((supertype3 %in% c("PB Interneurons","PB Input")  & 
+                                        grepl("_R",type))  | 
+                                       (supertype3 == "EB Columnar" & !grepl("_R",type)) | 
+                                       (supertype2 %in% c("PFG","PFL","PFR") & !grepl("_R",type)) | 
+                                       (supertype2 == "PFN" & grepl("_R",type))))
+
+PBsummary_ttFiltered$supertype2 <- factor(PBsummary_ttFiltered$supertype2,levels=c("Δ7","P","LPsPB","SPS-PB","EPGt","EPG","PEN","PEG","PFG","PFL","PFR","PFN"))
+```
+
+Then plot, excluding the SIFa neuron:
+```{r}
+haneschPBRedux_filtered <- haneschPlot(PBsummary_ttFiltered %>% 
+                                         filter(type %in% PBTypes$type & !(databaseType %in% "SIFa")),
+                                       roiSelect = PBRois,flip = T,
+                                       grouping = "supertype2",roiLabel = labelRoisPB,interactive=TRUE,showCount = T,
+                                       theme=theme_paper_grid(strip.text.x = element_blank()))
+haneschPBRedux_filtered
+```
+And save it
+```{r}
+save_plot(file.path(NIPFolder,"PB_NIP.svg"),haneschPBRedux_filtered,nrow=1,ncol=1.7,base_width = 8.5/2.5)
+```
+
+### PB glomeruli innervation (figure 19 panel E)
+
+In this panel we do not separate the types between left and right side of the brain:
+```{r}
+PBTypesTableNonLat <- getTypesInRoiTable("PB",renaming=NULL)
+PBTypesNonLat <- typesInROI(PBTypesTableNonLat,ROI = "PB")
+head(PBTypesNonLat)
+```
+We will then use ROIs detailing the PB glomeruli:
+```{r}
+PBRoisDetailed <- selectRoiSet(roiH,
+                               default_level = 2,
+                               exceptions = list("PB"=4))
+
+PBRoisDetailedOnly <- filter(PBRoisDetailed,startsWith(as.character(roi),"PB(")) %>% 
+  mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")")))) 
+```
+
+And get an unfiltered summary:
+```{r}
+PBSummaryNonLat <- getROISummary(PBTypesTableNonLat,threshold=0) %>% 
+  filter(startsWith(roi,"PB(")) %>% 
+  mutate(roi = factor(roi,levels = c(paste0("PB(R",9:1,")"),paste0("PB(L",1:9,")"))))
+```
+
+Finally, we're going to produce 4 different plots, corresponding to the 4 different scales (and different subsets):
+```{r}
+haneschPBLoc1 <- haneschPlot(PBSummaryNonLat %>% 
+                              filter(databaseType %in% c("Delta7","P1-9","LPsP","P6-8P9","SpsP","EPGt")),
+                             roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",
+                             roiLabel = labelRoisPB,showCount = T,theme=theme_paper_grid(),
+                             regionOutlines = F)
+
+haneschPBLoc1
+```
+```{r}
+haneschPBLoc2 <- haneschPlot(PBSummaryNonLat %>% 
+                              filter(databaseType %in% c("EPG","IbSpsP")),
+                             roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",
+                             roiLabel = labelRoisPB,showCount = T,theme=theme_paper_grid(),
+                             regionOutlines = F)
+
+haneschPBLoc2
+```
+```{r}
+haneschPBLoc3 <- haneschPlot(PBSummaryNonLat %>% 
+                              filter(supertype2 %in% c("PEN","PEG","PFGs","PFL","PFR")),
+                             roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",
+                             roiLabel = labelRoisPB,showCount = T,theme=theme_paper_grid(),
+                             regionOutlines = F)
+
+haneschPBLoc3
+```
+
+```{r}
+haneschPBLoc4 <- haneschPlot(PBSummaryNonLat %>% 
+                              filter(supertype2 %in% c("PFN")),
+                             roiSelect = PBRoisDetailedOnly,flip = F,grouping = "supertype2",
+                             roiLabel = labelRoisPB,showCount = T,theme=theme_paper_grid(),
+                             regionOutlines = F)
+
+haneschPBLoc4
+```
+And save those panels:
+```{r}
+save_plot(file.path(NIPFolder,"PBGlom-NIP1.svg"),haneschPBLoc1,nrow=0.65,ncol=2,base_width=8.5/2)
+save_plot(file.path(NIPFolder,"PBGlom-NIP2.svg"),haneschPBLoc2,nrow=0.25,ncol=2,base_width=8.5/2)
+save_plot(file.path(NIPFolder,"PBGlom-NIP3.svg"),haneschPBLoc3,nrow=0.75,ncol=2,base_width=8.5/2)
+save_plot(file.path(NIPFolder,"PBGlom-NIP4.svg"),haneschPBLoc4,nrow=1,ncol=2,base_width=8.5/2)
+```
+
+## NO
+Get all the neurons making significant type to type connections in the NO. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object:
+```{r}
+NOTypesTable <- getTypesInRoiTable("NO(R)")
+NORTypes <- typesInROI(NOTypesTable,ROI = "NO(R)")
+head(NORTypes)
+```
+
+
+Select the ROIs to be displayed, and the larger groups to be labeled:
+```{r}
+NORois <- selectRoiSet(roiH,default_level = 2,
+                       exceptions = list("NO"=4,"LAL(R)"=4,"AL(R)"=1,"AL(L)"=1),
+                       exceptionLevelMatch = c(2,2,1,1))
+
+labelRoisNO <- selectRoiSet(roiH,
+                            default_level = 0,
+                            exceptions = list("NO"=2,"AL(R)"=1,"AL(L)"=1),
+                            exceptionLevelMatch = c(2,1,1))
+```
+
+Generate the summary of ROI innervation using `getROISummary`, restricting to region innervated with at least 20 synapses:
+```{r}
+NOSummary <- getROISummary(NOTypesTable,threshold=20)
+```
+
+Then filter it to type/roi combinations where significant type to type connections are made:
+```{r}
+NOSummary_ttFiltered <- filterROISummary(NOSummary,NOTypesTable,NORTypes,NORois)
+head(NOSummary_ttFiltered)
+```
+
+We then plot the neuropil innervation, restricting it to the manually defined central complex neuron types:
+```{r}
+haneschNO_ttF <- haneschPlot(NOSummary_ttFiltered %>% 
+                               filter((type %in% NORTypes$type) & 
+                                        (databaseType %in% CXTypes$databaseType)),
+                             grouping="supertype2",flip=T,roiSelect = NORois,roiLabel = labelRoisNO,
+                             interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+
+haneschNO_ttF
+```
+And save it:
+```{r}
+save_plot(file.path(NIPFolder,"NO-NIP.svg"),haneschNO_ttF,ncol=1,nrow=1,base_width = 8.5)
+```
+
+## FB
+### Prepare the summary
+Get all the neurons making significant type to type connections in the FB. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object. As the FB is large, this cell can take a few minutes to execute:
+```{r}
+FBTypesTable <- getTypesInRoiTable("FB",verbose=T)
+FBTypes <- typesInROI(FBTypesTable,ROI = "FB")
+```
+Select the ROIs to be displayed, and the larger groups to be labeled:
+```{r}
+FBRois <- selectRoiSet(roiH,default_level = 2,
+                       exceptions = list("FB"=4,"LAL(R)"=4,"CRE(R)"=4,"AL(R)"=1,"AL(L)"=1),
+                       exceptionLevelMatch = c(2,2,2,1,1))
+
+labelRoisFB <- selectRoiSet(roiH,default_level = 0,
+                            exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),
+                            exceptionLevelMatch = c(2,1,1))
+```
+
+Generate the summary of ROI innervation using `getROISummary`:
+```{r}
+FBSummary <- getROISummary(FBTypesTable,threshold=0) 
+```
+
+Then filter it to type/roi combinations where significant type to type connections are made:
+```{r}
+FBSummary_ttFiltered <- filterROISummary(FBSummary,FBTypesTable,FBTypes,FBRois)
+```
+
+For plotting purposes, we use the symbol for Delta in labels:
+```{r}
+FBSummary <- FBSummary %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBSummary_ttFiltered <- FBSummary_ttFiltered %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+FBTypes <- FBTypes %>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+```
+
+### FB types excluding tangentials (Figure 28, figure supplement 1, panel A)
+We generate an intermediate summary first (this allows us to order the supertypes):
+```{r}
+summaryFB_ttF <- FBSummary_ttFiltered %>% 
+  filter((type %in% FBTypes$type) & 
+           (supertype3 == "FB Output" | supertype3 == "FB Interneuron" | supertype3 == "FB Columnar") & 
+           !grepl("_R",type))
+
+summaryFB_ttF$supertype2 <- factor(summaryFB_ttF$supertype2,levels=c("PFN","vΔ","hΔ","PFG","PFR","PFL","FC","FS","FR"))
+```
+
+And use it to generate the plot:
+```{r}
+haneschFBSummary_ttF <- haneschPlot(summaryFB_ttF,
+                                    roiSelect = FBRois,flip=T,
+                                    roiLabel = labelRoisFB,
+                                    grouping="supertype2",
+                                    showCount = T,theme=theme_paper_grid())
+haneschFBSummary_ttF
+```
+
+```{r}
+save_plot(file.path(NIPFolder,"FBnonTang-NIP.svg"),haneschFBSummary_ttF,nrow=1,ncol=2,base_width=8.5/2)
+```
+
+### Zoom on the h and vDeltas (figure 38 panel D)
+
+```{r}
+haneschDeltas_ttF <- haneschPlot(FBSummary_ttFiltered %>% 
+                                   filter((type %in% FBTypes$type) & 
+                                            (supertype3 == "FB Interneuron") & !grepl("_R",type)),
+                                 roiSelect = FBRois,flip=T,
+                                 roiLabel = labelRoisFB,grouping="supertype2",
+                                 showCount = T,theme=theme_paper_grid())
+
+
+haneschDeltas_ttF
+```
+
+```{r}
+save_plot(file.path(NIPFolder,"FBDeltas-NIP.svg"),haneschDeltas_ttF,nrow=1,ncol=1.5,base_width = 8.5/2)
+```
+
+### FB tangentials (figure 40, figure supplement 1)
+We plot it in three groups:
+```{r}
+haneschFB14R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[1-4]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
+haneschFB14R_ttF
+```
+```{r}
+haneschFB56R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[5-6]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid()) 
+haneschFB56R_ttF
+```
+```{r}
+haneschFB79R_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter((type %in% FBTypes$type) & grepl("FB[7-9]",type) & !grepl("_L",type)),roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",interactive = TRUE,showCount = T,theme=theme_paper_grid())
+haneschFB79R_ttF
+```
+
+```{r}
+save_plot(file.path(NIPFolder,"FBTangentials1-4-NIP.svg"),haneschFB14R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(file.path(NIPFolder,"FBTangentials5-6-NIP.svg"),haneschFB56R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+save_plot(file.path(NIPFolder,"FBTangentials7-9-NIP.svg"),haneschFB79R_ttF,nrow=1,ncol=2,base_width = 8.5/2)
+```
+
+### FB tangentials related to the sleep section
+```{r}
+haneschFBSleep_ttF <- haneschPlot(FBSummary_ttFiltered %>% filter(grepl("FB7B|FB7A|FB7K|FB6Z|FB6C_a|FB6E|FB6I|FB6C_b|FB6A|FB6G|FB6H",type) &
+                                                                    !grepl("_L",type)),
+                                  roiSelect=FBRois,flip = T,roiLabel = labelRoisFB,grouping="supertype1",
+                                  showCount = T,theme=theme_paper_grid())+ 
+  scale_size_area(max_size = 9,breaks=scales::breaks_log(n=6),name="# synapses")
+haneschFBSleep_ttF
+```
+
+
+```{r}
+save_plot(file.path(NIPFolder,"FBTangentialsSleep-NIP.svg"),haneschFBSleep_ttF,nrow=1,ncol=1,base_width = 8.5/2)
+```
+
+
+
+## AB (figure 36 panel B)
+Get all the neurons making significant type to type connections in the AB. `getTypesInRoiTable` is defined in "neuprintrExtra" and returns a `neuronBag` object. `typesInROI` just extracts a table of types from the `neuronBag` object. Since the AB innervation is less reliable, we set the `minTypePercentage` parameter to a lower value:
+```{r}
+ABTypesTable <- getTypesInRoiTable("AB(R)",minTypePercentage = 0.2)
+
+ABTypes <- typesInROI(ABTypesTable,ROI = "AB(R)")%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+head(ABTypes)
+```
+
+Select the ROIs to be displayed, and the larger groups to be labeled:
+```{r}
+ABRois <- selectRoiSet(roiH,default_level = 2,exceptions = list("LAL(R)"=4,"AL(R)"=1,"AL(L)"=1,"FB"=4),exceptionLevelMatch = c(2,1,1,2))
+
+labelRoisAB <- selectRoiSet(roiH,default_level = 0,exceptions = list("FB"=2,"AL(R)"=1,"AL(L)"=1),exceptionLevelMatch = c(2,1,1))
+```
+
+Generate the summary of ROI innervation using `getROISummary` :
+```{r}
+ABSummary <- getROISummary(ABTypesTable,threshold=0)%>% mutate(type=stringr::str_replace(type,"Delta","\u0394"))
+```
+
+Then generate the plot:
+```{r}
+haneschABR <- haneschPlot(ABSummary %>% 
+                                filter(type %in% ABTypes$type),
+                              grouping="supertype2",flip=T,
+                              roiSelect = ABRois,roiLabel = labelRoisAB,interactive=TRUE,showCount = TRUE,theme=theme_paper_grid())
+haneschABR
+```
+
+```{r}
+save_plot(file.path(NIPFolder,"AB_NIP.svg"),haneschABR,ncol=1,nrow=1.5,base_width = 8.5/2)
+```
+
+

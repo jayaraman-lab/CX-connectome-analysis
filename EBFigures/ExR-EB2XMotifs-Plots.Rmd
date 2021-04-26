@@ -1,0 +1,253 @@
+---
+title: "ExR motifs figure: EB to non-EB"
+output: html_notebook
+---
+
+## Preparing the environment
+```{r}
+library(tidyr)
+library(readr)
+```
+
+Loading local functions:
+```{r,warning=FALSE,message=FALSE}
+source(file.path("..","Outputs","outputFunctions-display.R"))
+source(file.path("..","R","paperTheme.R"))
+source(file.path("..","R","table2ggraphUtils.R"))
+```
+
+This is a folder where the figures will be saved if needed:
+```{r}
+outputsFolder <- "figure15-ExR-Motifs"
+if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
+```
+
+Where the data has been saved (by "ExR-EB2XMotifs-Preparation.Rmd"):
+```{r}
+dataFolder="data"
+```
+
+Loading some data generated in "ExR-EB2XMotifs-Preparation.Rmd":
+```{r}
+## General metadata
+load(file.path(dataFolder,"ExRoutputsBasics.RData"))
+## The pathway weights table
+ExRoutFull <- readRDS(file.path(dataFolder,"ExRpathwayWeightsTable.rds"))
+```
+
+And load the list of CX neurons:
+```{r}
+CXtypes <- supertype(read_csv(file.path("..","CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
+```
+
+
+## Prepare the data
+### List the EB neurons interacting with ExR neurons outside the EB
+Generate a list of all EB neurons (we want all CX neurons with at least 80% of instances with synapses in the EB):
+```{r}
+## Neurons with at least 80% of instances touching the EB
+roiTable <- getTypesInRoiTable("EB", minTypePercentage = 0.8)
+
+## Intersect with the CX types
+allEBTypes <-  CXtypes$databaseType[CXtypes$databaseType %in% roiTable$names$databaseType]
+
+## Get a table of individual neurons
+allEBNeurons <- getTypesTable(allEBTypes)
+allEBNeurons <- cxRetyping(allEBNeurons,postfix="raw")
+allEBNeurons <- supertype(allEBNeurons)
+
+head(allEBNeurons)
+```
+
+We then further restrict this list of types to those that innervate regions outside the EB (at least 20 synapses), and filter out:
+```{r}
+allEBTypes <- getROISummary(allEBNeurons)
+
+allEBTypes <- filter(allEBTypes,roi %in% outsideRegions) %>% group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
+   summarize(upstream=sum(upstream),
+             downstream=sum(downstream),
+             fullWeight=sum(fullWeight),
+             downstreamRatio=downstream/fullWeight,
+             polarityRatio=(downstream/totalDownstream[1])/(upstream/totalUpstream[1])) %>%
+   ungroup() %>% distinct()
+allEBTypes <- filter(allEBTypes,upstream>20 | downstream>20)
+
+allEBNeurons <- filter(allEBNeurons,type %in% allEBTypes$type)
+```
+
+We then select all ExR to EB neurons connections outside the EB to look for motifs in. 
+We exclude projections to EB neurons that are mostly axonal, and consider only connections with pathway weights over 0.5%.
+```{r}
+partnerTypes <-  allEBTypes
+EBOutAxonals <- filter(partnerTypes,downstreamRatio>0.75)
+
+EB2EBaxDendMat <- filter(ExRoutFull,
+                         databaseType.to %in% partnerTypes$databaseType & 
+                           !databaseType.to %in% EBOutAxonals$databaseType & 
+                           databaseType.from != databaseType.to) %>% 
+  mutate(roi="Outside") %>% supertype() %>% filter(Path_weight>0.005)
+head(EB2EBaxDendMat)
+```
+
+### Build the connection table in the EB
+We then build the EB connection tables for those ExR partners (we also make a graph object of it):
+```{r}
+recurrentInEBBag <- neuronBag(filter(allEBNeurons,type %in% unique(c(EB2EBaxDendMat$type.from,EB2EBaxDendMat$type.to))),
+                              renaming = cxRetyping,omitInputs = T,slctROI=c("EB")) #,"FB","NO(R)","NO(L)","PB"
+allRecurrentEB <- recurrentInEBBag$outputs
+
+allRecurrentGraph <- makeGraph(allRecurrentEB)
+allRecurrentGraph
+```
+
+```{r}
+# A rough ordering of types for subsequent figures
+#typesEB <- unique(ExRNeurons$type)
+#typesEBOrder <- c(typesEB[startsWith(typesEB,"Ex")])
+```
+
+## Motifs prevalence (panel B)
+We then count the prevalence of every motif for every ExR type present in the ExR to EB connections table:
+- the prevalence canonical feedbacks is the number of reciprocal connections in the EB (divided by the number of connections outside the EB)
+- the prevalence of parallel connections is the number of matching connections in the EB (divided by the number of connections outside the EB)
+- the prevalence of linked targets is the number of connections between any 2 of the targets in the EB, divided by the number of possible connections (n choose 2, where n is the number of targets)
+```{r}
+recurrentMotifsSummary <- group_by(EB2EBaxDendMat,
+                                   type.from,supertype1.from,supertype3.from) %>% 
+  summarize("EB parallel connection"=sum(paste0(type.from,type.to) %in% 
+                                           paste0(allRecurrentEB$type.from,allRecurrentEB$type.to))/n(),
+            "EB canonical feedback"=sum(paste0(type.to,type.from) %in% 
+                                          paste0(allRecurrentEB$type.from,allRecurrentEB$type.to))/n(),
+            "linked targets in EB"=if (n()==1) 0 else 
+              sum(as.vector(combn(type.to,2,paste0,collapse="")) %in%
+                    c(paste0(allRecurrentEB$type.from,allRecurrentEB$type.to),
+                      paste0(allRecurrentEB$type.to,allRecurrentEB$type.from)))/(choose(n(),2))
+  ) %>% ungroup()
+head(recurrentMotifsSummary)
+```
+We then pivot the table to a longer format for easier plotting:
+```{r}
+recurrentMotifsSummary <- pivot_longer(recurrentMotifsSummary,
+                                       c("EB parallel connection","EB canonical feedback","linked targets in EB"),
+                                       names_to="stat",values_to="proportion") %>% 
+  mutate(type.fromF = factor(type.from,levels=unique(ExRNeurons$type)),
+         stat=factor(stat,levels=c("EB parallel connection","EB canonical feedback","linked targets in EB")))
+
+```
+
+We then plot the prevalence of each motif per type:
+```{r}
+recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary %>% filter(supertype3.from == "ExR") ,aes(x=type.fromF,y=stat)) + 
+   geom_point(size=3,color="grey90")+ 
+   geom_point(aes(size=proportion,color=stat))  + 
+   facet_grid(.~supertype1.from,scale="free",space="free")+ 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.text.x = element_text(angle=90)) +
+  xlab("CX output type") + scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + 
+  scale_color_paletteer_d(name="motif","ggthemes::Traffic")
+
+recurrentMotifsPrevalence
+```
+And save it:
+```{r}
+ggsave("ExR-motifPrevalence.pdf", plot = recurrentMotifsPrevalence, device='pdf', path = outputsFolder,
+    scale = 1,height=2.5, width=5, useDingbats=FALSE)
+```
+
+## Motifs weight breakdown (panel C)
+For each ExR type participating in motifs, we collate the motifs using the `getMotifsGraphDf` function (defined in **Outputs/outputFunctions-display.R**): `getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the EB connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
+```{r}
+supertypeMotifSummary <-  getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,
+                                           "ExR2_R","Path_weight") %>% 
+  mutate(source = "ExR2_R")
+
+for(mytype in c("ExR3_R","ExR5_R","ExR6_R","ExR7_R")){
+   #c("ExR1_L","ExR2_R","ExR2_L","ExR3_R","ExR3_L","ExR4_R","ExR5_R","ExR5_L","ExR6_R","ExR7_R","ExR7_L")
+   myMotifGraph = getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),
+                                   allRecurrentEB,mytype,"Path_weight")  %>% 
+     mutate(source = mytype)
+   supertypeMotifSummary = bind_rows(supertypeMotifSummary, myMotifGraph)
+}
+head(supertypeMotifSummary)
+```
+
+We then sum all the weights of the connections involved in a given motif for a given ExR neuron:
+```{r}
+supertypeMotifSummary <- group_by(supertypeMotifSummary,supertype3.to,source,motif,roi) %>%
+  summarize(weight=sum(weightRelative)) %>% ungroup()
+
+head(supertypeMotifSummary)
+```
+And plot the result:
+```{r}
+typesInMotif = ggplot(data = supertypeMotifSummary %>% filter(motif != "NA" & roi == "EB") , aes(x=source, y=weight, fill=supertype3.to)) +
+   geom_bar(position = "stack", stat="identity") + 
+   facet_grid(rows=vars(motif),scale="free") +
+   #scale_fill_manual(values=p36) + 
+   scale_fill_manual(name="partner supertype",values=supertype3Palette) + 
+  theme_paper(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) +
+  xlab("") + ylab("relative weight")
+
+typesInMotif
+
+```
+
+```{r}
+ggsave('ExR-motifContributions.pdf', plot = typesInMotif, device='pdf', path = outputsFolder,
+    scale = 1,height=3.5,width=3, useDingbats=FALSE)
+```
+
+## Motifs plots (panels D through G)
+We then use the `plotMotifs` function (defined in **outputFunctions-display.R**), which takes a graph object outputed by `getMotifsGraphDf` as an input and returns the radial motif plot used in the figures on each ExR of interest.
+
+For example (change `mytype` to look at different source neurons):
+```{r}
+mytype <- "ExR2_R"
+myMotifGraph <- getMotifsGraphDf(EB2EBaxDendMat,allRecurrentEB,mytype,"Path_weight")
+exRMot <- plotMotifs(myMotifGraph)
+exRMot
+```
+We run it in a loop for all ExR of interest to save the panels:
+```{r}
+for (mytype in c("ExR2_R","ExR3_R","ExR5_R","ExR6_R")){
+  myMotifGraph <-  getMotifsGraphDf(EB2EBaxDendMat,allRecurrentEB,mytype,"Path_weight")
+  exRMot <- plotMotifs(myMotifGraph)
+  ggsave(paste0('motifGraph',mytype,".pdf"),path=outputsFolder, device="pdf", plot=exRMot,scale=1,width=5, height=3,useDingbats=FALSE)
+}
+```
+
+
+
+
+## Old code
+
+```{r}
+
+plotMotifsCustom <- function(graphDf){
+  focusContrib <- filter(graphDf,roi=="Outside") %>% group_by(type.to) %>% summarize(weightRelative=sum(weightRelative)) %>% ungroup()
+  motifGG <- makeGraph(graphDf) 
+  edgePal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
+  names(edgePal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked targets in CX")
+  
+  motifGG <- motifGG %N>% 
+    mutate(
+      customSuper = ifelse(layer,"Source",supertype2))
+  
+  #customPal <- c("Source"="grey50",supertype2Palette()$pal)
+  
+  return(ggraph(motifGG,layout="focus",focus=(motifGG %N>% as_tibble())$layer)+
+           graphlayouts::draw_circle(max.circle = 1,col="grey90") +
+           geom_edge_fan2(aes(color=motif,
+                              width=weightRelative),
+                          end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
+                          arrow =arrow(length = unit(1, 'mm'),type = "closed"))+
+           geom_node_point(aes(color=customSuper),size=4)+
+           #scale_color_manual(values=customPal) +
+           guides(color="none") +
+           theme_paper_map() + scale_edge_color_manual(name="Motif",values=edgePal,breaks=c("out of CX pathways","CX parallel connection","CX canonical feedback","linked targets in CX"),drop=FALSE)+
+           scale_edge_width(name="relative weight/pathway weight",range=c(0.2,3),limits=c(0,1),)+
+           geom_node_text(aes(label=name),size=1.5,nudge_y = 0.15) + 
+           coord_fixed(clip="off"))
+}
+
+```
+

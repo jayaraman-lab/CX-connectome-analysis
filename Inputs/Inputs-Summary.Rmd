@@ -10,23 +10,29 @@ Loading local functions:
 source(file.path("..","Outputs","outputFunctions-display.R"))
 source(file.path("..","R","paperTheme.R"))
 ```
+
 This is a folder where the figures will be saved if needed:
 ```{r}
 outputsFolder <- "figure5-CXInputs"
 if (!dir.exists(outputsFolder)) dir.create(outputsFolder)
 ```
+
 Where the data has been saved (by "Inputs-Core.Rmd"):
 ```{r}
 dataFolder="data"
 ```
 
+Loading some objects necessary to generate the figures (created in "Outputs-Core.Rmd")"
 ```{r}
+#Base metadata
 load(file.path(dataFolder,"inputsBasics.RData"))
 
+#The pathway weights from any neuron to CX input neurons
 endpointsInfluence <- readRDS(file.path(dataFolder,"endpoints-influence_Inputs.rds"))
-#load(file.path(dataFolder,"mainSourcesAndConns.Rdata"))
 ```
 
+## Composition of the inputs in terms of known types (panel B)
+We first define the palette (to be maximally consistent with other figures in the paper):
 ```{r}
 endpointsPalette <- c("Unknown"="grey80",
                        "CX"=p36[2],
@@ -61,19 +67,28 @@ endpointsLevels <- c(  "Unknown",
                        "Other Sensory")
 ```
 
+We then summarize the pathway weigths ending onto CX input types:
 ```{r}
 endpointsInfluenceSummary <- group_by(filter(endpointsInfluence,type.to %in% CXInputNeurons$type),
                                       type.to,supertype3.to,supertype.from) %>% 
   summarize(Path_weight=sum(Path_weight)) %>% 
    mutate(supertype.from=factor(supertype.from,levels=endpointsLevels)) %>% 
   ungroup()
+head(endpointsInfluenceSummary)
+```
 
+We then compute how much of the pathways cannot be traced back to any known type (this is what is unexplained by the total path weight):
+
+```{r}
 unknownInfluence <- group_by(endpointsInfluenceSummary,type.to,supertype3.to) %>%
   summarize(supertype.from="Unknown",Path_weight=1-sum(Path_weight)) %>% 
   ungroup()
 
 endpointsInfluenceSummary <- rbind(endpointsInfluenceSummary,unknownInfluence)
 
+```
+Finally we restrict our analysis to paths not coming from the CX, and for the figure, we exclude FB neurons (to be treated later in the manuscript):
+```{r}
 endpointsInfluenceSummaryMainFF <- filter(endpointsInfluenceSummary,supertype.from != "CX")
 
 endpointsCompositionMainFFOthers <- ggplot(filter(endpointsInfluenceSummaryMainFF,
@@ -81,7 +96,7 @@ endpointsCompositionMainFFOthers <- ggplot(filter(endpointsInfluenceSummaryMainF
                                                                          "FB Output",
                                                                          "FB Columnar"))),
                                                   aes(x=type.to,y=Path_weight)) + geom_col(aes(fill=supertype.from)) +
-  scale_fill_manual(name="Source supertype",values=endpointsPalette)+
+  scale_fill_manual(name="source supertype",values=endpointsPalette)+
   theme_paper(strip.text.x=element_blank(),
               axis.text.x = element_text(angle=90,hjust = 1,vjust=0.5))+ 
   facet_grid(.~supertype3.to,scales = "free",space="free") + 
@@ -98,12 +113,13 @@ save_plot(file.path(outputsFolder,"inputCompositionOthers.svg"),
 ## Input synapses (figure 5 supplement 1)
 
 ### Synapse locations (panel A)
+We load the synapses:
 ```{r}
 CXInSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses_Inputs.rds"))
 ```
-
+Then plot (and save) their rendering in the volume using `displaySynapses3D` (defined in ***Outputs\outputFunctions-display.R***):
 ```{r}
-displayAnatomies(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
+displaySynapses3D(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)",
                         "CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
                  saveName = "allIns-noFB",
@@ -112,21 +128,27 @@ displayAnatomies(synapses=filter(CXInSyn,!(supertype3 %in% c("FB Tangential"))),
                  synapseCluster = "supertype3",
                  size = c(3000,3000))
 ```
-
+Generate the legend for that plot:
 ```{r}
 legendSource <- cowplot::get_legend(ggplot(CXInputNeurons,aes(x=1,y=supertype3)) + geom_point(aes(color=supertype3)) + theme_paper_map() + scale_color_manual(name="supertype",values=supertype3Palette))
 ```
-
+And save it:
 ```{r}
 save_plot(file.path(outputsFolder,"legend.svg"),legendSource,base_height = 3,base_width = 1)
 ```
 
 ### Synapse counts in different regions (panel B)
+We first select the ROIs on the right side of the brain in a table:
 ```{r}
 roiH <- getRoiTree()
 roisOut <- selectRoiSet(roiH,exceptions=list("LAL(R)"=4,"CRE(R)"=4))
-roisOut <- roisOut %>% filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & (!level1 %in% "CX") & side2 != "Left") 
-
+roisOut <- roisOut %>% 
+  filter((!(level2 %in% c("ATL(L)","ICL(L)"))) & 
+           (!level1 %in% "CX") & side2 != "Left") 
+head(roisOut)
+```
+Then summarize the innervation of all CX neurons innervating outside the CX in those regions. Add to that a little redefinition of supertypes to link them to the anatomy (this will be used to facet the plot):
+```{r}
 CXOutsideInnervation <- getROISummary(CXOutsideNeurons,threshold=0) %>% 
   filter(roi %in% roisOut$roi) %>%
   mutate(region = case_when(
@@ -138,6 +160,7 @@ CXOutsideInnervation <- getROISummary(CXOutsideNeurons,threshold=0) %>%
   ))
 ```
 
+Finally, we count the total number of upstream and downstream synapses for those neurons in those regions:
 ```{r}
 CXOutsideInnervationSummary <- group_by(CXOutsideInnervation,region,roi) %>% 
   summarize(totalDownstream=sum(downstream),totalUpstream=sum(upstream)) %>% 
@@ -148,6 +171,7 @@ CXOutsideInnervationSummary <- group_by(CXOutsideInnervation,region,roi) %>%
   ungroup() %>%
   mutate(polarityRatio=totalDownstream/(totalUpstream+totalDownstream))
 ```
+And plot the raw numbers of input synapses:
 ```{r}
 inputTotals <- ggplot(filter(CXOutsideInnervationSummary,upstreamRatio>0.01),aes(x=roi,y=totalUpstream)) +
   geom_point() + facet_wrap(.~region,scales="free") + 

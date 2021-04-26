@@ -5,10 +5,7 @@ output: html_notebook
 
 ## Preparing the environment
 ```{r}
-library(dplyr)
 library(tidyr)
-library(neuprintrExtra)
-library(paletteer)
 ```
 Loading local functions:
 ```{r message=FALSE}
@@ -77,16 +74,24 @@ FB2BBodies$bodyid
 ```
 
 #### PFL1 network motifs
-We use the `plotMotifs` function, defined in "outputFunctions-display", that takes as input the connections tables in the two neuropils (or sets of neuropils) we're considering, the neuron of interest (at the center of the motif graph) and the stat considered:
+We use two functions defined in **outputFunctions-display.R**, `plotMotifs` and `getMotifsGraphDf`. 
+-`getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the CX connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
+-`plotMotifs` takes such an object as input an plots the radial motif plot used in the figures
 ```{r}
-canMot <- plotMotifs(getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
+pfl1MotifGraph <- getMotifsGraphDf(mutate(CX2CXaxDendMat,roi="Outside"),
                                       allRecurrentCX,
-                                      "PFL1_L*","Path_weight"))
+                                      "PFL1_L*","Path_weight")
+pfl1MotifGraph
+```
+
+
+```{r}
+canMot <- plotMotifs(pfl1MotifGraph)
 canMot
 ```
 And save the graph:
 ```{r}
-save_plot(file.path(outputsFolder,"outputs-canMot.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
+save_plot(file.path(outputsFolder,"outputs-canMot2.svg"),canMot,ncol=6,nrow=6,base_width = 8.5/10,base_height=11/28)
 ```
 
 ### Parallel connections (panel C)
@@ -180,9 +185,6 @@ recurrentMotifsPrevalence <- ggplot(recurrentMotifsSummary ,aes(x=type.fromF,y=s
                strip.text.x = element_text(angle=90)) + 
    xlab("CX output type") + 
    scale_size_area(name="prevalence",max_size = 3) + ylab("motif") + scale_color_paletteer_d(name="motif","ggthemes::Traffic")
-
-#motifPal <- c("Plum",paletteer_d("ggthemes::Traffic")[1:3])
-#names(motifPal) <- c("Out of CX pathways","CX Parallel connection","CX Canonical feedback","Linked #targets in CX")
 
 recurrentMotifsPrevalence
 ```

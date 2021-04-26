@@ -1,0 +1,185 @@
+---
+title: "Analysis of wind (mechanosensoy) info comming into CX"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of mechanosensory information pathway coming into CX via R1 neurons
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+source(file.path("..","R","visualizeConnectivityTables.R"))
+options(nat.plotengine = 'rgl')
+
+neuprint_login()
+```
+
+#### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+## Bodyid's of neurons that are potentially involved
+The propose pathway presented in Suver et al is Johnstons organs -> APN3/APN2 -> WPN
+
+Here we will try to identify which neurons in the EM volume correspond to APN2, APN3 and WPN and illustrate a potential route toward the fly's heading circuit.
+```{r}
+#APN3s (presynaptic of APN2s):
+APN3ids = c(975289165, 1099073905, 1130458829)
+#APN2s (postsynaptic of APN3s): 
+APN2ids = c(1539649574, 2096909915, 2096913987)
+
+# get names
+for (i in APN3ids) {
+  print(neuprint_get_neuron_names(i))
+}
+for (i in APN2ids) {
+  print(neuprint_get_neuron_names(i))
+}
+```
+We will also consider the putative WL-L neuron, which is wind sensitive and connects to R1
+```{r}
+#WL-L
+WLLids = c(1386849677, 1539632818)
+
+for (i in WLLids) {
+  print(neuprint_get_neuron_names(i))
+}
+```
+
+Get all neurons of the type described by the bodyids  above
+```{r}
+APN2type =  c("SAD004", "SAD003")
+APN3type = "SAD077"
+APN3 = neuprint_search("SAD077_.*")
+APN2 = bind_rows(neuprint_search("SAD004.*"),neuprint_search("SAD003.*"))
+APN2and3 = bind_rows(APN2, APN3) 
+
+APNBodies = c(APN3$bodyid,APN2$bodyid)
+
+WLLtype = "LAL138"
+WLL = neuprint_search(paste0(WLLtype,".*"))
+
+```
+
+
+Also get body ID's of putative downstream partners
+```{r}
+# Putative WPN, based on morphology and connectivity:
+#(these were identified in a shortest path analysis as shown later)
+WPNtype = "LHPV6q1"
+WPN = neuprint_search(paste0(WPNtype,".*"))
+
+# Ring neurons
+ER1 = neuprint_search("ER1_.*")
+ER1a = neuprint_search("ER1_a.*")
+ER1b = neuprint_search("ER1_b.*")
+
+ER3a= neuprint_search("ER3a.*")
+
+ER1and3a =  bind_rows(ER1, ER3a) 
+
+ER1and3_andWLLWPN =  bind_rows(ER1, ER3a, WLL,WPN) 
+
+splitLR = TRUE
+```
+
+## Find paths to the CX
+```{r}
+maxL = 5
+
+APN_to_ER1_t2tpath = get_type2typePath(APN2and3, ER1b, by.roi = FALSE, n_steps = seq(maxL),renaming=lateralize_types)
+```
+
+```{r}
+APN_to_ER1or3_t2tpath = get_type2typePath(APN2and3, ER1and3a, by.roi = FALSE, n_steps = seq(maxL),renaming=lateralize_types)
+```
+
+
+```{r}
+cutoff = 0#0.02#0.01#
+edcurve = 0.15
+vertexSize = 7
+edgeNorm = 0.04
+minPathWeight = 0.1 ** maxL#
+plotSize = 10
+
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+
+if(splitLR){
+  myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
+  myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
+  myColorMap= bind_rows(myColorMap_L, myColorMap_R)
+  
+}
+graphName = "pathGraph_APN_2_ER1or3_0-1-exp5"
+
+pathDf = APN_to_ER1or3_t2tpath %>% filter(weightRelative_path  >= minPathWeight )
+
+graphDataFrame = pathDf2graphDf(pathDf) %>% mutate(relWeight =  weightRelative)
+myColorMap = myColorMap %>% filter(Simpletype == "no")
+
+myGraph = constructConnectivityGraph(graphDataFrame, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm,colormap = myColorMap)
+
+l = layout_with_dh(myGraph)
+myGraph$main = paste("Min path weight = ", minPathWeight)
+
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), 
+     family="Arial", vertex.label.family  = "sans")
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-0.8,y=1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0)),  bty = "n", seg.len=0.5)
+
+#dev.print(pdf, paste0("plots",graphName,".pdf"), width=plotSize, height=plotSize,useDingbats=FALSE)
+```
+
+Layered layout
+```{r}
+patternLayers =c("SAD","WEDPN","WED","PV","LAL","ER")
+layerPos = c(0,2,3,4,5,6)
+defaultX = 1
+edcurve = 0.1
+arrowSize = 0.4 # set to 0 if you prefer styling arrows in e.g. adobe illustrator
+
+myGraph = constructConnectivityGraph(graphDataFrame, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm,colormap = myColorMap)
+
+vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
+vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultX)
+
+for(layer in seq(length(patternLayers))){
+  vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
+    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc))/length(loc) )
+}
+vertexProps$yloc[vertexProps$loc == "default"] = (1/length(vertexProps$loc))*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
+
+plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])),
+     edge.color = customizeGraphEdges(myGraph), family="Arial", vertex.label.family = "sans",edge.arrow.size=arrowSize)
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=0.1,y=-0.1, legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+if (savePlot){
+  dev.print(pdf, file.path("plots",paste0("connectivityGraph_",graphName,'_',round(100*cutoff),"perc_layered.pdf")), width=plotSize, height=plotSize)
+}
+```

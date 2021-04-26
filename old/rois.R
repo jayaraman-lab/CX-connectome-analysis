@@ -148,3 +148,31 @@ roiOutline.character <- function(roi,alpha=100){
   roiMesh <- neuprint_ROI_mesh(roi)
   roiOutline(roiMesh,alpha=alpha,roiName=roi)
 }
+
+
+getCompRoiInfo <- function(bodyidsIn,
+                           bodyidsOut,
+                           roi,
+                           newDataset,
+                           oldDataset){
+  roiTableIn <- getCompRoiInfoInternal(bodyidsIn,roi,polarity="inputs",newDataset=newDataset,oldDataset=oldDataset)
+  roiTableOut <- getCompRoiInfoInternal(bodyidsOut,roi,polarity="outputs",newDataset=newDataset,oldDataset=oldDataset)
+  
+  bind_rows(roiTableIn,roiTableOut) 
+}
+
+getCompRoiInfoInternal <- function(bodyids,ROI,polarity=c("inputs","outputs"),newDataset,oldDataset){
+  polarity <- match.arg(polarity)
+  newRefTable <- neuprint_get_meta(bodyids,dataset=newDataset)
+  
+  newRoiTable <- getRoiInfo(bodyids,dataset=newDataset) %>% filter(roi == ROI) %>% mutate(version="new")
+  oldRoiTable <- getRoiInfo(bodyids,dataset=oldDataset) %>% filter(roi == ROI) %>% mutate(version="old")
+  
+  roiTable <- bind_rows(newRoiTable,oldRoiTable) 
+  if (polarity == "inputs")
+    roiTable <- pivot_wider(roiTable,names_from = version,values_from=upstream,id_cols = bodyid)
+  else
+    roiTable <- pivot_wider(roiTable,names_from = version,values_from=downstream,id_cols = bodyid)
+  
+  mutate(roiTable,databaseType=newRefTable$type[match(bodyid,newRefTable$bodyid)]) %>% supertype() %>% mutate(side=polarity)
+}

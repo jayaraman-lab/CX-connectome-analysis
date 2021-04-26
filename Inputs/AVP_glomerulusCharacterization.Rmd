@@ -1,0 +1,240 @@
+---
+title: "Create vizualization of synapse locations in glomeruli"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Create vizualization of synapse locations in glomeruli
+Generates plots for Figure 7 - Supplemental information 1 panel C
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(neuprintrExtra)
+library(paletteer)
+require(RColorBrewer)
+library(gridExtra)
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","SynapsePCAUtils.R"))
+source(file.path("..","R","visualizeConnectivityTables.R"))
+source(file.path("..","R","paperTheme.R"))
+
+neuprint_login()
+```
+
+
+### (0) Get some synapse locations
+Choose ROI and get curated list of neurons.
+For Ci choose perspective = "TuBu", for Cii choose "ER"
+```{r}
+myROI = "BU(R)"
+
+perspective = "TuBu" # {"ER", "TuBu"}
+if (perspective == "TuBu"){
+  my_types = c("TuBu")
+  partnerSubset = getBodyIdsForList(paste0(c("ER"),".*"))
+  focustype = "TuBu06"
+}else if (perspective == "ER"){
+  my_types = c("ER1","ER2","ER3","ER4","ER5","ER6")
+  partnerSubset = getBodyIdsForList(paste0(c("TuBu"),".*"))
+  focustype = "ER5"
+}else{print("Please choose a valid perspective value.")}
+
+my_types = paste0(my_types, ".*")
+my_neurons = getBodyIdsForList(my_types)
+
+# Generate color map
+cmapNames = c("RingNeurons", "TuBus","ExR_and_AOTU46")
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+```
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+...use this list to get synapse locations
+```{r}
+my_synapses = neuprint_get_synapses(as.numeric(getBodyIdsForList(my_types)$bodyid),myROI)
+
+my_synapses = my_synapses %>% mutate(
+name=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["name"]],
+type=neuprint_get_meta(as.numeric(bodyid), all_segments = TRUE)[["type"]],
+partnerName=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["name"]],
+partnertype=neuprint_get_meta(as.numeric(partner), all_segments = TRUE)[["type"]])
+```
+
+### (1) Import of ROI meshes and get vertices in x,y,z
+```{r}
+roiMesh = neuprint_ROI_mesh(myROI)
+roiMeshPts = data.frame(dotprops(roiMesh)$points)
+names(roiMeshPts) <- c("x","y","z")
+```
+
+
+### (2) Find convenient coordinate system based on PCA of vertices and center of mass of the ROI
+***Transform mesh  and synapse locations***
+```{r}
+# define new origin from roi center of mass
+origin = getCOM(roiMeshPts)
+
+#reset orgin
+roiMeshPts = resetOrigin(roiMeshPts, origin)
+
+#get eigenvectors
+roiEigen = covPCA(roiMeshPts)
+
+roiMeshPtsRot = changeBasis(roiMeshPts, roiEigen)
+
+#Synapse locations
+synPts = data.frame(x=as.numeric(my_synapses$x),
+                    y=as.numeric(my_synapses$y),
+                    z=as.numeric(my_synapses$z))
+synPts = resetOrigin(synPts, origin)
+synPtsRot = changeBasis(synPts, roiEigen)
+
+```
+
+***Select either original or EV coordinates and rotate***
+```{r}
+if (myROI == "AOTU(R)"){
+  rot = c(0,0,0)
+}else if (myROI == "BU(R)"){
+  rot = c(45,0,0)
+}else if (myROI == "EB"){
+  rot =  c(0,0,180)
+}else{
+  rot = c(0,0,0)
+}
+
+flipx = 1
+flipy = -1
+flipz = 1
+
+roiMeshPtsPlane = data.frame(x=roiMeshPtsRot$X,
+                             y=roiMeshPtsRot$Y,
+                             z=roiMeshPtsRot$Z)
+synPtsPlane = data.frame(x=synPtsRot$X,
+                             y=synPtsRot$Y,
+                             z=synPtsRot$Z)
+# rotate points
+roiMeshPtsPlane = data.matrix(roiMeshPtsPlane)
+synPtsPlane = data.matrix(synPtsPlane)
+
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXY(rot[1])
+synPtsPlane = synPtsPlane %*% makeRotMatXY(rot[1])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatYZ(rot[2])
+synPtsPlane = synPtsPlane %*% makeRotMatYZ(rot[2])
+roiMeshPtsPlane = roiMeshPtsPlane %*% makeRotMatXZ(rot[3])
+synPtsPlane = synPtsPlane %*% makeRotMatXZ(rot[3])
+
+roiMeshPtsPlane = data.frame(x=flipx*roiMeshPtsPlane[,1],y=flipy*roiMeshPtsPlane[,2],z=flipz*roiMeshPtsPlane[,3])
+synPtsPlane = data.frame(x=flipx*synPtsPlane[,1],y=flipy*synPtsPlane[,2],z=flipz*synPtsPlane[,3],
+                         type = as.factor(my_synapses$type), 
+                         partnerType = as.factor(my_synapses$partnertype),
+                         name = as.factor(my_synapses$name), 
+                         partnerName = as.factor(my_synapses$partnerName),
+                         id = as.factor(my_synapses$bodyid),
+                         partnerid = as.factor(my_synapses$partner),
+                         prepost = as.factor(my_synapses$prepost))
+
+#Add simple type name
+synPtsPlane = synPtsPlane %>% mutate(simpleType = gsub("_.*", "",type))
+
+synCount = synPtsPlane %>% count(type)
+typeFilter = synCount$type[synCount$n > 10]
+
+# generate color map
+dataFilt = synPtsPlane %>% filter(type %in% typeFilter)
+
+myTypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$simpleType)) %>% filter(Simpletype == "yes")
+myTypeCols = myTypeCols[match(as.character(unique(dataFilt$simpleType)), myTypeCols$Type),] %>%
+  arrange(unique(dataFilt$simpleType))
+
+mySubtypeCols = myColorMap %>% filter(Type %in% unique(dataFilt$type)) %>% filter(Simpletype == "no")
+mySubtypeCols = mySubtypeCols[match(as.character(unique(dataFilt$type)), mySubtypeCols$Type),] %>%
+  arrange(unique(dataFilt$type))
+
+
+```
+
+### Look at synapse distributions of individual neurons
+Plot a slice for a focus type neuron.
+The default distance is in pixels with 8x8x8 nm/pixel resolution, so we convert to um as follows: pixels*8(nm/pixel)/1000(nm/um).
+
+```{r}
+xrange = c(-1500, 1000)
+yrange = c(-500, 1500)
+zrange = c(-800, 400)
+nsyn =40
+xrange_slice = c(-300, 300)
+
+convfactor = 8/1000
+```
+
+```{r}
+data = dataFilt %>% filter(partnerType %in% partnerSubset$type) %>% filter(type %in% c(focustype))
+
+toplot_2D = data %>% filter(x >= xrange[1] & x < xrange[2] ) %>%  filter(y >= yrange[1] & y < yrange[2] ) %>% 
+  filter(z >= zrange[1] & z < zrange[2] ) %>% mutate(id = as.character(id)) %>% select(c('x','y','z', 'id'))
+
+if (focustype  == "TuBu06"){
+  colPal = paletteer_d("colRoz::salt_lake")
+}else{
+  colPal = paletteer_c("grDevices::Heat 2", n=length(unique(toplot_2D$id)))
+}
+
+xyproj <- ggplot(toplot_2D) + geom_point(aes(x=x*convfactor, y=y*convfactor, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
+  geom_point(data=toplot_2D %>% group_by(id) %>% summarize_each(mean), aes(x=x*convfactor, y=y*convfactor, color=id, size=0.5)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + xlab("x [µm]") + ylab("y [µm]") + 
+  geom_vline(xintercept = xrange_slice[1]*convfactor) + geom_vline(xintercept = xrange_slice[2]*convfactor) +
+  coord_fixed() + guides(size=FALSE,alpha=FALSE)+ theme_paper()
+
+# take a slice in z and only plot points from neurons with > nsyn synapses in slice
+
+toplot_slice = toplot_2D %>% filter(x >= xrange_slice[1] & x < xrange_slice[2] )
+idfilt = toplot_slice %>%  count(id) %>% filter(n>=nsyn)
+
+zyproj <- ggplot(toplot_slice %>% filter(id %in% idfilt$id) ) + geom_point(aes(x=z*convfactor, y=y*convfactor, color=id, size=0.25, alpha=0.8,stroke = 0)) + 
+  geom_point(data=toplot_slice %>% filter(id %in% idfilt$id) %>% group_by(id) %>% summarize_each(mean), aes(x=z*convfactor,y=y*convfactor, color=id, size=0.5)) +
+  scale_color_manual(values = colPal, breaks = unique(toplot_2D$id)) + xlab("z [µm]") + ylab("y [µm]") +
+  coord_fixed() + guides(size=FALSE, alpha=FALSE) + theme_paper()
+
+projPlot <- grid.arrange(xyproj,zyproj, nrow=1)
+
+if (savePlot){
+  ggsave(paste("glomeruliPlot_",focustype,'.pdf', sep=''), plot = projPlot, device='pdf',
+          path = "plots", scale = 1, width = 15, height = 5, units ="cm", dpi = 600, useDingbats=FALSE)
+}
+```
+
+
+Glomeruli size
+
+```{r}
+synRelDist = dataFilt %>% group_by(id) %>% filter(partnerType %in% partnerSubset$type) %>%
+  mutate(x_h = x - mean(x), y_h = y - mean(y),z_h = z - mean(z)) %>%
+  mutate(syndist = sqrt( x_h^2 + y_h^2 + z_h^2)) %>%
+  mutate(npartner = length(unique(partnerid)))
+
+synDistDistr = ggplot(data=synRelDist) + 
+  geom_density(aes(x=syndist,color=type, hue=id)) +
+  scale_color_manual(values = as.character(mySubtypeCols$hex)) +
+  guides() + theme_classic() + coord_cartesian(xlim = c(0, 1500))
+
+print(synDistDistr)
+
+```
+

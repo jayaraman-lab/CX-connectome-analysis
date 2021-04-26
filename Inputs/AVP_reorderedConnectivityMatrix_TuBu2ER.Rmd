@@ -1,0 +1,148 @@
+---
+title: "Tools for analysing connectivity between neurons within a region"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(neuprintrExtra)
+options(nat.plotengine = 'rgl')
+
+source(file.path("..","R","visualizeConnectivityTables.R"))
+
+neuprint_login()
+
+```
+
+### Saving plots
+Indicate if you would like to save the plots here (defualt is false). Plots will be saved inside this folder in a subdirectory "plots"
+```{r}
+savePlot = TRUE
+if (savePlot){
+  dir.create("plots")
+}
+```
+
+
+### Make selection of neurons to be used in connecitivy analysis
+```{r}
+ROI = "BU"
+slctROI ="BU(R)"
+
+splitLR = TRUE # Whether or not to split neurons within a type into a left and right group.
+makeAsymmetric = TRUE # Whether to enforce showing only pregroup -> postgroup connections as opposed to all connections within {pregroup,postgroup}
+
+saveName = paste0("TuBu2ER_in_", ROI)
+if(splitLR){saveName = paste0(saveName,"_LR")}
+
+# PRE
+preNeuron = paste0("TuBu",".*")
+preName = "TuBu"
+preIDs = getBodyIdsForList(preNeuron)
+
+# POST
+postNeuron = paste0("ER", seq(1,6),".*")
+postName = "ER (ring)"
+postIDs = getBodyIdsForList(postNeuron)
+```
+
+
+### Get connectivity table
+```{r, warning=FALSE}
+preTypes = c(preIDs$bodyid, postIDs$bodyid) # preIDs$bodyid
+postTypes = preTypes#postIDs$bodyid
+myConnections = getConnectionTable(preTypes, "POST", slctROI)
+myConnections = myConnections %>% filter(to %in% postTypes) 
+```
+
+
+### Format the connectivity matrix, convert to type-to-type
+```{r}
+# Make asymmetric matrix
+if (makeAsymmetric){
+  myConnections = myConnections %>% filter(to %in% postIDs$bodyid)  %>% filter(from %in% preIDs$bodyid)
+}
+
+# Make type-to-type connectivity table
+typesTable <- getTypesTable(unique(myConnections$databaseType.to))
+
+if (splitLR){
+  # Subdivide types and build a custom types table
+  myConnections = lateralize_types(myConnections, postfix="to")
+  myConnections = lateralize_types(myConnections, postfix="from")
+  typesTable = lateralize_types(typesTable, postfix="raw")
+}
+
+myConnectionsT2T = getTypeToTypeTable(myConnections,typesTable = typesTable)
+```
+
+
+```{r}
+library(igraph)
+myConnections_nameid = myConnections %>% mutate(typeid.to = paste(type.to, to,sep="_"),
+                                                typeid.from = paste(type.from, from, sep="_"))
+edge_list <- myConnections_nameid[c("from","to","weightRelative")]
+#[c("typeid.from","typeid.to","weightRelative")]
+G <- graph.data.frame(edge_list,directed=TRUE);
+A <- as_adjacency_matrix(G,type="both",names=TRUE,sparse=FALSE,attr="weightRelative")
+
+write.csv(A, file ="matrixReordering/adjacencyMatrix_TB2RN_byid.csv", row.names=FALSE)
+write.csv(edge_list, file ="matrixReordering/edgeList_TB2RN_byid.csv", row.names=FALSE)
+```
+
+
+### Connectivity matrix with default order
+```{r}
+plotW = 16#25# 45 # 20
+plotH = 10 #4 #40  #17
+cmax = NULL
+connectionMeasure = "weightRelative"
+
+conMatPlot = plotConnectivityMatrix(myConnections, byGroup = "id", connectionMeasure, cmax)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+print(conMatPlot)
+ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID.pdf', sep=''), 
+  plot = conMatPlot, device='pdf', path = "plots",
+  scale = 2, width = plotW , height = plotH, units ="cm", dpi = 600, limitsize = TRUE)
+
+```
+```{r}
+# Get these orders (csv files) from sorting the matrix data in python (connectivityMatrixSorting.ipynb)
+xcol_order <- as.character(read.csv("matrixReordering/xcol_bodyids.csv",header=F))
+ycol_order <- as.character(read.csv("matrixReordering/ycol_bodyids.csv",header=F))
+
+xcol_types = neuprint_get_meta(xcol_order)["type"] %>% mutate(id = xcol_order)
+ycol_types = neuprint_get_meta(ycol_order)["type"] %>% mutate(id = ycol_order)
+
+xcol_filter = subset(xcol_types,  grepl("TuBu", type))
+ycol_filter = subset(ycol_types,  grepl("ER", type))
+```
+
+```{r}
+myConTab = myConnections
+myConTab$nameid.from = paste(as.character(myConTab$name.from), as.character(myConTab$from), sep = "_")
+myConTab$nameid.to = paste(as.character(myConTab$name.to), as.character(myConTab$to), sep = "_")
+    
+x_orderDF = data.frame(xorder = seq(1, length(xcol_filter$id)), xid=as.numeric(xcol_filter$id))
+y_orderDF = data.frame(yorder = seq(1, length(ycol_filter$id)), yid=as.numeric(ycol_filter$id))
+myConTab_order = left_join(myConTab,x_orderDF, by=c("from" ="xid"))
+myConTab_order = left_join(myConTab_order,y_orderDF, by=c("to" = "yid"))
+myConTab_order$nameOrder.to = paste(as.character(myConTab_order$yorder),as.character(myConTab_order$to), sep = "_")
+myConTab_order$nameOrder.from = paste(as.character(myConTab_order$xorder), as.character(myConTab_order$from), sep = "_")
+```
+
+```{r}
+conMatPlot = plotConnectivityMatrix(myConTab_order, byGroup = "id_sort", "weightRelative", cmax)
+conMatPlot = addMatrixPlotLabs(conMatPlot, preName,  postName, slctROI, connectionMeasure)
+conMatPlot = structureMatrixPlotByType_lines(conMatPlot)
+print(conMatPlot)
+  
+ggsave(paste("connectivityMatrix_",saveName,'_in_',slctROI,'_',connectionMeasure,'_byID_ordered.pdf', sep=''), 
+    plot = conMatPlot, device='pdf', path = "plots",
+    scale = 2, width = 16 , height = 10, units ="cm", dpi = 600, limitsize = TRUE)
+```

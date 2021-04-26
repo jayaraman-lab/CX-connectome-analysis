@@ -4,9 +4,7 @@ output: html_notebook
 ---
 
 ## Preparing the environment
-```{r}
-library(dplyr)
-```
+
 Loading some local functions:
 ```{r message=FALSE}
 source("outputFunctions-display.R")
@@ -49,7 +47,7 @@ extraPal <- p36[!p36 %in% customSupertypePalette & !p36 %in% customGraphPalette]
 extraLevs <- unique(mainFFConns$supertype2.to[mainFFConns$supertype3.to=="Terra incognita"])
 extraPal <- extraPal[1:length(extraLevs)]
 names(extraPal) <- extraLevs
-customGraphPalette <- c(customGraphPalette,extraPal)
+customGraphPalette <- c(customGraphPalette,extraPal,customSupertypePalette)
 ```
 
 ## Visual PNs in the strong targets network (panel A)
@@ -98,24 +96,14 @@ PFLtoLC33 <- getLocalSubgraph(c("PFL3_L*"),c("LC33_R"),
     mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
 PFLtoLC33
 ```
-Then plot it with ggraph:
+
+We then generate the plot using `standardGraph`, defined in **outputFunctions-display.R**, which is a shortcut for calling `ggraph` with our standard set of parameters
 ```{r}
-PFLtoLC33Plot <- ggraph(PFLtoLC33,layout="stress") +
-  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                end_cap = circle(3, "mm"),
-                linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(aes(color=customSupertype),size=4)+
-  geom_node_text(aes(label=type),
-                 nudge_y = 0.05)+
-  theme_paper_map(legend.position=c(0.8,0.8))+
-  scale_color_manual(values=c(customGraphPalette,customSupertypePalette),name="type")+
-  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-  guides(color="none",edge_color="none") + 
-  coord_cartesian(clip="off")
+PFLtoLC33Plot <- standardGraph(PFLtoLC33,pal = customGraphPalette,layout="stress")
 PFLtoLC33Plot
 ```
+
+
 And save it: 
 ```{r}
 save_plot(file.path(outputsFolder,"PFL3-LC33-NGraph.svg"),PFLtoLC33Plot,nrow=0.4,ncol=0.6)
@@ -222,26 +210,20 @@ PFL3ToLC10<-as_tbl_graph(induced_subgraph(CX_outGraphBi,
     selectSupertypeSet(default_level = 1)  %>%
     customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
     mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
+
 ## How we found the neurons in the graph
 #getLocalSubgraph(c("PFL3_L*","PFL3_R*","LC10_R"),c("LC10_R"),CX_outGraphBi,order=1) 
 ```
 We then plot the graph:
 ```{r}
-PFL3ToLC10Plot <- ggraph(PFL3ToLC10,layout="manual",x=x,y=y) +
-  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(aes(color=customSupertype),size=4)+
-  geom_node_text(aes(label=type))+
-  theme_paper_map()+
-  scale_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-  guides(color="none",edge_color="none") + geom_vline(xintercept = 1,lty=2,color="grey50") +
-  theme(legend.position = c(0.8,0.2)) + coord_cartesian(clip="off")
-
+PFL3ToLC10Plot <- standardGraph(PFL3ToLC10,
+                                pal=customGraphPalette,
+                                layout="manual",x=x,y=y) + 
+  geom_vline(xintercept = 1,lty=2,color="grey50")
 PFL3ToLC10Plot
 ```
+
+
 Then save it:
 ```{r}
 save_plot(file.path(outputsFolder,"PFL3-LC10-NGraph.svg"),PFL3ToLC10Plot,nrow=0.4,ncol=0.6)
@@ -286,24 +268,13 @@ PFL1ToLC27 <- getLocalSubgraph(c("PFL1_L*"),c("LC27_R"),CX_outGraphBi,order=2) %
     mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
 PFL1ToLC27
 ```
-```{r}
-PFL1ToLC27Plot <- ggraph(PFL1ToLC27,layout="stress") +
-  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(aes(color=customSupertype),size=4)+
-  geom_node_text(aes(label=type))+
-  theme_paper_map()+
-  scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ 
-  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-  guides(color="none",edge_color="none")+
-  coord_flip(clip="off")+
-  scale_y_continuous(trans="reverse") + 
-  theme(legend.position = c(0.8,0.2))
 
+```{r}
+PFL1ToLC27Plot <- standardGraph(PFL1ToLC27,pal=customGraphPalette,layout="stress")
 PFL1ToLC27Plot
 ```
+
+
 Save the graph:
 ```{r}
 save_plot(file.path(outputsFolder,"PFL1-LC27-NGraph.svg"),PFL1ToLC27Plot,nrow=0.4,ncol=0.5)
@@ -339,21 +310,10 @@ ExR8toCH
 ```
 
 ```{r}
-ExR8toCHPlot <- ggraph(ExR8toCH,layout="stress") +
-  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(aes(color=customSupertype),size=4)+
-  geom_node_text(aes(label=type))+
-  theme_paper_map()+
-  scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+
-  scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) +
-  scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") +
-  guides(color="none",edge_color="none")+scale_y_continuous() + 
-  theme(legend.position = c(0.8,0.2))+coord_cartesian(clip="off")
-
+ExR8toCHPlot <- standardGraph(ExR8toCH,pal=customGraphPalette,layout="stress")
 ExR8toCHPlot
 ```
+
 And save the plot:
 ```{r}
 save_plot(file.path(outputsFolder,"ExR8-CH-NGraph.svg"),ExR8toCHPlot,nrow=0.5,ncol=0.5)
@@ -382,17 +342,12 @@ PFRbToLTMC <- getLocalSubgraph(c("PFR_b_L*"),
     customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
     mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
 ```
+
 ```{r}
-PFRbToLTMCPlot <- ggraph(PFRbToLTMC,layout="stress") +
-  geom_edge_fan(aes(color=customSupertype.from,width=weightRelative),
-                end_cap = circle(3, "mm"),linejoin = "mitre",linemitre=3,
-                arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
-  geom_node_point(aes(color=customSupertype),size=4)+
-  geom_node_text(aes(label=type))+theme_paper_map()+
-  scale_color_manual(values=c(customGraphPalette,customSupertypePalette))+ scale_edge_color_manual(values=c(customGraphPalette,customSupertypePalette)) + scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + guides(color="none",edge_color="none")+scale_y_continuous(trans="reverse")#+coord_flip()+scale_x_continuous(trans="reverse")
+PFRbToLTMCPlot <- standardGraph(PFRbToLTMC,pal=customGraphPalette,layout="stress") +
+  scale_y_continuous(trans="reverse")
 
 PFRbToLTMCPlot
-
 ```
 ```{r}
 save_plot(file.path(outputsFolder,"PFRb-Visual-NGraph.svg"),PFRbToLTMCPlot,nrow=0.5,ncol=1)

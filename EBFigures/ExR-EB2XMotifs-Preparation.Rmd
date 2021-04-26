@@ -1,0 +1,204 @@
+---
+title: "ExR motifs figure: EB to non-EB"
+output: html_notebook
+---
+
+## Preparing the environment
+
+Loading local functions
+```{r message=FALSE}
+source(file.path("..","Outputs","outputFunctions-core.R"))
+source(file.path("..","R","table2ggraphUtils.R"))
+```
+
+Where the data will be saved (so that the figure making notebook can be run without having to run the time consuming steps):
+```{r}
+dataFolder="data"
+if (!dir.exists(dataFolder)) dir.create(dataFolder)
+```
+
+## Building ExR neurons output pathways
+First define the outside neuropils (anything outside of the EB and not on the left side of the brain):
+```{r}
+roiH <- getRoiTree()
+outsideRegions <- unique(selectRoiSet(exceptions=sapply(as.character(unique(roiH$level2[grepl(roiH$level2,pattern="(R)")])),
+                                                        function(i) return(1),USE.NAMES = TRUE,simplify=FALSE),
+                                     exceptionLevelMatch = 1)$roi[roiH$level2!="EB" & roiH$side4!="Left"])
+outsideRegions
+```
+List the ExR neurons:
+```{r}
+ExRtypes <- supertype(neuprint_search("ExR.*",field = "type") %>% 
+                         rename(databaseType=type)) %>% select(c("databaseType", "supertype1", "supertype2", "supertype3"))
+ExRNeurons <- getTypesTable(ExRtypes$databaseType)
+ExRNeurons <- cxRetyping(ExRNeurons,postfix="raw")
+ExRNeurons <- supertype(ExRNeurons)%>% mutate(supertype="ExR")
+head(ExRNeurons)
+```
+
+We summarize the ExR innervation in the "outside neuropils" and remove any type not contributing anything to those:
+```{r}
+ExROutsideTypes <- getROISummary(ExRNeurons,threshold=0)
+
+ExROutsideTypes <- filter(ExROutsideTypes,roi %in% outsideRegions) %>% 
+   group_by(type,databaseType,n,supertype1,supertype2,supertype3) %>%
+   summarize(upstream=sum(upstream),
+             downstream=sum(downstream),
+             fullWeight=sum(fullWeight),
+             downstreamRatio=downstream/fullWeight,
+             polarityRatio=(downstream/totalDownstream[1])/(upstream/totalUpstream[1])) %>%
+   ungroup() %>% distinct()
+
+ExROutsideTypes <- filter(ExROutsideTypes,upstream>20 | downstream>20)
+ExROutsideNeurons <- filter(ExRNeurons,type %in% ExROutsideTypes$type)
+```
+```{r}
+# A rough ordering of types for subsequent figures
+typesEB <- unique(ExRNeurons$type)
+typesEBOrder <- c(typesEB[startsWith(typesEB,"Ex")])
+```
+## Get type to type connection tables up to 5 hops out
+Calculate a massive pathway table of everything postsynaptic to the ExR neurons outside of the EB, in 5 steps or less (doing it "raw" for more flexibility afterwards):
+```{r}
+ExR_outGraphBi <- get_type2typePath_raw(type.from=ExROutsideNeurons,
+                                       ROI=list("Outside_regions(R)"=outsideRegions),
+                                       n_steps=1:5,
+                                       addContraPaths = T,
+                                       thresholdPerROI = 20,verbose=TRUE,
+                                       renaming=customRetyping,overruleThreshold=50,largeOnly=TRUE)
+head(ExR_outGraphBi[[1]])
+```
+
+Filtering out types contributing close to nothing to downstream partners
+```{r}
+ExR_outGraphBi[[1]] <- ExR_outGraphBi[[1]] %>% group_by(type.from,supertype3.from) %>% 
+   mutate(totalWeightRaw=sum(absoluteWeight)) %>% 
+   filter(totalWeightRaw>20) %>% select(-totalWeightRaw)
+
+for (n in 2:5){
+   ExR_outGraphBi[[n]] <- filter(ExR_outGraphBi[[n]],type.from %in% ExR_outGraphBi[[n-1]]$type.to)
+}
+```
+
+
+Reduced version of the pathways: starting in the right side of the brain exclusively (and remove any connection from the origin neurons on the left side of the brain).
+```{r}
+ExR_outPaths <- ExR_outGraphBi
+ExR_outPaths[[1]] <- filter(ExR_outPaths[[1]],roi == "Outside_regions(R)") 
+
+##List the types
+ExROutputTypes <- unique(ExR_outPaths[[1]]$type.from)
+ExROutputNeurons <- filter(ExROutsideNeurons,type %in% ExROutputTypes)
+
+
+for (n in 2:5){
+   ExR_outPaths[[n]] <- filter(ExR_outPaths[[n]],type.from %in% ExR_outPaths[[n-1]]$type.to)
+   ExR_outPaths[[n]] <- filter(ExR_outPaths[[n]],!(type.from %in% ExROutputTypes & roi=="Outside_regions(R)_contra"))
+}
+```
+
+```{r}
+#saveRDS(ExR_outPaths,file.path(dataFolder,"EBoutput_paths.rds"))
+```
+
+Get a good supertyping for coloring to come
+```{r}
+ExROutputNeurons <- selectSupertypeSet(ExROutputNeurons,default_level = 1) %>%
+   customOutputSupertype(postfix = "raw")
+   #mutate(customSupertype = case_when(supertype=="PFL" ~ databaseType,
+   #                         grepl("ExR[2-7]",supertype) ~ "ExR2-7",
+   #                         supertype3=="EB Columnar" ~ "EB Columnar",
+   #                         TRUE ~ as.character(supertype)))
+```
+
+Then make tables of synapses
+```{r,warning=FALSE}
+#EBOutSyn <- collectSynapses(EBOutputNeurons,outsideRegions,polarity="post")
+#EBOutSyn <-  mutate(EBOutSyn,customSupertype=EBOutputNeurons$customSupertype[match(type,EBOutputNeurons$type)])
+#saveRDS(EBOutSyn,"EB-outsideSynapses.rds")
+```
+
+## The CX output graph
+We first collate all connections present:
+```{r}
+ExR_outGraph <- distinct(do.call(rbind,ExR_outPaths))
+```
+
+For cases where a neuron pair has connections on both sides of the brain, we use the average relative weight, weighted on the importance of the innervation on each side: 
+
+```{r}
+## For contra ROI + ipsi ROI case, we need an approximation of the relative weight and output contribution
+ExR_outGraph <- group_by(ExR_outGraph,type.to) %>%
+   mutate(combineROIweight=sum(totalROIweight[match(unique(roi),roi)])) %>% 
+   ungroup() 
+
+ExR_outGraph <- group_by(ExR_outGraph,type.from,type.to,supertype1.from,supertype2.from,supertype3.from,
+                        supertype1.to,supertype2.to,supertype3.to,databaseType.from,databaseType.to,n_type) %>%
+   summarize(weightRelative=mean(weightRelative*totalROIweight/combineROIweight),
+             outputContribution=sum(weight)/sum(totalPreROIweight*n_from)) %>% ungroup()
+
+#ExR_outGraph <- group_by(ExR_outGraph,type.from) %>% 
+#   mutate(wr_contribution=weightRelative/sum(weightRelative)) %>% ungroup() 
+```
+
+This next bit is a sanity check to make sure this averaging didn't create any "impossible" weights (weight relative summing to more than 1):
+```{r}
+ExR_outGraphTo <- group_by(ExR_outGraph,type.to) %>% 
+   summarize(wr=sum(weightRelative)) %>% ungroup()
+
+#ExR_outGraphFrom <- group_by(ExR_outGraph,type.from) %>%
+#   summarize(oc=sum(outputContribution),wroc=sum(wr_contribution)) %>% ungroup()
+
+all(ExR_outGraphTo$wr<=1) #& all(ExR_outGraphFrom$oc<=1) 
+```
+
+### Pathway weights
+
+Create a graph, then calculate weightRelative contribution to all the possible targets from the CX output types, multiplying the adjacency matrix of the whole graph to convergence.
+```{r}
+ExR_outGraph <- makeGraph(ExR_outGraph)
+allNodes <- ExR_outGraph %>% activate(nodes) %>% as_tibble()
+head(allNodes)
+```
+```{r}
+ExRout_AdjWR <- igraph::as_adjacency_matrix(ExR_outGraph,attr="weightRelative")
+#EBout_AdjOCWR <- igraph::as_adjacency_matrix(EB_outGraph,attr="wr_contribution") ## Here we use the relative contribution - use this for "downstream" computations of influence
+
+## For display, just first 8 steps
+#EBoutAllSteps <- endpointConnections_raw(EBout_AdjWR,endpoint=EBOutputTypes,polarity="upstream",maxIt=8,eps=10^-8)
+#EBoutAllSteps <- lapply(1:length(EBoutAllSteps),function(i){reshape2::melt(as.matrix(EBoutAllSteps[[i]]),na.rm=TRUE,value.name="Path_weight") %>% 
+#      filter(Path_weight>0) %>%
+#      rename(type.from=Var1,type.to=Var2) %>%
+#      mutate(n_steps=i)})
+#EBoutAllSteps <- do.call(rbind,EBoutAllSteps)
+
+## The result at convergence
+ExRoutFull <- endpointConnections(ExRout_AdjWR,endpoint=ExROutputTypes,polarity="from_sources",maxIt=100,eps=10^-8)
+
+ExRoutFull <- reshape2::melt(as.matrix(ExRoutFull),na.rm=TRUE,value.name="Path_weight") %>% 
+   filter(Path_weight>0) %>% rename(type.from=Var1,type.to=Var2) %>% mutate(n_steps="All")
+#EBoutAllSteps <- rbind(EBoutAllSteps,EBoutFull) %>% mutate(type.from=as.character(type.from),type.to=as.character(type.to),
+#                     databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+#                      databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]
+#                    )
+ExRoutFull <- mutate(ExRoutFull,
+                     type.from=as.character(type.from),type.to=as.character(type.to),
+                     databaseType.to=allNodes$databaseType[match(type.to,allNodes$type)],
+                     databaseType.from=allNodes$databaseType[match(type.from,allNodes$type)]
+)
+
+#ExRoutFull <- supertype(ExRoutFull) %>% group_by(type.to) %>% mutate(fullCXwr=sum(Path_weight)) %>% ungroup()
+```
+
+Save simple variables
+```{r}
+save(ExROutputNeurons,ExROutsideTypes,ExROutputTypes,outsideRegions,ExROutsideNeurons,typesEBOrder,ExRNeurons,file=file.path(dataFolder,"ExRoutputsBasics.RData"))
+```
+
+```{r}
+saveRDS(ExRoutFull,file.path(dataFolder,"ExRpathwayWeightsTable.rds"))
+#saveRDS(EBoutAllSteps,"EBpathways-allsteps.rds")
+#saveRDS(allNodes,"EBall-nodes.rds")
+```
+
+
