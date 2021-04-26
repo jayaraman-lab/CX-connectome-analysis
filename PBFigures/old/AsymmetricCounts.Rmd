@@ -140,7 +140,7 @@ decayFn <- as.data.frame(list(x = x, y1 = y1, y2 = y2))
 EBPBEtc_OutPlt <- ggplot(colNronOutsByID_meanNorm %>% filter(!(roi %in% c('FB','NO')))) + 
   geom_point(aes(x=freq.norm, y = meanSyns.norm, 
                  color = as.factor(supertype)),
-             size = 2, alpha = 0.5) +
+             size = 1, alpha = 0.5) +
   geom_line(data = decayFn, aes(x = x, y = y1), size=0.1) +
   geom_line(data = decayFn, aes(x = x, y = y2), size=0.1) +
   scale_color_manual(breaks = supertype2Palette()$breaks,
@@ -164,9 +164,9 @@ y2 <- 1/x
 decayFn <- as.data.frame(list(x = x, y1 = y1, y2 = y2))
 
 FBNO_OutPlt <- ggplot(colNronOutsByID_meanNorm %>% filter(roi %in% c('FB','NO'))) + 
-  geom_point(aes(x=freq.norm, y = meanSyns.norm, 
+  geom_jitter(aes(x=freq.norm, y = meanSyns.norm, 
                  color = as.factor(supertype)),
-             size = 2, alpha = 0.5) +
+             size = 1, alpha = 0.5, width = 0.05) +
   geom_line(data = decayFn, aes(x = x, y = y1), size=0.1) +
   geom_line(data = decayFn, aes(x = x, y = y2), size=0.1) +
   scale_color_manual(breaks = supertype2Palette()$breaks,
@@ -298,7 +298,7 @@ decayFn <- as.data.frame(list(x = x, y1 = y1, y2 = y2))
 EBEtc_InPlt <- ggplot(colNronInsByID_meanNorm %>% filter(!(roi %in% c('PB','FB','NO')))) + 
   geom_point(aes(x=freq.norm, y = meanSyns.norm, 
                  color = as.factor(supertype)),
-             size = 2, alpha = 0.5) +
+             size = 1, alpha = 0.5) +
   geom_line(data = decayFn, aes(x = x, y = y1), size=0.1) +
   geom_line(data = decayFn, aes(x = x, y = y2), size=0.1) +
   scale_color_manual(breaks = supertype2Palette()$breaks,
@@ -322,9 +322,9 @@ y2 <- 1/x
 decayFn <- as.data.frame(list(x = x, y1 = y1, y2 = y2))
 
 PBFBNO_InPlt <- ggplot(colNronInsByID_meanNorm %>% filter(roi %in% c('PB','FB','NO'))) + 
-  geom_point(aes(x=freq.norm, y = meanSyns.norm, 
+  geom_jitter(aes(x=freq.norm, y = meanSyns.norm, 
                  color = as.factor(supertype)),
-             size = 2, alpha = 0.5) +
+             size = 1, alpha = 0.5, width = 0.05) +
   geom_line(data = decayFn, aes(x = x, y = y1), size=0.1) +
   geom_line(data = decayFn, aes(x = x, y = y2), size=0.1) +
   scale_color_manual(breaks = supertype2Palette()$breaks,
@@ -376,8 +376,8 @@ EPGDat_mean <- rbind(EPGOutDat_mean, EPGInDat_mean)
 EPGDat_mean$roi <- factor(EPGDat_mean$roi, levels = as.factor(c('EB','PB','LAL(R)')))    
 
 EPG_ptPlt <- ggplot(EPGDat) + 
-  geom_point(aes(x=freq,y=totalSyns), size = 1, alpha = 0.25) + 
-  geom_point(data = EPGDat_mean, aes(x = freq, y = meanSyns, fill =as.factor('mean')), size = 2, color = 'red', alpha=0.5) +
+  geom_jitter(aes(x=freq,y=totalSyns), size = 1, alpha = 0.25, width = 0.2) + 
+  geom_point(data = EPGDat_mean, aes(x = freq, y = meanSyns, fill =as.factor('mean')), size = 4) +
   facet_grid(rows=vars(roi), cols=vars(inOut), scales = 'free_y') + 
   theme_paper() +
   ylab('total # of synapses') + xlab('# of instances per glom') +
