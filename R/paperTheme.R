@@ -12,13 +12,13 @@ theme_paper <- function(...){
 theme_paper_rects <- function(...){
   theme_cowplot(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) + 
     theme(strip.background = element_blank(),plot.tag=element_text(size=12,face="bold",family = "sans"),
-          panel.border = element_rect(color = "black"),...)
+          panel.border = element_rect(color = "grey50"),...)
 }
 
 theme_paper_grid_rects <- function(...){
   theme_minimal_grid(font_size=7,font_family="sans",rel_small=6/7,rel_tiny = 5/7,rel_large = 12/7, line_size = 0.5*mm2pt) + 
     theme(strip.background = element_blank(),plot.tag=element_text(size=12,face="bold",family = "sans"),
-          panel.border = element_rect(color = "black"),...)
+          panel.border = element_rect(color = "grey50"),...)
 }
 
 theme_paper_grid <- function(...){
