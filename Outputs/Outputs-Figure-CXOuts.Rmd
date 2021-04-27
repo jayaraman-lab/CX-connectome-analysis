@@ -62,15 +62,21 @@ First load the synapses (the data frame was generated in "Outputs-Core.Rmd"):
 CXOutSyn <- readRDS(file.path(dataFolder,"CX-outsideSynapses.rds"))
 ```
 
-Then generate and save the 2 views of the rendering as pngs. The `displaySynapses3D` function is defined in "outputFunctions-display.R":
+Then generate and save the 2 views of the rendering as pngs. The `displaySynapses3D` function is defined in "outputFunctions-display.R" (note that the display in the final figure was generated using NeuTu):
 ```{r}
 displaySynapses3D(synapses=CXOutSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)","BU(R)","CRE(R)","SMP(R)","WED(R)","SLP(R)","SIP(R)","SPS(R)","IPS(R)"),
-                 saveName = "allOuts-pale4",
+                 saveName = "allOuts-pale4Spheres",
                  saveFolder=outputsFolder,
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 size = c(3000,3000))
+                 windowSize = c(3000,3000),
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ## Total relative weight contributed by individual types to output network (panel C)

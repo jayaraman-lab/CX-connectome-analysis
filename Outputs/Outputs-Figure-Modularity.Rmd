@@ -215,7 +215,7 @@ save_plot(file.path(outputsFolder,"leftROIsInnervation.svg"),
           roiFFConnectPlotLeft,ncol=0.5,nrow=1.5)
 ```
 
-## Plot the synapses of the main targets
+## Plot the synapses of the main targets (panel E)
 We load the synapses of the output network neurons:
 ```{r}
 CXTargetsSyn <- readRDS(file.path(dataFolder,"CX-targets-synapses.rds"))
@@ -231,12 +231,15 @@ CXTargetsSyn <- mutate(CXTargetsSyn,
                                                                                    mainFFConns$type.to)],
                        customContributor=CXOutputNeurons$customSupertype[match(mainContributor,
                                                                                CXOutputNeurons$type)])
+
+#write_csv(CXTargetsSyn,file.path(outputsFolder,"Synapses-PanelE.csv"))
+#write_csv(as.data.frame(customSupertypePalette),file.path(outputsFolder,"Synapses-Palette-PanelE.csv"))
 ```
 
-Finally we generate the plot (using an all white palette for the ROIs)
+Finally we generate the plot (using an all white palette for the ROIs). Note that the display in the final figure was generated using NeuTu rather than this code.
 ```{r}
-rPal <- roisPalette(rois = selectRoiSet(roisPalette(),default_level = 0))
-rPalNoPal[1:length(rPalNoPal)] <- "white"
+rPalNoPal <- roisPalette(rois = selectRoiSet(getRoiTree(),default_level = 0))
+rPalNoPal[1:length(rPalNoPal)] <- "grey60"
 
 displaySynapses3D(synapses=CXTargetsSyn,
                  ROIs=c("EB","FB","PB","NO","LAL(R)",
@@ -246,7 +249,7 @@ displaySynapses3D(synapses=CXTargetsSyn,
                  synapsePalette = customSupertypePalette,
                  saveFolder = outputsFolder,
                  roiPal=rPalNoPal,
-                 size = c(3000,3000)
+                 windowSize = c(3000,3000)
                )
 ```
 

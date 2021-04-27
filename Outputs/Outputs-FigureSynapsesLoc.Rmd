@@ -46,7 +46,8 @@ CXTargetsSyn <- mutate(CXTargetsSyn,
                                                                                CXOutputNeurons$type)])
 ```
 
-Throughout this notebook, we'll use the `displaySynapses3D` function, defined in "outputFunctions-display" repeatedly. It takes as inputs a synapses data frame, a choice of ROIs to render a variable (of the synapses data frame) to cluster the synapses upon (here the supertype or the main contributor), and information about the palette to use and the file where to save the results. The function saves two views of the rendering. We also generate a legend panel for each type.
+Throughout this notebook, we'll use the `displaySynapses3D` function, defined in "outputFunctions-display" repeatedly. It takes as inputs a synapses data frame, a choice of ROIs to render a variable (of the synapses data frame) to cluster the synapses upon (here the supertype or the main contributor), and information about the palette to use and the file where to save the results. The function saves two views of the rendering. We also generate a legend panel for each type.  Note that the display in the final figure was generated using NeuTu rather than this code.
+
 ## PFLs
 ### Their synapses
 ```{r}
@@ -56,7 +57,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "PFLs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ### Synapses of their main targets
@@ -67,7 +74,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,customContributor %in% c("PFL1","
                  saveName = "PFLTargets",
                  synapsePalette = customSupertypePalette,
                  saveFolder = outputsFolder,
-                 synapseCluster = "customContributor")
+                 synapseCluster = "customContributor",
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 
 ```
 
@@ -95,7 +108,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "FSs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 ### Synapses of their main targets
 ```{r}
@@ -105,7 +124,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,
                  saveName = "FSTargets",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customContributor",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 
 ```
 
@@ -133,7 +158,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "FCs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder=outputsFolder)
+                 saveFolder=outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 ### Synapses of their main targets
 ```{r}
@@ -143,7 +174,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,
                  saveName = "FCTargets",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customContributor",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 ### Legend
 ```{r}
@@ -169,7 +206,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "PFRs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ### Synapses of their main targets
@@ -180,7 +223,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,
                  saveName = "PFRTargets",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customContributor",
-                 saveFolder=outputsFolder)
+                 saveFolder=outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ### Legend
@@ -207,7 +256,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "ExRs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ### Synapses of their main targets
@@ -218,7 +273,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,
                  saveName = "ExRTargets",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customContributor",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 
 ### Legend
@@ -245,7 +306,13 @@ displaySynapses3D(synapses=filter(CXOutSyn,
                  saveName = "FRs",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customSupertype",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 ### Synapses of their main targets
 
@@ -256,7 +323,13 @@ displaySynapses3D(synapses=filter(CXTargetsSyn,
                  saveName = "FRTargets",
                  synapsePalette = customSupertypePalette,
                  synapseCluster = "customContributor",
-                 saveFolder = outputsFolder)
+                 saveFolder = outputsFolder,
+                 type="s",
+                 specular="black",
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2)
 ```
 ### Legend
 ```{r}
