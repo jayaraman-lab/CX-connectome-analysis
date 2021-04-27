@@ -43,6 +43,9 @@ and a specilized connectivity matrix in
 * Figure 27 figure supplement 1A (similarity matrices)
 * Figure 27 figure supplement 1B (Connectivity matrices ordered by similarity)
 
+**NO_mechPathway.Rmd**: Generate pathway graph for mechanosensory inputs to LNO.
+* Figure 27 figure supplement 2
+
 ### Supplemental information only
 **AVP_Convergence-Divergence-Plots.Rmd**: Create convergence/divergence plots in
 * Figure 6 figure supplement 1 A,B
