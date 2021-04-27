@@ -1,0 +1,146 @@
+---
+title: "Analysis of inputs to LNO"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+#Analysis of sensory pathways to the LNO
+
+```{r message=FALSE, warning=FALSE}
+library(nat)
+library(neuprintr)
+library(tidyverse)
+library(dplyr)
+library(neuprintrExtra)
+library(igraph)
+
+options(nat.plotengine = 'rgl')
+source(file.path("..","R","visualizeConnectivityTables.R"))
+
+neuprint_login()
+```
+
+## Bodyid's of sensory neurons:
+mechanosensory
+```{r}
+APN2type =  c("SAD004", "SAD003")
+APN3type = "SAD077"
+APN3 = neuprint_search("SAD077_.*")
+APN2 = bind_rows(neuprint_search("SAD004.*"),neuprint_search("SAD003.*"))
+APN2and3 = bind_rows(APN2, APN3) 
+
+APNBodies = c(APN3$bodyid,APN2$bodyid)
+
+WLLtype =  "LAL138"
+WLL = neuprint_search(paste0(WLLtype,".*"))
+
+# Putative WPN, based on morphology and connectivity:
+#(these were identified in a shortest path analysis as shown later)
+WPNtype = "LHPV6q1"
+WPN = neuprint_search(paste0(WPNtype,".*"))
+
+allMec = bind_rows(APN2and3,WLL,WPN)
+
+```
+
+Also get body ID's of putative downstream partners
+```{r}
+# LNO
+LNO = neuprint_search("LNO.*")
+LCNO = neuprint_search("LCNO.*")
+GLNO = neuprint_search("GLNO.*")
+
+allLNO =  bind_rows(LNO,LCNO,GLNO) 
+
+splitLR = TRUE
+```
+
+## Find paths to the CX
+```{r}
+maxL = 3
+allMec_to_LNO_t2tpath = get_type2typePath(allMec, allLNO, by.roi = FALSE, n_steps = seq(maxL),renaming=lateralize_types)
+```
+
+```{r, warning=FALSE}
+cutoff = 0#0.02#0.01#
+edcurve = 0.15
+vertexSize = 7
+edgeNorm = 0.04
+minPathWeight = 0.05 ** maxL#
+plotSize = 10
+
+sourcegroup = "allMec"
+pathDf = allMec_to_LNO_t2tpath %>% filter(weightRelative_path  >= minPathWeight )
+graphName = paste0("pathGraph_",sourcegroup,"2LNO_0-05-exp",maxL)
+
+graphDataFrame = pathDf2graphDf(pathDf) %>% mutate(relWeight =  weightRelative)
+
+cmapNames = c("RingNeurons", "TuBus", "columnar",  "ExR_and_AOTU46")
+
+myColorMap <- read.csv(file.path("..","colormaps",paste0("colorMap_",cmapNames[1],".csv")))
+if(length(cmapNames) > 1){
+  for(cmapName in cmapNames[2:length(cmapNames)]){ 
+    tmp = read.csv(file.path("..","colormaps",paste0("colorMap_",cmapName,".csv")))
+    myColorMap <- full_join(myColorMap[c("Type", "Simpletype", "hex")], tmp[c("Type", "Simpletype","hex")])
+    }
+}
+
+if(splitLR){
+  myColorMap_R = myColorMap %>% mutate(Type = paste0(Type, "_R"))
+  myColorMap_L = myColorMap %>% mutate(Type = paste0(Type, "_L"))
+  myColorMap= bind_rows(myColorMap_L, myColorMap_R)
+  
+  #rename MC neuron types
+  myColorMap$Type[myColorMap$Type == "MC64_R"] = "MC64"
+  myColorMap$Type[myColorMap$Type == "MC61_R"] = "MC61"
+}
+
+myColorMap = myColorMap %>% filter(Simpletype == "no")
+
+myGraph = constructConnectivityGraph(graphDataFrame, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm, colormap = myColorMap)
+
+l = layout_with_dh(myGraph)
+myGraph$main = paste("Min path weight = ", minPathWeight)
+
+plot(myGraph,edge.curved=edcurve, layout=l, edge.color = customizeGraphEdges(myGraph), 
+     family="Arial", vertex.label.family  = "sans")
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1,y=-0.5,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+#dev.print(pdf, paste0("plots/",graphName,".pdf"), width=plotSize, height=plotSize,useDingbats=FALSE)
+```
+
+```{r}
+patternLayers =  c("LH","WED","LAL", "PEN","LNO")
+  #c("SAD","WED","LH","LAL","ER","PEN","PFN","LNO")
+layerPos = c(0,1,2,4,5)
+  #c(0,1,2,3,4,6,7,8)
+defaultY = 3
+edcurve = 0.1
+
+myGraph = constructConnectivityGraph(graphDataFrame, cutoff, vertexSize, selfFBscale=1, arrowSize=0, edgeNorm, colormap = myColorMap)
+
+vertexProps = data.frame(name = V(myGraph)$name, col = V(myGraph)$color) %>% mutate(name = gsub("_[R,L]", "", name))
+vertexProps = vertexProps %>% mutate(loc = "default", yloc = seq(length(vertexProps$col)), xloc = defaultY)
+
+for(layer in seq(length(patternLayers))){
+  vertexProps[grepl(patternLayers[layer],vertexProps$name),] = vertexProps[grepl(patternLayers[layer],vertexProps$name),] %>% 
+    mutate(loc = paste0("layer",layerPos[layer]+1), xloc = layerPos[layer], yloc = 1*seq(length(loc)))
+}
+vertexProps$yloc[vertexProps$loc == "default"] = 1*seq(length(vertexProps$loc[vertexProps$loc == "default"]))
+
+
+plot(myGraph,edge.curved=edcurve, layout=layout.norm(as.matrix(vertexProps[,c("xloc","yloc")])), edge.color = customizeGraphEdges(myGraph), 
+     family="Arial",family="Arial", vertex.label.family  = "sans")
+
+maxEdge = max(E(myGraph)$width)
+minEdge = min(E(myGraph)$width)
+legend(x=-1,y=-0.5,legend = edgeNorm*seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5), 
+       lwd	 = seq(round(minEdge, digits = 0),round(maxEdge, digits = 0),length.out=5),  bty = "n", seg.len=0.5)
+
+dev.print(pdf, paste0("plots/",graphName,"_structured.pdf"), width=plotSize, height=plotSize,useDingbats=FALSE)
+
+```
