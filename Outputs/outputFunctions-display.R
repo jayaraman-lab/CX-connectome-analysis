@@ -151,7 +151,6 @@ plotGlomMat <- function(bag,
 #'@param roiRef A ROI data frame as returned by \code{selectRoiSet} to be used as a reference for the ROI palette
 #'@param roiPal A palette to color the ROIs with
 #'@param alphaRois Alpha value for the ROI renderings
-#'@param roiShininess Shininess of the ROI renderings
 #'@param size The window size. Increasing the size is the easiest way to obtain higher resolutions images
 #'@param ... To be passed to \code{nat::plot3d}
 displaySynapses3D <- function(synapses=NULL,
@@ -163,18 +162,17 @@ displaySynapses3D <- function(synapses=NULL,
                              roiRef=selectRoiSet(getRoiTree(),
                                                  exceptions=list("LAL(R)"=4,"CRE(R)"=4)),
                              roiPal=customROIPalette(),
-                             alphaRois=0.2,
-                             roiShininess=1,
-                             size=c(1500,1500),...){
+                             alphaRois=0.05,
+                             windowSize=c(1500,1500),...){
   
   nopen3d()
-  par3d(windowRect = c(30, 30, size[1]+30, size[2]+30))
+  par3d(windowRect = c(30, 30, windowSize[1]+30, windowSize[2]+30))
   for (r in ROIs){
     locMesh <- neuprint_ROI_mesh(r)
     superROI <- roiRef$level0[match(r,roiRef$level2)]
     plot3d(locMesh,color=roiPal[superROI],
            alpha=alphaRois,
-           shininess=roiShininess,
+           specular="black",
            xlab="",ylab="",zlab="",box=FALSE,axes=FALSE,add=T)
   }
   par3d(scale=c(1,1,1))
@@ -195,25 +193,47 @@ displaySynapses3D <- function(synapses=NULL,
   }
 }
 
+#' The default palette used in those plots
+customROIPalette <-  function(){
+  roiH <- getRoiTree()
+  roiOutLabels <- selectRoiSet(roiH,default_level = 0)
+  rPal <- roisPalette(rois = roiOutLabels)
+  rPal["CX"] <- "grey60"
+  rPal
+}
+
 ## GRAPHS and SUBGRAPHS
 
 #' A simple network graph plot using \code{ggraph}
 #' @param gr A \code{tidygraph} object
 #' @param pal A palette to use for supertypes
 #' @param colP The variable to map onto the supertype color code
+#' @param loop Whether to show loop connections
+#' @param statW The statistic to use for the edges width
 #' @param ... To be passed to \code{ggraph} (useful to pass layouts for example)
-standardGraph <- function(gr,pal,colP="customSupertype",...){
-  ggraph(gr,...) + 
+standardGraph <- function(gr,pal,colP="customSupertype",loop=F,statW="weightRelative",widthRange=c(0.2,3),widthLimits=c(0.001,NA),...){
+  sG <- ggraph(gr,...)+
     geom_edge_fan(aes(color=!!sym(paste0(colP,".from")),
-                      width=weightRelative),end_cap = circle(3, "mm"),
+                      width=!!sym(statW)),
+                  end_cap = circle(4, "mm"),
                   linejoin = "mitre",linemitre=3,
-                  arrow =arrow(length = unit(1, 'mm'),type = "closed")) + 
+                  arrow =arrow(length = unit(1, 'mm'),type = "closed")) +
+    theme_paper_map() 
+  if (loop){
+    sG <- sG + geom_edge_loop(aes(color=!!sym(paste0(colP,".from")),
+                                  width=weightRelative),end_cap = circle(3, "mm"),
+                              linejoin = "mitre",linemitre=3,
+                              arrow =arrow(length = unit(1, 'mm'),type = "closed"))
+  }
+  sG + 
     geom_node_point(aes(fill=!!sym(colP)),size=4,shape=21)+
-    geom_node_text(aes(label=type))+theme_paper_map()+
+    geom_node_text(aes(label=type))+
     scale_fill_manual(values=pal,name="supertype")+ 
     scale_edge_color_manual(values=pal) + 
-    scale_edge_width(range=c(0.2,3),limits=c(0.001,NA),name="relative weight") + 
-    guides(edge_color="none")}
+    scale_edge_width(range=widthRange,limits=widthLimits,name="relative weight") + 
+    guides(edge_color="none")
+  
+}
 
 
 #' Get the graph reduced to the strong targets of a selection of output types
