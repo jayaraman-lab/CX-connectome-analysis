@@ -1,0 +1,133 @@
+---
+title: "FBt synapses plot"
+output: html_notebook
+---
+
+Notebook used to make the synapse distribution plot of FB tangentials (figure 40 figure supplement 2)
+```{r message=FALSE, warning=FALSE}
+#library(neuprintr)
+#library(tidyverse)
+#library(neuprintrExtra)
+#library(nat)
+library(paletteer)
+```
+
+## Preparing the environment
+```{r message=FALSE}
+source(file.path("..","Outputs","outputFunctions-core.R"))
+source(file.path("..","Outputs","outputFunctions-display.R"))
+source(file.path("..","R","paperTheme.R"))
+```
+
+## Collecting the synapses
+We first get a table of FBt neurons and add a column that denotes their layer. We also filter for only the types innervating the right side of the brain:
+```{r}
+FBt <- neuprint_search("FB[1-9].*",field = "type") %>% 
+  mutate(databaseType=type,
+         layer=gsub("FB","",str_extract(type,"FB[1-9]"))) %>% cxRetyping() %>% filter(grepl("_R",type))
+head(FBt)
+```
+
+We define the ROIs we will consider in this figure:
+```{r}
+outsideRegions <- c("LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)","GA(R)")
+```
+
+We then collect the FBt input and output synapses and label them by layers:
+```{r}
+FBtInSyn <- collectSynapses(FBt,outsideRegions,polarity="post")
+FBtOutSyn <- collectSynapses(FBt,outsideRegions,polarity="pre")
+
+FBtInSyn <- FBtInSyn %>% 
+  mutate(layer=gsub("FB","",str_extract(type,"FB[1-9]")))
+
+FBtOutSyn <- FBtOutSyn %>% 
+ mutate(layer=gsub("FB","",str_extract(type,"FB[1-9]")))
+
+head(FBtInSyn)
+```
+
+We then define a palette to be used to label the layers:
+```{r}
+FBtPalette <- paletteer_d("RColorBrewer::YlGnBu")#paletteer_d("Polychrome::palette36")[3:11]
+FBLayersPalette <- FBtPalette
+names(FBLayersPalette) <- paste0("FBl",1:9)
+names(FBtPalette) <- as.character(1:9)
+```
+
+We then define the ROI colors to be used:
+```{r}
+#FBRoi <- roiH
+#FBRoi$level0[FBRoi$level2=="FB"] <- as.character(FBRoi$level4[FBRoi$level2=="FB"])
+#FBRoi$level2 <- as.character(FBRoi$level4)
+#displayAnatomies(
+#                 ROIs=paste0("FBl",1:9),
+#                 saveName = "FBLayers",
+#                 roiPal = FBLayersPalette,
+#                 roiRef = FBRoi,
+#                 alphaRois=0.3
+#                 )
+```
+
+
+```{r}
+displaySynapses3D(synapses=FBtInSyn,
+                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
+                 saveName = "FBtInSpheres",
+                 synapsePalette = FBtPalette,
+                 synapseCluster = "layer",
+                 type="s",size=0.2,
+                 specular="black",
+                  saveFolder = ".",
+                 alphaRois = 0.04,
+                 windowSize = c(3000,3000)
+                 )
+
+displaySynapses3D(synapses=FBtInSyn,
+                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
+                 saveName = "FBtIn",
+                 synapsePalette = FBtPalette,
+                 synapseCluster = "layer",
+                 specular="black",
+                  saveFolder = ".",
+                 alphaRois = 0.04,
+                 windowSize = c(3000,3000)
+                 )
+```
+
+
+```{r}
+displaySynapses3D(synapses=FBtOutSyn,
+                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
+                 saveName = "FBtOutSpheres",
+                 synapsePalette = FBtPalette,
+                 synapseCluster = "layer",
+                 type="s",size=0.2,
+                 specular="black",
+                  saveFolder = ".",
+                 alphaRois = 0.04,
+                 windowSize = c(3000,3000)
+                 )
+
+displaySynapses3D(synapses=FBtOutSyn,
+                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
+                 saveName = "FBtOut",
+                 synapsePalette = FBtPalette,
+                 synapseCluster = "layer",
+                 specular="black",
+                  saveFolder = ".",
+                 alphaRois = 0.04,
+                 windowSize = c(3000,3000)
+                 )
+```
+Also generate and save the legend:
+```{r}
+legendSource <- cowplot::get_legend(ggplot(FBt) +
+                                      geom_point(aes(x=0,y=0,color=layer)) + 
+                                      theme_paper_map() + scale_color_manual(name="FB layer",values=FBtPalette))
+```
+
+```{r}
+save_plot("legend.svg",legendSource,base_height = 3,base_width = 1)
+```
+
