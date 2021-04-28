@@ -20,6 +20,9 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 * Figure 13 C: connectivity graph ordered by EPG input
 * Figure 13 figure supplement 1 A,B: connectivity matrix
 
+**modularityAnalysis/generateModularityTable.m**: Compute wedge-specific modularity of connectivity btw ring neurons and EPGs. Running generateModularityTable() in MATLAB will generate the plots in Figure 11 figure supplement 1 C and will save the p-values to a csv file. This function relies on two other functions (included in the folder '/modularityAnalysis/'): (1) the function computeModularity.m computes the modularity of inputs from (or outputs to) a given ring neuron type; this is performed both for the measured connectivity matrix and for many shuffled versions of the connectivity matrix; (2) the function Shuffle.m (https://www.mathworks.com/matlabcentral/fileexchange/27076-shuffle) speeds up the process of shuffling connectivity matrices.
+* Figure 11 figure supplement 1 C (histograms and similarity matrices)
+
 **EB_typeComparison.Rmd**: Visualize normalized contributions of different ring neuron types to EL and EPG neurons (Figure 13 B).
 
 **EPGmorphology.Rmd**: ...  (maybe rename since the same notebook is used for EL?)
