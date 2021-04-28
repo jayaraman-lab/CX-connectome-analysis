@@ -176,13 +176,13 @@ synChangeEB <- ggplot(EBAges_summary,aes(x=databaseType,
      scale_color_CX_supertype(name="supertype") +
   theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) + 
   facet_grid(.~side,scales="free_x") + 
-  xlab("") + ylab("known synapses change (%)") +
+  xlab("") + ylab("increase in # of synapses to known partners") +
   ylim(c(0,120))+ggforce::geom_mark_circle(aes(filter = (bodyid == exampleEPG & side=="inputs")),color="black",expand=0.03)
 synChangeEB
 ```
 And save it:
 ```{r}
-save_plot(file.path(validationFolder,"EBCounts.svg"),synChangeEB,base_width=6.5,base_height=2.25)
+save_plot(file.path(validationFolder,"EBCounts.svg"),synChangeEB,base_width=6.5,base_height=2.6)
 ```
 
 ## Linear fits of connectivity between the two dataset (panels C and D)

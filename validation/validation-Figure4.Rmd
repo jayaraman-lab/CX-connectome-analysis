@@ -187,28 +187,50 @@ head(PBCompFits)
 Showing the example fit for panel 3Aiii on top of the corresponding data.
 ```{r}
 fitValsPFNa3 <- filter(PBCompFits,databaseType=="PFNa" & side=="inputs" & glomerulus ==3)
-PBCompIn <- ggplot(filter(PB3Comp,databaseType=="PFNa"),aes(x=L3,y=R3)) + geom_point(aes(color=supertype2.from),size=2) + geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
-  geom_abline(linetype=2,lwd=0.2) + theme_paper()  + scale_color_CX_supertype(name="partner\nsupertype") + xlab("relative input weight in L3") + coord_fixed() +
-  ylab("relative input weight in R3") + annotate(geom="text",x=0.3,y=0.08,label=paste0("s= ",format(fitValsPFNa3$estimate,digits = 3),"\n r\u00b2= ",format(fitValsPFNa3$adj.r.squared,digits=3)))
+PBCompIn <- ggplot(filter(PB3Comp,databaseType=="PFNa"),aes(x=L3,y=R3)) +
+  geom_point(aes(color=supertype2.from),size=2) +
+  geom_smooth(formula=y~x,method="lm",color="grey70",alpha=0.1) + 
+  geom_abline(linetype=2,lwd=0.2) + theme_paper()  + 
+  scale_color_CX_supertype(name="partner\nsupertype") + 
+  xlab("relative input weight in L3") + coord_fixed() +
+  ylab("relative input weight in R3") + 
+  annotate(geom="text",x=0.3,y=0.08,
+           label=paste0("s= ",format(fitValsPFNa3$estimate,digits = 3),"\n r\u00b2= ",format(fitValsPFNa3$adj.r.squared,digits=3)))
 
 
 PBCompIn
 ```
 #### Differences in synapse counts: panel 3Aii
 ```{r}
-PBSynapseCountDiffAlt <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point() + scale_color_CX_supertype(name="supertype") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6)) +  ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="inputs")),color="black",expand=0.03) + scale_shape(name="comparison") + geom_hline(yintercept = 0,lty=2)
+PBSynapseCountDiffAlt <- ggplot(distinct(PB3CompLong,databaseType,side,glomerulus,.keep_all = TRUE),
+                                aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + 
+  geom_point() + scale_color_CX_supertype(name="supertype") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) + 
+  facet_grid(.~side,scales="free_x") + 
+  xlab("") + ylab("difference in # of synapses to known partners (%)")+
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="inputs")),color="black",expand=0.03) + 
+  scale_shape(name="comparison") + geom_hline(yintercept = 0,lty=2)
 PBSynapseCountDiffAlt
 ```
 #### Slopes of fits by type: panel Aiv
 ```{r}
-PBSlopesAlt <- ggplot(PBCompFits,aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2,shape=comp)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="supertype") + facet_grid(.~side,scales = "free_x") + theme_paper() +theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6)) +xlab("") +ylab("slope estimate") + scale_shape(name="comparison") + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="inputs")),color="black",alpha=1,expand = 0.03) + geom_hline(yintercept = 1,lty=2)
+PBSlopesAlt <- ggplot(PBCompFits,
+                      aes(x=databaseType,y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2,shape=comp)) + 
+  geom_point() + geom_linerange() + 
+  scale_color_CX_supertype(name="supertype") + 
+  facet_grid(.~side,scales = "free_x") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) +
+  xlab("") +ylab("slope estimate") + scale_shape(name="comparison") +
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==3 & side=="inputs")),
+                            color="black",alpha=1,expand = 0.03) + 
+  geom_hline(yintercept = 1,lty=2)
 PBSlopesAlt
 ```
 
 #### Saving the PB panels
 ```{r}
-save_plot(file.path(validationFolder,"PBCounts.svg"),PBSynapseCountDiffAlt,base_width=4.25,base_height=2.25)
-save_plot(file.path(validationFolder,"PBSlopes.svg"),PBSlopesAlt,base_width=4.25,base_height=2.25)
+save_plot(file.path(validationFolder,"PBCounts.svg"),PBSynapseCountDiffAlt,base_width=4.25,base_height=2.75)
+save_plot(file.path(validationFolder,"PBSlopes.svg"),PBSlopesAlt,base_width=4.25,base_height=2.75)
 save_plot(file.path(validationFolder,"PBExampleFit.svg"),PBCompIn,base_width=3,base_height=3)
 ```
 
@@ -311,7 +333,15 @@ PBCompControlOut
 ```
 #### Synape count comparisons: Panel B
 ```{r}
-PBSynapseCountDiffControl <- ggplot(distinct(PB3CompControlLong,databaseType,side,glomerulus,.keep_all = TRUE),aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + geom_point() +  scale_color_CX_supertype(name="type") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6))  + scale_shape(name="comparison")+ ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==6 & side=="outputs")),color="black",expand=0.03) + ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==5 & side=="inputs")),color="black",expand=0.03)
+PBSynapseCountDiffControl <- ggplot(distinct(PB3CompControlLong,databaseType,side,glomerulus,.keep_all = TRUE),
+                                    aes(x=databaseType,y=known_synapses_ratio*100,color=supertype2,shape=comp)) + 
+  geom_point() +  scale_color_CX_supertype(name="type") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) + 
+  facet_grid(.~side,scales="free_x") + 
+  xlab("") + ylab("difference in # of synapses to known partners (%)")+
+  scale_shape(name="comparison")+ 
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "EPG" & glomerulus==6 & side=="outputs")),color="black",expand=0.03) +
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "PFNa" & glomerulus==5 & side=="inputs")),color="black",expand=0.03)
 PBSynapseCountDiffControl
 ```
 #### Fit Comparisons: Panel D
@@ -329,8 +359,8 @@ PBCompSlopesComp
 
 #### Saving the PB SI panels
 ```{r}
-save_plot(file.path(validationFolder,"SI-PBCountsControl.svg"),PBSynapseCountDiffControl,base_width=4.25,base_height=2.25)
-save_plot(file.path(validationFolder,"SI-PBSlopesControl.svg"),PBSlopesControl,base_width=4.25,base_height=2.25)
+save_plot(file.path(validationFolder,"SI-PBCountsControl.svg"),PBSynapseCountDiffControl,base_width=4.25,base_height=2.75)
+save_plot(file.path(validationFolder,"SI-PBSlopesControl.svg"),PBSlopesControl,base_width=4.25,base_height=2.75)
 save_plot(file.path(validationFolder,"SI-PBExampleFitPFN.svg"),PBCompControlIn,base_width=3,base_height=3)
 save_plot(file.path(validationFolder,"SI-PBExampleFitEPG.svg"),PBCompControlOut,base_width=3,base_height=3)
 ```
@@ -463,22 +493,37 @@ FBComp
 ```
 #### Differences in synapse counts: panel 3Bii
 ```{r}
-synapseDiffC3 <- ggplot(distinct(FBC3Comp,databaseType,side,.keep_all = TRUE),aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=known_synapses_ratio*100,color=supertype2)) + geom_point() + scale_color_CX_supertype(name="supertype") + theme_paper() + facet_grid(.~side,scales="free_x") + xlab("") + ylab("known synapses change (%)")+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6))+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(yintercept=0,lty=2)
+synapseDiffC3 <- ggplot(distinct(FBC3Comp,databaseType,side,.keep_all = TRUE),
+                        aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),
+                            y=known_synapses_ratio*100,color=supertype2)) + geom_point() +
+  scale_color_CX_supertype(name="supertype") + 
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black")) + 
+  facet_grid(.~side,scales="free_x") +
+  xlab("") + ylab("difference in # of synapses to known partners (%)")+
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + 
+  geom_hline(yintercept=0,lty=2)
 synapseDiffC3
 ```
 
 #### Slopes of fits by type: panel 3Biv
 
 ```{r}
-FC3Slopes <- ggplot(FBCompFits,aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) + geom_point() + geom_linerange() + scale_color_CX_supertype(name="supertype") + facet_grid(.~side,scales = "free_x") + theme_paper()+theme(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background = element_rect(color="black"),strip.text = element_text(family="arial",size=6)) +xlab("") +ylab("slope estimate")+ ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + geom_hline(lty=2,yintercept = 1)
+FC3Slopes <- ggplot(FBCompFits,
+                    aes(x=stringr::str_replace(databaseType,"Delta","\u0394"),y=estimate,ymin=estimate-std.error,ymax=estimate+std.error,color=supertype2)) +
+  geom_point() + geom_linerange() + scale_color_CX_supertype(name="supertype") + 
+  facet_grid(.~side,scales = "free_x") +
+  theme_paper(axis.text.x = element_text(angle = 90,hjust = 1,vjust=0.5),strip.background.x = element_rect(color="black"))+
+  xlab("") +ylab("slope estimate")+
+  ggforce::geom_mark_circle(aes(filter = (databaseType == "hDeltaA" & side=="outputs")),color="black",expand=0.03) + 
+  geom_hline(lty=2,yintercept = 1) + ylim(0,NA)
 FC3Slopes
 ```
 
 #### Saving the FB panels
 
 ```{r}
-save_plot(file.path(validationFolder,"FBCounts.svg"),synapseDiffC3,base_width=6,base_height=2.25)
-save_plot(file.path(validationFolder,"FBSlopes.svg"),FC3Slopes,base_width=6,base_height=2.25)
+save_plot(file.path(validationFolder,"FBCounts.svg"),synapseDiffC3,base_width=6,base_height=2.75)
+save_plot(file.path(validationFolder,"FBSlopes.svg"),FC3Slopes,base_width=6,base_height=2.75)
 save_plot(file.path(validationFolder,"FBExampleFit.svg"),FBComp,base_width=3,base_height=3)
 ```
 
