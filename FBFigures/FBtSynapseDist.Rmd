@@ -9,7 +9,7 @@ Notebook used to make the synapse distribution plot of FB tangentials (figure 40
 #library(tidyverse)
 #library(neuprintrExtra)
 #library(nat)
-library(paletteer)
+#library(paletteer)
 ```
 
 ## Preparing the environment
@@ -34,7 +34,7 @@ outsideRegions <- c("LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)","GA(R)")
 ```
 
 We then collect the FBt input and output synapses and label them by layers:
-```{r}
+```{r,warning=FALSE}
 FBtInSyn <- collectSynapses(FBt,outsideRegions,polarity="post")
 FBtOutSyn <- collectSynapses(FBt,outsideRegions,polarity="pre")
 
@@ -49,50 +49,33 @@ head(FBtInSyn)
 
 We then define a palette to be used to label the layers:
 ```{r}
-FBtPalette <- paletteer_d("RColorBrewer::YlGnBu")#paletteer_d("Polychrome::palette36")[3:11]
+FBtPalette <- paletteer_d("RColorBrewer::YlGnBu")
 FBLayersPalette <- FBtPalette
 names(FBLayersPalette) <- paste0("FBl",1:9)
 names(FBtPalette) <- as.character(1:9)
+
+#write_csv(FBtInSyn,"FBtInputSynapses.csv")
+#write_csv(FBtOutSyn,"FBtOutputSynapses.csv")
+#write.csv(as.data.frame(as.character(FBtPalette)),"FBtPalette.csv")
 ```
 
-We then define the ROI colors to be used:
-```{r}
-#FBRoi <- roiH
-#FBRoi$level0[FBRoi$level2=="FB"] <- as.character(FBRoi$level4[FBRoi$level2=="FB"])
-#FBRoi$level2 <- as.character(FBRoi$level4)
-#displayAnatomies(
-#                 ROIs=paste0("FBl",1:9),
-#                 saveName = "FBLayers",
-#                 roiPal = FBLayersPalette,
-#                 roiRef = FBRoi,
-#                 alphaRois=0.3
-#                 )
-```
-
-
+And generate renderings (note that the display in the final figure was generated using NeuTu rather than this code):
 ```{r}
 displaySynapses3D(synapses=FBtInSyn,
                  ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
                  saveName = "FBtInSpheres",
                  synapsePalette = FBtPalette,
                  synapseCluster = "layer",
-                 type="s",size=0.2,
+                 type="s",
                  specular="black",
-                  saveFolder = ".",
-                 alphaRois = 0.04,
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2,
+                 saveFolder = ".",
                  windowSize = c(3000,3000)
                  )
 
-displaySynapses3D(synapses=FBtInSyn,
-                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
-                 saveName = "FBtIn",
-                 synapsePalette = FBtPalette,
-                 synapseCluster = "layer",
-                 specular="black",
-                  saveFolder = ".",
-                 alphaRois = 0.04,
-                 windowSize = c(3000,3000)
-                 )
 ```
 
 
@@ -102,21 +85,13 @@ displaySynapses3D(synapses=FBtOutSyn,
                  saveName = "FBtOutSpheres",
                  synapsePalette = FBtPalette,
                  synapseCluster = "layer",
-                 type="s",size=0.2,
+                 type="s",
                  specular="black",
-                  saveFolder = ".",
-                 alphaRois = 0.04,
-                 windowSize = c(3000,3000)
-                 )
-
-displaySynapses3D(synapses=FBtOutSyn,
-                 ROIs=c("FB","LAL(R)","CRE(R)","SMP(R)","SIP(R)","SLP(R)"),
-                 saveName = "FBtOut",
-                 synapsePalette = FBtPalette,
-                 synapseCluster = "layer",
-                 specular="black",
-                  saveFolder = ".",
-                 alphaRois = 0.04,
+                 diffuse="black",
+                 ambient="black",
+                 lwd=0,
+                 size=0.2,
+                 saveFolder = ".",
                  windowSize = c(3000,3000)
                  )
 ```
