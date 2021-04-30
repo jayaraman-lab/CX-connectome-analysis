@@ -84,14 +84,17 @@ PBRename <- function(name,id){
 #Generate a von Mises activity profile
 vonMisesProf <- function(){
   # Make a bump with a von Mises profile
-  k <- 2.5
-  m <- pi
-  rng <- c(0:15)*(pi/8)
-  actProf <- exp(k*cos(rng-m))/(2*pi*besselI(k,0))
-  actProf <- (actProf - min(actProf))/(max(actProf)-min(actProf))
-  rawProf <- data.frame(nameid = rng,act = actProf)
+  k = 2.5
+  m = pi
+  rng = c(1:16)*(2*pi/15) - 2*pi/15
+  actProf = exp(k*cos(rng-m))/(2*pi*besselI(k,0))
+  actProf = (actProf - min(actProf))/(max(actProf)-min(actProf))
+  rawProf = data.frame(nameid = rng,act = actProf)
   
   return(actProf)
+  
+  #  ggplot(rawProf,aes(x = nameid,y=act)) + geom_line() + 
+  #    theme_classic() + coord_cartesian(expand=FALSE) + scale_x_continuous(breaks = seq(0,2*pi, by=pi/2), labels = c("0","pi/2","pi","3pi/2","2pi"))
 }
 
 # Convert a connection table into a weight matrix
@@ -156,7 +159,11 @@ EPGToD7Mat <- function(PBNronTypeStr){
 }
 
 # Given an activity profile, calculate the output profile
-EPGToD7OutputAct <- function(PBTpStr,actProf){
+EPGToD7Transform <- function(PBTpStr,actProf){
+  
+  # Order the activity profile according to the PB glomeruli
+  actProf$glom <- factor(actProf$glom, levels = PBGlomSort(actProf$glom))
+  actProf <- actProf[order(actProf$glom),]
   
   # Get the EPG to D7 to EPG transform matrix
   transMat <- EPGToD7Mat(PBTpStr)
@@ -164,13 +171,18 @@ EPGToD7OutputAct <- function(PBTpStr,actProf){
   # Get the EPG and output type names
   allEPGids = rownames(transMat)
   allPBTpids = colnames(transMat)
-
-  # Get the glomeruli ids for the EPGs and output neurons
-  allEPGGloms = allEPGids %>% lapply(function(x) sub('.*_(L[1-9]|R[1-9]).*','\\1',x)) %>% unlist()
-  allPBTpGloms = allPBTpids %>% lapply(function(x) sub('.*_(L[1-9]|R[1-9]).*','\\1',x)) %>% unlist()
-
-  # Calculate the D7 inputs for each permutation
-  for (pkGlom in 1:nrow(actProf)){
+  
+  # Get the glomeruli ids for the EPGs
+  allEPGGloms = strsplit(allEPGids,"_") %>% lapply(function(x){tail(x,2)[1]}) %>% unlist()
+  allPBTpGloms = strsplit(allPBTpids,"_") %>% 
+    lapply(function(x){head(x,3)[1+length(strsplit(PBTpStr[1],"_")[[1]])]}) %>% unlist()
+  
+  # Initialize data frames to hold all of the circular permutations
+  EPGOutputs_all <- data.frame(glom = c(), act = c())
+  EPGInputs_all <- data.frame(glom = c(), act = c())
+  
+  # Permute through the glomeruli
+  for (pkGlom in 1:16){
     actProf$act <- c(tail(actProf$act, -1), head(actProf$act, 1))
     
     # Get the EPG activity given the assumed profile
@@ -188,60 +200,59 @@ EPGToD7OutputAct <- function(PBTpStr,actProf){
                             glom = allPBTpGloms)
     
     # Average the activity over the given glomerulus
+    EPGProf_byGlom <- EPGProf %>% group_by(glom) %>% summarize(act = mean(act))
+    EPGProf_byGlom$glom <- factor(EPGProf_byGlom$glom,
+                                  levels=PBGlomSort(unique(allEPGGloms)))
+    EPGProf_byGlom <- EPGProf_byGlom[order(EPGProf_byGlom$glom),]
+    EPGProf_byGlom$act <- c(tail(EPGProf_byGlom$act, pkGlom), 
+                            head(EPGProf_byGlom$act, -pkGlom))
+    colnames(EPGProf_byGlom) <- c("glom",paste0("act",pkGlom))
+    
     PBTpInput_byGlom <- PBTpInputs %>% group_by(glom) %>% summarize(act = mean(act))
-    PBTpInput_byGlom$pkGlom <- actProf[which(actProf$act == max(actProf$act)),]$glom
+    PBTpInput_byGlom$glom <- factor(PBTpInput_byGlom$glom,
+                                    levels=PBGlomSort(unique(allPBTpGloms)))
+    PBTpInput_byGlom <- PBTpInput_byGlom[order(PBTpInput_byGlom$glom),]
+    PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, pkGlom), 
+                              head(PBTpInput_byGlom$act, -pkGlom))
+    if (PBTpStr %in% c("PEG","PFGs") & pkGlom > 6){
+      PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, 2), 
+                                head(PBTpInput_byGlom$act, -2))
+    }
+    if (PBTpStr %in% c("PFL1","PFL3")){
+      if ((pkGlom > 8) & (pkGlom < 15)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -2), 
+                                  head(PBTpInput_byGlom$act, 2))
+      } else if ((pkGlom > 2) | (pkGlom > 15)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -1), 
+                                  head(PBTpInput_byGlom$act, 1))
+      }
+      
+    }
+    if (PBTpStr == "PFL2"){
+      if (pkGlom > 7){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -3), 
+                                  head(PBTpInput_byGlom$act, 3))
+      }
+    }
+    if (PBTpStr == "PFR_b"){
+      if ((pkGlom > 7) & (pkGlom < 14)){
+        PBTpInput_byGlom$act <- c(tail(PBTpInput_byGlom$act, -2), 
+                                  head(PBTpInput_byGlom$act, 2))
+      }
+    }
+    colnames(PBTpInput_byGlom) <- c("glom",paste0("act",pkGlom))
     
     # Store the values across circular permutations
     if (pkGlom == 1){
+      EPGOutputs_all <- EPGProf_byGlom
       PBTpInputs_all <- PBTpInput_byGlom
     } else {
-      PBTpInputs_all <- rbind(PBTpInputs_all, PBTpInput_byGlom)
+      EPGOutputs_all <- merge(EPGOutputs_all, EPGProf_byGlom, by="glom")
+      PBTpInputs_all <- merge(PBTpInputs_all, PBTpInput_byGlom, by="glom")
     }
-  } 
-  
+  }  
   return(PBTpInputs_all)
 }
-
-# Given a set of glomeruli, align the D7 input
-bumpAlign <- function(PBTpInputs_all, glomsToFit){
-  datToFit <- PBTpInputs_all %>% filter(glom %in% glomsToFit)
-  datToFit$actAlign <- 0
-  datToFit$glom <- factor(datToFit$glom, levels = PBGlomSort(glomsToFit))
-  datToFit <- datToFit[order(datToFit$glom),]
-  
-  numGloms <- length(unique(glomsToFit))
-  
-  PBOrder <- c("L8","L7","L6","L5","L4","L3","L2","L1",
-               "R1","R2","R3","R4","R5","R6","R7","R8")
-  for (g in 1:length(PBOrder)){
-    actNow <- datToFit[which(datToFit$pkGlom == PBOrder[g]),]$act %>% unlist() %>% as.numeric()
-    if (g <= numGloms){
-      actNow <- c(tail(actNow, -g), head(actNow, g))
-    } else {
-      offset <- floor((g-1)/numGloms)
-      actNow <- c(tail(actNow, -(g-offset*numGloms)), head(actNow, (g-offset*numGloms)))
-    }
-    datToFit[which(datToFit$pkGlom == PBOrder[g]),]$actAlign <- actNow
-  }
-  return(datToFit)
-}
-
-# Fit a cosine
-cosFit <- function(data){
-  df = data.frame(angs = data$ang, weight = data$mean)
-  fit <- nls(weight ~ (C1 * cos(angs-theta)+C2), data=df, algorithm="port",
-             control = c(warnOnly = TRUE),
-             start = list(C1=1, theta=0, C2=0),
-             lower = list(C1=0, theta=-pi, C2=-1),
-             upper = list(C1=2, theta=pi, C2=2))
-  return(fit)
-}
-
-
-
-
-
-
 
 #Calculate the mean and SD of D7 outputs
 D7ShapeMeanSD <- function(inputAll){
