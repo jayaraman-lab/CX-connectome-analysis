@@ -12,6 +12,7 @@ library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
 library(grid)
+library(paletteer)
 source(file.path("..","..","PBFigures","PBAnalysisUtils.R"))
 source(file.path("..","..","PBFigures","old","PBAnalysisFunctions.R"))
 source(file.path("..","..","R","visualizeConnectivityTables.R"))
@@ -40,14 +41,25 @@ EPGtInc <- 1
 
 
 Create a von Mises profile in the EPGs - in the EB
-```{r, fig.width=2, fig.height=1}
+```{r, fig.width=4, fig.height=4}
 gloms = c("R1","L8","R2","L7","R3","L6","R4","L5",
          "R5","L4","R6","L3","R7","L2","R8","L1")
 actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
 actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
 g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act)) + 
   theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity')
-print(g_EPGact_in_EB)
+
+actProfvM$glom <- factor(actProfvM$glom, levels = PBGlomSort(gloms))
+g_EPGact_in_PB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act)) + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity')
+
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+
+g_EPGact <- g_EPGact_in_EB / g_EPGact_in_PB
+print(g_EPGact)
+
+ggsave("BumpInEBAndPB.pdf",g_EPGact,
+         width=4, height=4)
 ```
 
 Move the "bump" around the EB
@@ -720,3 +732,91 @@ PFOMeanPlts <-patchwork::wrap_plots(allPlts,nrow =2, ncol = 2) + plot_layout(gui
 ggsave('PFOMeanPlts.pdf',PFOMeanPlts,
        width = 10, height = 4)
 ```
+
+```{r, fig.width=4, fig.height=2}
+gloms <- c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+cols <- paletteer_c('viridis::viridis', 16)
+
+actProfvM <- data.frame(act = vonMisesProf(),glom = gloms)
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act, fill = glom)) + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  scale_fill_manual(values = cols, breaks = gloms)
+
+g_EPGact_in_EB
+```
+```{r, fig.width=4, fig.height=2}
+actProfvM$glom <- factor(actProfvM$glom, levels = PBGlomSort(gloms))
+g_EPGact_in_PB <- ggplot(actProfvM) + geom_bar(aes(x = glom, weight = act, fill = glom)) + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  scale_fill_manual(values = cols[order(gloms,PBGlomSort(gloms))], breaks = gloms)
+g_EPGact_in_PB
+
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+```
+```{r, fig.width = 4, fig.height = 3}
+gloms_RL <- c("R9","R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1","L9")
+cols_RL <- c(cols[1],cols,cols[16])
+actProfvM_RL <- actProfvM
+actProfvM_RL <- rbind(actProfvM_RL, 
+                      data.frame(glom = as.factor(c("R9","L9")),
+                                 act = c(actProfvM_RL[which(actProfvM_RL$glom == "R1"),]$act,
+                                         actProfvM_RL[which(actProfvM_RL$glom == "L1"),]$act)))
+actProfvM_RL$glom <- factor(actProfvM_RL$glom, levels = PBGlomSort(as.character(actProfvM_RL$glom)))
+actProfvM_RL$RL <- actProfvM_RL$glom %>% lapply(function(x) substring(x,1,1)) %>% unlist()
+actProfvM_RL <- actProfvM_RL[order(actProfvM_RL$glom),]
+
+angs <- seq(from=-pi, to = pi, length.out = 9)
+actProfvM_RL$ang <- c(angs, angs[2:9],angs[1])
+
+g_EPGact_in_PB_1to8 <- ggplot(actProfvM_RL %>% filter(!(glom %in% c("L9","R9")))) + geom_bar(aes(x = ang, weight = act, fill = glom)) + 
+  facet_grid(rows = vars(RL)) +
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  scale_fill_manual(values = cols_RL[order(gloms_RL,PBGlomSort(gloms_RL))], breaks = gloms_RL) + xlim(-pi,pi)
+
+actProfvM_RL$ang <- c(angs, angs[9],angs[1:8])
+g_EPGact_in_PB_2to9 <- ggplot(actProfvM_RL %>% filter(!(glom %in% c("L1","R1")))) + geom_bar(aes(x = ang, weight = act, fill = glom)) + 
+  facet_grid(rows = vars(RL)) +
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity') +
+  scale_fill_manual(values = cols_RL[order(gloms_RL,PBGlomSort(gloms_RL))], breaks = gloms_RL) + xlim(-pi,pi)
+
+g_EPGact_in_PB_split <- g_EPGact_in_PB_1to8 + g_EPGact_in_PB_2to9
+g_EPGact_in_PB_split
+```
+
+```{r, fig.width = 4, fig.height = 8}
+design = "
+  11
+  22
+  33
+  "
+g_EPGact <- g_EPGact_in_EB / g_EPGact_in_PB + g_EPGact_in_PB_split + plot_layout(design = design)
+ggsave("BumpInEBAndPB.pdf",g_EPGact,
+       width = 8, height = 8)
+```
+
+```{r}
+EPGCT <- neuronBag(getTypesTable(c("EPG","EPGt")))
+```
+```{r, fig.width = 8, fig.height = 8}
+EPGCTIns <- EPGCT$outputs_raw %>% filter(roi == "EB" & type.to %in% c("EPG","EPGt"))
+EPGCTIns$nameOrder.to <- PBRename(EPGCTIns$name.to, EPGCTIns$to)
+EPGCTIns$nameOrder.from <- PBRename(EPGCTIns$name.from, EPGCTIns$from)
+EPGAndEPGCT <- plotConnectivityMatrix(EPGCTIns, byGroup = "id_sort") + coord_equal(ratio=1) + geom_vline(xintercept = 46.5) + geom_hline(yintercept = 46.5)
+ggsave("EPGAndEPGtConnectivity.pdf",EPGAndEPGCT)
+```
+
+```{r}
+EPGCTIns <- EPGCT$inputs_raw %>% filter(roi == "EB" & type.to == "EPGt")
+EPGCTIns$nameOrder.to <- PBRename(EPGCTIns$name.to, EPGCTIns$to)
+EPGCTIns$nameOrder.from <- PBRename(EPGCTIns$name.from, EPGCTIns$from)
+
+EPGtIns <- ggplot(EPGCTIns) + geom_bar(aes(x=as.factor(nameOrder.from), y = ROIweight), stat="identity") + 
+  facet_grid(cols = vars(nameOrder.to), scales = "free") +
+  theme_paper() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+ggsave("EPGtInputs.pdf",EPGtIns)
+```
+
