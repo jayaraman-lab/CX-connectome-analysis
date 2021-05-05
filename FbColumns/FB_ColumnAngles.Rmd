@@ -18,6 +18,7 @@ library(dplyr)
 library(tidyr)
 library(tibble)
 library(circular)
+library(ggbeeswarm)
 ```
 
 # Make directories where figures will be saved to
@@ -71,11 +72,11 @@ PB_FB_Bag=neuronBag(PB_FB_Bodies, slctROI="FB")
 PB_FB_Outputs_T2T=PB_FB_Bag$outputs
 PB_FB_Outputs_N2N=PB_FB_Bag$outputs_raw
 
-# Look at only postsynaptic connections to columnar types
-PB_FB_Outputs_T2T= subset(PB_FB_Outputs_T2T,  startsWith(type.to,"PF") | startsWith(type.to,"FC")     | startsWith(type.to,"FR") | 
-                                              startsWith(type.to,"FS") | startsWith(type.to,"hDelta") | startsWith(type.to,"vDelta"))
-PB_FB_Outputs_N2N= subset(PB_FB_Outputs_N2N,  startsWith(type.to,"PF") | startsWith(type.to,"FC")     | startsWith(type.to,"FR") | 
-                                              startsWith(type.to,"FS") | startsWith(type.to,"hDelta") | startsWith(type.to,"vDelta"))
+# Look at only postsynaptic connections to columnar types (Excluding other PB-FB-XX types)
+PB_FB_Outputs_T2T= subset(PB_FB_Outputs_T2T,  startsWith(type.to,"FC")     | startsWith(type.to,"FR") | 
+                                              startsWith(type.to,"FS")     | startsWith(type.to,"hDelta") | startsWith(type.to,"vDelta"))
+PB_FB_Outputs_N2N= subset(PB_FB_Outputs_N2N,  startsWith(type.to,"FC")     | startsWith(type.to,"FR") | 
+                                              startsWith(type.to,"FS")     | startsWith(type.to,"hDelta") | startsWith(type.to,"vDelta"))
 
 ```
 
@@ -83,32 +84,21 @@ PB_FB_Outputs_N2N= subset(PB_FB_Outputs_N2N,  startsWith(type.to,"PF") | startsW
 # A function for assigning EPG and Delta7 angles to neurons
 ```{r}
 
-Assign_Angles_ToNeurons <- function(Table_w_NeuronName, To_From){
-  if (To_From=="to"){
-    Angle_Table=data.frame(PBglom.to=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
+Assign_Angles_ToNeurons <- function(Table_w_NeuronName){
+  Angle_Table=data.frame(PBglom.from=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                        "R1","R2","R3","R4","R5","R6","R7","R8","R9" ),
-                           EPG_Angle.to=c(0, 45, 90, 135, 180, 225, 270, 315, 0,
+                         EPG_Angle.from=c(0, 45, 90, 135, 180, 225, 270, 315, 0,
                                           22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5, 22.5),
-                           D7_Angle.to=c(348.75, 33.75, 78.75, 123.75, 168.75, 213.75, 258.75, 303.75, 348.75,
+                         D7_Angle.from=c(348.75, 33.75, 78.75, 123.75, 168.75, 213.75, 258.75, 303.75, 348.75,
                                          33.75, 78.75, 123.75, 168.75, 213.75, 258.75, 303.75, 348.75, 33.75))
-    Table_w_NeuronName=inner_join(Table_w_NeuronName, Angle_Table, "PBglom.to")
-  } else if (To_From=="from"){
-    Angle_Table=data.frame(PBglom.from=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
-                                       "R1","R2","R3","R4","R5","R6","R7","R8","R9" ),
-                           EPG_Angle.from=c(0, 45, 90, 135, 180, 225, 270, 315, 0,
-                                          22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5, 22.5),
-                           D7_Angle.from=c(348.75, 33.75, 78.75, 123.75, 168.75, 213.75, 258.75, 303.75, 348.75,
-                                         33.75, 78.75, 123.75, 168.75, 213.75, 258.75, 303.75, 348.75, 33.75))
-    Table_w_NeuronName=inner_join(Table_w_NeuronName, Angle_Table, "PBglom.from")
-  }
+  Table_w_NeuronName=inner_join(Table_w_NeuronName, Angle_Table, "PBglom.from")
 }
-
 
 ```
 
 
 # Loop over all postsynaptic neurons and compute their average angular inputs
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 # Get upstream and downstream types
 PB_FB_Types=unique(PB_FB_Outputs_T2T$type.from)
@@ -119,13 +109,14 @@ PB_FB_Outputs_N2N=Assign_FBcol_PBglom(PB_FB_Outputs_N2N, "name.to", "Side.to", "
 PB_FB_Outputs_N2N=Assign_FBcol_PBglom(PB_FB_Outputs_N2N, "name.from", "Side.from", "PBglom.from", "FBcol.from")
 
 # Assign angles to PB-FB-XX neurons
-PB_FB_Outputs_N2N=Assign_Angles_ToNeurons(PB_FB_Outputs_N2N, "from")
+PB_FB_Outputs_N2N=Assign_Angles_ToNeurons(PB_FB_Outputs_N2N)
 
 
 # Loop over all postsynaptic neurons and plot histogram of their angles
 Post_Neurons=unique(PB_FB_Outputs_N2N$to)
 FB_Neuron_Angles=data.frame(to=numeric(), type.to=character(), name.to=character(), FBcol.to=character(), type.from=character(),
-                            EPG_Angle=numeric(), D7_Angle=numeric(), TotalSyns=numeric())
+                            EPG_Angle=numeric(), D7_Angle=numeric(), TotalSyns=numeric(),
+                            EPG_Angle_L=numeric(), D7_Angle_L=numeric(), EPG_Angle_R=numeric(), D7_Angle_R=numeric())
 for (nnn in 1:length(Post_Neurons)){
   
   # Get all connections to just this neuron
@@ -138,10 +129,19 @@ for (nnn in 1:length(Post_Neurons)){
     # Get just this pretype
     TempConnect=subset(TempConnect_All, type.from == TempPreTypes[ttt])
     
-    # calculate weighted circular mean for EPG and D7 angles
-    EPG_TempAngle = weighted.mean( rad(TempConnect$EPG_Angle.from) , TempConnect$weight) %>% deg()
-    D7_TempAngle  = weighted.mean( rad(TempConnect$D7_Angle.from)  , TempConnect$weight) %>% deg()
+    # Calculate weighted circular mean for EPG and D7 angles, from left and right populations together
+    EPG_TempAngle = circular::weighted.mean.circular( rad(TempConnect$EPG_Angle.from) , TempConnect$ROIweight) %>% deg()
+    D7_TempAngle  = circular::weighted.mean.circular( rad(TempConnect$D7_Angle.from)  , TempConnect$ROIweight) %>% deg()
     TotalSyns_Temp=sum(TempConnect$weight)
+    
+    # Calculate weighted circular mean for EPG and D7 angles for the left and right populations separate
+    TempConnect_L=subset(TempConnect, Side.from=="L")
+    EPG_TempAngle_L=circular::weighted.mean.circular( rad(TempConnect_L$EPG_Angle.from) , TempConnect_L$ROIweight) %>% deg()
+    D7_TempAngle_L= circular::weighted.mean.circular( rad(TempConnect_L$D7_Angle.from) , TempConnect_L$ROIweight) %>% deg()
+    
+    TempConnect_R=subset(TempConnect, Side.from=="R")
+    EPG_TempAngle_R=circular::weighted.mean.circular( rad(TempConnect_R$EPG_Angle.from) , TempConnect_R$ROIweight) %>% deg()
+    D7_TempAngle_R= circular::weighted.mean.circular( rad(TempConnect_R$D7_Angle.from) , TempConnect_R$ROIweight) %>% deg()
     
     # Add data to dataframe
     Temp_DF=TempConnect[c("to","type.to","name.to","FBcol.to")][1,]
@@ -149,25 +149,91 @@ for (nnn in 1:length(Post_Neurons)){
     Temp_DF$EPG_Angle=EPG_TempAngle
     Temp_DF$D7_Angle=D7_TempAngle
     Temp_DF$TotalSyns=TotalSyns_Temp
+    Temp_DF$EPG_Angle_L=EPG_TempAngle_L
+    Temp_DF$D7_Angle_L=D7_TempAngle_L
+    Temp_DF$EPG_Angle_R=EPG_TempAngle_R
+    Temp_DF$D7_Angle_R=D7_TempAngle_R
     FB_Neuron_Angles=rbind(FB_Neuron_Angles,Temp_DF)
   }
 }
+
+remove(Temp_DF, TempConnect, TempConnect_All, TempConnect_L, TempConnect_R)
+```
+
+
+# adjust angles so they are within 0 to 360 degrees
+```{r}
+
+FB_Neuron_Angles$EPG_Angle=(FB_Neuron_Angles$EPG_Angle + 360) %% 360 %>% as.numeric()
+FB_Neuron_Angles$D7_Angle= (FB_Neuron_Angles$D7_Angle + 360)  %% 360 %>% as.numeric()
+FB_Neuron_Angles$EPG_Angle_L=(FB_Neuron_Angles$EPG_Angle_L + 360) %% 360 %>% as.numeric()
+FB_Neuron_Angles$D7_Angle_L= (FB_Neuron_Angles$D7_Angle_L + 360)  %% 360 %>% as.numeric()
+FB_Neuron_Angles$EPG_Angle_R=(FB_Neuron_Angles$EPG_Angle_R + 360) %% 360 %>% as.numeric()
+FB_Neuron_Angles$D7_Angle_R= (FB_Neuron_Angles$D7_Angle_R + 360)  %% 360 %>% as.numeric()
 
 
 ```
 
 
+# Analyze the phase shifts
+```{r message=FALSE, warning=FALSE}
+
+# Why do PFNp_a, d, e have so few output synapses?
+# Why are there so many 90 and 135 points?
+# Shold I be excluding hDelta(s) to avoid double band problem?
+# Why are the PFRb EPG and D7 phase estimates closer together than the rest?
+
+
+# Get just those neurons that reeive input from left and right populations
+PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)))
+
+# Compute difference in phases from right-left
+PhaseShiftData$EPG_Angle_Diff=((PhaseShiftData$EPG_Angle_R-PhaseShiftData$EPG_Angle_L)+360) %% 360 %>% as.numeric()
+PhaseShiftData$D7_Angle_Diff=((PhaseShiftData$D7_Angle_R-PhaseShiftData$D7_Angle_L)+360) %% 360 %>% as.numeric()
+
+
+# Compute the mean difference across neurons
+PhaseShift_Mean=PhaseShiftData %>% group_by(type.from) %>% 
+                    summarise(EPG_Angle_Diff_Mean=as.numeric(deg(mean.circular(rad(EPG_Angle_Diff)))), 
+                              D7_Angle_Diff_Mean=as.numeric(deg(mean.circular(rad(D7_Angle_Diff)))))
+PhaseShift_Mean$EPG_Angle_Diff_Mean=(PhaseShift_Mean$EPG_Angle_Diff_Mean+360) %% 360 %>% as.numeric()
+PhaseShift_Mean$D7_Angle_Diff_Mean=(PhaseShift_Mean$D7_Angle_Diff_Mean+360) %% 360 %>% as.numeric()
+
 
 # Plot the data
+NeuronTypeOrder=c("PFGs","PFR_a","PFNa","PFNd","PFNv","PFNm_a","PFNm_b","PFNp_a","PFNp_b","PFNp_c","PFNp_d","PFNp_e","PFR_b")
+PhaseShiftData$type.from=factor(PhaseShiftData$type.from, levels=NeuronTypeOrder)
+PhaseShift_Mean$type.from=factor(PhaseShift_Mean$type.from, levels=NeuronTypeOrder)
+
+ggplot() +  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff),size=3, color="black", shape=21) +
+            geom_point(data=PhaseShiftData, aes(x=type.from, y=D7_Angle_Diff),size=3, color="red", shape=21) +
+            scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
+            geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
+            geom_line(data=PhaseShift_Mean, aes(x=type.from, y=D7_Angle_Diff_Mean, group=1), color="red") +
+            xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90))
+
+
+
+hist(PhaseShiftData$EPG_Angle_Diff,100)
+hist(PhaseShiftData$D7_Angle_Diff,100)
+```
+
+
+
+
+
+
+
+
+# Plot data
 ```{r}
 
-# Need to beware of double striped connection matrices
 
 
+# Loop over all pre-post pairs whose type-to-type connectivity is significant (weeds out weak connections)
+PrePostTypes=distinct(PB_FB_Outputs_T2T[(c("type.from","type.to"))])
 
-FB_Neuron_Angles$FBcol.to=factor(FB_Neuron_Angles$FBcol.to, 
-                                 levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
-PrePostTypes=distinct(FB_Neuron_Angles[(c("type.from","type.to"))])
+
 for (ttt in 1:length(PrePostTypes)){
   
   # Get just this prepost pair
@@ -183,6 +249,33 @@ for (ttt in 1:length(PrePostTypes)){
 }
 
 
+```
+
+
+
+
+
+
+
+
+# Plot the data
+```{r}
+
+# TO DO:
+# Need to beware of double striped connection matrices
+# Should we try to quantify the phase offset?
+# How many columns are there? And what are their angles? Is there a data-driven way to answer this?
+# How do we reconcile 9 structural columns (good evidence) with 8 functional columns?
+
+# Add 180 degrees to angles so they are between 0 and 360, like angles in the bridge
+FB_Neuron_Angles$EPG_Angle=(FB_Neuron_Angles$EPG_Angle + 360) %% 360 %>% as.numeric()
+FB_Neuron_Angles$D7_Angle= (FB_Neuron_Angles$D7_Angle + 360)  %% 360 %>% as.numeric()
+
+
+# Set levels to columns
+FB_Neuron_Angles$FBcol.to=factor(FB_Neuron_Angles$FBcol.to, 
+                                 levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
+
 # Look at just the FX, which all have 9 columns
 FX_Data=subset(FB_Neuron_Angles, startsWith(type.to, "F"))
 ggplot() +  geom_point(data=FX_Data, aes(x=FBcol.to, y=EPG_Angle),size=3, color="black", shape=21) +
@@ -190,11 +283,37 @@ ggplot() +  geom_point(data=FX_Data, aes(x=FBcol.to, y=EPG_Angle),size=3, color=
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360))
 
 
-# Look at just the vDeltas, which all have 9 columns
+# Look at average angle of each FX column
+FX_Data_Ave=FX_Data %>% group_by(FBcol.to) %>% summarise(EPG_Angle=mean.circular(rad(EPG_Angle)), D7_Angle=mean.circular(rad(D7_Angle)))
+FX_Data_Ave$EPG_Angle=(deg(FX_Data_Ave$EPG_Angle) + 360) %% 360 %>% as.numeric()
+FX_Data_Ave$D7_Angle=(deg(FX_Data_Ave$D7_Angle) + 360) %% 360 %>% as.numeric()
+
+
+ggplot() + geom_point(data=FX_Data_Ave, aes(x=FBcol.to, y=EPG_Angle),size=3, color="black", shape=21) +
+  geom_point(data=FX_Data_Ave, aes(x=FBcol.to, y=D7_Angle),size=3, color="red", shape=21) +
+  scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360))
+
+deg(mean.circular(diff(as.numeric(FX_Data_Ave$EPG_Angle))))
+
+
+# Look at just the vDeltas, which all have 9 columns (plus C0)
 vDelta_Data=subset(FB_Neuron_Angles, startsWith(type.to, "vDelta"))
 ggplot() +  geom_point(data=vDelta_Data, aes(x=FBcol.to, y=EPG_Angle),size=3, color="black", shape=21) +
-  geom_point(data=FX_Data, aes(x=FBcol.to, y=D7_Angle),size=3, color="red", shape=21) + 
+  geom_point(data=vDelta_Data, aes(x=FBcol.to, y=D7_Angle),size=3, color="red", shape=21) + 
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360))
+
+
+# Look at just the vDeltas, which all have 9 columns (plus C0)
+hDeltaA_Data=subset(FB_Neuron_Angles, startsWith(type.to, "hDeltaA"))
+ggplot() +  geom_point(data=hDeltaA_Data, aes(x=FBcol.to, y=EPG_Angle),size=3, color="black", shape=21) +
+  geom_point(data=hDeltaA_Data, aes(x=FBcol.to, y=D7_Angle),size=3, color="red", shape=21) + 
+  scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360))
+
+
+
+
+
+
 
 
 
@@ -203,6 +322,12 @@ ggplot() +  geom_point(data=vDelta_Data, aes(x=FBcol.to, y=EPG_Angle),size=3, co
 hist(FB_Neuron_Angles$EPG_Angle,200)
 hist(FB_Neuron_Angles$D7_Angle,200)
 
+hist(FB_Neuron_Angles$TotalSyns,200)
+
+
+
+hist(FB_Neuron_Angles$D7_Angle_L-FB_Neuron_Angles$D7_Angle_R,200)
+hist(FB_Neuron_Angles$EPG_Angle_L-FB_Neuron_Angles$EPG_Angle_R,200)
 
 ```
 
