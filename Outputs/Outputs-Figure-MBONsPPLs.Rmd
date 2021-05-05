@@ -58,6 +58,8 @@ We select from the pathway weight table all MBON, PPL or antennal lobe types tha
 ```{r}
 CXoutFFEndpointMBONPPLs <- filter(CXoutFull,(supertype3.to == "MBON" | 
                                                  supertype1.to=="PPL" | 
+                                                 supertype1.to=="PAM" | 
+                                                 supertype1.to=="PPM" | 
                                                  supertype3.to == "Antennal lobe") & 
                                       fullCXwr>0.0005) %>%
     mutate(supertype.to=knownTypesTable$supertype[match(type.to,knownTypesTable$type)],
@@ -86,7 +88,7 @@ moreMBONPPLPlot <- ggplot(CXoutFFEndpointMBONPPLs,aes(x=type.to,y=Path_weight)) 
 moreMBONPPLPlot
 ```
 ```{r}
-save_plot(file.path(outputsFolder,"MBONsPPLTargets.svg"),moreMBONPPLPlot,nrow=0.6,ncol=0.8)
+save_plot(file.path(outputsFolder,"MBONsPPLTargets.svg"),moreMBONPPLPlot,nrow=0.6,ncol=1)
 ```
 
 ## Network graph (panel B)
