@@ -404,4 +404,49 @@ save_plot(file.path(outputsFolder,"outputs-graphLabelProp.svg"),
 ```
 
 
+## Connectivity matrix by neuron of the main columnar outputs (Figure supplement 5)
+```{r}
+columnarBag <- neuronBag(filter(CXNeurons,supertype3 %in% c("FB Output","FB Columnar") & type %in% mainFFConns$type.from),
+                    slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>%
+  combineRois(outsideRegions,"Outside")
+
+columnarConns <- columnarBag$outputs_raw %>% 
+   mutate(column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),levels=paste0("C",9:1))) %>%
+   arrange(column) %>%
+   mutate(label.from=column,
+          label.to=name.to) %>% 
+   filter(type.to %in% mainFFTargets$type.to) %>%
+   mutate(mainContributor = mainFFConns$mainContributor[match(type.to,mainFFConns$type.to)])
+
+```
+
+```{r}
+columnOutputs <- plotConnectivity(filter(columnarConns,
+                                         supertype1.from %in% c("PFL","FR1","FR2","PFR","FS4")),
+                              slctROI="Outside",
+                              grouping="neuron",
+                              xaxis="outputs",
+                              facetInputs="type.from",
+                              facetOutputs="supertype2.to",
+                              orderOut=unique(arrange(columnarConns,mainContributor)$to),
+                              theme=theme_paper_rects(strip.placement="outside"),
+                              replacementLabels = "label",
+                              legendName = "relative weight",
+                              switch="both")+
+  xlab("postsynaptic type")+ylab("presynaptic type")+ theme(
+                                strip.text.x=element_text(angle=90),
+                                strip.text.y.left=element_text(angle=0),
+                                axis.text.x=element_blank(),
+                                axis.text.y=element_blank(),
+                                axis.ticks.x=element_blank(),
+                                axis.ticks.y=element_blank()
+                              )
+columnOutputs
+
+
+```
+```{r}
+save_plot(file.path(outputsFolder,"outputs-columnarNeuron2Neuron.svg"),
+          columnOutputs,base_width = 8,base_height = 7)
+```
 

@@ -85,7 +85,74 @@ And save it:
 save_plot(file.path(outputsFolder,"VPNTargets.svg"),moreVPNsPlot,nrow=0.5,ncol=0.6)
 ```
 
-## PFL3 to LC33 (panels B and C)
+
+## The LC10 connection (panels B and C)
+### Network graph
+For display purposes, we use a manual graph layout, so we build the graph directly from the neurons we found in the network and assign x/y positions: 
+```{r}
+PFL3ToLC10<-as_tbl_graph(induced_subgraph(CX_outGraphBi,
+                                          c("PFL3_L*","PFL3_R*","LC10_R",
+                                            "AOTU042_L","AOTU019_R"))) %N>% 
+  mutate(x=case_when(type %in% c("LC10_R")~0.3,
+                     type=="PFL3_L*"~0.6,
+                     type %in% c("AOTU042_L","AOTU019_R") ~1,
+                     type=="PFL3_R*"~1.4),
+         y=case_when(type == "LC10_R"~0.7,
+                     type=="AOTU019_R"~0.7,type=="AOTU042_L"~0.3,
+                     type %in%c("PFL3_L*","PFL3_R*") ~1)) %>% 
+    selectSupertypeSet(default_level = 1)  %>%
+    customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
+    mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
+
+## How we found the neurons in the graph
+#getLocalSubgraph(c("PFL3_L*","PFL3_R*","LC10_R"),c("LC10_R"),CX_outGraphBi,order=1) 
+```
+We then plot the graph:
+```{r}
+PFL3ToLC10Plot <- standardGraph(PFL3ToLC10,
+                                pal=customGraphPalette,
+                                layout="manual",x=x,y=y) + 
+  geom_vline(xintercept = 1,lty=2,color="grey50")
+PFL3ToLC10Plot
+```
+
+
+Then save it:
+```{r}
+save_plot(file.path(outputsFolder,"PFL3-LC10-NGraph.svg"),PFL3ToLC10Plot,nrow=0.4,ncol=0.6)
+```
+
+### Bodyids for renderings
+Getting the LC10 connection tables to assess the importance of their connectivity:
+```{r}
+LC10Bag <- neuronBag("LC10",by.roi=FALSE,renaming=customRetyping)
+```
+
+All connected LC10 neurons, ordered by connection strength with AOTU42:
+```{r}
+LC10Body <- arrange(filter(LC10Bag$inputs_raw,type.from=="AOTU042_L"),desc(weightRelative))
+head(LC10Body)
+```
+Strongly connected LC10 neurons:
+```{r}
+LC10Body$to[1:10]
+```
+Example weakly connected LC10 neurons:
+```{r}
+LC10Body$to[300:310]
+```
+Example unconnected LC10:
+```{r}
+LC10Other <- filter(LC10Bag$names,!(bodyid %in% LC10Body$from))
+LC10Other$bodyid[1:2]
+```
+PFL3_R neurons:
+```{r}
+(getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*"))$bodyid
+```
+
+
+## PFL3 to LC33 (panels D and E)
 ### Network graph
 We use `getLocalSubgraph` to extract all neurons in PFL3 to LC33 pathways in 2 steps or less. We also do some retyping to ease the mapping of existing palettes in the plot: 
 ```{r}
@@ -191,71 +258,6 @@ PFLLCOutMat
 And save the plot:
 ```{r}
 save_plot(file.path(outputsFolder,"PFL3andLC33Shared.svg"),PFLLCOutMat,nrow=2.8,ncol=0.8)
-```
-
-## The LC10 connection (panels D and E)
-### Network graph
-For display purposes, we use a manual graph layout, so we build the graph directly from the neurons we found in the network and assign x/y positions: 
-```{r}
-PFL3ToLC10<-as_tbl_graph(induced_subgraph(CX_outGraphBi,
-                                          c("PFL3_L*","PFL3_R*","LC10_R",
-                                            "AOTU042_L","AOTU019_R"))) %N>% 
-  mutate(x=case_when(type %in% c("LC10_R")~0.3,
-                     type=="PFL3_L*"~0.6,
-                     type %in% c("AOTU042_L","AOTU019_R") ~1,
-                     type=="PFL3_R*"~1.4),
-         y=case_when(type == "LC10_R"~0.7,
-                     type=="AOTU019_R"~0.7,type=="AOTU042_L"~0.3,
-                     type %in%c("PFL3_L*","PFL3_R*") ~1)) %>% 
-    selectSupertypeSet(default_level = 1)  %>%
-    customOutputSupertype(extraTypes = filter(knownTypesTable,supertype != "CX")$type)  %E>% 
-    mutate(customSupertype.from = .N()$customSupertype[match(type.from,.N()$type)],weight=weightRelative) %>% filter(weightRelative > 0.005)
-
-## How we found the neurons in the graph
-#getLocalSubgraph(c("PFL3_L*","PFL3_R*","LC10_R"),c("LC10_R"),CX_outGraphBi,order=1) 
-```
-We then plot the graph:
-```{r}
-PFL3ToLC10Plot <- standardGraph(PFL3ToLC10,
-                                pal=customGraphPalette,
-                                layout="manual",x=x,y=y) + 
-  geom_vline(xintercept = 1,lty=2,color="grey50")
-PFL3ToLC10Plot
-```
-
-
-Then save it:
-```{r}
-save_plot(file.path(outputsFolder,"PFL3-LC10-NGraph.svg"),PFL3ToLC10Plot,nrow=0.4,ncol=0.6)
-```
-
-### Bodyids for renderings
-Getting the LC10 connection tables to assess the importance of their connectivity:
-```{r}
-LC10Bag <- neuronBag("LC10",by.roi=FALSE,renaming=customRetyping)
-```
-
-All connected LC10 neurons, ordered by connection strength with AOTU42:
-```{r}
-LC10Body <- arrange(filter(LC10Bag$inputs_raw,type.from=="AOTU042_L"),desc(weightRelative))
-head(LC10Body)
-```
-Strongly connected LC10 neurons:
-```{r}
-LC10Body$to[1:10]
-```
-Example weakly connected LC10 neurons:
-```{r}
-LC10Body$to[300:310]
-```
-Example unconnected LC10:
-```{r}
-LC10Other <- filter(LC10Bag$names,!(bodyid %in% LC10Body$from))
-LC10Other$bodyid[1:2]
-```
-PFL3_R neurons:
-```{r}
-(getTypesTable("PFL3") %>% customRetyping() %>% filter(type=="PFL3_R*"))$bodyid
 ```
 
 ## PFL1 to LC27 connection (panels F and G)
