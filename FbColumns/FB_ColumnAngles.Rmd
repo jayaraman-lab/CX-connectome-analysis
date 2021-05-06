@@ -51,6 +51,7 @@ source("FB_Analysis_Utils.r")
 load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
 rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
           "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
+load(paste(SaveDir,"FB_ColumnPositions.RData",sep=""))
 
 # Assign Side, PB glom, and FB col info
 FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
@@ -143,6 +144,8 @@ for (nnn in 1:length(Post_Neurons)){
     EPG_TempAngle_R=circular::weighted.mean.circular( rad(TempConnect_R$EPG_Angle.from) , TempConnect_R$ROIweight) %>% deg()
     D7_TempAngle_R= circular::weighted.mean.circular( rad(TempConnect_R$D7_Angle.from) , TempConnect_R$ROIweight) %>% deg()
     
+    if (is.na(EPG_TempAngle)){print(c(as.character(nnn), " ", as.character(ttt)))}
+    
     # Add data to dataframe
     Temp_DF=TempConnect[c("to","type.to","name.to","FBcol.to")][1,]
     Temp_DF$type.from=TempPreTypes[ttt]
@@ -171,7 +174,6 @@ FB_Neuron_Angles$D7_Angle_L= (FB_Neuron_Angles$D7_Angle_L + 360)  %% 360 %>% as.
 FB_Neuron_Angles$EPG_Angle_R=(FB_Neuron_Angles$EPG_Angle_R + 360) %% 360 %>% as.numeric()
 FB_Neuron_Angles$D7_Angle_R= (FB_Neuron_Angles$D7_Angle_R + 360)  %% 360 %>% as.numeric()
 
-
 ```
 
 
@@ -179,13 +181,14 @@ FB_Neuron_Angles$D7_Angle_R= (FB_Neuron_Angles$D7_Angle_R + 360)  %% 360 %>% as.
 ```{r message=FALSE, warning=FALSE}
 
 # Why do PFNp_a, d, e have so few output synapses?
-# Why are there so many 90 and 135 points?
+# Why are there so many 90 and 135 points? (sensitive to theshold on syn #)
 # Shold I be excluding hDelta(s) to avoid double band problem?
-# Why are the PFRb EPG and D7 phase estimates closer together than the rest?
+# Why are the PFR_b's EPG and D7 phase estimates closer together than the rest?
+# Why so much variance for the PFR_a and PFR_b types?
 
 
 # Get just those neurons that reeive input from left and right populations
-PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)))
+PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)) & TotalSyns>10)
 
 # Compute difference in phases from right-left
 PhaseShiftData$EPG_Angle_Diff=((PhaseShiftData$EPG_Angle_R-PhaseShiftData$EPG_Angle_L)+360) %% 360 %>% as.numeric()
@@ -205,28 +208,92 @@ NeuronTypeOrder=c("PFGs","PFR_a","PFNa","PFNd","PFNv","PFNm_a","PFNm_b","PFNp_a"
 PhaseShiftData$type.from=factor(PhaseShiftData$type.from, levels=NeuronTypeOrder)
 PhaseShift_Mean$type.from=factor(PhaseShift_Mean$type.from, levels=NeuronTypeOrder)
 
-ggplot() +  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff),size=3, color="black", shape=21) +
-            geom_point(data=PhaseShiftData, aes(x=type.from, y=D7_Angle_Diff),size=3, color="red", shape=21) +
-            scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
-            geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
-            geom_line(data=PhaseShift_Mean, aes(x=type.from, y=D7_Angle_Diff_Mean, group=1), color="red") +
-            xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90))
-
+P1=ggplot() +  
+  geom_hline(yintercept=90, linetype="dashed", color = "gray50") + 
+  geom_hline(yintercept=270, linetype="dashed", color = "gray50") +
+  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff),size=3, color="black", shape=21) +
+  geom_point(data=PhaseShiftData, aes(x=type.from, y=D7_Angle_Diff),size=3, color="red", shape=21) +
+  scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
+  geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
+  geom_line(data=PhaseShift_Mean, aes(x=type.from, y=D7_Angle_Diff_Mean, group=1), color="red") +
+  xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90))
+ggsave(paste(PlotDir, "PB_FB_PhaseShift", ".png", sep=""),
+       plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+P1
 
 
 hist(PhaseShiftData$EPG_Angle_Diff,100)
 hist(PhaseShiftData$D7_Angle_Diff,100)
+
+mode(PhaseShiftData$EPG_Angle_Diff)
+
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+getmode(PhaseShiftData$EPG_Angle_Diff)
+getmode(PhaseShiftData$D7_Angle_Diff)
+
+```
+
+
+
+# Look for correlation between each neuron's position and its directional tuning
+```{r}
+
+
+# Get each neuron's average columnar position in layer with the most synapses
+PositionInfo=ColumnPositions_All[c("bodyid","type" ,"X","Y","Z","Layer","prepost","numsyns")]
+PositionInfo=subset(PositionInfo, !(Layer=="FB")) # Remove FB as a layer since we want to find layer with most synapses
+MaxLayers=PositionInfo %>% group_by(type, Layer) %>% summarise(TotSyns=sum(numsyns)) %>% filter(TotSyns==max(TotSyns))
+PositionInfo=merge(PositionInfo, MaxLayers, by=c("type","Layer")) # Get position information for just max layer for each type
+
+
+
+
+
+
+
+PositionInfo=subset(PositionInfo, bodyid %in% unique(FB_Neuron_Angles$to)) # restrict to just those FB neurons with phase estimates
+
+
+
+length(unique(PositionInfo$bodyid))
+
+
+Position_Vs_Tuning=
 ```
 
 
 
 
-
-
-
-
-# Plot data
+# Analyze tuning
 ```{r}
+
+# TO DO:
+# Need to beware of double striped connection matrices
+# How many columns are there? And what are their angles? Is there a data-driven way to answer this?
+# How do we reconcile 9 structural columns (good evidence) with 8 functional columns?
+# Make scatter plot showing neurons x position versus its directional tuning?
+
+# Why is there 1 neuron with no D7 angle and one neuron with no EPG angle? Because the average cancels out to nothing
+
+
+# Plot a histogram of FX neurons (all neurons or just those that receive L&R input)
+FX_Data_All=subset(FB_Neuron_Angles, startsWith(type.to,"F"))
+FX_Data_Both=subset(PhaseShiftData, startsWith(type.to,"F"))
+P2=ggplot() + geom_histogram(data=FX_Data_All, aes(x=EPG_Angle), binwidth=3.6, alpha=0.5, color="gray50", fill="gray50") +
+           geom_histogram(data=FX_Data_Both, aes(x=EPG_Angle), binwidth=3.6, alpha=0.5, color="blue", fill="blue") +
+           scale_x_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(-5, 365)) + theme_classic() +
+           xlab("EPG angle (deg)") + ylab("# of FX neurons")
+ggsave(paste(PlotDir, "FX_EPG_Phases_All", ".png", sep=""),
+       plot = P2, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)           
+P2
+
+
+
 
 
 
@@ -261,11 +328,6 @@ for (ttt in 1:length(PrePostTypes)){
 # Plot the data
 ```{r}
 
-# TO DO:
-# Need to beware of double striped connection matrices
-# Should we try to quantify the phase offset?
-# How many columns are there? And what are their angles? Is there a data-driven way to answer this?
-# How do we reconcile 9 structural columns (good evidence) with 8 functional columns?
 
 # Add 180 degrees to angles so they are between 0 and 360, like angles in the bridge
 FB_Neuron_Angles$EPG_Angle=(FB_Neuron_Angles$EPG_Angle + 360) %% 360 %>% as.numeric()
