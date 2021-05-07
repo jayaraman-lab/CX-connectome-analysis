@@ -1,5 +1,5 @@
 ---
-title: "Notebook for measuring approximate angles of FB columns"
+title: "Notebook for measuring approximate angles of FB columns and PB-FB phase shifts"
 output:
   html_document:
     df_print: paged
@@ -18,7 +18,9 @@ library(dplyr)
 library(tidyr)
 library(tibble)
 library(circular)
-library(ggbeeswarm)
+#library(ggbeeswarm)
+library(paletteer)
+library(scales)
 ```
 
 # Make directories where figures will be saved to
@@ -82,9 +84,10 @@ PB_FB_Outputs_N2N= subset(PB_FB_Outputs_N2N,  startsWith(type.to,"FC")     | sta
 ```
 
 
-# A function for assigning EPG and Delta7 angles to neurons
+# Define some functions called in the analyses below
 ```{r}
 
+# Function for assigning EPG and Delta7 angles to neurons
 Assign_Angles_ToNeurons <- function(Table_w_NeuronName){
   Angle_Table=data.frame(PBglom.from=c("L9","L8","L7","L6","L5","L4","L3","L2","L1",
                                        "R1","R2","R3","R4","R5","R6","R7","R8","R9" ),
@@ -95,15 +98,28 @@ Assign_Angles_ToNeurons <- function(Table_w_NeuronName){
   Table_w_NeuronName=inner_join(Table_w_NeuronName, Angle_Table, "PBglom.from")
 }
 
+
+# Function for creating a distribution of angles according to the # of synapses at each angle
+GetAllAngles <- function(TempConnectFun){
+  if (nrow(TempConnectFun>0)){
+    AllAngles=c()
+    for (rrr in 1:nrow(TempConnectFun)){
+      AllAngles=c(AllAngles, rep(TempConnectFun$EPG_Angle.from[rrr], TempConnectFun$ROIweight[rrr]) ) 
+    }
+  } else {
+    AllAngles=NaN
+  }
+  return(AllAngles)
+}
+
+
 ```
 
 
-# Loop over all postsynaptic neurons and compute their average angular inputs
+# Loop over all postsynaptic neurons and compute their average angular inputs. 
+# Take the average over all presynaptic neurons provides an estimate of the postsynaptic neuron's mean phase.
+# Taking the average over left and right PB-FB-XX inputs separately will allow us to estimate phase shifts.
 ```{r message=FALSE, warning=FALSE}
-
-# Get upstream and downstream types
-PB_FB_Types=unique(PB_FB_Outputs_T2T$type.from)
-Downstream_Types=unique(PB_FB_Outputs_T2T$type.to)
 
 # Get PB glom and FB column names
 PB_FB_Outputs_N2N=Assign_FBcol_PBglom(PB_FB_Outputs_N2N, "name.to", "Side.to", "PBglom.to", "FBcol.to")
@@ -112,12 +128,11 @@ PB_FB_Outputs_N2N=Assign_FBcol_PBglom(PB_FB_Outputs_N2N, "name.from", "Side.from
 # Assign angles to PB-FB-XX neurons
 PB_FB_Outputs_N2N=Assign_Angles_ToNeurons(PB_FB_Outputs_N2N)
 
-
-# Loop over all postsynaptic neurons and plot histogram of their angles
+# Loop over all postsynaptic neurons and compute phase estimates
 Post_Neurons=unique(PB_FB_Outputs_N2N$to)
 FB_Neuron_Angles=data.frame(to=numeric(), type.to=character(), name.to=character(), FBcol.to=character(), type.from=character(),
-                            EPG_Angle=numeric(), D7_Angle=numeric(), TotalSyns=numeric(),
-                            EPG_Angle_L=numeric(), D7_Angle_L=numeric(), EPG_Angle_R=numeric(), D7_Angle_R=numeric())
+                            EPG_Angle=numeric(), EPG_Angle_rho=numeric(), TotalSyns=numeric(),
+                            EPG_Angle_L=numeric(), EPG_Angle_L_rho=numeric(), EPG_Angle_R=numeric(), EPG_Angle_R_rho=numeric())
 for (nnn in 1:length(Post_Neurons)){
   
   # Get all connections to just this neuron
@@ -130,32 +145,28 @@ for (nnn in 1:length(Post_Neurons)){
     # Get just this pretype
     TempConnect=subset(TempConnect_All, type.from == TempPreTypes[ttt])
     
-    # Calculate weighted circular mean for EPG and D7 angles, from left and right populations together
-    EPG_TempAngle = circular::weighted.mean.circular( rad(TempConnect$EPG_Angle.from) , TempConnect$ROIweight) %>% deg()
-    D7_TempAngle  = circular::weighted.mean.circular( rad(TempConnect$D7_Angle.from)  , TempConnect$ROIweight) %>% deg()
-    TotalSyns_Temp=sum(TempConnect$weight)
-    
-    # Calculate weighted circular mean for EPG and D7 angles for the left and right populations separate
-    TempConnect_L=subset(TempConnect, Side.from=="L")
-    EPG_TempAngle_L=circular::weighted.mean.circular( rad(TempConnect_L$EPG_Angle.from) , TempConnect_L$ROIweight) %>% deg()
-    D7_TempAngle_L= circular::weighted.mean.circular( rad(TempConnect_L$D7_Angle.from) , TempConnect_L$ROIweight) %>% deg()
-    
-    TempConnect_R=subset(TempConnect, Side.from=="R")
-    EPG_TempAngle_R=circular::weighted.mean.circular( rad(TempConnect_R$EPG_Angle.from) , TempConnect_R$ROIweight) %>% deg()
-    D7_TempAngle_R= circular::weighted.mean.circular( rad(TempConnect_R$D7_Angle.from) , TempConnect_R$ROIweight) %>% deg()
-    
-    if (is.na(EPG_TempAngle)){print(c(as.character(nnn), " ", as.character(ttt)))}
-    
-    # Add data to dataframe
+    # Create a temporary dataframe to store the angle data
     Temp_DF=TempConnect[c("to","type.to","name.to","FBcol.to")][1,]
     Temp_DF$type.from=TempPreTypes[ttt]
-    Temp_DF$EPG_Angle=EPG_TempAngle
-    Temp_DF$D7_Angle=D7_TempAngle
-    Temp_DF$TotalSyns=TotalSyns_Temp
-    Temp_DF$EPG_Angle_L=EPG_TempAngle_L
-    Temp_DF$D7_Angle_L=D7_TempAngle_L
-    Temp_DF$EPG_Angle_R=EPG_TempAngle_R
-    Temp_DF$D7_Angle_R=D7_TempAngle_R
+    
+    # Calculate weighted circular mean of EPG angles, from left and right populations together
+    TempAngles_All = GetAllAngles(TempConnect)
+    Temp_DF$EPG_Angle = circular::mean.circular(rad(TempAngles_All)) %>% deg()
+    Temp_DF$EPG_Angle_rho  = circular::rho.circular(rad(TempAngles_All))
+    Temp_DF$TotalSyns = sum(TempConnect$weight)
+    
+    # Calculate weighted circular mean of EPG angles for the left and right populations separate
+    TempConnect_L = subset(TempConnect, Side.from=="L")
+    TempAngles_L = GetAllAngles(TempConnect_L)
+    Temp_DF$EPG_Angle_L = circular::mean.circular(rad(TempAngles_L)) %>% deg()
+    Temp_DF$EPG_Angle_L_rho = circular::rho.circular(rad(TempAngles_L))
+    
+    TempConnect_R = subset(TempConnect, Side.from=="R")
+    TempAngles_R = GetAllAngles(TempConnect_R)
+    Temp_DF$EPG_Angle_R = circular::mean.circular(rad(TempAngles_R)) %>% deg()
+    Temp_DF$EPG_Angle_R_rho = circular::rho.circular(rad(TempAngles_R))
+    
+    # Add data to dataframe
     FB_Neuron_Angles=rbind(FB_Neuron_Angles,Temp_DF)
   }
 }
@@ -164,43 +175,95 @@ remove(Temp_DF, TempConnect, TempConnect_All, TempConnect_L, TempConnect_R)
 ```
 
 
-# adjust angles so they are within 0 to 360 degrees
+# Adjust angles so they are within the 0 to 360 degrees range
 ```{r}
 
 FB_Neuron_Angles$EPG_Angle=(FB_Neuron_Angles$EPG_Angle + 360) %% 360 %>% as.numeric()
-FB_Neuron_Angles$D7_Angle= (FB_Neuron_Angles$D7_Angle + 360)  %% 360 %>% as.numeric()
 FB_Neuron_Angles$EPG_Angle_L=(FB_Neuron_Angles$EPG_Angle_L + 360) %% 360 %>% as.numeric()
-FB_Neuron_Angles$D7_Angle_L= (FB_Neuron_Angles$D7_Angle_L + 360)  %% 360 %>% as.numeric()
 FB_Neuron_Angles$EPG_Angle_R=(FB_Neuron_Angles$EPG_Angle_R + 360) %% 360 %>% as.numeric()
-FB_Neuron_Angles$D7_Angle_R= (FB_Neuron_Angles$D7_Angle_R + 360)  %% 360 %>% as.numeric()
 
 ```
 
 
-# Analyze the phase shifts
+# Decide on which connections to use to estimate phase
+# Need to exclude connections to hDeltas that receive input on their axon and dendritic compartments
+# Should also exclude connections that are inconsistent (i.e. where a low % of pre-post neurons have connections)
+```{r}
+
+
+
+# Get the significant type-to-type connections
+PrePostTypes_T2T=distinct(PB_FB_Outputs_T2T[(c("type.from","type.to"))])
+
+# List of types where PB-FB-XX type synapses onto both axon and dendrites of hDelta type, which could corrupt phase estimates
+hDelta_Exclude=data.frame(type.from=c("PFNd","PFGs","PFR_a","PFR_a","PFR_a","PFR_a",
+                                      "PFR_a","PFR_a","PFR_a","PFR_a","PFR_b","PFR_b","PFR_b"),
+                          type.to=  c("hDeltaB","hDeltaC","hDeltaA","hDeltaB","hDeltaC","hDeltaG",
+                                      "hDeltaH","hDeltaI","hDeltaJ","hDeltaM","hDeltaG","hDeltaH","hDeltaA"))
+          
+# Exclude these double-banded hDelta connections
+PrePostTypes=anti_join(PrePostTypes_T2T, hDelta_Exclude, by=c("type.from","type.to"))
+
+
+# Calculate how many columns are involved
+ColumnNums=PB_FB_Outputs_N2N %>% group_by(type.from,type.to) %>% summarise(PreColNum=length(unique(FBcol.from)))
+ColumnNums=subset(ColumnNums, PreColNum>=7)
+
+# Remove inconsistent connections
+PrePostTypes=right_join(PrePostTypes, ColumnNums, by=c("type.from","type.to"))
+
+
+# Loop over and plot N2N connection matrices to make sure no double-banded matrices remain
+PB_FB_Outputs_N2N$FBcol.from=factor(PB_FB_Outputs_N2N$FBcol.from, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
+PB_FB_Outputs_N2N$FBcol.to=factor(PB_FB_Outputs_N2N$FBcol.to, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
+for (ttt in 1:length(PrePostTypes$type.from)){
+  Temp_Connect=subset(PB_FB_Outputs_N2N, type.from == PrePostTypes$type.from[ttt] & type.to == PrePostTypes$type.to[ttt])
+  
+  if (nrow(Temp_Connect)>0){ # Some T2T connections have neurons with no assigned glomeruli (needed for angle), so skip.
+  # Plot connectivity table
+  Pa=ggplot(Temp_Connect) + 
+    theme_classic() + theme(axis.text.x = element_text(angle = 90)) +
+    scale_fill_gradient2(low="gray30", high="black", 
+                         limits=c(0,max(Temp_Connect$ROIweight)), oob=squish)  +
+    geom_tile(aes(name.to,name.from,fill=ROIweight)) + ylab(PrePostTypes$type.from[ttt]) + xlab(PrePostTypes$type.to[ttt]) +
+    facet_grid(rows=vars(FBcol.from), cols=vars(FBcol.to), scales="free")
+  
+  ggsave(paste(PlotDir, "ConnectMat_",  as.character(ttt),"_", PrePostTypes$type.from[ttt], "_2_", PrePostTypes$type.to[ttt], ".png", sep=""),
+       plot = Pa, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 200, limitsize = TRUE)
+  }
+}
+
+
+
+```
+
+
+
+# Analyze the PB-FB phase shifts for each PB-FB-XX neuron type
 ```{r message=FALSE, warning=FALSE}
 
 # Why do PFNp_a, d, e have so few output synapses?
-# Why are there so many 90 and 135 points? (sensitive to theshold on syn #)
-# Shold I be excluding hDelta(s) to avoid double band problem?
-# Why are the PFR_b's EPG and D7 phase estimates closer together than the rest?
+# Why are there so many points at 67.5 & 112.5 points? Because 
+# Should I be excluding hDelta(s) to avoid double band problem?
 # Why so much variance for the PFR_a and PFR_b types?
+# Probably makes sense to average across postsynaptic types
+# Is phase shift consistent across columns?
+# I should be computing the mean resultant vector length too, which could be the circle size
+# Should I be excluding C0 neurons???
 
 
-# Get just those neurons that reeive input from left and right populations
-PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)) & TotalSyns>10)
+# Get just those neurons that reeive input from left and right populations and 
+# are part of a significant T2T connections without axon+dendrite input to hDeltas
+PhaseShiftData=right_join(FB_Neuron_Angles, PrePostTypes, by=c("type.from","type.to"))
+PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)) & !FBcol.to=="C0")
 
 # Compute difference in phases from right-left
 PhaseShiftData$EPG_Angle_Diff=((PhaseShiftData$EPG_Angle_R-PhaseShiftData$EPG_Angle_L)+360) %% 360 %>% as.numeric()
-PhaseShiftData$D7_Angle_Diff=((PhaseShiftData$D7_Angle_R-PhaseShiftData$D7_Angle_L)+360) %% 360 %>% as.numeric()
-
 
 # Compute the mean difference across neurons
 PhaseShift_Mean=PhaseShiftData %>% group_by(type.from) %>% 
-                    summarise(EPG_Angle_Diff_Mean=as.numeric(deg(mean.circular(rad(EPG_Angle_Diff)))), 
-                              D7_Angle_Diff_Mean=as.numeric(deg(mean.circular(rad(D7_Angle_Diff)))))
+                    summarise(EPG_Angle_Diff_Mean=as.numeric(deg(mean.circular(rad(EPG_Angle_Diff))))) 
 PhaseShift_Mean$EPG_Angle_Diff_Mean=(PhaseShift_Mean$EPG_Angle_Diff_Mean+360) %% 360 %>% as.numeric()
-PhaseShift_Mean$D7_Angle_Diff_Mean=(PhaseShift_Mean$D7_Angle_Diff_Mean+360) %% 360 %>% as.numeric()
 
 
 # Plot the data
@@ -209,13 +272,14 @@ PhaseShiftData$type.from=factor(PhaseShiftData$type.from, levels=NeuronTypeOrder
 PhaseShift_Mean$type.from=factor(PhaseShift_Mean$type.from, levels=NeuronTypeOrder)
 
 P1=ggplot() +  
+  geom_hline(yintercept=0, linetype="dashed", color = "gray50") +
   geom_hline(yintercept=90, linetype="dashed", color = "gray50") + 
+  geom_hline(yintercept=180, linetype="dashed", color = "gray50") + 
   geom_hline(yintercept=270, linetype="dashed", color = "gray50") +
-  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff),size=3, color="black", shape=21) +
-  geom_point(data=PhaseShiftData, aes(x=type.from, y=D7_Angle_Diff),size=3, color="red", shape=21) +
+  geom_hline(yintercept=360, linetype="dashed", color = "gray50") +
+  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff, size=EPG_Angle_rho, color=type.to), shape=21) +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
   geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
-  geom_line(data=PhaseShift_Mean, aes(x=type.from, y=D7_Angle_Diff_Mean, group=1), color="red") +
   xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90))
 ggsave(paste(PlotDir, "PB_FB_PhaseShift", ".png", sep=""),
        plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
@@ -223,18 +287,10 @@ P1
 
 
 hist(PhaseShiftData$EPG_Angle_Diff,100)
-hist(PhaseShiftData$D7_Angle_Diff,100)
-
-mode(PhaseShiftData$EPG_Angle_Diff)
 
 
-getmode <- function(v) {
-   uniqv <- unique(v)
-   uniqv[which.max(tabulate(match(v, uniqv)))]
-}
 
-getmode(PhaseShiftData$EPG_Angle_Diff)
-getmode(PhaseShiftData$D7_Angle_Diff)
+
 
 ```
 
@@ -243,27 +299,75 @@ getmode(PhaseShiftData$D7_Angle_Diff)
 # Look for correlation between each neuron's position and its directional tuning
 ```{r}
 
+# TO DO:
+# 1) should really restrict presynaptic neurons to those with similar phase shifts (no because phase offsets cancel)
 
-# Get each neuron's average columnar position in layer with the most synapses
-PositionInfo=ColumnPositions_All[c("bodyid","type" ,"X","Y","Z","Layer","prepost","numsyns")]
-PositionInfo=subset(PositionInfo, !(Layer=="FB")) # Remove FB as a layer since we want to find layer with most synapses
+
+# Get each neuron's average columnar position in the layer with the most synapses
+PositionInfo=ColumnPositions_All[c("bodyid","type" ,"X","Y","Z","Layer","prepost","numsyns", "FBcol")]
+
+# Get rid of C0 vDelta(s), which don't have a single position, as well as hDelta output locations
+PositionInfo=subset(PositionInfo, !FBcol=="C0" & prepost %in% c("Neither", "Input"))
+
+# Except for hDeltaK, get rid of FB layer
+PositionInfo=subset(PositionInfo, !(Layer=="FB") | (Layer=="FB" & type=="hDeltaK")) 
+
+# Find layer with maximum number of synapses 
 MaxLayers=PositionInfo %>% group_by(type, Layer) %>% summarise(TotSyns=sum(numsyns)) %>% filter(TotSyns==max(TotSyns))
-PositionInfo=merge(PositionInfo, MaxLayers, by=c("type","Layer")) # Get position information for just max layer for each type
+PositionInfo=inner_join(PositionInfo, MaxLayers, by=c("type","Layer")) 
+
+# Get just those neurons with PB-FB-XX phase estimates and location data
+PositionInfo=subset(PositionInfo, bodyid %in% unique(FB_Neuron_Angles$to))
+FB_Neuron_Angles_Phase=subset(FB_Neuron_Angles, to %in% unique(PositionInfo$bodyid))
+
+# Merge position and phase information
+colnames(PositionInfo)[colnames(PositionInfo)=="bodyid"]="to"
+PositionInfo$to=as.character(PositionInfo$to)
+FB_Neuron_Angles_Phase$to=as.character(FB_Neuron_Angles_Phase$to)
+Position_And_Tuning=left_join(FB_Neuron_Angles_Phase, PositionInfo, by="to")
+  
+# Make presynaptic type a factor
+Position_And_Tuning$PresynapticClass =NA
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFGs")]="PFGs"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNa")]="PFNa"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNd")]="PFNd"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNm")]="PFNm (a/b)"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNv")]="PFNv"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFR")]="PFR (a/b)"
+
+# Loop over postsynaptic types and make scatter plot of phase versus position
+PostType=unique(Position_And_Tuning$type.to)
+ScatterColors <- paletteer_d("Polychrome::palette36")
+ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
+for (ttt in 1:length(PostType)){
+  
+  # Get just this posttype
+  Temp_Pos_And_Tune=subset(Position_And_Tuning, type.to==PostType[ttt])
+  
+  
+  # Make scatter plot
+  AX=ceiling(max(abs(Temp_Pos_And_Tune$X))*8/1000/10)*10
+  Px=ggplot() + 
+     geom_point(data=Temp_Pos_And_Tune, aes(x=X*8/1000, y=EPG_Angle, color=PresynapticClass))  +
+     xlab("medial-lateral position (um)") + ylab("EPG phase (deg)") +  theme_classic() +
+     scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
+     scale_x_continuous(breaks=seq(from=-AX, to=AX, by=10), limits=c(-AX, AX)) +
+     ggtitle(paste(PostType[ttt], "  ", Temp_Pos_And_Tune$Layer[1])) +
+     scale_color_manual(values=ScatterColors, drop=FALSE) +
+     theme(text = element_text(size=16), 
+           axis.text.x = element_text(color="black"),
+           axis.text.y = element_text(color="black"))
+  Px
+  ggsave(paste(PlotDir, "MeanPhase_", PostType[ttt], ".png", sep=""),
+     plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+  
+}       
+
+  
+  
 
 
-
-
-
-
-
-PositionInfo=subset(PositionInfo, bodyid %in% unique(FB_Neuron_Angles$to)) # restrict to just those FB neurons with phase estimates
-
-
-
-length(unique(PositionInfo$bodyid))
-
-
-Position_Vs_Tuning=
 ```
 
 
@@ -298,7 +402,7 @@ P2
 
 
 # Loop over all pre-post pairs whose type-to-type connectivity is significant (weeds out weak connections)
-PrePostTypes=distinct(PB_FB_Outputs_T2T[(c("type.from","type.to"))])
+
 
 
 for (ttt in 1:length(PrePostTypes)){
