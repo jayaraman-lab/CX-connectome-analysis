@@ -237,7 +237,7 @@ for (ttt in 1:length(PrePostTypes$type.from)){
 ```{r message=FALSE, warning=FALSE}
 
 # Why do PFNp_a, d, e have so few output synapses?
-# Why are there so many points at 67.5 & 112.5 points? Because 
+# Why are there so many points at 67.5 & 112.5 points? The average of these two numbr gives you 90!!! 
 # Should I be excluding hDelta(s) to avoid double band problem?
 # Why so much variance for the PFR_a and PFR_b types?
 # Probably makes sense to average across postsynaptic types
@@ -271,7 +271,7 @@ P1=ggplot() +
   geom_hline(yintercept=180, linetype="dashed", color = "gray50") + 
   geom_hline(yintercept=270, linetype="dashed", color = "gray50") +
   geom_hline(yintercept=360, linetype="dashed", color = "gray50") +
-  geom_point(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff, size=EPG_Angle_rho, color=type.to), shape=21) +
+  geom_beeswarm(data=PhaseShiftData, aes(x=type.from, y=EPG_Angle_Diff, size=EPG_Angle_rho, color=type.to), shape=21) +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
   geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
   xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90))
@@ -280,9 +280,44 @@ ggsave(paste(PlotDir, "PB_FB_PhaseShift", ".png", sep=""),
 P1
 
 
+
+
+# Average across postsynaptic types
+PhaseShiftData_Type=PhaseShiftData %>% group_by(type.from,type.to) %>% 
+                    summarize(EPG_Angle_Diff=(deg(mean.circular(rad(EPG_Angle_Diff))) + 360) %% 360,
+                              NeuronNum=length(unique(to)))
+PhaseShiftData_Type=subset(PhaseShiftData_Type, NeuronNum>=5)
+PhaseShiftData_Type$type.from=factor(PhaseShiftData_Type$type.from, levels=NeuronTypeOrder)
+
+Colorz=supertype2Palette()
+FBPal=c(Colorz[["pal"]]["vDelta"], Colorz[["pal"]]["hDelta"], Colorz[["pal"]]["FR"], Colorz[["pal"]]["FS"], Colorz[["pal"]]["FC"])
+
+
+PhaseShiftData_Type$Colorz=NA
+PhaseShiftData_Type$Colorz[startsWith(as.character(PhaseShiftData_Type$type.to),"vDelta")]="vDelta"
+PhaseShiftData_Type$Colorz[startsWith(as.character(PhaseShiftData_Type$type.to),"hDelta")]="hDelta"
+PhaseShiftData_Type$Colorz[startsWith(as.character(PhaseShiftData_Type$type.to),"FR")]="FR"
+PhaseShiftData_Type$Colorz[startsWith(as.character(PhaseShiftData_Type$type.to),"FS")]="FS"
+PhaseShiftData_Type$Colorz[startsWith(as.character(PhaseShiftData_Type$type.to),"FC")]="FC"
+PhaseShiftData_Type$Colorz=factor(PhaseShiftData_Type$Colorz,levels=c("vDelta", "hDelta", "FR", "FS", "FC"))
+
+P1=ggplot() +  
+  geom_hline(yintercept=0, linetype="dashed", color = "gray50") +
+  geom_hline(yintercept=90, linetype="dashed", color = "gray50") + 
+  geom_hline(yintercept=180, linetype="dashed", color = "gray50") + 
+  geom_hline(yintercept=270, linetype="dashed", color = "gray50") +
+  geom_hline(yintercept=360, linetype="dashed", color = "gray50") +
+  geom_beeswarm(data=PhaseShiftData_Type, aes(x=type.from, y=EPG_Angle_Diff, size=NeuronNum, color=Colorz), shape=21) +
+  scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
+  #geom_line(data=PhaseShift_Mean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
+  xlab("Pre-synaptic PFN type") + ylab("Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90)) +
+  scale_color_manual(values=FBPal)
+ggsave(paste(PlotDir, "PB_FB_PhaseShift_Type", ".png", sep=""),
+       plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+P1
+
+
 hist(PhaseShiftData$EPG_Angle_Diff,100)
-
-
 
 
 ```
