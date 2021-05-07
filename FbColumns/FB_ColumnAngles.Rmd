@@ -190,8 +190,6 @@ FB_Neuron_Angles$EPG_Angle_R=(FB_Neuron_Angles$EPG_Angle_R + 360) %% 360 %>% as.
 # Should also exclude connections that are inconsistent (i.e. where a low % of pre-post neurons have connections)
 ```{r}
 
-
-
 # Get the significant type-to-type connections
 PrePostTypes_T2T=distinct(PB_FB_Outputs_T2T[(c("type.from","type.to"))])
 
@@ -204,14 +202,12 @@ hDelta_Exclude=data.frame(type.from=c("PFNd","PFGs","PFR_a","PFR_a","PFR_a","PFR
 # Exclude these double-banded hDelta connections
 PrePostTypes=anti_join(PrePostTypes_T2T, hDelta_Exclude, by=c("type.from","type.to"))
 
-
 # Calculate how many columns are involved
 ColumnNums=PB_FB_Outputs_N2N %>% group_by(type.from,type.to) %>% summarise(PreColNum=length(unique(FBcol.from)))
-ColumnNums=subset(ColumnNums, PreColNum>=7)
+ColumnNums=subset(ColumnNums, PreColNum<=7)
 
 # Remove inconsistent connections
-PrePostTypes=right_join(PrePostTypes, ColumnNums, by=c("type.from","type.to"))
-
+PrePostTypes=anti_join(PrePostTypes, ColumnNums, by=c("type.from","type.to"))
 
 # Loop over and plot N2N connection matrices to make sure no double-banded matrices remain
 PB_FB_Outputs_N2N$FBcol.from=factor(PB_FB_Outputs_N2N$FBcol.from, levels=c("C0","C1","C2","C3","C4","C5","C6","C7","C8","C9","C10","C11","C12"))
@@ -233,8 +229,6 @@ for (ttt in 1:length(PrePostTypes$type.from)){
   }
 }
 
-
-
 ```
 
 
@@ -254,8 +248,8 @@ for (ttt in 1:length(PrePostTypes$type.from)){
 
 # Get just those neurons that reeive input from left and right populations and 
 # are part of a significant T2T connections without axon+dendrite input to hDeltas
-PhaseShiftData=right_join(FB_Neuron_Angles, PrePostTypes, by=c("type.from","type.to"))
-PhaseShiftData=subset(FB_Neuron_Angles, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)) & !FBcol.to=="C0")
+PhaseShiftData=inner_join(FB_Neuron_Angles, PrePostTypes, by=c("type.from","type.to"))
+PhaseShiftData=subset(PhaseShiftData, !(is.na(EPG_Angle_L) | is.na(EPG_Angle_R)) & !FBcol.to=="C0")
 
 # Compute difference in phases from right-left
 PhaseShiftData$EPG_Angle_Diff=((PhaseShiftData$EPG_Angle_R-PhaseShiftData$EPG_Angle_L)+360) %% 360 %>% as.numeric()
@@ -287,7 +281,6 @@ P1
 
 
 hist(PhaseShiftData$EPG_Angle_Diff,100)
-
 
 
 
