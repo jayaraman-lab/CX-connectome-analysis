@@ -25,7 +25,33 @@ Normalized synapse density plots in slices through the EB (see section 3b)
 
 **EB_typeComparison.Rmd**: Visualize normalized contributions of different ring neuron types to EL and EPG neurons (Figure 13 B).
 
-**EPGmorphology.Rmd**: ...  (maybe rename since the same notebook is used for EL?)
+**EB_electrotonicDistances.Rmd**: Analysis of distance between synapses and putative spike initiation zone for EPGs and ELs in EB. Generates all plots in Figure 12 and its supplements.
+* Figure 12 A: example EPG and its rootpoint
+
+CDFs of distance between synapse and rootpoint grouped by modality
+* Figure 12 C (normalized electrotonic distance, EPG)
+* Figure 12 supplement 1E (raw distance along arbors, EPG)
+
+Medians of distance distributions
+* Figure 12 E (normalized electrotonic distance, EPG)
+* Figure 12 supplement 3B (normalized electrotonic distance, EL)
+* Figure 12 supplement 1F (raw distance along arbors, EPG)
+* Figure 12 supplement 2 (normalized electrotonic distance, by neuron type, EPG)
+
+Rank ordering of medians
+* Figure 12 supplement 1B (EPG)
+* Figure 12 supplement 3C (EL)
+
+Median distance between distributions
+* Figure 12 supplement 1C (EPG)
+
+Distribution of synapses with mean distance contours
+* Figure 12 C left (normalized electrotonic distance, EPG)
+* Figure 12 supplement 3A top (normalized electrotonic distance, EL)
+* Figure 12 supplement 1D (raw distance along arbors, EPG)
+* Figure 12 C right (synapse density by modality, EPG)
+* Figure 12 supplement 3A bottom (synapse density by modality, EL)
+* Figure 12 supplement 1A (synapse density by modality, plotted separately, EPG)
 
 **ExR_connectivity.Rmd**: Connectivity and similarity matrices, bar graph of partners of ExR neurons
 * Figure 14 B (similarity matrices)
