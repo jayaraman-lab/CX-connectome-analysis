@@ -132,7 +132,8 @@ PB_FB_Outputs_N2N=Assign_Angles_ToNeurons(PB_FB_Outputs_N2N)
 Post_Neurons=unique(PB_FB_Outputs_N2N$to)
 FB_Neuron_Angles=data.frame(to=numeric(), type.to=character(), name.to=character(), FBcol.to=character(), type.from=character(),
                             EPG_Angle=numeric(), EPG_Angle_rho=numeric(), TotalSyns=numeric(),
-                            EPG_Angle_L=numeric(), EPG_Angle_L_rho=numeric(), EPG_Angle_R=numeric(), EPG_Angle_R_rho=numeric())
+                            EPG_Angle_L=numeric(), EPG_Angle_L_rho=numeric(), EPG_Angle_R=numeric(), EPG_Angle_R_rho=numeric(),
+                            InputGlomNum=numeric(), UniqueAngle=numeric())
 for (nnn in 1:length(Post_Neurons)){
   
   # Get all connections to just this neuron
@@ -165,6 +166,10 @@ for (nnn in 1:length(Post_Neurons)){
     TempAngles_R = GetAllAngles(TempConnect_R)
     Temp_DF$EPG_Angle_R = circular::mean.circular(rad(TempAngles_R)) %>% deg()
     Temp_DF$EPG_Angle_R_rho = circular::rho.circular(rad(TempAngles_R))
+    
+    # Calculate the number of unique input glomeruli (i.e. angles)
+    Temp_DF$InputGlomNum=length(unique(TempConnect$PBglom.from))
+    Temp_DF$UniqueAngle=length(unique(TempAngles_All))
     
     # Add data to dataframe
     FB_Neuron_Angles=rbind(FB_Neuron_Angles,Temp_DF)
@@ -289,7 +294,7 @@ P1=ggplot() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) + theme_classic() +
   geom_line(data=PhaseShift_TypeMean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
   xlab("Pre-synaptic PFN type") + ylab("PB-FB Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90)) +
-  scale_color_manual(values=FBPal)
+  scale_color_manual(values=FBPal) + scale_size_continuous(range = c(1,4))
 ggsave(paste(PlotDir, "PB_FB_PhaseShift_Type", ".png", sep=""),
        plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 P1
@@ -312,6 +317,7 @@ hist(PhaseShiftData$EPG_Angle_Diff,100)
 
 ## Should add mean resultant vector length and dot size to these plots
 ## Should I only be using neurons that receive L and R input, as above?
+## I don't think the angles in the FB correspond to those expexcted from PB-FB projections? Averaging problem?
 
 # Get each neuron's average columnar position in the layer with the most synapses
 PositionInfo=ColumnPositions_All[c("bodyid","type" ,"X","Y","Z","Layer","prepost","numsyns", "FBcol")] 
@@ -336,8 +342,7 @@ Position_And_Tuning=inner_join(PhaseShiftData, PositionInfo, by=c("to"))
 Position_Norm=Position_And_Tuning %>% group_by(type.to, type.from, Layer) %>% summarize(Min_X=min(X), Max_X=max(X))
 Position_Norm$Total_X=Position_Norm$Max_X-Position_Norm$Min_X
 Position_And_Tuning=left_join(Position_And_Tuning, Position_Norm, by=c("type.from","type.to","Layer"))
-Position_And_Tuning$X_Norm=(Position_And_Tuning$X - Position_And_Tuning$Min_X)/Position_Norm$Total_X
-
+Position_And_Tuning$X_Norm=(Position_And_Tuning$X - Position_And_Tuning$Min_X)/Position_And_Tuning$Total_X
 
 # Make presynaptic type a factor
 Position_And_Tuning$PresynapticClass =NA
@@ -349,8 +354,6 @@ Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tunin
 Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNv")]="PFNv"
 Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFR")]="PFR (a/b)"
 
-
-
 # Plot all data from all FX neurons
 Temp_Pos_And_Tune=subset(Position_And_Tuning, startsWith(type.to, "F"))
 AX=ceiling(max(abs(Temp_Pos_And_Tune$X))*8/1000/10)*10
@@ -358,7 +361,7 @@ Px=ggplot() +
   geom_point(data=Temp_Pos_And_Tune, aes(x=X*8/1000, y=EPG_Angle, color=PresynapticClass))  +
   xlab("medial-lateral position (um)") + ylab("EPG phase (deg)") +  theme_classic() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
-  scale_x_continuous(breaks=seq(from=-AX, to=AX, by=10), limits=c(-AX, AX)) +
+  scale_x_continuous(breaks=seq(from=-AX, to=AX, by=30), limits=c(-AX, AX)) +
   ggtitle("All FX neurons") +
   scale_color_manual(values=ScatterColors, drop=FALSE) +
   theme(text = element_text(size=16), 
@@ -371,29 +374,28 @@ ggsave(paste(PlotDir, "FX_MeanPhase", ".png", sep=""),
 
 Px=ggplot() + 
   geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm, y=EPG_Angle, color=PresynapticClass))  +
-  xlab("medial-lateral position (um)") + ylab("EPG phase (deg)") +  theme_classic() +
+  xlab("medial-lateral position (au)") + ylab("EPG phase (deg)") +  theme_classic() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
-  scale_x_continuous(breaks=seq(from=-AX, to=AX, by=10), limits=c(-AX, AX)) +
+  scale_x_continuous(breaks=seq(from=0, to=1, by=0.2), limits=c(0, 1)) +
   ggtitle("All FX neurons") +
   scale_color_manual(values=ScatterColors, drop=FALSE) +
   theme(text = element_text(size=16), 
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black"))
 Px
-ggsave(paste(PlotDir, "FX_MeanPhase", ".png", sep=""),
+ggsave(paste(PlotDir, "FX_MeanPhaseNorm", ".png", sep=""),
        plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
 
 Temp_Pos_And_Tune=subset(Position_And_Tuning, startsWith(type.to, "vDe"))
-AX=ceiling(max(abs(Temp_Pos_And_Tune$X))*8/1000/10)*10
 Px=ggplot() + 
-  geom_point(data=Temp_Pos_And_Tune, aes(x=X*8/1000, y=EPG_Angle, color=PresynapticClass))  +
-  xlab("medial-lateral position (um)") + ylab("EPG phase (deg)") +  theme_classic() +
+  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm, y=EPG_Angle, color=PresynapticClass))  +
+  xlab("medial-lateral position (au)") + ylab("EPG phase (deg)") +  theme_classic() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
-  scale_x_continuous(breaks=seq(from=-AX, to=AX, by=10), limits=c(-AX, AX)) +
-  ggtitle("All vDelta neurons") +
+  scale_x_continuous(breaks=seq(from=0, to=1, by=0.2), limits=c(0, 1)) +
+  ggtitle("All FX neurons") +
   scale_color_manual(values=ScatterColors, drop=FALSE) +
   theme(text = element_text(size=16), 
         axis.text.x = element_text(color="black"),
@@ -405,42 +407,6 @@ ggsave(paste(PlotDir, "vDelta_MeanPhase", ".png", sep=""),
 
 
 
-```
-
-
-
-
-```{r}
-
-# Loop over postsynaptic types and make scatter plot of phase versus position
-PostType=unique(Position_And_Tuning$type.to)
-ScatterColors <- paletteer_d("Polychrome::palette36")
-ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
-for (ttt in 1:length(PostType)){
-  
-  # Get just this posttype
-  Temp_Pos_And_Tune=subset(Position_And_Tuning, type.to==PostType[ttt])
-  
-  
-  # Make scatter plot
-  AX=ceiling(max(abs(Temp_Pos_And_Tune$X))*8/1000/10)*10
-  Px=ggplot() + 
-     geom_point(data=Temp_Pos_And_Tune, aes(x=X*8/1000, y=EPG_Angle, color=PresynapticClass))  +
-     xlab("medial-lateral position (um)") + ylab("EPG phase (deg)") +  theme_classic() +
-     scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
-     scale_x_continuous(breaks=seq(from=-AX, to=AX, by=10), limits=c(-AX, AX)) +
-     ggtitle(paste(PostType[ttt], "  ", Temp_Pos_And_Tune$Layer[1])) +
-     scale_color_manual(values=ScatterColors, drop=FALSE) +
-     theme(text = element_text(size=16), 
-           axis.text.x = element_text(color="black"),
-           axis.text.y = element_text(color="black"))
-  Px
-  ggsave(paste(PlotDir, "MeanPhase_", PostType[ttt], ".png", sep=""),
-     plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
-  
-}       
-
-  
 ```
 
 
