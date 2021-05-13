@@ -185,25 +185,16 @@ UpstreamLayer <- function(SW_Upstream_Filt_Layer){
 }
 
 
-Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir){
-  #' Function for plotting pathways downstream of sleep-wake types
+Plot_DownStream_Pathways <- function(SW_Downstream, PlotDir){
+  #' Function for plotting downstream connections from sleep-wake types
 
-  # Filter out weak pathways
-  SW_Downstream_Filt=subset(SW_Downstream, weightRelative_path > PathwayThresh)
-
-  # Get rid of pathways longer than "Step" length, but keep them as NANs so they show up in plots
-  SW_Downstream_Filt$weightRelative_path[SW_Downstream_Filt$n_steps>Step]=0
-  SW_Downstream_Filt_Sum=SW_Downstream_Filt %>% group_by(type.from, type.to, supertype3.to) %>% 
-                         summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
-  SW_Downstream_Filt_Sum$weightRelative_path[SW_Downstream_Filt_Sum$weightRelative_path==0]=NA 
-  
   # Group downstream neurons into custom supertypes, and see which custom types are included in the unknown category to make sure none were missed.
-  SW_Downstream_Filt_Sum=OutputTyping(SW_Downstream_Filt_Sum)
-  UnknownDownTypes=unique(SW_Downstream_Filt_Sum$type.to[SW_Downstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
+  SW_Downstream=OutputTyping(SW_Downstream)
+  UnknownDownTypes=unique(SW_Downstream$type.to[SW_Downstream$SuperType_Custom == "Unknown Type"])
   
   # Group downstream types by supertype and compute average pathway weight and the number of targeted types
-  SW_Downstream_Filt_Sum_Bar=subset(SW_Downstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
-    group_by(type.from, SuperType_Custom) %>% summarize(weightRelative_path=mean(weightRelative_path), n=n())
+  SW_Downstream_Bar=subset(SW_Downstream, !is.na(weightRelative)) %>% 
+    group_by(type.from, SuperType_Custom) %>% summarize(weightRelative=mean(weightRelative), n=n())
   
   
   ##########################################################################################################
@@ -213,27 +204,27 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
   BarPalette=rev(color(c("mediumpurple4","mediumpurple1","forestgreen","darkorange1","bisque3","gray50","thistle4","black")))
   
   # Plot average pathway weight (by supertype)
-  Pa=ggplot(SW_Downstream_Filt_Sum_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative_path, fill = SuperType_Custom)) +
+  Pa=ggplot(SW_Downstream_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative, fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
     ylab("Mean pathway relative weight ") + ylim(0,0.2)
-  ggsave(paste(PlotDir, "SleepWake_Downstream_PathwayWeight","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Downstream_PathwayWeight",".png",sep=""),
          plot = Pa, device='png', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pa)
   
   # Plot number of downstream types targeted (by supertype)
-  Pb=ggplot(SW_Downstream_Filt_Sum_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
+  Pb=ggplot(SW_Downstream_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
     ylab("# downstream types") + ylim(0,100)
-  ggsave(paste(PlotDir, "SleepWake_Downstream_NumberOfTypes","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Downstream_NumberOfTypes",".png",sep=""),
          plot = Pb, device='png', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pb)
   
   
   ########################################################################################################
-  #### Plot pathway weight matrix, showing pathway strength from sleep-wake types to downstream types ####
+  ###### Plot weight matrix, showing connections strength from sleep-wake types to downstream types ######
   
   # Plot pathway weights to non FB tanengtial types 
-  PlotData=subset(SW_Downstream_Filt_Sum, !(startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
+  PlotData=subset(SW_Downstream, !(startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
   PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
   
   Pc=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
@@ -268,17 +259,10 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PathwayThresh, Step, PlotDir
 }
 
 
-Plot_UpStream_Pathways <- function(SW_Upstream, PathwayThresh, Step, PlotDir){
+Plot_UpStream_Pathways <- function(SW_Upstream, PlotDir){
   #' Function for plotting pathways upstream of sleep-wake types
   
-  # Filter out weak pathways
-  SW_Upstream_Filt=subset(SW_Upstream, weightRelative_path>PathwayThresh) 
   
-  # Get rid of pathways longer than "Step" length, but keep them as NANs so they show up in plots.
-  SW_Upstream_Filt$weightRelative_path[SW_Upstream_Filt$n_steps>Step]=0
-  SW_Upstream_Filt_Sum=SW_Upstream_Filt %>% group_by(type.from, type.to, supertype3.from) %>%
-                       summarize(weightRelative_path=sum(weightRelative_path, na.rm=TRUE)) 
-  SW_Upstream_Filt_Sum$weightRelative_path[SW_Upstream_Filt_Sum$weightRelative_path==0]=NA
   
   # Group Upstream neurons into custom supertypes 
   SW_Upstream_Filt_Sum=InputTyping(SW_Upstream_Filt_Sum)
