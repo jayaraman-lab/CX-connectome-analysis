@@ -161,10 +161,10 @@ InputTyping <- function(DF_FromType){
 DownstreamLayer <- function(SW_Downstream_Filt_Layer){
   #' Function for finding which FB layer each sleep-wake type projects most strongly to
   SW_Downstream_Layer_Sum=SW_Downstream_Filt_Layer %>% group_by(type.from, type.to, supertype3.to) %>%
-    summarize(weightRelative_path=sum(weightRelative_path))
+    summarize(weightRelative=sum(weightRelative))
   SW_Downstream_Layer_Sum=subset(SW_Downstream_Layer_Sum, (startsWith(type.to,"FB") |  startsWith(type.to,"OA-") | 
                                                              startsWith(type.to,"ExR")) & !supertype3.to=="Unassigned")
-  MaxOutputLayer= SW_Downstream_Layer_Sum %>% group_by(type.to) %>% slice(which.max(weightRelative_path))
+  MaxOutputLayer= SW_Downstream_Layer_Sum %>% group_by(type.to) %>% slice(which.max(weightRelative))
   MaxOutputLayer$Layer=substr(MaxOutputLayer$type.from, 3, 3) 
   MaxOutputLayer=MaxOutputLayer[c("type.to","Layer")]
   return(MaxOutputLayer)
@@ -173,48 +173,46 @@ DownstreamLayer <- function(SW_Downstream_Filt_Layer){
 
 UpstreamLayer <- function(SW_Upstream_Filt_Layer){
   #' Function for finding which FB layer each sleep-wake types receives strongest input from
-  SW_Upstream_Layer=subset(SW_Upstream_Filt_Layer, weightRelative_path>PathwayThresh)
-  SW_Upstream_Layer_Sum=SW_Upstream_Layer %>% group_by(type.from, type.to, supertype3.from) %>%
-    summarize(weightRelative_path=sum(weightRelative_path))
+  SW_Upstream_Layer_Sum=SW_Upstream_Filt_Layer %>% group_by(type.from, type.to, supertype3.from) %>%
+    summarize(weightRelative=sum(weightRelative))
   SW_Upstream_Layer_Sum=subset(SW_Upstream_Layer_Sum, (startsWith(type.from,"FB") | startsWith(type.from,"OA") |
                                                          startsWith(type.to,"ExR")) & !supertype3.from=="Unassigned")
-  MaxInputLayer= SW_Upstream_Layer_Sum %>% group_by(type.from) %>% slice(which.max(weightRelative_path))
+  MaxInputLayer= SW_Upstream_Layer_Sum %>% group_by(type.from) %>% slice(which.max(weightRelative))
   MaxInputLayer$Layer=substr(MaxInputLayer$type.to, 3, 3) 
   MaxInputLayer=MaxInputLayer[c("type.from","Layer")]
   return(MaxInputLayer)
 }
 
 
-Plot_DownStream_Pathways <- function(SW_Downstream, PlotDir){
+Plot_DownStream_Connections <- function(SW_Downstream, PlotDir){
   #' Function for plotting downstream connections from sleep-wake types
 
   # Group downstream neurons into custom supertypes, and see which custom types are included in the unknown category to make sure none were missed.
   SW_Downstream=OutputTyping(SW_Downstream)
   UnknownDownTypes=unique(SW_Downstream$type.to[SW_Downstream$SuperType_Custom == "Unknown Type"])
   
-  # Group downstream types by supertype and compute average pathway weight and the number of targeted types
-  SW_Downstream_Bar=subset(SW_Downstream, !is.na(weightRelative)) %>% 
-    group_by(type.from, SuperType_Custom) %>% summarize(weightRelative=mean(weightRelative), n=n())
+  # Group downstream types by supertype and compute average weight and the number of targeted types
+  SW_Downstream_Bar=SW_Downstream %>% group_by(type.from, SuperType_Custom) %>% summarize(weight=mean(weight), n=n())
   
   
   ##########################################################################################################
-  #### Make bar plots of downstream supertypes' average pathway weight and the number of target types ######
+  ######## Make bar plots of downstream supertypes' average weight and the number of target types ##########
   
   # Set palette
   BarPalette=rev(color(c("mediumpurple4","mediumpurple1","forestgreen","darkorange1","bisque3","gray50","thistle4","black")))
   
-  # Plot average pathway weight (by supertype)
-  Pa=ggplot(SW_Downstream_Bar, aes(type.from)) +   geom_bar( aes(weight=weightRelative, fill = SuperType_Custom)) +
+  # Plot average weight (by supertype)
+  Pa=ggplot(SW_Downstream_Bar, aes(type.from)) +   geom_bar( aes(weight=weight, fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-    ylab("Mean pathway relative weight ") + ylim(0,0.2)
-  ggsave(paste(PlotDir, "SleepWake_Downstream_PathwayWeight",".png",sep=""),
+    ylab("# of synapses") + ylim(0,600)
+  ggsave(paste(PlotDir, "SleepWake_Downstream_Weight",".png",sep=""),
          plot = Pa, device='png', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pa)
   
   # Plot number of downstream types targeted (by supertype)
   Pb=ggplot(SW_Downstream_Bar, aes(type.from)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-    ylab("# downstream types") + ylim(0,100)
+    ylab("# downstream types") + ylim(0,80)
   ggsave(paste(PlotDir, "SleepWake_Downstream_NumberOfTypes",".png",sep=""),
          plot = Pb, device='png', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pb)
@@ -223,35 +221,37 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PlotDir){
   ########################################################################################################
   ###### Plot weight matrix, showing connections strength from sleep-wake types to downstream types ######
   
-  # Plot pathway weights to non FB tanengtial types 
+  # Plot weights to non FB tanengtial types 
   PlotData=subset(SW_Downstream, !(startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
   PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
   
-  Pc=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
+  Pc=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                           limits=c(0,0.2), breaks = c(0,0.1,0.2), oob=squish, na.value="gray50") +
     theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
     facet_grid(cols=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_DownstreamPaths_noFBt","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Downstream_noFBt",".png",sep=""),
          plot = Pc, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   print(Pc)
   
   # Get the FB layer targeted most strongly be each sleep-wake type (for plotting)
-  MaxOutputLayer=DownstreamLayer(SW_Downstream_Filt)
+  MaxOutputLayer=DownstreamLayer(SW_Downstream)
   
-  # Plot pathway weights to FB tanengtial types 
-  PlotData=subset(SW_Downstream_Filt_Sum, (startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
+  # Plot weights to FB tanengtial types 
+  PlotData=subset(SW_Downstream, (startsWith(type.to,"FB") | startsWith(type.to,"OA-")) & !supertype3.to=="Unassigned")
   PlotData=merge(PlotData, MaxOutputLayer, by="type.to")
   PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
   
-  Pd=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
+  Pd=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         limits=c(0,0.2), breaks = c(0,0.1,0.2), oob=squish, na.value="gray50") +
     theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
     facet_grid(cols=vars(Layer),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_DownstreamPaths_FBt","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Downstream_FBt",".png",sep=""),
          plot = Pd, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
   print(Pd)
   
@@ -259,75 +259,75 @@ Plot_DownStream_Pathways <- function(SW_Downstream, PlotDir){
 }
 
 
-Plot_UpStream_Pathways <- function(SW_Upstream, PlotDir){
-  #' Function for plotting pathways upstream of sleep-wake types
-  
-  
+
+Plot_UpStream_Connections <- function(SW_Upstream, PlotDir){
+  #' Function for plotting connections upstream of sleep-wake types
   
   # Group Upstream neurons into custom supertypes 
-  SW_Upstream_Filt_Sum=InputTyping(SW_Upstream_Filt_Sum)
-  UnknownUpTypes=unique(SW_Upstream_Filt_Sum$type.from[SW_Upstream_Filt_Sum$SuperType_Custom == "Unknown Type"])
+  SW_Upstream=InputTyping(SW_Upstream)
+  UnknownUpTypes=unique(SW_Upstream$type.from[SW_Upstream$SuperType_Custom == "Unknown Type"])
   
-  # Group Upstream types by supertype and compute average pathway weight and the number of target types
-  SW_Upstream_Filt_Sum_Bar=subset(SW_Upstream_Filt_Sum, !is.na(weightRelative_path)) %>% 
-    group_by(type.to, SuperType_Custom) %>% summarize(weightRelative_path=mean(weightRelative_path), n=n())
+  # Group Upstream types by supertype and compute average weight and the number of target types
+  SW_Upstream_Bar=SW_Upstream %>% group_by(type.to, SuperType_Custom) %>% summarize(weight=mean(weight), n=n())
   
   
   ########################################################################################################
-  #### Make Bar plots of upstream supertypes' average pathway weight and the number of target types ######
+  ######## Make Bar plots of upstream supertypes' average weight and the number of target types ##########
   
   # Set palette
   BarPalette=rev(color(c("mediumpurple4","mediumpurple1","forestgreen","darkorange1","bisque3","gray50","thistle4","black")))
   
-  # Plot average pathway weight (by supertype)
-  Pa=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=weightRelative_path,fill = SuperType_Custom)) +
+  # Plot average weight (by supertype)
+  Pa=ggplot(SW_Upstream_Bar, aes(type.to)) +   geom_bar( aes(weight=weight,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-    ylab("Mean pathway relative weight ") + ylim(0,0.2)
-  ggsave(paste(PlotDir, "SleepWake_Upstream_PathwayWeight","_Step",as.character(Step),".png",sep=""),
+    ylab("# of synapses") + ylim(0,1000)
+  ggsave(paste(PlotDir, "SleepWake_Upstream_Weight",".png",sep=""),
          plot = Pa, device='png', scale = 1, width =8, height =4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pa)
   
   # Plot number of upstream types targeted (by supertype)
-  Pb=ggplot(SW_Upstream_Filt_Sum_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
+  Pb=ggplot(SW_Upstream_Bar, aes(type.to)) +   geom_bar( aes(weight=n,fill = SuperType_Custom)) +
     scale_fill_manual(values=BarPalette, drop=FALSE) +  theme_classic() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-    ylab("# Upstream types") + ylim(0,50)
-  ggsave(paste(PlotDir, "SleepWake_Upstream_NumberOfTypes","_Step",as.character(Step),".png",sep=""),
+    ylab("# Upstream types") + ylim(0,40)
+  ggsave(paste(PlotDir, "SleepWake_Upstream_NumberOfTypes",".png",sep=""),
          plot = Pb, device='png', scale = 1, width =8, height = 4, units ="in", dpi = 500, limitsize = TRUE)
   print(Pb)
   
   
   ########################################################################################################
-  #### Plot pathway weight matrix, showing pathway strength from upstream types to sleep-wake types ######
+  ###### Plot  weight matrix, showing connection strength from upstream types to sleep-wake types ########
   
-  # Plot pathway weights to non FB tanengtial types 
-  PlotData=subset(SW_Upstream_Filt_Sum, !startsWith(type.from,"FB") & !startsWith(type.from,"OA") & !supertype3.from=="Unassigned")
+  # Plot weights to non FB tanengtial types 
+  PlotData=subset(SW_Upstream, !startsWith(type.from,"FB") & !startsWith(type.from,"OA") & !supertype3.from=="Unassigned")
   PlotData$SuperType_Custom=factor(PlotData$SuperType_Custom, levels=rev(levels(PlotData$SuperType_Custom)))
   
-  Pc=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
+  Pc=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         limits=c(0,0.2), breaks = c(0,0.1,0.2), oob=squish, na.value="gray50") +
     theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
     facet_grid(rows=vars(SuperType_Custom),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5),
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_noFBt","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Upstream_noFBt",".png",sep=""),
          plot = Pc, device='png', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   print(Pc)
   
   # Get the FB layer that targets each sleep-wake type most strongly (for faceting)
-  MaxInputLayer=UpstreamLayer(SW_Upstream_Filt)
+  MaxInputLayer=UpstreamLayer(SW_Upstream)
   
-  # Plot pathway weights to FB tanengtial types 
-  PlotData=subset(SW_Upstream_Filt_Sum, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
+  # Plot weights to FB tanengtial types 
+  PlotData=subset(SW_Upstream, (startsWith(type.from,"FB") | startsWith(type.from,"OA")) & !supertype3.from=="Unassigned")
   PlotData=merge(PlotData, MaxInputLayer, by="type.from")
   PlotData$Layer=factor(PlotData$Layer, levels=c("6","7"))
   
-  Pd=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative_path)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
+  Pd=ggplot(PlotData) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+    scale_fill_gradient2(low="thistle", mid="blueviolet", high="black",
+                         limits=c(0,0.2), breaks = c(0,0.1,0.2), oob=squish, na.value="gray50") +
     theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
     facet_grid(rows=vars(Layer),space = "free",  scales = "free" ) + 
     theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
           panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_UpstreamPaths_FBt","_Step",as.character(Step),".png",sep=""),
+  ggsave(paste(PlotDir, "SleepWake_Upstream_FBt",".png",sep=""),
          plot = Pd, device='png', scale = 1, width =6, height = 12, units ="in", dpi = 500, limitsize = TRUE)
   print(Pd)
   
