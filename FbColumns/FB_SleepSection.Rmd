@@ -191,98 +191,46 @@ P4
 # the t-test significant criteria, which filters out some strong but variable FBt connections involving 2-3 neurons.  
 ```{r message=FALSE, warning=FALSE}
 
-# Get roi hierarchy
-roiH <- getRoiTree()
-NonFB_ROIs=unique(roiH$level2[!roiH$level2=="FB"])
-
-
 # Get direct outputs from sleep-wake types
-DownBag=neuronBag(SleepWakeTypes_Meta, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
-
-DownBag_NonFB=combineRois(DownBag, NonFB_ROIs, newRoi="NonFB")
-SW_Downstream_NonFB=getTypeToTypeTable(DownBag_NonFB$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+DownBag=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
+SW_Downstream=getTypeToTypeTable(DownBag$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
                                        singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
-
-DownBag_FB=combineRois(DownBag, "FB", newRoi="FB")
-SW_Downstream_FB=getTypeToTypeTable(DownBag_FB$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
-                                       singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
-
 
 # Get direct inputs to sleep-wake types
-UpBag=neuronBag(SleepWakeTypes_Meta, by.roi=TRUE, omitInputs=FALSE, omitOutputs=TRUE)
-
-UpBag_NonFB=combineRois(UpBag, NonFB_ROIs, newRoi="NonFB")
-SW_Upstream_NonFB=getTypeToTypeTable(UpBag_NonFB$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+UpBag=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
+SW_Upstream=getTypeToTypeTable(UpBag$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
                                      singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
-
-UpBag_FB=combineRois(UpBag, "FB", newRoi="FB")
-SW_Upstream_FB=getTypeToTypeTable(UpBag_FB$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
-                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
-
 
 ```
 
 
 # Pick a relative weight threshold for input and output pathways (0.01 for figures)
 ```{r message=FALSE, warning=FALSE}
-RelativeWeightThresh=0.01
-SW_Downstream_NonFB=subset(SW_Downstream_NonFB, weightRelative >= RelativeWeightThresh)
-SW_Downstream_FB=subset(SW_Downstream_FB, weightRelative >= RelativeWeightThresh)
-SW_Upstream_NonFB=subset(SW_Upstream_NonFB, weightRelative >= RelativeWeightThresh)
-SW_Upstream_FB=subset(SW_Upstream_FB, weightRelative >= RelativeWeightThresh)
+RelativeWeightThresh=0.005
+SW_Downstream=subset(SW_Downstream, weightRelative >= RelativeWeightThresh)
+SW_Upstream=subset(SW_Upstream, weightRelative >= RelativeWeightThresh)
 ```
 
 
-# Plot pathways downstream of sleep-wake types.
+# Plot downstream connections of sleep-wake types.
 # Note that some downstream types belong to Unknown Types (i.e. neurons not assigned types yet).
 # Future databse versions may assign names to these bodies, in which case, they can be grouped into new SuperTypes.
 ```{r message=FALSE, warning=FALSE}
 
-
-
-
-unique(SW_Downstream_FB$type.to)
-unique(SW_Upstream_NonFB$type.from)
-
-
- Pd=ggplot(SW_Downstream_FB) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
-    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
-    theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
-    facet_grid(cols=vars(Layer),space = "free",  scales = "free" ) + 
-    theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
-          panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
-  ggsave(paste(PlotDir, "SleepWake_DownstreamPaths_FBt","_Step",as.character(Step),".png",sep=""),
-         plot = Pd, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
-  print(Pd)
-
-
-
-# Plot 1-step pathways
-UnknownDownTypes=Plot_DownStream_Pathways(SW_Downstream, PathwayThresh, 1, PlotDir)
-
-
-
-
-# Plot 2-step pathways
-UnknownDownTypes=Plot_DownStream_Pathways(SW_Downstream, PathwayThresh, 2, PlotDir)
-
-
-
+# Plot downstream connections
+UnknownDownTypes=Plot_DownStream_Connections(SW_Downstream, PlotDir)
 
 ```
 
 
-# Plot pathways upstream of sleep-wake types.
+# Plot upstream connections of sleep-wake types.
 # Note that some upstream types belong to Unknown Types (i.e. neurons not assigned types yet).
 # Future databse versions may assign names to these bodies, in which case, they can be grouped into new SuperTypes.
 ```{r message=FALSE, warning=FALSE}
 
-# Plot 1-step upstream pathways
-UnknownUpTypes=Plot_UpStream_Pathways(SW_Upstream, PathwayThresh, 1, PlotDir)
+# Plot upstream connections
+UnknownUpTypes=Plot_UpStream_Connections(SW_Upstream, PlotDir)
 
-# Plot 2-step upstream pathways
-UnknownUpTypes=Plot_UpStream_Pathways(SW_Upstream, PathwayThresh, 2, PlotDir)
-  
 ```
 
 
