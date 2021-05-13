@@ -183,58 +183,53 @@ P4
 
 
 # ####################################################################################################################
-# ######### Section 2: Analysis of upstream/downstream pathways to/from sleep-wake types #############################
+# ######### Section 2: Analysis of upstream/downstream connections to/from sleep-wake types ##########################
 # ####################################################################################################################
 
 
-# Get pathways to and from sleep-wake types that involve at most one intermediate neuron (i.e. 1-hop and 2-hop pathways).
-# As mentioend above, this is done without using the t-test significant criteria, which filters out some strong but
-# variable FBt connections involving 2-3 neurons.  
+# Get upstream and downstream connections of the sleep-wake types. As mentioend above, this is done without using
+# the t-test significant criteria, which filters out some strong but variable FBt connections involving 2-3 neurons.  
 ```{r message=FALSE, warning=FALSE}
 
-################## Get downstream pathways ################## 
+# Get roi hierarchy
+roiH <- getRoiTree()
+NonFB_ROIs=unique(roiH$level2[!roiH$level2=="FB"])
 
-# Get first layer outputs (i.e. those neurons directly downstream of sleep-wake types)
-DownBag1=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
-SW_Downstream_Raw1=getTypeToTypeTable(DownBag1$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
-                                      pThresh = 1, typesTable = NULL, oldTable = NULL)
 
-# Get second layer outputs (i.e. those neurons two "hops" downstream of sleep-wake types)
-DownType1=getTypesTable(unique(SW_Downstream_Raw1$type.to))
-DownBag2=neuronBag(DownType1, by.roi=FALSE, omitInputs=TRUE, omitOutputs=FALSE)
-SW_Downstream_Raw2=getTypeToTypeTable(DownBag2$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
-                                      pThresh = 1, typesTable = NULL, oldTable = NULL)  
+# Get direct outputs from sleep-wake types
+DownBag=neuronBag(SleepWakeTypes_Meta, by.roi=TRUE, omitInputs=TRUE, omitOutputs=FALSE)
 
-# Create pathway objects
-SW_Downstream_Raw=list(SW_Downstream_Raw1, SW_Downstream_Raw2)
-SW_Downstream=tableChain2path(SW_Downstream_Raw)
-remove(DownBag1, SW_Downstream_Raw1, DownType1, DownBag2, SW_Downstream_Raw2, SW_Downstream_Raw)
+DownBag_NonFB=combineRois(DownBag, NonFB_ROIs, newRoi="NonFB")
+SW_Downstream_NonFB=getTypeToTypeTable(DownBag_NonFB$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+                                       singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
 
-################## Get upstream pathways ##################
+DownBag_FB=combineRois(DownBag, "FB", newRoi="FB")
+SW_Downstream_FB=getTypeToTypeTable(DownBag_FB$outputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+                                       singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
 
-# Get first layer inputs (i.e. those neurons directly upstream of sleep-wake types)
-UpBag1=neuronBag(SleepWakeTypes_Meta, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
-SW_Upstream_Raw1=getTypeToTypeTable(UpBag1$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
-                                    pThresh = 1, typesTable = NULL, oldTable = NULL)
 
-# Get second layer inputs (i.e. those neurons two "hops" upstream of sleep-wake types)
-UpType1=getTypesTable(unique(SW_Upstream_Raw1$type.from))
-UpBag2=neuronBag(UpType1, by.roi=FALSE, omitInputs=FALSE, omitOutputs=TRUE)
-SW_Upstream_Raw2=getTypeToTypeTable(UpBag2$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01, singleNeuronThresholdN = 3,
-                                    pThresh = 1, typesTable = NULL, oldTable = NULL)  
+# Get direct inputs to sleep-wake types
+UpBag=neuronBag(SleepWakeTypes_Meta, by.roi=TRUE, omitInputs=FALSE, omitOutputs=TRUE)
 
-# Get pathway objects
-SW_Upstream_Raw=list(SW_Upstream_Raw1, SW_Upstream_Raw2)
-SW_Upstream=tableChain2path(SW_Upstream_Raw)
-SW_Upstream=subset(SW_Upstream, databaseType.to %in% SleepWakeTypes_Meta$type)
-remove(UpBag1, SW_Upstream_Raw1, UpType1, UpBag2, SW_Upstream_Raw2, SW_Upstream_Raw)
+UpBag_NonFB=combineRois(UpBag, NonFB_ROIs, newRoi="NonFB")
+SW_Upstream_NonFB=getTypeToTypeTable(UpBag_NonFB$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
+
+UpBag_FB=combineRois(UpBag, "FB", newRoi="FB")
+SW_Upstream_FB=getTypeToTypeTable(UpBag_FB$inputs_raw, majorOutputThreshold = 0.8, singleNeuronThreshold = 0.01,
+                                     singleNeuronThresholdN = 3, pThresh = 1, typesTable = NULL, oldTable = NULL)
+
 
 ```
 
 
-# Pick a pathway weight threshold for input and output pathways (0.005 for figures)
+# Pick a relative weight threshold for input and output pathways (0.01 for figures)
 ```{r message=FALSE, warning=FALSE}
-PathwayThresh=0.005
+RelativeWeightThresh=0.01
+SW_Downstream_NonFB=subset(SW_Downstream_NonFB, weightRelative >= RelativeWeightThresh)
+SW_Downstream_FB=subset(SW_Downstream_FB, weightRelative >= RelativeWeightThresh)
+SW_Upstream_NonFB=subset(SW_Upstream_NonFB, weightRelative >= RelativeWeightThresh)
+SW_Upstream_FB=subset(SW_Upstream_FB, weightRelative >= RelativeWeightThresh)
 ```
 
 
@@ -243,11 +238,36 @@ PathwayThresh=0.005
 # Future databse versions may assign names to these bodies, in which case, they can be grouped into new SuperTypes.
 ```{r message=FALSE, warning=FALSE}
 
+
+
+
+unique(SW_Downstream_FB$type.to)
+unique(SW_Upstream_NonFB$type.from)
+
+
+ Pd=ggplot(SW_Downstream_FB) + geom_tile(aes(type.to,type.from,fill=weightRelative)) +
+    scale_fill_paletteer_c("ggthemes::Blue", limits=c(0,0.1), breaks = c(0,0.05,0.1), oob=squish, na.value="gray50") +
+    theme_classic() + theme(axis.text.x = element_text(angle = 90))  + 
+    facet_grid(cols=vars(Layer),space = "free",  scales = "free" ) + 
+    theme(strip.background = element_blank(), panel.border = element_rect(colour = "grey50", fill = NA, size = 0.5), 
+          panel.spacing = unit(0, "lines"), aspect.ratio = 1) 
+  ggsave(paste(PlotDir, "SleepWake_DownstreamPaths_FBt","_Step",as.character(Step),".png",sep=""),
+         plot = Pd, device='png', scale = 1, width =12, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+  print(Pd)
+
+
+
 # Plot 1-step pathways
 UnknownDownTypes=Plot_DownStream_Pathways(SW_Downstream, PathwayThresh, 1, PlotDir)
 
+
+
+
 # Plot 2-step pathways
 UnknownDownTypes=Plot_DownStream_Pathways(SW_Downstream, PathwayThresh, 2, PlotDir)
+
+
+
 
 ```
 
