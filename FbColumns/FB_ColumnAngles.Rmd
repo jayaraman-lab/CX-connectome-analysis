@@ -47,16 +47,10 @@ source("FB_Analysis_Utils.r")
 
 ```
 
-# Load pre-processed synapse location data and remove variables that won't be used
+# Load pre-processed column location data (output of FB_ColumnLocations.Rmd)
 ```{r}
 
-load(paste(SaveDir,"FBColumnarSynapses_PostPCA.RData",sep=""))
-rm(list=c("roiEigen","Mesh_FB_Points","Mesh_FB_L1_Points", "Mesh_FB_L2_Points","Mesh_FB_L3_Points", "Mesh_FB_L4_Points",
-          "Mesh_FB_L5_Points", "Mesh_FB_L6_Points","Mesh_FB_L7_Points", "Mesh_FB_L8_Points", "Mesh_FB_L9_Points","origin"))
 load(paste(SaveDir,"FB_ColumnPositions.RData",sep=""))
-
-# Assign Side, PB glom, and FB col info
-FBC_SynsAll=Assign_FBcol_PBglom(FBC_SynsAll, "name", "Side", "PBglom", "FBcol")
 
 ```
 
@@ -240,10 +234,9 @@ for (ttt in 1:length(PrePostTypes$type.from)){
 ```{r message=FALSE, warning=FALSE}
 
 # Why do PFNp_a, d, e have so few output synapses?
-
 # Is phase shift consistent across columns?
 # Need to set criteria on # of posynaptic neurons somewhere else
-
+# Plot mean phase shift of neurons with more than 2 glom input?
 
 
 # Get just those neurons that reeive input from left and right populations, are part of a significant T2T connections
