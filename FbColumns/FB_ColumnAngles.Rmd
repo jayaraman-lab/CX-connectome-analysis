@@ -247,11 +247,8 @@ P1
 ```{r}
 
 
-
-
-
 # Is phase shift consistent across columns?
-# Plot hisogram of at the synapse level?
+
 
 
 
@@ -260,30 +257,25 @@ P1
 PFN_PhaseShiftData=subset(PhaseShiftData, startsWith(type.from, "PFN"))
 PFN_PhaseShiftData$GlomNumFactor="Two"
 PFN_PhaseShiftData$GlomNumFactor[PFN_PhaseShiftData$InputGlomNum>2]="More than two"
+PFN_PhaseShiftData$GlomNumFactor=factor(PFN_PhaseShiftData$GlomNumFactor, levels=c("Two","More than two"))
 Ps=ggplot(PFN_PhaseShiftData, aes(x=EPG_Angle_Diff, group = GlomNumFactor, color=GlomNumFactor)) + 
    geom_freqpoly(binwidth = 2) + theme_classic() + xlab("PB-FB Phase Shift (deg)") +
-   ylab("# of neurons")
+   ylab("# of neurons") + xlim(0, 360)
 Ps
 ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer", ".png", sep=""),
-       plot = Ps, device='png', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
+       plot = Ps, device='png', scale = 1, width = 4, height = 3, units ="in", dpi = 500, limitsize = TRUE)
 
-
-# Plot histograph of PB-FB phase shift using angles from all synapses, aligned to average of 
-# left PB input. 
-Angles=c()
-for (nnn in 1:nrow(PFN_PhaseShiftData)){
-  TempAngles=unlist(PFN_PhaseShiftData$AllAngles[nnn]) - PFN_PhaseShiftData$EPG_Angle_L[nnn]
-  Angles=c(Angles,TempAngles)
+PFNTypes=unique(PFN_PhaseShiftData$type.from)
+for (nnn in 1:length(PFNTypes)){
+  TempData=subset(PFN_PhaseShiftData, type.from==PFNTypes[nnn])
+  
+  Ps=ggplot(TempData, aes(x=EPG_Angle_Diff, group = GlomNumFactor, color=GlomNumFactor)) + 
+    geom_freqpoly(binwidth = 2) + theme_classic() + xlab("PB-FB Phase Shift (deg)") +
+    ylab("# of neurons") + xlim(0, 360) + ggtitle(PFNTypes[nnn])
+  ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer_", PFNTypes[nnn], ".png", sep=""),
+         plot = Ps, device='png', scale = 1, width = 5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+  
 }
-Angles=(Angles+360)%%360
-
-DF=data.frame(Angles=Angles)
-Pt=ggplot(DF, aes(x=Angles)) + 
-   geom_freqpoly(binwidth = 2) + theme_classic() + xlab("PB-FB Phase Shift (deg)") +
-   ylab("# of neurons")
-Pt
-ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer_Neurons", ".png", sep=""),
-       plot = Ps, device='png', scale = 1, width = 8, height = 6, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
@@ -369,20 +361,24 @@ ggsave(paste(PlotDir, "FX_MeanPhaseNorm", ".png", sep=""),
        plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
-Temp_Pos_And_Tune=subset(Position_And_Tuning, startsWith(type.to, "vDe"))
+
+
+# Plot phase shift as a function of sfsd
+Temp_Pos_And_Tune=subset(Position_And_Tuning, startsWith(type.from, "PFN") & startsWith(type.to, "F"))
 Px=ggplot() + 
-  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm, y=EPG_Angle, color=PresynapticClass))  +
-  xlab("medial-lateral position (au)") + ylab("EPG phase (deg)") +  theme_classic() +
+  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm, y=EPG_Angle_Diff, color=PresynapticClass))  +
+  xlab("medial-lateral position (au)") + ylab("EPG phase shift (deg)") +  theme_classic() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
   scale_x_continuous(breaks=seq(from=0, to=1, by=0.25), limits=c(0, 1)) +
-  ggtitle("All vDelta neurons") +
+  ggtitle("All FX neurons") +
   scale_color_manual(values=ScatterColors, drop=FALSE) +
   theme(text = element_text(size=16), 
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black"))
 Px
-ggsave(paste(PlotDir, "vDelta_MeanPhase", ".png", sep=""),
+ggsave(paste(PlotDir, "FX_MeanPhaseShift_Norm", ".png", sep=""),
        plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
 
 
 
