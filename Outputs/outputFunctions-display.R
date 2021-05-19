@@ -242,7 +242,8 @@ standardGraph <- function(gr,pal,colP="customSupertype",loop=F,statW="weightRela
 #' @param contributors The output neurons to consider (as a vector of strings)
 #' @param influenceThreshold Only keep targets receiving at least \code{influenceThresholds} path weights from 
 #' the output neurons of interest
-#' @param pal A palette to use, mapping to the "supertype" variable of the "targets" table, 
+#' @param colP which variable of the "targets" table should map to colors
+#' @param pal A palette to use, mapping to the colP variable of the "targets" table, 
 #' with the "contributors" being labeled as "Source"
 #' @param conns A data frame of the main connections of the output neurons (\code{contributors} is a subset of the source types in that table)
 #' @param targets A metadata data frame of the main targets in the same set as \code{conns}
@@ -252,16 +253,17 @@ plotSubgraph_subgraph <- function(contributors,
                                   influenceThreshold=0.005,
                                   conns,
                                   targets,
-                                  graph){
+                                  graph,
+                                  colP="supertype"){
   mainT <- filter(conns, Path_weight>influenceThreshold & 
                     type.from %in% contributors & 
                     type.to %in% (graph %N>% as_tibble())$type) 
   
   sourceSG <- as_tbl_graph(induced_subgraph(graph,c(contributors,mainT$type.to))) %>% 
-    activate(nodes) %>% mutate(databaseType=type) %>% 
-    mutate(supertype = targets$supertype[match(type,targets$type)]) %>% 
-    mutate(supertype = ifelse(type %in% contributors,"Source",as.character(supertype))) %E>%
-    mutate(supertype.from=.N()$supertype[match(type.from,.N()$type)])
+    activate(nodes) %>% 
+    mutate(grouped = targets[[colP]][match(type,targets$type)]) %>% 
+    mutate(grouped = ifelse(type %in% contributors,"Source",as.character(grouped))) %E>%
+    mutate(grouped.from=.N()$grouped[match(type.from,.N()$type)])
   
   sourceSG
 }
@@ -272,9 +274,10 @@ plotSubgraph <- function(contributors,
                          conns,
                          targets,
                          graph,
+                         colP="supertype",
                          ...){
-  sourceSG <- plotSubgraph_subgraph(contributors,influenceThreshold,conns,targets,graph)
-  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP="supertype",...)
+  sourceSG <- plotSubgraph_subgraph(contributors,influenceThreshold,conns,targets,graph,colP=colP)
+  sourceSGPlot <- standardGraph(sourceSG,pal=pal,colP="grouped",...)
   sourceSGPlot
 }
 

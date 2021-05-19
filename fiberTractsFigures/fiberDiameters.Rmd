@@ -1,0 +1,185 @@
+---
+title: "CX neurons fiber diameters"
+output: html_notebook
+---
+
+## Preparing the environment
+```{r,message=F}
+library(neuprintrExtra)
+library(hemibrainr)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(paletteer)
+library(stringr)
+```
+
+```{r}
+source(file.path("..","R","paperTheme.R"))
+```
+
+## Measuring the diameter of the main neurite of all CX neurons ()
+We start by collating all CX neurons:
+```{r}
+CXtypes <- supertype(read_csv(file.path("CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
+CXNeurons <- getTypesTable(CXtypes$databaseType)
+CXNeurons <- cxRetyping(CXNeurons,postfix="raw") %>% filter(cropped==FALSE) %>% 
+  supertype() %>% 
+  filter(grepl("_R",type) | supertype3 == "FB Interneuron") %>% 
+    mutate(glomerulus=factor(gsub("_","",str_extract(name.from,"_[L|R][1-9]_")),
+                             levels=c(paste0("L",9:1),paste0("R",1:9))),
+           column=factor(gsub("_","",str_extract(name.from,"_C[1-9]")),
+                         levels=paste0("C",9:1)))
+
+# In case this notebook has already been run and one wants to skip the slow skeleton extraction
+#CXNeurons <- readRDS("CXNeuronsWithDiameters.rds")%>% 
+#  filter(grepl("_R",type) | supertype3 == "FB Interneuron") %>% 
+#    mutate(glomerulus=factor(gsub("_","",str_extract(name,"_[L|R][1-9]_")),
+#                             levels=c(paste0("L",9:1),paste0("R",1:9))),
+#           column=as.integer(gsub("_C","",str_extract(name,"_C[0-9]"))))
+```
+
+We then gather the skeleton for all CX neurons, and correct their soma locations using the nice annotation from the `hemibrainr` package:
+```{r}
+allCXSkeletons <- neuprint_read_neurons(CXNeurons$bodyid,heal.threshold = Inf)
+allCXSkeletons <- hemibrain_reroot(allCXSkeletons)
+```
+
+We then extract their main neurites (defined as the process between their somas and their primary branchpoint). `primary_neurite` is a function from the `hemibrainr` package:
+```{r}
+allCXMainNeurites <- primary_neurite(allCXSkeletons)
+```
+
+We then incorporate the median width of those processes to the CX neuron metadata table
+```{r}
+CXNeurons <- rowwise(CXNeurons) %>%
+  mutate(mainNeuriteW = median(allCXMainNeurites[[as.character(bodyid)]]$d$W*8/1000),
+         allNeuronW = median(allCXSkeletons[[as.character(bodyid)]]$d$W*8/1000)
+         )%>%
+  ungroup()
+```
+
+And plot it, first for the EB neurons:
+```{r}
+EBNeuronsWidthPlot <- 
+ggplot(filter(CXNeurons,grepl("_R",type) | supertype3 == "FB Interneuron",
+              supertype3 %in% c("EB Columnar","ER","ExR")),
+       aes(x=type,y=mainNeuriteW,color=supertype2)) + 
+  geom_point() + 
+  facet_grid(.~supertype2,scales = "free",space="free",switch = "x") + 
+  theme_paper(axis.text.x=element_text(angle=90),
+              strip.placement="outside",
+              legend.position="none") + 
+  scale_color_manual(values=supertype2Palette()$pal) +
+  ylab("main neurite diameter (μm)") + ylim(c(0,1.3))
+EBNeuronsWidthPlot
+```
+```{r}
+save_plot("EBDiams.svg",EBNeuronsWidthPlot,ncol=1.2,nrow=0.6)
+```
+
+Then for the NO, PB and SA neurons:
+```{r}
+OthersNeuronsWidthPlot <- 
+ggplot(filter(CXNeurons,grepl("_R",type) | supertype3 == "FB Interneuron",
+              supertype3 %in% c("LNO","SA","PB Interneurons","PB Input")),
+       aes(x=type,y=mainNeuriteW,color=supertype2)) + 
+  geom_point() + 
+  facet_grid(.~supertype2,scales = "free",space="free",switch = "x") + 
+  theme_paper(axis.text.x=element_text(angle=90),
+              strip.placement="outside",
+              legend.position="none") + 
+  scale_color_manual(values=supertype2Palette()$pal) +
+  ylab("main neurite diameter (μm)") + ylim(c(0,1.3))
+OthersNeuronsWidthPlot
+```
+
+```{r}
+save_plot("OthersDiams.svg",OthersNeuronsWidthPlot,ncol=0.5,nrow=0.6)
+```
+
+Finally for the FB neurons (first for everything but the FBt)
+```{r}
+FBNeuronsWidthPlot <- 
+ggplot(filter(CXNeurons,grepl("_R",type) | supertype3 == "FB Interneuron",
+              supertype3 %in% c("FB Columnar","FB Output","FB Interneuron")),
+       aes(x=type,y=mainNeuriteW,color=supertype2)) + 
+  geom_point() + 
+  facet_grid(.~supertype2,scales = "free",space="free",switch = "x") + 
+  theme_paper(axis.text.x=element_text(angle=90),
+              strip.placement="outside",
+              legend.position="none") + 
+  scale_color_manual(values=supertype2Palette()$pal) +
+  ylab("main neurite diameter (μm)") + ylim(c(0,1.3))
+FBNeuronsWidthPlot
+```
+```{r}
+save_plot("FBDiams.svg",FBNeuronsWidthPlot,ncol=1.6,nrow=0.6)
+```
+
+Then for the FBt:
+```{r}
+FBtPal <- c("#fce61fff","#98ca43ff","#40b875ff","#1fa387ff","#228a8dff","#2f708eff","#38578dff","#453882ff","#431853ff")
+
+FBtNeuronsWidthPlot <- 
+ggplot(filter(CXNeurons,grepl("_R",type) | supertype3 == "FB Interneuron",
+              supertype2 == "FBt"),
+       aes(x=type,y=mainNeuriteW,color=supertype1)) + 
+  geom_point() + 
+  facet_grid(.~supertype1,scales = "free",space="free",switch = "x") + 
+  theme_paper(axis.text.x=element_text(angle=90),
+              strip.placement="outside",
+              legend.position="none") + 
+  scale_color_manual(values=FBtPal) +
+  ylab("main neurite diameter (μm)") + ylim(c(0,1.3))
+FBtNeuronsWidthPlot
+```
+```{r}
+save_plot("FBtDiams.svg",FBtNeuronsWidthPlot,ncol=1.6,nrow=0.6)
+```
+
+
+## Selecting neurons to be displayed to illustrate some tracts:
+We will work only with FB columnar types:
+```{r}
+neurons4Bundles <- filter(CXNeurons,
+                          supertype3 %in% c("FB Interneuron","FB Output","FB Columnar"))
+```
+
+For each cell cluster (PDM01 to 04), we select the corresponding neurons (on the right side of the brain, which we filter by the X location of their somas as not all neurons are labeled left/right in the dataset):
+```{r}
+pdm01Neurons <- filter(CXNeurons,
+                       cellBodyFiber == "PDM01",
+                       supertype3 %in% c("FB Interneuron","FB Output","FB Columnar"),
+                       bodyid %in% filter(hemibrain_somas,X<25500)$bodyid)
+```
+
+```{r}
+pdm02Neurons <- filter(CXNeurons,
+                       cellBodyFiber == "PDM02",
+                       supertype3 %in% c("FB Interneuron","FB Output","FB Columnar"),
+                       bodyid %in% filter(hemibrain_somas,X<25500)$bodyid)
+```
+
+```{r}
+pdm03Neurons <- filter(CXNeurons,
+                       cellBodyFiber == "PDM03",
+                       supertype3 %in% c("FB Interneuron","FB Output","FB Columnar"),
+                       bodyid %in% filter(hemibrain_somas,X<25500)$bodyid)
+```
+
+```{r}
+pdm04Neurons <- filter(CXNeurons,
+                       cellBodyFiber == "PDM04",
+                       supertype3 %in% c("FB Interneuron","FB Output","FB Columnar"),
+                       bodyid %in% filter(hemibrain_somas,X<25500)$bodyid)
+```
+
+```{r}
+write_csv(pdm01Neurons,"FB-PDM1.csv")
+write_csv(pdm02Neurons,"FB-PDM2.csv")
+write_csv(pdm03Neurons,"FB-PDM3.csv")
+write_csv(pdm04Neurons,"FB-PDM4.csv")
+write_csv(data.frame(supertype2=supertype2Palette()$breaks,color=as.character(supertype2Palette()$pal)),"paletteFibers.csv")
+```
+

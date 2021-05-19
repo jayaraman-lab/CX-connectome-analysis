@@ -29,7 +29,7 @@ load(file.path(dataFolder,"mainTargetsAndConns.Rdata"))
 ## PFL3 outputs connectivity matrix at glomerulus resolution
 We first get the connection information about PFL3_L direct partners:
 ```{r}
-PFLBag <- neuronBag(filter(CXNeurons,type == "PFL3_L*"),selfRef = T,
+PFLBag <- neuronBag(filter(CXNeurons,type == "PFL3_L*"),
                     slctROI=outsideRegions,omitInputs = T,renaming = cxRetyping) %>%
   combineRois(outsideRegions,"Outside")
 ```
