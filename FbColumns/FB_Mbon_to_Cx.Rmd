@@ -20,7 +20,7 @@ library(prismatic)
 # Make directory to save plots to
 ```{r}
 
-PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/MB_Analysis/"
+PlotDir="C:/Users/labadmin/Documents/Cx_EM_Analysis/BradData/FB_Analysis/MBONs2Cx/"
 if (!dir.exists(PlotDir)){dir.create(PlotDir)}
 
 ```
@@ -44,7 +44,7 @@ source("FB_Mbon_to_Cx_Utils.R")
 MB_NamedBodies=neuprint_search("^MBON.*")
 
 # Load table of known CX types
-CXTypes <- supertype(read_csv("C:\\Users\\labadmin\\Dropbox\\FIBSEM CX Paper Jan 2020\\CX-cell-types060920"))$n.type
+CXTypes <- supertype(read_csv( paste(dirname(getwd()),"\\CX-cell-types060920.csv",sep="") ))$n.type
 
 ```
 
