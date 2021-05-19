@@ -119,7 +119,6 @@ for (ppp in 1:length(Pre_Post$type.from)){
   
 }
 
-
 ```
 
 
@@ -151,7 +150,6 @@ P1=ggplot() + geom_point(data=ConnectivityCriteria, aes(x=PostProportion, y=Late
 P1
 ggsave(paste(PlotDir, "Proportion_Vs_Lateralization_byWeight.png",sep=""),
          plot = P1, device='png', scale = 1, width =7, height = 6, units ="in", dpi = 500, limitsize = TRUE)
-
 
 ```
 
@@ -203,7 +201,8 @@ ggsave(paste(PlotDir, "SingleNeuron_Left_Vs_Right.png",sep=""),
 Scatter_All_Consistent_bytype=Scatter_All_Consistent %>% group_by(type.from, type.to, PresynapticClass) %>%
   summarise(weightRelative_R=mean(weightRelative_R*PostProportion), weightRelative_L=mean(weightRelative_L*PostProportion))
 
-P1=ggplot() + geom_point(data=Scatter_All_Consistent_bytype, aes(x=weightRelative_L, y=weightRelative_R, color=PresynapticClass),alpha=0.8, shape=16) +
+P1=ggplot() + geom_point(data=Scatter_All_Consistent_bytype, aes(x=weightRelative_L, y=weightRelative_R,
+                                                                 color=PresynapticClass),alpha=0.8, shape=16) +
   scale_color_manual(values=ScatterColors, drop=FALSE)  + theme_classic() + theme(aspect.ratio = 1) + xlim(0,0.2) + ylim(0,0.2) +
   xlab("relative weight from left PB") + ylab("relative weight from right PB")
 P1
