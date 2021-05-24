@@ -267,21 +267,22 @@ for (EPG in 1:length(allEPGids)){
   EPGact[EPG] <- actProfvM[which(actProfvM$glom == allEPGGloms[EPG]),]$act
 }
 EPGProf <- data.frame(nameid = allEPGids, act = EPGact, glom = allEPGGloms)
-EPGProf$glom <- factor(EPGProf$glom, levels = PBGlomSort(unique(EPGProf$glom)))
+EPGProf$glom <- factor(EPGProf$glom, levels = rev(PBGlomSort(unique(EPGProf$glom))))
 ```
 ```{r, fig.width =3, fig.height = 2}
 # Get the mean activity per EPG
 EPGProfGlomAve <- EPGProf %>% group_by(glom) %>% summarize(meanAct = mean(act))
 
-g_EPGact_in_PB_glomAve <- ggplot(EPGProfGlomAve) + geom_bar(aes(x = glom, weight = meanAct)) + 
-  theme_paper() + coord_cartesian(expand=FALSE) + xlab('EPG neuron') + ylab('normalized activity')
+g_EPGact_in_PB_glomAve <- ggplot(EPGProfGlomAve) + geom_bar(aes(x = glom, weight = meanAct),fill='black') + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('EPG glomerulus') + ylab('simulated output') +
+  theme(axis.text.x = element_text(angle=90, hjust = 1, vjust = 0))
 print(g_EPGact_in_PB_glomAve)
 ```
 ```{r}
 gloms_L <- c("L1","L2","L3","L4","L5","L6","L7","L8")
 gloms_R <- c("R1","R2","R3","R4","R5","R6","R7","R8")
 ```
-```{r}
+```{r, fig.width =3, fig.height = 2}
 # Use activity only in one set of EPGs in a given glom.
 actProf <- vector(mode="numeric",length = 16)
 actProf[8] <- 1
@@ -289,29 +290,54 @@ actProfImp <- data.frame(act = actProf,
                          glom = c("R1","L8","R2","L7","R3","L6","R4","L5",
                                  "R5","L4","R6","L3","R7","L2","R8","L1"))
 ```
+```{r}
+actProfImpPlt <- actProfImp
+actProfImpPlt$glom <- factor(actProfImpPlt$glom, levels = rev(PBGlomSort(actProfImpPlt$glom)))
+g_EPGact_in_PB_imp <- ggplot(actProfImpPlt) + geom_bar(aes(x = glom, weight = act),fill = 'black') + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('EPG glomerulus') + ylab('simulated activity') +
+  theme(axis.text.x = element_text(angle=90, hjust = 1, vjust = 0))
+g_EPGact_in_PB_imp
+```
 
 ```{r, fig.width = 4, fig.height = 2}
+# Look at the mean profile for both the von mises and inpulse profile
+
+# Save the figures for both conditions
+EPGProfPlt <- list()
+
+#Loop through both conditions
 for (p in 1:2){
   if (p == 1)
     actProf <- actProfvM
   if (p == 2)
     actProf <- actProfImp
   
+  # Get the EPG inputs from the D7s as a result of the given profile
   PBTpInputs_all <- EPGToD7OutputAct("EPG",actProf)
 
+  # Align the bumps
   datToFit_L <- bumpAlign(PBTpInputs_all, gloms_L)
   datToFit_R <- bumpAlign(PBTpInputs_all, gloms_R)
 
+  # Average the aligned profile across the glomeruli
   datStats_L <- datToFit_L %>% group_by(glom) %>% summarize(mean = mean(actAlign), sd = sd(act))
   datStats_R <- datToFit_R %>% group_by(glom) %>% summarize(mean = mean(actAlign), sd = sd(act))
 
+  # Assign angles to the positions
   datStats_L$ang <- seq(from=-pi, to=pi, length.out=(1+nrow(datStats_L)))[1:nrow(datStats_L)]
   datStats_R$ang <- seq(from=-pi, to=pi, length.out=(1+nrow(datStats_R)))[1:nrow(datStats_R)]
+  
+  # Fit a cosine to the profiles
   datFit_L <- cosFit(datStats_L)
   datFit_R <- cosFit(datStats_R)
   datStats_L$fit <- coef(datFit_L)['C1']*cos(datStats_L$ang - coef(datFit_L)['theta']) + coef(datFit_L)['C2']
   datStats_R$fit <- coef(datFit_R)['C1']*cos(datStats_R$ang - coef(datFit_R)['theta']) + coef(datFit_R)['C2']
-
+  
+  # Move the gloms so that the valley falls at the profile peak (for display only)
+  datStats_L$glom <- c(tail(datStats_L$glom, -5) %>% as.character, head(datStats_L$glom, 5) %>% as.character())
+  datStats_R$glom <- c(tail(datStats_R$glom, -5) %>% as.character, head(datStats_R$glom, 5) %>% as.character())
+  
+  # Rearrange the order for plotting
   datStats_L$glom <- factor(datStats_L$glom, levels = c(rev(gloms_R),gloms_L))
   datStats_R$glom <- factor(datStats_R$glom, levels = c(rev(gloms_R),gloms_L))
   datStats_L <- datStats_L[order(datStats_L$glom),]
@@ -322,14 +348,33 @@ for (p in 1:2){
   meanPlt <- ggplot(datStats_All) + 
     geom_line(aes(x = glom, y = mean, group = 1 , color = 'mean')) +
     geom_line(aes(x = glom, y = fit, group = 1, color = 'fit')) +
+    geom_line(aes(x = glom,y=mean-sd,group=1, color='sd')) +
+    geom_line(aes(x = glom,y=mean+sd,group=1, color='sd')) +
     scale_color_manual(values = c('mean' = 'black',
-                                  'fit' = 'red')) +
-    theme_paper()
+                                  'fit' = 'red',
+                                  'sd' = 'gray')) +
+    xlab('EPG glomerulus') + ylab('simulated input') +
+    ylim(-0.25,1.25) +
+    theme_paper() + 
+    theme(axis.text.x = element_text(angle=90, hjust = 1, vjust = 0))
   
-  print(meanPlt)
+  EPGProfPlt[[p]] <- meanPlt
 }
 
 ```
+
+```{r}
+design = "
+ 1
+ 2
+ 3
+ 4"
+
+EPGActPlts <- g_EPGact_in_PB_glomAve + EPGProfPlt[[1]] + g_EPGact_in_PB_imp + EPGProfPlt[[2]] + plot_layout(design = design)
+ggsave("old//EPGActPlts.pdf",EPGActPlts,
+       width = 3, height = 4)
+```
+
 
 Find the RSS for a cosine fit for the outputs of D7s onto PE and PF neurons
 ```{r}
@@ -400,13 +445,19 @@ for (t in 1:length(PBTps)){
 ```
 ```{r}
 allRSEs_melt <- melt(allRSEs, id.vars = c('type','inpt'), value.name = 'RSE', variable.name = 'side')
-gStats_all <- ggplot(allRSEs_melt,aes(x=type,y=RSE)) + geom_point(size=5, pch = 21, aes(fill = side)) +
-  facet_grid(rows = vars(inpt)) +
-  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.02)) + theme_paper() +
+allRSEs_melt$inpt <- factor(allRSEs_melt$inpt, levels = c('vonMises','impulse'))
+allRSEs_melt_RLave <- allRSEs_melt %>% group_by(type,inpt) %>% summarize(aveRSE = mean(RSE))
+allRSEs_melt_RLave$type <- factor(allRSEs_melt_RLave$type, levels = PBTps)
+
+gStats_all <- ggplot(allRSEs_melt_RLave,aes(x=type,y=aveRSE)) + geom_point(size=2, pch = 21, aes(fill = inpt)) +
+  coord_cartesian(expand=FALSE,clip = 'off',ylim=c(0, 0.015)) + theme_paper() +
   xlab('neuron type') + ylab('residual sum of squares') +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0)) + 
   scale_fill_manual(values = c('black','white'))
 print(gStats_all)
+
+ggsave("old//CosRSEAcrossTypes.pdf",gStats_all,
+       width = 4, height = 2)
 ```
 
 

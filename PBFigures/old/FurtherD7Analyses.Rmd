@@ -11,9 +11,9 @@ library(cowplot)
 library(neuprintrExtra)
 library(reshape2)
 library(patchwork)
-source(file.path("..","PBFigures","PBAnalysisUtils.R"))
-source(file.path("..","R","visualizeConnectivityTables.R"))
-source(file.path("..","R","paperTheme.R"))
+source(file.path("..","..","PBFigures","PBAnalysisUtils.R"))
+source(file.path("..","..","R","visualizeConnectivityTables.R"))
+source(file.path("..","..","R","paperTheme.R"))
 ```
 
 Get the EPG and D7 connections
@@ -34,17 +34,19 @@ EPGToD7_CM <- ggplot(EPGD7ToSelf %>% filter(type.from == 'EPG', type.to =='Delta
   geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
   theme_paper() + theme(axis.text.x = element_text(angle=90)) +
   coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
-  guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+  guides(fill = guide_colourbar(title = '# of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
 print(EPGToD7_CM)
 ```
 
 Convert the EPG to D7 connection table to a weight matrix and shift the rows to align the peaks
 ```{r}
 EPGToD7 <- EPGD7ToSelf %>% filter(type.to == "Delta7" & type.from == "EPG")
+EPGToD7$nameOrder.from <- PBRename(EPGToD7$name.from,EPGToD7$from)
+EPGToD7$nameOrder.to <- PBRename(EPGToD7$name.to %>% lapply(function(x) sub('elta','',x)) %>% unlist(),EPGToD7$to) 
 ```
 ```{r}
 # Get info about the D7 and EPG neurons
-allD7ids <- levels(EPGToD7$nameOrder.to)[which(grepl("Delta7",levels(EPGToD7$nameOrder.to)))]
+allD7ids <- levels(EPGToD7$nameOrder.to)[which(grepl("D7",levels(EPGToD7$nameOrder.to)))]
 allEPGids <- levels(EPGToD7$nameOrder.from)[which(grepl("EPG",levels(EPGToD7$nameOrder.from)))]
 ```
 ```{r}
@@ -79,7 +81,7 @@ PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
 
 conmatPlot <- ggplot(PBRegInputs) + 
   scale_fill_gradient(low="white", high="black") +
-  geom_tile(aes(position,D7id,fill=regInput)) +
+  geom_tile(aes(D7id,position,fill=regInput)) +
   theme_paper() + coord_fixed(ratio = 1) + 
   theme(axis.text.x = element_text(angle = 90,hjust=1)) +
   ylab("postsynaptic D7 neuron") + xlab("shifted EPG input position") +
@@ -117,22 +119,24 @@ print(g_PBProf)
 
 Group the EPGs and D7s by name
 ```{r}
-EPGToD7Gp <- EPGD7ToSelf %>% filter(type.from == 'EPG', type.to =='Delta7') %>% group_by(name.from, name.to) %>% summarize(totalWeight = sum(ROIweight))
+EPGToD7Gp <- EPGD7ToSelf %>% filter(type.from == 'EPG', type.to =='Delta7') %>% 
+  group_by(name.from, nameOrder.to, name.to) %>% summarize(totalWeight = sum(ROIweight)) %>%
+  group_by(name.from, name.to) %>% summarize(meanTotalWeight = mean(totalWeight))
 EPGToD7Gp$nameOrder.from <- EPGToD7Gp$name.from %>% lapply(function(x) sub('\\(PB08\\)','',x)) %>% unlist()
 EPGToD7Gp$nameOrder.from <- factor(EPGToD7Gp$nameOrder.from,
                                    levels = as.factor(c('EPG_L8','EPG_L7','EPG_L6','EPG_L5','EPG_L4','EPG_L3','EPG_L2','EPG_L1',
                                                         'EPG_R1','EPG_R2','EPG_R3','EPG_R4','EPG_R5','EPG_R6','EPG_R7','EPG_R8')))
 EPGToD7Gp$nameOrder.to <- EPGToD7Gp$name.to %>% lapply(function(x) sub('elta','',sub('\\(PB15\\)','',x))) %>% unlist()
-EPGToD7Gp$nameOrder.to <- factor(EPGToD7Gp$nameOrder.to, levels = as.factor(sort(unique(EPGToD7Gp$nameOrder.to),decreasing=FALSE)))
+EPGToD7Gp$nameOrder.to <- factor(EPGToD7Gp$nameOrder.to, levels = as.factor(sort(unique(EPGToD7Gp$nameOrder.to),decreasing=TRUE)))
 
-cmax=500
+cmax=100
 EPGToD7Gp_CM <- ggplot(EPGToD7Gp) + 
   scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
                        midpoint =0.5*cmax, limits=c(0,cmax)) +
-  geom_tile(aes(nameOrder.to,nameOrder.from,fill=totalWeight)) + 
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=meanTotalWeight)) + 
   theme_paper() + theme(axis.text.x = element_text(angle=90)) +
   coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
-  guides(fill = guide_colourbar(title = 'total # of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+  guides(fill = guide_colourbar(title = 'mean total # of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
 print(EPGToD7Gp_CM)
 ```
 
@@ -145,7 +149,7 @@ allD7LGlomsGp <- D7Gpids %>% lapply(function(x) sub('.*_(L[[:digit:]]).*','\\1',
 
 ```{r}
 # Create a matrix of just the weights
-colnames(EPGToD7Gp)[colnames(EPGToD7Gp) == 'totalWeight'] <- 'ROIweight'
+colnames(EPGToD7Gp)[colnames(EPGToD7Gp) == 'meanTotalWeight'] <- 'ROIweight'
 EPGToD7Gp_WM <- WMFromConTab(EPGToD7Gp,levels(EPGToD7Gp$nameOrder.from),D7Gpids) 
 
 # Shift the entries to align the peaks
@@ -169,27 +173,451 @@ PBRegInputs$D7id <- as.factor(PBRegInputs$D7id)
 PBRegInputs <- PBRegInputs %>% filter(regInput != 0)
 
 conmatPlotGp <- ggplot(PBRegInputs) + 
-  scale_fill_gradient(low="white", high="black") +
-  geom_tile(aes(position,D7id,fill=regInput)) +
-  theme_paper() + coord_fixed(ratio = 1) + 
-  theme(axis.text.x = element_text(angle = 90,hjust=1)) +
-  ylab("postsynaptic D7 neuron") + xlab("shifted EPG input position") +
-  guides(fill = guide_colourbar(title = '# of syns', title.position = 'left', title.hjust = 0.5, barwidth = 0.5, title.theme = element_text(angle=90)))
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(D7id,position,fill=regInput)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1, ylim = c(1,16)) + xlab("postsynaptic D7 type") + ylab("shifted EPG input position") +
+  guides(fill = guide_colourbar(title = 'mean total # of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
 
 print(conmatPlotGp)
 ```
 
+Plot the mean and SD with a cosine fit
+```{r}
+PBRegInputStats <- PBRegInputs %>% group_by(position) %>% summarize(mean = mean(regInput), sd = sd(regInput))
+
+g_PBProf_Gp <- ggplot(PBRegInputStats) + geom_line(aes(x=position,y=mean,group=1, color='mean profile')) +
+  geom_line(aes(x=position,y=mean-sd,group=1),color='gray') +
+  geom_line(aes(x=position,y=mean+sd,group=1),color='gray')
+
+# Fit a cosine to the entire profile and plot it
+df = data.frame(pts = PBRegInputStats$position, wMean = PBRegInputStats$mean)
+fit <- nls(wMean ~ (C1 * cos(-C2*(pts-theta))+C3), data=df,
+  start=list(C1=20, C2=0.4, C3=10, theta=35), algorithm="port") 
+pts = c(1:length(wNow)-1)
+dffit <- data.frame(pts)
+dffit$wMean <- predict(fit, newdata=dffit)
+
+g_PBProf_Gp <- g_PBProf_Gp + geom_line(data=dffit,aes(x=pts,y=wMean,color='cosine fit'))
+
+g_PBProf_Gp <- g_PBProf_Gp + theme_cowplot() + xlab('EPG input position') + ylab('# of synapses') + 
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_color_manual(values = c('mean profile' = 'black',
+                                'cosine fit' = 'red',
+                                'cosine fit - R peak' = 'blue'))
+print(g_PBProf_Gp)
+```
 
 Combine the plots
 ```{r}
 design <- "
-  14
-  25
-  36
+  1245
+  1245
+  1245
+  3366
 "
-allPlts <- EPGToD7_CM + conmatPlot + g_PBProf + EPGToD7Gp_CM + conmatPlotGp + plot_spacer() +
+allPlts <- EPGToD7_CM + conmatPlot + g_PBProf + EPGToD7Gp_CM + conmatPlotGp + g_PBProf_Gp +
   plot_layout(design = design)
 allPlts
 ggsave('D7MidVsOut.pdf',allPlts,
-       width=8, height = 10)
+       width=10, height = 8)
 ```
+
+
+
+Plot the neuron-to-neuron connections between the Delta7s and the EPGs
+```{r}
+D7ToEPG <- EPGD7ToSelf %>% filter(type.from == 'Delta7', type.to =='EPG')
+D7ToEPG$nameOrder.to <- PBRename(D7ToEPG$name.to,D7ToEPG$to)
+
+cmax=50
+D7toEPG_CM <- ggplot(D7ToEPG) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=ROIweight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic type") +
+  guides(fill = guide_colourbar(title = '# of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+print(D7toEPG_CM)
+```
+
+Group the EPGs and D7s by name
+```{r}
+D7ToEPGGp <- D7ToEPG %>% 
+  group_by(name.from, nameOrder.from, name.to) %>% summarize(totalWeight = sum(ROIweight)) %>%
+  group_by(name.from, name.to) %>% summarize(meanTotalWeight = mean(totalWeight))
+D7ToEPGGp$nameOrder.to <- D7ToEPGGp$name.to %>% lapply(function(x) sub('\\(PB08\\)','',x)) %>% unlist()
+D7ToEPGGp$nameOrder.to <- factor(D7ToEPGGp$nameOrder.to,
+                                   levels = as.factor(c('EPG_L8','EPG_L7','EPG_L6','EPG_L5','EPG_L4','EPG_L3','EPG_L2','EPG_L1',
+                                                        'EPG_R1','EPG_R2','EPG_R3','EPG_R4','EPG_R5','EPG_R6','EPG_R7','EPG_R8')))
+D7ToEPGGp$nameOrder.from <- D7ToEPGGp$name.from %>% lapply(function(x) sub('elta','',sub('\\(PB15\\)','',x))) %>% unlist()
+D7ToEPGGp$nameOrder.from <- factor(D7ToEPGGp$nameOrder.from, levels = as.factor(sort(unique(D7ToEPGGp$nameOrder.from),decreasing=TRUE)))
+
+cmax=100
+D7ToEPGGp_CM <- ggplot(D7ToEPGGp) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.from,nameOrder.to,fill=meanTotalWeight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("presynaptic type") + ylab("postsynaptic type") +
+  guides(fill = guide_colourbar(title = 'mean total # of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+```
+
+For each D7, for each side, compare the peak input to peak output
+```{r}
+# Create an angle map for the D7s (treating each side independently)
+EPGsToAngs <- data.frame(EPG = levels(D7ToEPGGp$nameOrder.to), 
+                         ang = c(seq(from = -pi, to = pi, length.out = 9)[1:8],
+                                 seq(from = -pi, to = pi, length.out = 9)[1:8]))
+```
+
+```{r}
+# Get the D7 names
+D7Nms <- levels(D7ToEPGGp$nameOrder.from)
+
+# Create an empty data frame to hold the angle differences
+angOffsets <- data.frame(offset = c(), RL = c(), method = c())
+
+# Step through each D7
+for (d in 1:length(D7Nms)){
+  
+  # Get the right D7 to EPG connection data
+  R_D7ToEPG <- D7ToEPGGp %>% filter(grepl("R",nameOrder.to), nameOrder.from == D7Nms[d])
+  R_D7ToEPG$ang <- R_D7ToEPG$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Get the right EPG to D7 connection data
+  R_EPGToD7 <- EPGToD7Gp %>% filter(grepl("R",nameOrder.from), nameOrder.to == D7Nms[d])
+  R_profToFit <- EPGsToAngs %>% filter(grepl("R",EPG))
+  R_profToFit$mean <-  0
+  R_profToFit[which(R_profToFit$EPG %in% R_EPGToD7$nameOrder.from),]$mean <- R_EPGToD7$ROIweight
+  
+  # Calculate the input to output differences using circular means
+  R_D7OutAng_circMean <- Arg(mean(R_D7ToEPG$meanTotalWeight*exp(R_D7ToEPG$ang*1i)))
+  R_D7InAng_circMean <- Arg(mean(R_profToFit$mean*exp(R_profToFit$ang*1i)))
+  R_angDiff_circMean <- (R_D7InAng_circMean - R_D7OutAng_circMean) %% (2*pi)
+  angOffsets <- rbind(angOffsets, data.frame(offset = R_angDiff_circMean, RL = "R", method = 'circ mean'))
+  
+  # Calculate the input to output differences using fits
+  R_D7OutAng_max <- EPGsToAngs[which(EPGsToAngs$EPG == R_D7ToEPG[which(R_D7ToEPG$meanTotalWeight == max(R_D7ToEPG$meanTotalWeight)),]$nameOrder.to),]$ang
+  R_thetaGuess <- R_profToFit[which(R_profToFit$mean == max(R_profToFit$mean)),]$ang
+  R_cosFit <- cosFit(R_profToFit,R_thetaGuess)
+  R_D7InAng_cosFit <- coef(R_cosFit)['theta'] %>% as.numeric
+  R_angDiff_fit <- (R_D7InAng_cosFit - R_D7OutAng_max) %% (2*pi)
+  angOffsets <- rbind(angOffsets, data.frame(offset = R_angDiff_fit, RL = "R", method = 'cos fit/max'))
+  
+  
+  # Get the left D7 to EPG connection data
+  L_D7ToEPG <- D7ToEPGGp %>% filter(grepl("L",nameOrder.to), nameOrder.from == D7Nms[d])
+  L_D7ToEPG$ang <- L_D7ToEPG$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Get the right EPG to D7 connection data
+  L_EPGToD7 <- EPGToD7Gp %>% filter(grepl("L",nameOrder.from), nameOrder.to == D7Nms[d])
+  L_profToFit <- EPGsToAngs %>% filter(grepl("L",EPG))
+  L_profToFit$mean <-  0
+  L_profToFit[which(L_profToFit$EPG %in% L_EPGToD7$nameOrder.from),]$mean <- rev(L_EPGToD7$ROIweight)
+  
+  # Calculate the input to output differences using circular means
+  L_D7OutAng_circMean <- Arg(mean(L_D7ToEPG$meanTotalWeight*exp(L_D7ToEPG$ang*1i)))
+  L_D7InAng_circMean <- Arg(mean(L_profToFit$mean*exp(L_profToFit$ang*1i)))
+  L_angDiff_circMean <- (L_D7InAng_circMean - L_D7OutAng_circMean) %% (2*pi)
+  angOffsets <- rbind(angOffsets, data.frame(offset = L_angDiff_circMean, RL = "L", method = "circ mean"))
+  
+  # Calculate the input to output differences using fits
+  L_D7OutAng_max <- EPGsToAngs[which(EPGsToAngs$EPG == L_D7ToEPG[which(L_D7ToEPG$meanTotalWeight == max(L_D7ToEPG$meanTotalWeight)),]$nameOrder.to),]$ang
+  L_thetaGuess <- L_profToFit[which(L_profToFit$mean == max(L_profToFit$mean)),]$ang
+  L_cosFit <- cosFit(L_profToFit,L_thetaGuess)
+  L_D7InAng_cosFit <- coef(L_cosFit)['theta'] %>% as.numeric()
+  L_angDiff_fit <- (L_D7InAng_cosFit - L_D7OutAng_max) %% (2*pi)
+  angOffsets <- rbind(angOffsets, data.frame(offset = L_angDiff_fit, RL = "L", method = 'cos fit/max'))
+  
+}
+```
+
+```{r}
+meanOffsets <- angOffsets %>% group_by(RL, method) %>% summarize(mean = mean(offset))
+
+angOffsetPlt <- ggplot(angOffsets) + geom_jitter(aes(x = as.factor(RL), y = offset), width = 0.25, alpha = 0.5) +
+  geom_point(data = meanOffsets, aes(x = as.factor(RL), y = mean), color = 'red', size = 2, shape = 21) +
+  geom_hline(yintercept = pi) +
+  geom_hline(yintercept = pi - pi/16, lty = 2) + geom_hline(yintercept = pi + pi/16, lty = 2) +
+  facet_grid(cols = vars(method)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 2*pi, by = pi/2), limits = c(0,2*pi)) +
+  xlab('PB side') + ylab('input to output peak offset') +
+  theme_paper() + ggtitle('EPG inputs grouped, D7s grouped')
+
+angOffsetPlt
+```
+
+As above, but for individual D7s
+```{r}
+EPGGpToindD7 <- EPGToD7 %>% 
+  group_by(nameOrder.to, name.from) %>% summarize(totalWeight = sum(ROIweight))
+EPGGpToindD7$nameOrder.from <- EPGGpToindD7$name.from %>% lapply(function(x) sub('\\(PB08\\)','',x)) %>% unlist()
+EPGGpToindD7$nameOrder.from <- factor(EPGGpToindD7$nameOrder.from,
+                                   levels = as.factor(c('EPG_L8','EPG_L7','EPG_L6','EPG_L5','EPG_L4','EPG_L3','EPG_L2','EPG_L1',
+                                                        'EPG_R1','EPG_R2','EPG_R3','EPG_R4','EPG_R5','EPG_R6','EPG_R7','EPG_R8')))
+EPGGpToindD7$nameOrder.to <- EPGGpToindD7$nameOrder.to %>% lapply(function(x) sub('elta','',sub('\\(PB15\\)','',x))) %>% unlist()
+EPGGpToindD7$nameOrder.to <- factor(EPGGpToindD7$nameOrder.to, levels = as.factor(sort(unique(EPGGpToindD7$nameOrder.to),decreasing=TRUE)))
+
+indD7ToEPGGp <- D7ToEPG %>% 
+  group_by(nameOrder.from, name.to) %>% summarize(totalWeight = sum(ROIweight))
+indD7ToEPGGp$nameOrder.to <- indD7ToEPGGp$name.to %>% lapply(function(x) sub('\\(PB08\\)','',x)) %>% unlist()
+indD7ToEPGGp$nameOrder.to <- factor(indD7ToEPGGp$nameOrder.to,
+                                   levels = as.factor(c('EPG_L8','EPG_L7','EPG_L6','EPG_L5','EPG_L4','EPG_L3','EPG_L2','EPG_L1',
+                                                        'EPG_R1','EPG_R2','EPG_R3','EPG_R4','EPG_R5','EPG_R6','EPG_R7','EPG_R8')))
+indD7ToEPGGp$nameOrder.from <- indD7ToEPGGp$nameOrder.from %>% lapply(function(x) sub('elta','',sub('\\(PB15\\)','',x))) %>% unlist()
+indD7ToEPGGp$nameOrder.from <- factor(indD7ToEPGGp$nameOrder.from, levels = as.factor(sort(unique(indD7ToEPGGp$nameOrder.from),decreasing=TRUE)))
+```
+
+
+For each D7, for each side, compare the peak input to peak output
+```{r}
+# Get the individual D7 names
+D7NmsInd <- levels(indD7ToEPGGp$nameOrder.from)
+
+# Create an empty data frame to hold the angle differences
+angOffsets_ind <- data.frame(offset = c(), RL = c(), method = c())
+inAngInd <- data.frame(inputAng = c(), RL = c(), outputGlom = c())
+for (d in 1:length(D7NmsInd)){
+  
+  # Get the right D7 to EPG connection data
+  R_D7ToEPG_ind <- indD7ToEPGGp %>% filter(grepl("R",nameOrder.to), nameOrder.from == D7NmsInd[d])
+  R_D7ToEPG_ind$ang <- R_D7ToEPG_ind$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Get the right EPG to D7 connection data
+  R_EPGToD7_ind <- EPGGpToindD7 %>% filter(grepl("R",nameOrder.from), nameOrder.to == D7NmsInd[d])
+  R_profToFit_ind <- EPGsToAngs %>% filter(grepl("R",EPG))
+  R_profToFit_ind$mean <-  0
+  R_profToFit_ind[which(R_profToFit_ind$EPG %in% R_EPGToD7_ind$nameOrder.from),]$mean <- R_EPGToD7_ind$totalWeight
+  
+  # Calculate the input to output differences using circular means
+  R_D7OutAng_ind_circMean <- Arg(mean(R_D7ToEPG_ind$totalWeight*exp(R_D7ToEPG_ind$ang*1i)))
+  R_D7InAng_ind_circMean <- Arg(mean(R_profToFit_ind$mean*exp(R_profToFit_ind$ang*1i)))
+  R_angDiff_ind_circMean <- (R_D7InAng_ind_circMean - R_D7OutAng_ind_circMean) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = R_angDiff_ind_circMean, RL = "R", method = 'circ mean'))
+  
+  inAngInd <- rbind(inAngInd, data.frame(inputAng = R_D7InAng_ind_circMean, RL = "R", outputGlom = strsplit(D7NmsInd[d],'_')[[1]][2]))
+  
+  # Calculate the input to output differences using fits
+  R_D7OutAng_ind_max <- EPGsToAngs[which(EPGsToAngs$EPG == 
+                                           R_D7ToEPG_ind[which(R_D7ToEPG_ind$totalWeight == 
+                                                                 max(R_D7ToEPG_ind$totalWeight)),]$nameOrder.to),]$ang
+  R_thetaGuess <- R_profToFit_ind[which(R_profToFit_ind$mean == max(R_profToFit_ind$mean)),]$ang
+  R_cosFit <- cosFit(R_profToFit_ind,R_thetaGuess[1])
+  R_D7InAng_ind_cosFit <- coef(R_cosFit)['theta'] %>% as.numeric()
+  R_angDiff_ind_fit <- (R_D7InAng_ind_cosFit - R_D7OutAng_ind_max) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = R_angDiff_ind_fit, RL = "R", method = 'cos fit/max'))
+  
+  
+  # Get the left D7 to EPG connection data
+  L_D7ToEPG_ind <- indD7ToEPGGp %>% filter(grepl("L",nameOrder.to), nameOrder.from == D7NmsInd[d])
+  L_D7ToEPG_ind$ang <- L_D7ToEPG_ind$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Get the left EPG to D7 connection data
+  L_EPGToD7_ind <- EPGGpToindD7 %>% filter(grepl("L",nameOrder.from), nameOrder.to == D7NmsInd[d])
+  L_profToFit_ind <- EPGsToAngs %>% filter(grepl("L",EPG))
+  L_profToFit_ind$mean <-  0
+  L_profToFit_ind[which(L_profToFit_ind$EPG %in% L_EPGToD7_ind$nameOrder.from),]$mean <- rev(L_EPGToD7_ind$totalWeight)
+  
+  # Calculate the input to output differences using circular means
+  L_D7OutAng_ind_circMean <- Arg(mean(L_D7ToEPG_ind$totalWeight*exp(L_D7ToEPG_ind$ang*1i)))
+  L_D7InAng_ind_circMean <- Arg(mean(L_profToFit_ind$mean*exp(L_profToFit_ind$ang*1i)))
+  L_angDiff_ind_circMean <- (L_D7InAng_ind_circMean - L_D7OutAng_ind_circMean) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = L_angDiff_ind_circMean, RL = "L", method = 'circ mean'))
+  
+  inAngInd <- rbind(inAngInd, data.frame(inputAng = L_D7InAng_ind_circMean, RL = "L", outputGlom = strsplit(D7NmsInd[d],'_')[[1]][2]))
+  
+  # Calculate the input to output differences using fits
+  L_D7OutAng_ind_max <- EPGsToAngs[which(EPGsToAngs$EPG == 
+                                           L_D7ToEPG_ind[which(L_D7ToEPG_ind$totalWeight == 
+                                                                 max(L_D7ToEPG_ind$totalWeight)),]$nameOrder.to),]$ang
+  L_thetaGuess <- L_profToFit_ind[which(L_profToFit_ind$mean == max(L_profToFit_ind$mean)),]$ang
+  L_cosFit <- cosFit(L_profToFit_ind,L_thetaGuess[1])
+  L_D7InAng_ind_cosFit <- coef(L_cosFit)['theta'] %>% as.numeric()
+  L_angDiff_ind_fit <- (L_D7InAng_ind_cosFit - L_D7OutAng_ind_max) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = L_angDiff_ind_fit, RL = "L", method = 'cos fit/max'))
+  
+}
+```
+
+```{r}
+meanOffsets_ind <- angOffsets_ind %>% group_by(RL, method) %>% summarize(mean = mean(offset))
+
+angOffsetPltInd <- ggplot(angOffsets_ind) + geom_jitter(aes(x = as.factor(RL), y = offset), width = 0.25, alpha = 0.5) +
+  geom_point(data = meanOffsets_ind, aes(x = as.factor(RL), y = mean), color = 'red', size = 2, shape = 21) +
+  geom_hline(yintercept = pi) +
+  geom_hline(yintercept = pi - pi/16, lty = 2) + geom_hline(yintercept = pi + pi/16, lty = 2) +
+  facet_grid(cols = vars(method)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 2*pi, by = pi/2), limits = c(0,2*pi)) +
+  xlab('PB side') + ylab('input to output peak offset') +
+  theme_paper() + ggtitle('EPG inputs grouped, individual D7s')
+
+angOffsetPltInd
+```
+
+```{r}
+InOutAngComp <- ggplot(inAngInd) + geom_point(aes(x = as.factor(outputGlom), y = inputAng, color = RL), alpha = 0.5) +
+  scale_y_continuous(breaks = seq(from = -pi, to = pi, by = pi/2), limits = c(-pi,pi)) +
+  xlab('D7 output gloms') + ylab('mean input angle') +
+  theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+vints <- seq(from = -pi, to = pi, by = pi/4)
+for (v in 1:length(vints)){
+  InOutAngComp <- InOutAngComp + geom_hline(yintercept = vints[v], lty = 2)
+}
+InOutAngComp
+ggsave('InOutAngComp.pdf',InOutAngComp,
+       width = 4, height = 3)
+```
+
+
+```{r}
+design = "
+ 11223
+"
+D7InOutOffsets <- EPGToD7Gp_CM + D7ToEPGGp_CM + angOffsetPlt + plot_layout(design = design, guides = 'collect')
+ggsave('D7InOutOffsets.pdf',D7InOutOffsets,
+       width = 8, height = 4)
+```
+
+```{r}
+design = "
+ 1
+ 2
+"
+D7InOutOffsetsComp <- angOffsetPlt + angOffsetPltInd + plot_layout(design = design, guides = 'collect')
+ggsave('D7InOutOffsetsComp.pdf',D7InOutOffsetsComp,
+       width = 6, height = 6)
+```
+
+For each D7, for each side, compare the peak input to peak output
+```{r}
+# Create an angle map for the D7s (treating each side independently)
+EPGsToAngs <- data.frame(EPG = c("EPG_R1","EPG_L8","EPG_R2","EPG_L7","EPG_R3","EPG_L6","EPG_R4","EPG_L5",
+                                 "EPG_R5","EPG_L4","EPG_R6","EPG_L3","EPG_R7","EPG_L2","EPG_R8","EPG_L1"),
+                         ang = seq(from = pi, to = -pi, length.out = 17)[1:16] - pi/16)
+```
+
+```{r}
+# Get the individual D7 names
+D7NmsInd <- levels(indD7ToEPGGp$nameOrder.from)
+
+# Create an empty data frame to hold the angle differences
+angOffsets_ind <- data.frame(offset = c(), RL = c())
+
+inAngInd <- data.frame(inputAng = c(), outputGlom = c())
+for (d in 1:length(D7NmsInd)){
+  
+  # Get the EPG to D7 connection data
+  EPGToD7_ind <- EPGGpToindD7 %>% filter(nameOrder.to == D7NmsInd[d])
+  EPGToD7_ind$ang <- EPGToD7_ind$nameOrder.from %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Get the mean input angle
+  D7InAng_ind_circMean <- Arg(mean(EPGToD7_ind$totalWeight*exp(EPGToD7_ind$ang*1i)))
+  
+  # Get the right D7 to EPG connection data
+  R_D7ToEPG_ind <- indD7ToEPGGp %>% filter(grepl("R",nameOrder.to), nameOrder.from == D7NmsInd[d])
+  R_D7ToEPG_ind$ang <- R_D7ToEPG_ind$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Calculate the mean right angle
+  R_D7OutAng_ind_circMean <- Arg(mean(R_D7ToEPG_ind$totalWeight*exp(R_D7ToEPG_ind$ang*1i)))
+  
+  # Get the left D7 to EPG connection data
+  L_D7ToEPG_ind <- indD7ToEPGGp %>% filter(grepl("L",nameOrder.to), nameOrder.from == D7NmsInd[d])
+  L_D7ToEPG_ind$ang <- L_D7ToEPG_ind$nameOrder.to %>% lapply(function(x) EPGsToAngs[which(EPGsToAngs$EPG == x),]$ang) %>% unlist()
+  
+  # Calculate the mean left angle
+  L_D7OutAng_ind_circMean <- Arg(mean(L_D7ToEPG_ind$totalWeight*exp(L_D7ToEPG_ind$ang*1i)))
+  
+  # Calculate the input to output differences
+  R_angDiff_ind_circMean <- (D7InAng_ind_circMean - R_D7OutAng_ind_circMean) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = R_angDiff_ind_circMean, RL = "R"))
+  L_angDiff_ind_circMean <- (D7InAng_ind_circMean - L_D7OutAng_ind_circMean) %% (2*pi)
+  angOffsets_ind <- rbind(angOffsets_ind, data.frame(offset = L_angDiff_ind_circMean, RL = "L"))
+  
+  inAngInd <- rbind(inAngInd, data.frame(inputAng = D7InAng_ind_circMean, outputGlom = strsplit(D7NmsInd[d],'_')[[1]][2]))
+}
+```
+
+```{r}
+cmax=125
+EPGtoD7_CM_IndGp <- ggplot(EPGGpToindD7) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=totalWeight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("postsynaptic neuron") + ylab("presynaptic type") +
+  guides(fill = guide_colourbar(title = '# of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+print(EPGtoD7_CM_IndGp)
+```
+
+```{r}
+cmax=125
+D7toEPG_CM_IndGp <- ggplot(indD7ToEPGGp) + 
+  scale_fill_gradient2(low="mistyrose", mid="firebrick3", high="black", 
+                       midpoint =0.5*cmax, limits=c(0,cmax)) +
+  geom_tile(aes(nameOrder.to,nameOrder.from,fill=totalWeight)) + 
+  theme_paper() + theme(axis.text.x = element_text(angle=90)) +
+  coord_equal(ratio=1) + xlab("postsynaptic type") + ylab("presynaptic neuron") +
+  guides(fill = guide_colourbar(title = '# of synapses', title.position = 'left', barwidth = 0.25, title.theme = element_text(angle=90)))
+print(D7toEPG_CM_IndGp)
+```
+
+```{r}
+EPGsToAngs$EPG <- factor(EPGsToAngs$EPG, levels = PBGlomSort(EPGsToAngs$EPG))
+EPGAngMap <- ggplot(EPGsToAngs) + geom_point(aes(y = EPG, x = ang)) + 
+  scale_x_continuous(breaks = seq(from = -pi, to = pi, by = pi/2), limits = c(-pi,pi), expand = c(0,0)) +
+  theme_paper() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+vints <- seq(from = -pi, to = pi, by = pi/16)
+for (v in 1:length(vints)){
+  EPGAngMap <- EPGAngMap + geom_vline(xintercept = vints[v], lty = 2)
+}
+EPGAngMap
+```
+
+
+```{r}
+meanOffsets_ind <- angOffsets_ind %>% group_by(RL) %>% summarize(mean = mean(offset))
+
+angOffsetPltInd <- ggplot(angOffsets_ind) + geom_jitter(aes(x = as.factor(RL), y = offset, color = 'pt'), width = 0.25, alpha = 0.5) +
+  geom_point(data = meanOffsets_ind, aes(x = as.factor(RL), y = mean, color = 'mean'), size = 2, shape = 21) +
+  geom_hline(yintercept = pi) +
+  geom_hline(yintercept = pi - pi/16, lty = 2) + geom_hline(yintercept = pi + pi/16, lty = 2) +
+  scale_y_continuous(breaks = seq(from = 0, to = 2*pi, by = pi/2), limits = c(0,2*pi), expand = c(0,0)) +
+  scale_color_manual(values = c('pt' = 'black', 'mean' = 'red')) +
+  xlab('PB output side') + ylab('input to output peak offset') +
+  theme_paper()# + ggtitle('EPG inputs grouped, individual D7s')
+
+angOffsetPltInd
+```
+
+```{r}
+InOutAngComp <- ggplot(inAngInd) + geom_point(aes(x = as.factor(outputGlom), y = inputAng), alpha = 0.5) +
+  scale_y_continuous(breaks = seq(from = -pi, to = pi, by = pi/2), limits = c(-pi,pi)) +
+  xlab('D7 output gloms') + ylab('input angle') +
+  theme_paper() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+vints <- seq(from = -pi, to = pi, by = pi/4) + pi/8
+for (v in 1:length(vints)){
+  InOutAngComp <- InOutAngComp + geom_hline(yintercept = vints[v], lty = 2)
+}
+InOutAngComp
+```
+
+```{r, fig.width = 8, fig.height = 8}
+design = "
+ 1112
+ 1112
+ 3332
+ 4455
+ 4455
+ 4455"
+D7InOutComp <- EPGtoD7_CM_IndGp + D7toEPG_CM_IndGp +
+  EPGAngMap + InOutAngComp + angOffsetPltInd + 
+  plot_layout(design = design, guides = 'collect')
+D7InOutComp
+ggsave('InOutAngComp.pdf',D7InOutComp,
+       width = 8, height = 10)
+```
+
