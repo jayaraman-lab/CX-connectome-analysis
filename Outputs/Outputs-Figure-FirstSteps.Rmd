@@ -5,6 +5,10 @@ output: html_notebook
 
 This notebook generates the network graphs used to guide the schematic of figure 74 (including the graph shown as figure supplement 1)
 ## Preparing the environment
+```{r}
+library(readr)
+```
+
 
 Loading local functions:
 ```{r message=FALSE}
@@ -65,6 +69,48 @@ Save the figure supplement:
 ```{r}
 save_plot(file.path(outputsFolder,"outputs-Figure74-SI1.svg"),PFL1Graph,base_height = 7,base_width = 8.5)
 ```
+Extracting the graph and different nodes to be used in the SI video:
+```{r}
+PFL1Raw <- plotSubgraph_subgraph("PFL1_L*",
+                                 graph=CX_outGraphRed,
+                                 conns=mainFFConns,
+                                 targets=mainFFTargetsS) 
+
+contraWed <- PFL1Raw %N>% filter(type %in% c("LAL138_R",filter(.E(),type.from=="LAL138_R")$type.to)) %>% as_tibble()
+
+crissCross <- PFL1Raw %>% convert(to_local_neighborhood,which(.N()$type %in% c("LAL086_R","LAL087_R")),mode="out",order=4) %N>% as_tibble()
+
+ipsiWed <- PFL1Raw %N>% filter(!(type %in% c(contraWed$type,crissCross$type,"PFL1_L*"))) %>% as_tibble() 
+```
+
+Then finding bodyids (on the side of the brain with the most instances)
+```{r}
+PFL1_RNeurons <-  filter(CXNeurons,type=="PFL1_R*")
+PFL1_LNeurons <- filter(CXNeurons,type=="PFL1_L*")
+
+## Both for outputs of PFL1_R*
+contraWedNeurons <-  getTypesTable(contraWed$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% lrInvert(contraWed$type))
+
+crissCrossNeurons <- getTypesTable(crissCross$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% lrInvert(crissCross$type))
+
+## For PFL1_L*
+ipsiWedNeurons <- getTypesTable(ipsiWed$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% ipsiWed$type)
+```
+
+```{r}
+write_csv(PFL1_RNeurons,"PFL1_R.csv")
+write_csv(PFL1_LNeurons,"PFL1_L.csv")
+
+write_csv(contraWedNeurons,"contraLateral_wedge.csv")
+write_csv(ipsiWedNeurons,"ipsi_wedgePLP.csv")
+write_csv(crissCrossNeurons,"interHemisphericMotifs.csv")
+```
 
 
 We proceed to run the same for most CX output neurons:
@@ -78,12 +124,23 @@ PFL2Graph
 ```
 
 ```{r}
+
 PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01,
                           conns=mainFFConns,
                           pal=customGraphPalette,
                           targets=mainFFTargetsS) + coord_cartesian(clip="off")
 PFL3Graph
 ```
+Selection of types for video:
+```{r}
+DNTypes <- c("DNb01_2_R",paste0("DNa0",2:4,"_R"),"DNa03_L"))
+LALTypes <- c(DNTypes,"LAL010_R","LAL046_R","LAL194_R","LAL195_R","AOTU42_R","AOTU019_R")
+
+DNsGroup <- filter(mainFFTargetsNeurons,
+                   type.to %in% c("DNb01_2_R",paste0("DNa0",2:4,"_R"),"DNa03_L"))
+```
+
+
 
 ## FS neurons
 
