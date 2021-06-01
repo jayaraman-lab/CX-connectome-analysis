@@ -10,15 +10,20 @@ Below is a guide for identifying which notebooks were used for which figure pane
 * Figure 20 G: RSS for a cosine fit to simulated activity
 * Figure 20 figure supplement 1: Connectivity matrix with number of synapses
 * Figure 20 figure supplement 2: Connectivity matrix with number of synapses
+* Figure 20 figure supplement 3 A: Connectivity matrix
+* Figure 20 figure supplement 3 B: PB glomerulus angle assignments for EPG neurons
+* Figure 20 figure supplement 3 C: Mean input angle for each D7 neuron from the EPG inputs
+* Figure 20 figure supplement 3 D: Connectivity matrix
+* Figure 20 figure supplement 3 E: Input to output angular difference for the D7 neurons
 
 **PB-Figure3-P6-8P9.Rmd**: Synapse counting functions
 * Figure 21 B: Mean number of synapses by PB glomerulus
 * Figure 21 C: Mean number of synapses by type
 
 **PB-Figure4-PFNvIbSpsP**: Connectivity matrices and region arborization plot
-* Figure 22 B: Connectivity matrix
-* Figure 22 C: Region arborization plot
-* Figure 22 D: Connectivity matrix
+* Figure 22 C: Connectivity matrix
+* Figure 22 D: Region arborization plot
+* Figure 22 E: Connectivity matrix
 * Figure 22 figure supplement 1: Connectivity matrix with number of synapses
 
 **PB-Figure5-Neuromods.Rmd**: Connectivity matrix

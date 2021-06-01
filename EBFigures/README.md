@@ -67,9 +67,9 @@ computationally intensive work of gathering the output pathways of the ExR neuro
 * Figure 15 D-G: motifs circular plots for 4 ExR neurons
 
 **EB Columnar Figure.RMD**: Generate connectivity matrices and graph
-* Figure 17 B: connectivity matrix
 * Figure 17 C: connectivity matrix
-* Figure 17 D: connectivity graph laid out as a force-directed network
+* Figure 17 D: connectivity matrix
+* Figure 17 E: connectivity graph laid out as a force-directed network
 
 **EB-EBtFigure.Rmd**: Generate connectivity matrices and plot the total number of synapses per ROI per neuron
 * Figure 18 B: connectivity matrix
