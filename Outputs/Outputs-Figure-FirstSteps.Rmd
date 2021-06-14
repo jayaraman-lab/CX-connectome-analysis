@@ -55,6 +55,27 @@ names(extraPal) <- extraLevs
 customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
 ```
 
+A function to extract all neurons in the main graph of a CX output neuron and save corresponding tables (later used to generate the output videos):
+
+```{r}
+allNeuronsInNetwork <- function(CXOut,saveName,influenceThreshold=0.005){
+  graphRaw <- plotSubgraph_subgraph(CXOut,
+                          graph=CX_outGraphRed,
+                          conns=mainFFConns,
+                          targets=mainFFTargetsS,
+                          influenceThreshold=influenceThreshold)
+
+targetTypes <- graphRaw %N>% as_tibble() %>% filter(!(type %in% CXOut))
+targetNeurons <- getTypesTable(targetTypes$databaseType)
+targetNeurons <- cxRetyping(targetNeurons) %>% filter(type %in% targetTypes$type) 
+write_csv(targetNeurons,file.path(outputsFolder,saveName))
+targetNeurons
+}
+
+```
+
+
+
 ## PFL neurons
 ### PFL1
 Throughout this script, we'll use the the `plotSubgraph` function, which takes a contributing type and a graph as an input, together with the metadata tables about the strong targets, and reduces the graph to the strong target of the type of interest, with the contributing type in red. For example for PFL1 (figure supplement 1):
@@ -105,12 +126,12 @@ ipsiWedNeurons <- getTypesTable(ipsiWed$databaseType) %>%
 ```
 
 ```{r}
-write_csv(PFL1_RNeurons,"PFL1_R.csv")
-write_csv(PFL1_LNeurons,"PFL1_L.csv")
+write_csv(PFL1_RNeurons,file.path(outputsFolder,"PFL1_R.csv"))
+write_csv(PFL1_LNeurons,file.path(outputsFolder,"PFL1_L.csv"))
 
-write_csv(contraWedNeurons,"contraLateral_wedge.csv")
-write_csv(ipsiWedNeurons,"ipsi_wedgePLP.csv")
-write_csv(crissCrossNeurons,"interHemisphericMotifs.csv")
+write_csv(contraWedNeurons,file.path(outputsFolder,"contraLateral_wedge.csv"))
+write_csv(ipsiWedNeurons,file.path(outputsFolder,"ipsi_wedgePLP.csv"))
+write_csv(crissCrossNeurons,file.path(outputsFolder,"interHemisphericMotifs.csv"))
 ```
 
 ### PFL2
@@ -138,8 +159,8 @@ PFL2s <- getTypesTable("PFL2")
 ```
 
 ```{r}
-write_csv(PFL2s,"PFL2Neurons.csv")
-write_csv(PFL2TargetNeurons,"PFL2Targets.csv")
+write_csv(PFL2s,file.path(outputsFolder,"PFL2Neurons.csv"))
+write_csv(PFL2TargetNeurons,file.path(outputsFolder,"PFL2Targets.csv"))
 ```
 
 
@@ -186,17 +207,17 @@ DNContraNeurons <- getTypesTable(DNContra$databaseType) %>% cxRetyping() %>%
 ```
 
 ```{r}
-write_csv(LC33IBNeurons,"LC33IBLAL.csv")
-write_csv(DNLALNeurons,"ipsiDNLALs.csv")
-write_csv(DNContraNeurons,"contraDNLAL.csv")
+write_csv(LC33IBNeurons,file.path(outputsFolder,"LC33IBLAL.csv"))
+write_csv(DNLALNeurons,file.path(outputsFolder,"ipsiDNLALs.csv"))
+write_csv(DNContraNeurons,file.path(outputsFolder,"contraDNLAL.csv"))
 
-write_csv(filter(CXNeurons,type=="PFL3_L*"),"PFL3_L.csv")
-write_csv(filter(CXNeurons,type=="PFL3_R*"),"PFL3_R.csv")
+write_csv(filter(CXNeurons,type=="PFL3_L*"),file.path(outputsFolder,"PFL3_L.csv"))
+write_csv(filter(CXNeurons,type=="PFL3_R*"),file.path(outputsFolder,"PFL3_R.csv"))
 ```
 
 
 ## FS neurons
-
+### FS1
 ```{r}
 FS1Graph <- plotSubgraph(c("FS1A_L","FS1B_L"),graph=CX_outGraphRed,
                          conns=mainFFConns,
@@ -207,6 +228,19 @@ FS1Graph
 ```
 
 ```{r}
+FS1ATargets <- allNeuronsInNetwork("FS1A_L","FS1ATargets.csv")
+FS1BTargets <- allNeuronsInNetwork("FS1B_L","FS1BTargets.csv")
+FS2Targets <- allNeuronsInNetwork(c("FS2_L","FS2_R"),"FS2Targets.csv")
+FR1Targets <- allNeuronsInNetwork("FR1_L","FR1Targets.csv")
+FR2Targets <- allNeuronsInNetwork("FR2_L","FR2Targets.csv")
+PFRbTargets <- allNeuronsInNetwork("PFR_b_L*","PFRbTargets.csv")
+
+write_csv(filter(CXNeurons,type %in% c("FS1A_L","FS1B_L","FS2_L","FS2_R","FR1_L","FR2_L","PFR_b_L*")),file.path(outputsFolder,"FS1-2FR_CXNeurons.csv"))
+```
+
+
+### FS2
+```{r}
 FS2Graph <- plotSubgraph(c("FS2_L","FS2_R"),graph=CX_outGraphRed,
                          conns=mainFFConns,
                          pal=customGraphPalette,
@@ -215,6 +249,7 @@ FS2Graph <- plotSubgraph(c("FS2_L","FS2_R"),graph=CX_outGraphRed,
 FS2Graph
 ```
 
+### FS3
 ```{r}
 FS3Graph <- plotSubgraph(c("FS3_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
                          conns=mainFFConns,
@@ -222,6 +257,14 @@ FS3Graph <- plotSubgraph(c("FS3_L"),graph=CX_outGraphRed,layout="stress",influen
                          pal=customGraphPalette) + coord_cartesian(clip="off")
 FS3Graph
 ```
+
+```{r}
+FS3TargetNeurons <- allNeuronsInNetwork("FS3_L","FS3Targets.csv",influenceThreshold = 0.001)
+
+FS3_L <- filter(CXNeurons,type=="FS3_L")
+write_csv(FS3_L,file.path(outputsFolder,"FS3_L.csv"))
+```
+### FS4
 ```{r}
 FS4AGraph <- plotSubgraph(c("FS4A_L"),graph=CX_outGraphRed,layout="stress",influenceThreshold = 0.001,
                           conns=mainFFConns,
@@ -243,7 +286,26 @@ FS4CGraph <- plotSubgraph(c("FS4C_L"),graph=CX_outGraphRed,layout="stress",influ
                           targets=mainFFTargetsS) + coord_cartesian(clip="off")
 FS4CGraph
 ```
+```{r}
+FS4ATargetNeurons <- allNeuronsInNetwork("FS4A_L","FS4ATargets.csv",influenceThreshold = 0.001)
 
+FS4A_L <- filter(CXNeurons,type=="FS4A_L")
+write_csv(FS4A_L,file.path(outputsFolder,"FS4A_L.csv"))
+```
+
+```{r}
+FS4BTargetNeurons <- allNeuronsInNetwork("FS4B_L","FS4BTargets.csv",influenceThreshold = 0.001)
+
+FS4B_L <- filter(CXNeurons,type=="FS4B_L")
+write_csv(FS4B_L,file.path(outputsFolder,"FS4B_L.csv"))
+```
+
+```{r}
+FS4CTargetNeurons <- allNeuronsInNetwork("FS4C_L","FS4CTargets.csv",influenceThreshold = 0.001)
+
+FS4C_L <- filter(CXNeurons,type=="FS4C_L")
+write_csv(FS4C_L,file.path(outputsFolder,"FS4C_L.csv"))
+```
 
 ## FC neurons
 ```{r}
@@ -254,7 +316,12 @@ FCGraph <- plotSubgraph(c("FC1C_L","FC1E_L","FC2A_L","FC2B_L","FC2C_L"),graph=CX
 FCGraph
 ```
 
+```{r}
+FC1Targets <- allNeuronsInNetwork(c("FC1C_L","FC1E_L"),"FC1CETargets.csv")
+FC2Targets <- allNeuronsInNetwork(c("FC2A_L","FC2B_L","FC2C_L"),"FC2Targets.csv")
 
+write_csv(filter(CXNeurons,type %in% c("FC1C_L","FC1E_L","FC2A_L","FC2B_L","FC2C_L")),file.path(outputsFolder,"FC1-2_CXNeurons.csv"))
+```
 
 ## PFR neurons
 ```{r}
@@ -283,6 +350,16 @@ ExR8Graph <- plotSubgraph(c("ExR8_R","ExR7_R","ExR7_L"),graph=CX_outGraphRed,lay
                           targets=mainFFTargetsS) + coord_cartesian(clip="off")
 ExR8Graph
 ```
+
+```{r}
+ExR7Targets <- allNeuronsInNetwork(c("ExR7_R","ExR7_L"),"ExR7Targets.csv")
+ExR8Targets <- allNeuronsInNetwork(c("ExR8_R"),"ExR8Targets.csv")
+
+write_csv(filter(CXNeurons,type %in% c("ExR8_R","ExR7_R","ExR7_L")),file.path(outputsFolder,"ExR_CXNeurons.csv"))
+```
+
+
+
 ## ExR2-6 neurons
 ```{r}
 ExR26Graph <- plotSubgraph(c("ExR2_R","ExR3_R","ExR2_R","ExR6_R"),graph=CX_outGraphRed,
