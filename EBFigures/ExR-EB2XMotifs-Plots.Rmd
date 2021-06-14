@@ -154,35 +154,43 @@ ggsave("ExR-motifPrevalence.pdf", plot = recurrentMotifsPrevalence, device='pdf'
 ```
 
 ## Motifs weight breakdown (panel C)
-For each ExR type participating in motifs, we collate the motifs using the `getMotifsGraphDf` function (defined in **Outputs/outputFunctions-display.R**): `getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the EB connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
+We summarize each motif for each source type and supertype target by the total pathway weight contributed to neurons belonging to each of the motifs.
 ```{r}
-supertypeMotifSummary <-  getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,
-                                           "ExR2_R","Path_weight") %>% 
-  mutate(source = "ExR2_R")
-
-for(mytype in c("ExR3_R","ExR5_R","ExR6_R","ExR7_R")){
-   #c("ExR1_L","ExR2_R","ExR2_L","ExR3_R","ExR3_L","ExR4_R","ExR5_R","ExR5_L","ExR6_R","ExR7_R","ExR7_L")
-   myMotifGraph = getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),
-                                   allRecurrentEB,mytype,"Path_weight")  %>% 
-     mutate(source = mytype)
-   supertypeMotifSummary = bind_rows(supertypeMotifSummary, myMotifGraph)
-}
+supertypeMotifSummary <- group_by(EB2EBaxDendMat,
+                                   type.from) %>% 
+  mutate("parallel"=paste0(type.from,type.to) %in%                ## Collecting motif appartenance
+                                           paste0(allRecurrentEB$type.from,allRecurrentEB$type.to),
+            "canonical"=paste0(type.to,type.from) %in% 
+                                          paste0(allRecurrentEB$type.from,allRecurrentEB$type.to),
+            "linked"=if (n()==1) FALSE else 
+              sapply(type.to,function(p) any(grepl(p,
+                                as.vector(combn(type.to,2,paste,collapse=" "))[as.vector(combn(type.to,2,paste,collapse=" ")) %in%
+                                                  c(paste(allRecurrentEB$type.from,allRecurrentEB$type.to),
+                                                  paste(allRecurrentEB$type.to,allRecurrentEB$type.from))])))
+  ) %>% 
+  group_by(type.from,supertype1.from,supertype3.from,supertype3.to) %>%
+  summarize("EB parallel connection"=sum(Path_weight[parallel]),        ## Summing over
+            "EB canonical feedback"=sum(Path_weight[canonical]),
+            "linked targets in EB"=sum(Path_weight[linked])
+            )
+head(supertypeMotifSummary)
+```
+We then pivot the table to a longer format for easier plotting:
+```{r}
+supertypeMotifSummary <- pivot_longer(supertypeMotifSummary,
+                                       c("EB parallel connection","EB canonical feedback","linked targets in EB"),
+                                       names_to="motif",values_to="contribution") %>% 
+  mutate(type.fromF = factor(type.from,levels=unique(ExRNeurons$type)),
+         motif=factor(motif,levels=c("EB parallel connection","EB canonical feedback","linked targets in EB"))) %>%
+  filter(!is.na(contribution) & contribution >0)
 head(supertypeMotifSummary)
 ```
 
-We then sum all the weights of the connections involved in a given motif for a given ExR neuron:
-```{r}
-supertypeMotifSummary <- group_by(supertypeMotifSummary,supertype3.to,source,motif,roi) %>%
-  summarize(weight=sum(weightRelative)) %>% ungroup()
-
-head(supertypeMotifSummary)
-```
 And plot the result:
 ```{r}
-typesInMotif = ggplot(data = supertypeMotifSummary %>% filter(motif != "NA" & roi == "EB") , aes(x=source, y=weight, fill=supertype3.to)) +
+typesInMotif = ggplot(data = supertypeMotifSummary, aes(x=type.from, y=contribution, fill=supertype3.to)) +
    geom_bar(position = "stack", stat="identity") + 
-   facet_grid(rows=vars(motif),scale="free") +
-   #scale_fill_manual(values=p36) + 
+   facet_grid(rows=vars(motif)) +
    scale_fill_manual(name="partner supertype",values=supertype3Palette) + 
   theme_paper(axis.text.x = element_text(angle = 90, hjust=0.95,vjust=0.2)) +
   xlab("") + ylab("relative weight")
@@ -193,7 +201,7 @@ typesInMotif
 
 ```{r}
 ggsave('ExR-motifContributions.pdf', plot = typesInMotif, device='pdf', path = outputsFolder,
-    scale = 1,height=3.5,width=3, useDingbats=FALSE)
+    scale = 1,height=3.5,width=5, useDingbats=FALSE)
 ```
 
 ## Motifs plots (panels D through G)
@@ -251,3 +259,29 @@ plotMotifsCustom <- function(graphDf){
 
 ```
 
+For each ExR type participating in motifs, we collate the motifs using the `getMotifsGraphDf` function (defined in **Outputs/outputFunctions-display.R**): `getMotifsGraphDf` takes as input two connection tables (here one for the outside connections and one for the EB connections), a neuron of interest and a statistic and returns all the connections belonging to a motif in a graph object.
+```{r}
+supertypeMotifSummary <-  getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),allRecurrentEB,
+                                           "ExR2_R","Path_weight") %>% 
+  mutate(source = "ExR2_R")
+
+for(mytype in c("ExR3_R","ExR5_R","ExR6_R","ExR7_R")){
+   #c("ExR1_L","ExR2_R","ExR2_L","ExR3_R","ExR3_L","ExR4_R","ExR5_R","ExR5_L","ExR6_R","ExR7_R","ExR7_L")
+   myMotifGraph = getMotifsGraphDf(mutate(EB2EBaxDendMat,roi="Outside"),
+                                   allRecurrentEB,mytype,"Path_weight")  %>% 
+     mutate(source = mytype)
+   supertypeMotifSummary = bind_rows(supertypeMotifSummary, myMotifGraph)
+}
+head(supertypeMotifSummary)
+```
+
+We then sum all the weights of the connections involved in a given motif for a given ExR neuron, grouping:
+- by recipient type for the parallel connection motif
+- by source type for the canonical feedback motif
+- by source type for the linked targets motif
+```{r}
+supertypeMotifSummary <- group_by(supertypeMotifSummary,supertype3.to,source,motif,roi) %>%
+  summarize(weight=sum(weightRelative)) %>% ungroup()
+
+head(supertypeMotifSummary)
+```

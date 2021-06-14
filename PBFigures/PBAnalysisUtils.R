@@ -227,11 +227,11 @@ bumpAlign <- function(PBTpInputs_all, glomsToFit){
 }
 
 # Fit a cosine
-cosFit <- function(data){
+cosFit <- function(data, thetaGuess = 0){
   df = data.frame(angs = data$ang, weight = data$mean)
   fit <- nls(weight ~ (C1 * cos(angs-theta)+C2), data=df, algorithm="port",
              control = c(warnOnly = TRUE),
-             start = list(C1=1, theta=0, C2=0),
+             start = list(C1=1, theta=thetaGuess, C2=0),
              lower = list(C1=0, theta=-pi, C2=-1),
              upper = list(C1=2, theta=pi, C2=2))
   return(fit)

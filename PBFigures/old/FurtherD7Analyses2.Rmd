@@ -733,6 +733,7 @@ ggsave('PFOMeanPlts.pdf',PFOMeanPlts,
        width = 10, height = 4)
 ```
 
+
 ```{r, fig.width=4, fig.height=2}
 gloms <- c("R1","L8","R2","L7","R3","L6","R4","L5",
          "R5","L4","R6","L3","R7","L2","R8","L1")
@@ -818,5 +819,68 @@ EPGtIns <- ggplot(EPGCTIns) + geom_bar(aes(x=as.factor(nameOrder.from), y = ROIw
   theme_paper() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
 ggsave("EPGtInputs.pdf",EPGtIns)
+```
+
+```{r}
+# Make a bump with a von Mises profile
+k <- 2.5
+m <- pi
+rng <- c(0:15)*(pi/8) + pi/16
+actProf <- exp(k*cos(rng-m))/(2*pi*besselI(k,0))
+actProf <- (actProf - min(actProf))/(max(actProf)-min(actProf))
+```
+
+```{r, fig.width=4, fig.height=2}
+gloms <- c("R1","L8","R2","L7","R3","L6","R4","L5",
+         "R5","L4","R6","L3","R7","L2","R8","L1")
+angs <- seq(from = -pi, to = pi, length.out = length(gloms))
+
+actProfvM <- data.frame(act = actProf,glom = gloms, ang = angs)
+actProfvM$glom <- factor(actProfvM$glom, levels = gloms)
+g_EPGact_in_EB <- ggplot(actProfvM) + geom_bar(aes(x = ang, weight = act)) + 
+  theme_paper() + coord_cartesian(expand=FALSE)
+
+vMangs <- seq(from = -pi, to = pi, length.out = 64)
+vMvals <- exp(k*cos(vMangs))/(2*pi*besselI(k,0))
+vMvals <- (vMvals - min(vMvals))/(max(vMvals)-min(vMvals))
+vMPltDat <- data.frame(ang = vMangs, act = vMvals)
+g_EPGact_in_EB <- g_EPGact_in_EB + geom_line(data = vMPltDat, aes(x = ang, y = act))
+
+g_EPGact_in_EB
+```
+```{r}
+actProfvM$glom <- factor(actProfvM$glom, levels = PBGlomSort(gloms))
+actProfvM$RL <- actProfvM$glom %>% lapply(function(x) substring(x,1,1)) %>% unlist()
+actProfvM <- actProfvM[order(actProfvM$glom),]
+actProfvM$ang[1:8] <- actProfvM$ang[1:8] - pi
+actProfvM$ang[9:16] <- actProfvM$ang[9:16] + pi
+```
+
+```{r, fig.width=4, fig.height=2}
+g_EPGact_in_PB <- ggplot(actProfvM) + geom_bar(aes(x = ang, weight = act)) + 
+  theme_paper() + coord_cartesian(expand=FALSE) + xlab('PB glom') + ylab('normalized activity')
+
+vMangs <- seq(from = -2*pi, to = 0, length.out = 64)
+vMvals <- exp(k*cos(vMangs + pi))/(2*pi*besselI(k,0))
+vMvals <- (vMvals - min(vMvals))/(max(vMvals)-min(vMvals))
+vMPltDat <- data.frame(ang = vMangs, act = vMvals)
+g_EPGact_in_PB <- g_EPGact_in_PB + geom_line(data = vMPltDat, aes(x = ang, y = act))
+
+vMangs <- seq(from = 0, to = 2*pi, length.out = 64)
+vMvals <- exp(k*cos(vMangs + pi))/(2*pi*besselI(k,0))
+vMvals <- (vMvals - min(vMvals))/(max(vMvals)-min(vMvals))
+vMPltDat <- data.frame(ang = vMangs, act = vMvals)
+g_EPGact_in_PB <- g_EPGact_in_PB + geom_line(data = vMPltDat, aes(x = ang, y = act))
+
+g_EPGact_in_PB
+```
+```{r}
+design = "
+  4444
+  1223
+  "
+
+bumps <- plot_spacer() + g_EPGact_in_EB + plot_spacer() + g_EPGact_in_PB + plot_layout(design = design)
+ggsave('BumpMapping.pdf',bumps)
 ```
 

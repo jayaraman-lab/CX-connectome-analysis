@@ -5,6 +5,10 @@ output: html_notebook
 
 This notebook generates the network graphs used to guide the schematic of figure 74 (including the graph shown as figure supplement 1)
 ## Preparing the environment
+```{r}
+library(readr)
+```
+
 
 Loading local functions:
 ```{r message=FALSE}
@@ -52,6 +56,7 @@ customGraphPalette <- c(customGraphPalette,extraPal,"Source"="red")
 ```
 
 ## PFL neurons
+### PFL1
 Throughout this script, we'll use the the `plotSubgraph` function, which takes a contributing type and a graph as an input, together with the metadata tables about the strong targets, and reduces the graph to the strong target of the type of interest, with the contributing type in red. For example for PFL1 (figure supplement 1):
 ```{r}
 PFL1Graph <- plotSubgraph("PFL1_L*",
@@ -65,8 +70,50 @@ Save the figure supplement:
 ```{r}
 save_plot(file.path(outputsFolder,"outputs-Figure74-SI1.svg"),PFL1Graph,base_height = 7,base_width = 8.5)
 ```
+Extracting the graph and different nodes to be used in the SI video:
+```{r}
+PFL1Raw <- plotSubgraph_subgraph("PFL1_L*",
+                                 graph=CX_outGraphRed,
+                                 conns=mainFFConns,
+                                 targets=mainFFTargetsS) 
 
+contraWed <- PFL1Raw %N>% filter(type %in% c("LAL138_R",filter(.E(),type.from=="LAL138_R")$type.to)) %>% as_tibble()
 
+crissCross <- PFL1Raw %>% convert(to_local_neighborhood,which(.N()$type %in% c("LAL086_R","LAL087_R")),mode="out",order=4) %N>% as_tibble()
+
+ipsiWed <- PFL1Raw %N>% filter(!(type %in% c(contraWed$type,crissCross$type,"PFL1_L*"))) %>% as_tibble() 
+```
+
+Then finding bodyids (on the side of the brain with the most instances)
+```{r}
+PFL1_RNeurons <-  filter(CXNeurons,type=="PFL1_R*")
+PFL1_LNeurons <- filter(CXNeurons,type=="PFL1_L*")
+
+## Both for outputs of PFL1_R*
+contraWedNeurons <-  getTypesTable(contraWed$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% lrInvert(contraWed$type))
+
+crissCrossNeurons <- getTypesTable(crissCross$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% lrInvert(crissCross$type))
+
+## For PFL1_L*
+ipsiWedNeurons <- getTypesTable(ipsiWed$databaseType) %>%
+  cxRetyping() %>%
+  filter(type %in% ipsiWed$type)
+```
+
+```{r}
+write_csv(PFL1_RNeurons,"PFL1_R.csv")
+write_csv(PFL1_LNeurons,"PFL1_L.csv")
+
+write_csv(contraWedNeurons,"contraLateral_wedge.csv")
+write_csv(ipsiWedNeurons,"ipsi_wedgePLP.csv")
+write_csv(crissCrossNeurons,"interHemisphericMotifs.csv")
+```
+
+### PFL2
 We proceed to run the same for most CX output neurons:
 ```{r}
 PFL2Graph <- plotSubgraph(c("PFL2_L","PFL2_R"),
@@ -78,12 +125,75 @@ PFL2Graph
 ```
 
 ```{r}
+PFL2Raw <- plotSubgraph_subgraph(c("PFL2_L","PFL2_R"),
+                          graph=CX_outGraphRed,
+                          conns=mainFFConns,
+                          targets=mainFFTargetsS)
+
+PFL2TargetTypes <- PFL2Raw %N>% as_tibble() %>% filter(databaseType != "PFL2")
+PFL2TargetNeurons <- getTypesTable(PFL2TargetTypes$databaseType)
+PFL2TargetNeurons <- cxRetyping(PFL2TargetNeurons) %>% filter(type %in% PFL2TargetTypes$type) 
+
+PFL2s <- getTypesTable("PFL2")
+```
+
+```{r}
+write_csv(PFL2s,"PFL2Neurons.csv")
+write_csv(PFL2TargetNeurons,"PFL2Targets.csv")
+```
+
+
+### PFL3
+```{r}
 PFL3Graph <- plotSubgraph(c("PFL3_L*"),graph=CX_outGraphRed,influenceThreshold = 0.01,
                           conns=mainFFConns,
                           pal=customGraphPalette,
                           targets=mainFFTargetsS) + coord_cartesian(clip="off")
 PFL3Graph
 ```
+
+```{r}
+PFL3Raw <- plotSubgraph_subgraph(c("PFL3_L*"),
+                        graph=CX_outGraphRed,
+                        influenceThreshold = 0.01,
+                          conns=mainFFConns,
+                          targets=mainFFTargetsS)
+
+PFL3TargetTypes <- PFL3Raw %N>% as_tibble() %>% filter(databaseType != "PFL3")
+
+LC33IB <- PFL3Raw %N>% filter(type %in% c("LC33_R",filter(.E(),type.from=="LC33_R")$type.to)) %>% as_tibble() %>% filter(type != "LAL121_R" &
+                                                                                                                           type != "LAL010_R" &
+                                                                                                                           type != "LAL018_R" &
+                                                                                                                           supertype1 != "AOTU")
+
+DNLAL <- PFL3Raw %N>% filter(!(type %in% c(LC33IB$type,"PFL3_L*","LAL121_R")) & supertype1 != "AOTU") %>% as_tibble() 
+
+contraTypes <- c("LAL121_R","AOTU019_R","AOTU042_R")
+DNContra <- PFL3Raw %N>% filter(type %in% c(contraTypes,filter(.E(),type.from %in% contraTypes)$type.to) &
+                                !(type %in% c(LC33IB$type,"LAL075_R"))) %>% as_tibble()
+
+LC33IBNeurons <- getTypesTable(LC33IB$databaseType) %>% cxRetyping() %>%
+  filter(type %in% LC33IB$type,
+         type != "LC33_R" | bodyid %in% c(1260197431,5813022538,1418186940)) # Restricting to the connected LC33
+
+DNLALNeurons <- getTypesTable(DNLAL$databaseType) %>% cxRetyping() %>%
+  filter(type %in% DNLAL$type)
+
+DNContraNeurons <- getTypesTable(DNContra$databaseType) %>% cxRetyping() %>%
+  filter(type %in% lrInvert(DNContra$type))
+
+
+```
+
+```{r}
+write_csv(LC33IBNeurons,"LC33IBLAL.csv")
+write_csv(DNLALNeurons,"ipsiDNLALs.csv")
+write_csv(DNContraNeurons,"contraDNLAL.csv")
+
+write_csv(filter(CXNeurons,type=="PFL3_L*"),"PFL3_L.csv")
+write_csv(filter(CXNeurons,type=="PFL3_R*"),"PFL3_R.csv")
+```
+
 
 ## FS neurons
 
