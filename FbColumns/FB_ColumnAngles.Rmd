@@ -235,8 +235,8 @@ P1=ggplot() +
   geom_line(data=PhaseShift_TypeMean, aes(x=type.from, y=EPG_Angle_Diff_Mean, group=1), color="black") +
   xlab("Pre-synaptic PFN type") + ylab("PB-FB Phase shift (deg)") + theme(axis.text.x = element_text(angle = 90)) +
   scale_color_manual(values=FBPal) + scale_size_continuous(range = c(1,4))
-ggsave(paste(PlotDir, "PB_FB_PhaseShift_Type", ".png", sep=""),
-       plot = P1, device='png', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+ggsave(paste(PlotDir, "PB_FB_PhaseShift_Type", ".pdf", sep=""),
+       plot = P1, device='pdf', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 P1
 
 
@@ -245,12 +245,6 @@ P1
 
 # Plot hisogram of phase shifts to explore how the 90 degree shift arrises from peaks at 67.5 & 112.5 degrees
 ```{r}
-
-
-# Is phase shift consistent across columns?
-
-
-
 
 # Plot histogram of PB-FB phase shifts for all neurons postsynaptic to a PFN type to show that neurons 
 # receiving input from two glomeruli have phase shifts of either 67.5 or 112.5 degrees
@@ -262,8 +256,8 @@ Ps=ggplot(PFN_PhaseShiftData, aes(x=EPG_Angle_Diff, group = GlomNumFactor, color
    geom_freqpoly(binwidth = 2) + theme_classic() + xlab("PB-FB Phase Shift (deg)") +
    ylab("# of neurons") + xlim(0, 360)
 Ps
-ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer", ".png", sep=""),
-       plot = Ps, device='png', scale = 1, width = 4, height = 3, units ="in", dpi = 500, limitsize = TRUE)
+ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer", ".pdf", sep=""),
+       plot = Ps, device='pdf', scale = 1, width = 4, height = 3, units ="in", dpi = 500, limitsize = TRUE)
 
 PFNTypes=unique(PFN_PhaseShiftData$type.from)
 for (nnn in 1:length(PFNTypes)){
@@ -272,11 +266,10 @@ for (nnn in 1:length(PFNTypes)){
   Ps=ggplot(TempData, aes(x=EPG_Angle_Diff, group = GlomNumFactor, color=GlomNumFactor)) + 
     geom_freqpoly(binwidth = 2) + theme_classic() + xlab("PB-FB Phase Shift (deg)") +
     ylab("# of neurons") + xlim(0, 360) + ggtitle(PFNTypes[nnn])
-  ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer_", PFNTypes[nnn], ".png", sep=""),
-         plot = Ps, device='png', scale = 1, width = 5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
+  ggsave(paste(PlotDir, "PhaseShift_by_AngleNumer_", PFNTypes[nnn], ".pdf", sep=""),
+         plot = Ps, device='pdf', scale = 1, width = 5, height = 4, units ="in", dpi = 500, limitsize = TRUE)
   
 }
-
 
 
 ```
@@ -314,19 +307,59 @@ Position_Norm$Total_X=Position_Norm$Max_X-Position_Norm$Min_X
 Position_And_Tuning=left_join(Position_And_Tuning, Position_Norm, by=c("type.from","type.to","Layer"))
 Position_And_Tuning$X_Norm=(Position_And_Tuning$X - Position_And_Tuning$Min_X)/Position_And_Tuning$Total_X
 
-# Make presynaptic type a factor
-Position_And_Tuning$PresynapticClass =NA
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFGs")]="PFGs"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNa")]="PFNa"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNd")]="PFNd"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNm")]="PFNm (a/b)"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNv")]="PFNv"
-Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFR")]="PFR (a/b)"
+# Reverse X position so that 0 to 1 correspond to right to left (to agree with schematic's front view on the brain)
+Position_And_Tuning$X_Norm_Rev=(-1*Position_And_Tuning$X_Norm)+1
+
+# Make postsynaptic type a factor
+Position_And_Tuning$Colorz=NA
+Position_And_Tuning$Colorz[startsWith(as.character(Position_And_Tuning$type.to),"vDelta")]="vDelta"
+Position_And_Tuning$Colorz[startsWith(as.character(Position_And_Tuning$type.to),"hDelta")]="hDelta"
+Position_And_Tuning$Colorz[startsWith(as.character(Position_And_Tuning$type.to),"FR")]="FR"
+Position_And_Tuning$Colorz[startsWith(as.character(Position_And_Tuning$type.to),"FS")]="FS"
+Position_And_Tuning$Colorz[startsWith(as.character(Position_And_Tuning$type.to),"FC")]="FC"
+Position_And_Tuning$Colorz=factor(Position_And_Tuning$Colorz,levels=c("vDelta", "hDelta", "FR", "FS", "FC"))
 
 
-ScatterColors <- paletteer_d("Polychrome::palette36")
-ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
+# Some PB-FB types synapses onto just the axons of hDelta neurons, which gives then a different phase than you'd
+# expect baed on their medial-lateral position, so need to shift those by 180
+hDelta_Shift=data.frame(type.from=c("PFGs","PFNd","PFNd","PFNd"),
+                          type.to=  c("hDeltaK","hDeltaA","hDeltaH","hDeltaJ"))
+hDelta_PosAndTune=semi_join(Position_And_Tuning, hDelta_Shift, by=c("type.from","type.to"))
+hDelta_PosAndTune$EPG_Angle=(hDelta_PosAndTune$EPG_Angle+180) %% 360
+
+
+
+A=subset(Position_And_Tuning, startsWith(type.to,"FR"))
+
+# Note that FR neurons only have 4 points because, even though their connection with PFR_a is highly 
+# consistent, most of the FR neurons do not sample from the left and right PB (i.e. somewhat lateralized)
+
+
+Temp_Pos_And_Tune=subset(Position_And_Tuning, (startsWith(type.to, "F") | startsWith(type.to, "vDelta")) )
+Temp_Pos_And_Tune=rbind(Temp_Pos_And_Tune, hDelta_PosAndTune)
+
+Px=ggplot() + 
+  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm_Rev, y=EPG_Angle, color=Colorz, ), size=3, shape=21)  +
+  xlab("medial-lateral position (R to L)") + ylab("EPG phase (deg)") +  theme_classic() +
+  scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
+  scale_x_continuous(breaks=seq(from=0, to=1, by=0.25), limits=c(0, 1)) +
+  scale_color_manual(values=FBPal, drop=FALSE) +
+  theme(text = element_text(size=16), 
+        axis.text.x = element_text(color="black"),
+        axis.text.y = element_text(color="black"))
+Px
+ggsave(paste(PlotDir, "MeanPhase_All", ".pdf", sep=""),
+       plot = Px, device='pdf', scale = 1, width = 7, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+```
+
+
+
+
+# Old plots that still may be useful for a bit
+```{r}
+
 
 # Plot all data from all FX neurons
 Temp_Pos_And_Tune=subset(Position_And_Tuning, startsWith(type.to, "F"))
@@ -342,8 +375,15 @@ Px=ggplot() +
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black"))
 Px
-ggsave(paste(PlotDir, "FX_MeanPhase", ".png", sep=""),
-       plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+ggsave(paste(PlotDir, "FX_MeanPhase", ".pdf", sep=""),
+       plot = Px, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+
+
+
+
+
+
+
 
 
 Px=ggplot() + 
@@ -357,8 +397,8 @@ Px=ggplot() +
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black"))
 Px
-ggsave(paste(PlotDir, "FX_MeanPhaseNorm", ".png", sep=""),
-       plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+ggsave(paste(PlotDir, "FX_MeanPhaseNorm", ".pdf", sep=""),
+       plot = Px, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
@@ -376,19 +416,26 @@ Px=ggplot() +
         axis.text.x = element_text(color="black"),
         axis.text.y = element_text(color="black"))
 Px
-ggsave(paste(PlotDir, "FX_MeanPhaseShift_Norm", ".png", sep=""),
-       plot = Px, device='png', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
+ggsave(paste(PlotDir, "FX_MeanPhaseShift_Norm", ".pdf", sep=""),
+       plot = Px, device='pdf', scale = 1, width = 8, height = 5, units ="in", dpi = 500, limitsize = TRUE)
 
 
 
 
+# Make presynaptic type a factor
+Position_And_Tuning$PresynapticClass =NA
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFGs")]="PFGs"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNa")]="PFNa"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNd")]="PFNd"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNm")]="PFNm (a/b)"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNp")]="PFNp (a/b/c/d/e)"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFNv")]="PFNv"
+Position_And_Tuning$PresynapticClass [startsWith(as.character(Position_And_Tuning$type.from),"PFR")]="PFR (a/b)"
+
+ScatterColors <- paletteer_d("Polychrome::palette36")
+ScatterColors = ScatterColors[c(5,17,8,6,11,33,1)]
 
 ```
-
-
-
-
-
 
 
 
