@@ -5,8 +5,6 @@
 * Figure 5B
 * Figure 5 figure supplement 1 A and B
 
-**Inputs-Figure-DivConv.Rmd**: ???
-
 **AVP_connectivityGraphs-in-AOTU-and-BU.Rmd**: Create connectivity graphs in the AOTU (Figure 6) and BU (Figure 8)
 * Figure 6C
 * Figure 8B
