@@ -125,7 +125,7 @@ Get_SynLayerDistribution <- function(All_Neurons, Thresh, PlotDir){
         ######################################################################################################################   
         ############# Plot example data to make sure the synapse clouds are being measured accurately ########################
         
-          if ( mod(ttt*lll*nnn,50) ==0 ){
+          if ( ttt*lll*nnn %% 50) ==0 ){
             p1<-ggplot() +  geom_path(data=OUTLINE, aes(x=c1, y=c2), size = 1, color="red") +
               geom_point(data=NeuronData, aes(x=X,y=Y)) + 
               geom_path(data=MID, aes(x=X, y=Y), size = 1, color="orange") + 

@@ -25,21 +25,32 @@ library(nat)
 library(neuprintr)
 library(tidyverse)
 library(neuprintrExtra)
-library(gridExtra)
 library(alphahull)
 library(hexbin)
-library(matlib)
 library(dplyr)
 library(paletteer)
 require(RColorBrewer)
-library(cowplot)
 
 options(nat.plotengine = 'rgl')
 source(file.path("..","R","SynapsePCAUtils.R"))
 source(file.path("..","R","visualizeConnectivityTables.R"))
 source(file.path("..","R","paperTheme.R"))
 
-neuprint_login()
+```
+
+Define an "angle" function:
+```{r}
+len <-  function(X){
+  if (is.vector(X)) 
+        X <- matrix(X, ncol = 1)
+    sqrt(colSums(X^2))
+}
+
+angle <- function(x, y) {
+  theta <- acos(x %*% y / (len(x) * len(y)))
+  
+  theta/pi * 180
+}
 ```
 
 ### Saving plots
