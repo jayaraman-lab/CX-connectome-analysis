@@ -307,8 +307,6 @@ Position_Norm$Total_X=Position_Norm$Max_X-Position_Norm$Min_X
 Position_And_Tuning=left_join(Position_And_Tuning, Position_Norm, by=c("type.from","type.to","Layer"))
 Position_And_Tuning$X_Norm=(Position_And_Tuning$X - Position_And_Tuning$Min_X)/Position_And_Tuning$Total_X
 
-# Reverse X position so that 0 to 1 correspond to right to left (to agree with schematic's front view on the brain)
-Position_And_Tuning$X_Norm_Rev=(-1*Position_And_Tuning$X_Norm)+1
 
 # Make postsynaptic type a factor
 Position_And_Tuning$Colorz=NA
@@ -339,7 +337,7 @@ Temp_Pos_And_Tune=subset(Position_And_Tuning, (startsWith(type.to, "F") | starts
 Temp_Pos_And_Tune=rbind(Temp_Pos_And_Tune, hDelta_PosAndTune)
 
 Px=ggplot() + 
-  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm_Rev, y=EPG_Angle, color=Colorz, ), size=3, shape=21)  +
+  geom_point(data=Temp_Pos_And_Tune, aes(x=X_Norm, y=EPG_Angle, color=Colorz, ), size=3, shape=21)  +
   xlab("medial-lateral position (R to L)") + ylab("EPG phase (deg)") +  theme_classic() +
   scale_y_continuous(breaks=c(0, 45, 90, 135, 180, 225, 270, 315, 360), limits=c(0, 360)) +
   scale_x_continuous(breaks=seq(from=0, to=1, by=0.25), limits=c(0, 1)) +
