@@ -5,6 +5,7 @@ The code has been written by Hannah Haberkern, Brad Hulse, Dan Turner-Evans, Rom
 This code has not been peer reviewed.
 
 ## Prerequesites
+(coming soon)
 
 ## Organization of the folders
 The repository is organized by folders, each folder covering either a section of the paper (in most cases) or a type of analysis. Each folder contains an individual *Readme* file that describes the content of the notebooks.
