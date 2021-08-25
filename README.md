@@ -26,7 +26,7 @@ Then, from RStudio, open the project file in this folder (CX-connectome-analysis
 ```r
 renv::restore() 
 ```
-will then install all the packages used in the notebooks (it might take a while).
+will then install all the packages used in the notebooks with the correct versions (it might take a while).
 
 ## Organization of the folders
 The repository is organized by folders, each folder covering either a section of the paper (in most cases) or a type of analysis. Each folder contains an individual *Readme* file that describes the content of the notebooks.
