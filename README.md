@@ -8,7 +8,7 @@ This code has not been peer reviewed.
 You will need a recent (>4.0) installation of R. Depending on the situation, you could chose between two installation routes:
 ### Minimal, manual installation
 
-If you just plan to browse some of the notebooks and pick what you need, we recommend you simply install the **neuprintrExtra** package which was developed for this project:
+If you just plan to browse some of the notebooks and pick what you need, we recommend you simply install the [**neuprintrExtra**](https://github.com/jayaraman-lab/neuprintrExtra) package which was developed for this project:
  ```r
   # install
 if (!require("devtools")) install.packages("devtools")
@@ -20,7 +20,7 @@ library(neuprintrExtra)
    as this package and its dependencies are used by most notebooks. You will likely have to install required additional packages as you make your way through different notebooks. 
 
 ### Full, reproducible installation
-If you plan to run all notebooks, or prefer not to worry with manual installations, or you are going through this code years after its release, you can recreate the environment we used thanks to the **renv** package.
+If you plan to run all notebooks, or prefer not to worry with manual installations, or you are going through this code years after its release, you can recreate the environment we used thanks to the [**renv**](https://rstudio.github.io/renv/articles/renv.html) package.
 
 ## Organization of the folders
 The repository is organized by folders, each folder covering either a section of the paper (in most cases) or a type of analysis. Each folder contains an individual *Readme* file that describes the content of the notebooks.
