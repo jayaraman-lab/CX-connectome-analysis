@@ -28,6 +28,12 @@ renv::restore()
 ```
 will then install all the packages used in the notebooks with the correct versions (it might take a while).
 
+### Database access
+We access the database through neuprintr (**neuprintr: R client utilities for interacting with the neuPrint
+  connectome analysis service** .Alexander Bates, Gregory Jefferis and Romain Franconville (2020).
+   R package version 1.1.
+  https://github.com/natverse/neuprintr), its R API. You will need to create a login with a gmail address on the [neuprint website](https://neuprint.janelia.org/) then edit your .Renviron file to store your credentials (see the Authentication instructions at http://natverse.org/neuprintr/). Note that the figures in the paper were created on version 1.1 of the database. You might get slightly different results if using a more recent version.
+
 ## Organization of the folders
 The repository is organized by folders, each folder covering either a section of the paper (in most cases) or a type of analysis. Each folder contains an individual *Readme* file that describes the content of the notebooks.
 
