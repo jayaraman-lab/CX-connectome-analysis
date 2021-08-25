@@ -21,7 +21,8 @@ library(neuprintrExtra)
 
 ### Full, reproducible installation
 If you plan to run all notebooks, or prefer not to worry with manual installations, or you are going through this code years after its release, you can recreate the environment we used thanks to the [**renv**](https://rstudio.github.io/renv/articles/renv.html) package. You will have to install [RStudio](https://www.rstudio.com/products/rstudio/) and renv (```install.packages("renv")```).
-Then, from RStudio, open the project file in this folder (). The command:
+Then, from RStudio, open the project file in this folder (CX-connectome-analysis
+.Rproj). The command:
 ```r
 renv::restore() 
 ```
