@@ -20,7 +20,12 @@ library(neuprintrExtra)
    as this package and its dependencies are used by most notebooks. You will likely have to install required additional packages as you make your way through different notebooks. 
 
 ### Full, reproducible installation
-If you plan to run all notebooks, or prefer not to worry with manual installations, or you are going through this code years after its release, you can recreate the environment we used thanks to the [**renv**](https://rstudio.github.io/renv/articles/renv.html) package.
+If you plan to run all notebooks, or prefer not to worry with manual installations, or you are going through this code years after its release, you can recreate the environment we used thanks to the [**renv**](https://rstudio.github.io/renv/articles/renv.html) package. You will have to install [RStudio](https://www.rstudio.com/products/rstudio/) and renv (```install.packages("renv")```).
+Then, from RStudio, open the project file in this folder (). The command:
+```r
+renv::restore() 
+```
+will then install all the packages used in the notebooks (it might take a while).
 
 ## Organization of the folders
 The repository is organized by folders, each folder covering either a section of the paper (in most cases) or a type of analysis. Each folder contains an individual *Readme* file that describes the content of the notebooks.
