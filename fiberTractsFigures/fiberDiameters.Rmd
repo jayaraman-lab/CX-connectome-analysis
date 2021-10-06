@@ -21,7 +21,7 @@ source(file.path("..","R","paperTheme.R"))
 ## Measuring the diameter of the main neurite of all CX neurons ()
 We start by collating all CX neurons:
 ```{r}
-CXtypes <- supertype(read_csv(file.path("CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
+CXtypes <- supertype(read_csv(file.path("..","CX-cell-types060920.csv")) %>% rename(databaseType=n.type))
 CXNeurons <- getTypesTable(CXtypes$databaseType)
 CXNeurons <- cxRetyping(CXNeurons,postfix="raw") %>% filter(cropped==FALSE) %>% 
   supertype() %>% 
